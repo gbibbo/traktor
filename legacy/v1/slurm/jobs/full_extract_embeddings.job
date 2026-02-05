@@ -1,0 +1,49 @@
+#!/bin/bash
+#SBATCH --job-name=full_extract
+#SBATCH --partition=a100
+#SBATCH --nodelist=aisurrey26
+#SBATCH --gres=gpu:1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=32G
+#SBATCH --time=02:00:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
+
+# ============================================================================
+# TRAKTOR ML - Full Collection Embedding Extraction (242 tracks)
+# ============================================================================
+
+set -euo pipefail
+
+echo "[INFO] ========================================================================"
+echo "[INFO] TRAKTOR ML - Full Collection Embedding Extraction"
+echo "[INFO] START: $(date)"
+echo "[INFO] ========================================================================"
+
+# Environment setup
+export HOME="/mnt/fast/nobackup/users/gb0048"
+export PYTHONUSERBASE="$HOME/.local"
+REPO="/mnt/fast/nobackup/users/gb0048/traktor"
+
+# Set PYTHONPATH to find user packages and repo modules
+export PYTHONPATH="$PYTHONUSERBASE/lib/python3.11/site-packages:$REPO:${PYTHONPATH:-}"
+
+echo "[SETUP] Using system Python with user packages"
+which /usr/bin/python3.11
+/usr/bin/python3.11 --version
+
+echo ""
+echo "[RUN] Extracting embeddings from ALL tracks..."
+
+/usr/bin/python3.11 "$REPO/scripts/hpc/process/extract_embeddings.py" \
+    --audio-dir "$REPO/data/raw_audio/test_20" \
+    --model-dir "$REPO/models/essentia" \
+    --output-dir "$REPO/data/outputs/full_collection" \
+    --models effnet \
+    --n-tracks -1 \
+    --seed 42
+
+echo ""
+echo "[INFO] ========================================================================"
+echo "[INFO] END: $(date)"
+echo "[INFO] ========================================================================"

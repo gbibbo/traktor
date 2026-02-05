@@ -1,0 +1,43 @@
+#!/bin/bash
+#SBATCH --job-name=install_pandas2
+#SBATCH --partition=a100
+#SBATCH --nodelist=aisurrey26
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+#SBATCH --time=00:10:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
+
+# Try various approaches to install pandas
+
+export HOME="/mnt/fast/nobackup/users/gb0048"
+export PYTHONUSERBASE="$HOME/.local"
+export PIP_CACHE_DIR="$HOME/.cache/pip"
+
+mkdir -p "$PIP_CACHE_DIR"
+
+echo "=== Checking available methods ==="
+echo "Module system:"
+module avail 2>&1 | head -20 || echo "No module command"
+
+echo ""
+echo "pip3 location:"
+which pip3 || echo "pip3 not found"
+
+echo ""
+echo "Trying ensurepip..."
+/usr/bin/python3.11 -m ensurepip --user 2>&1 || echo "ensurepip failed"
+
+echo ""
+echo "Trying pip3 install..."
+pip3 install --user pandas 2>&1 || echo "pip3 failed"
+
+echo ""
+echo "Checking python3 locations:"
+ls -la /usr/bin/python3* 2>/dev/null
+
+echo ""
+echo "Checking for conda:"
+which conda || echo "conda not found"
+
+echo "Done checking"

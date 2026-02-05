@@ -1,0 +1,29 @@
+#!/bin/bash
+#SBATCH --job-name=regen_viz
+#SBATCH --partition=a100
+#SBATCH --nodelist=aisurrey26
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+#SBATCH --time=00:05:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
+
+# Regenerate visualization with double-click playback
+
+export HOME="/mnt/fast/nobackup/users/gb0048"
+export PYTHONUSERBASE="$HOME/.local"
+REPO="/mnt/fast/nobackup/users/gb0048/traktor"
+export PYTHONPATH="$PYTHONUSERBASE/lib/python3.11/site-packages:$REPO:${PYTHONPATH:-}"
+
+INPUT_DIR="$REPO/data/outputs/full_collection"
+OUTPUT_DIR="$REPO/results/full_collection"
+
+echo "[INFO] Regenerating visualization with playback support..."
+
+/usr/bin/python3.11 "$REPO/scripts/hpc/process/generate_visualization.py" \
+    --input-csv "$INPUT_DIR/results.csv" \
+    --output-html "$OUTPUT_DIR/cluster_visualization.html" \
+    --local-audio-dir "C:\\Música\\2020 new - copia" \
+    --include-plotlyjs inline
+
+echo "[INFO] Done!"

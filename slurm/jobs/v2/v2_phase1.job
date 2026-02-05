@@ -1,0 +1,100 @@
+#!/bin/bash
+#SBATCH --job-name=v2_phase1_extraction
+#SBATCH --partition=a100
+#SBATCH --nodelist=aisurrey26
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=06:00:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
+
+# =============================================================================
+# TRAKTOR ML V2 - Phase 1: Embedding Extraction
+# =============================================================================
+# Separates audio with Demucs and extracts embeddings with Essentia EffNet.
+# All processing is done in-memory (no intermediate WAV files).
+#
+# Expected runtime: ~5 hours for 245 tracks on A100
+# Output: data/embeddings/v2/drum_embeddings.npy, fulltrack_embeddings.npy
+#
+# Usage:
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/v2/v2_phase1.job
+# =============================================================================
+
+set -euo pipefail
+
+# 1. Project Configuration
+REPO="/mnt/fast/nobackup/users/gb0048/traktor"
+
+echo "[INFO] ========================================================================"
+echo "[INFO] TRAKTOR ML V2 - Phase 1: Embedding Extraction"
+echo "[INFO] START: $(date)"
+echo "[INFO] ========================================================================"
+
+cd "$REPO"
+
+# 2. Environment Setup
+export HF_HOME="$REPO/data/cache/huggingface"
+export PIP_CACHE_DIR="$REPO/data/cache/pip"
+export TMPDIR="$REPO/data/tmp"
+export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
+export PYTHONPATH="$REPO:${PYTHONPATH:-}"
+export PYTHONUSERBASE="/mnt/fast/nobackup/users/gb0048/.local"
+export PATH="/mnt/fast/nobackup/users/gb0048/.local/bin:$PATH"
+
+mkdir -p "$HF_HOME" "$PIP_CACHE_DIR" "$TMPDIR" "logs" "data/embeddings/v2"
+
+# 3. Python Setup (use Python 3.11 explicitly)
+PYTHON="/usr/bin/python3.11"
+echo "[SETUP] Python Environment:"
+$PYTHON --version
+
+# Install core dependencies
+$PYTHON -m pip install --user --quiet typing_extensions soundfile
+
+$PYTHON -c "import torch; print(f'PyTorch: {torch.__version__}, CUDA: {torch.cuda.is_available()}')"
+
+# 4. GPU Info
+echo "[INFO] GPU Info:"
+nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv
+
+# 5. Verify Demucs is installed
+echo "[SETUP] Checking Demucs..."
+$PYTHON -c "import demucs; print(f'Demucs version: {demucs.__version__}')" || {
+    echo "[SETUP] Installing Demucs..."
+    $PYTHON -m pip install --user demucs
+}
+
+# 6. Verify Essentia model exists
+EFFNET_MODEL="$REPO/models/essentia/discogs-effnet-bs64-1.pb"
+if [ ! -f "$EFFNET_MODEL" ]; then
+    echo "[ERROR] EffNet model not found: $EFFNET_MODEL"
+    echo "[HINT] Run download_models.py first"
+    exit 1
+fi
+
+# 7. Execute Phase 1
+echo "[RUN] Starting Phase 1 extraction..."
+$PYTHON scripts/hpc/process/v2/phase1_extraction.py \
+    --audio-dir data/raw_audio/test_20 \
+    --output-dir data/embeddings/v2 \
+    --effnet-model "$EFFNET_MODEL" \
+    --demucs-model htdemucs \
+    --device cuda \
+    --checkpoint
+
+EXIT_CODE=$?
+
+echo "[INFO] ========================================================================"
+if [ $EXIT_CODE -eq 0 ]; then
+    echo "[INFO] PHASE 1 COMPLETE - SUCCESS"
+    echo "[INFO] Output files:"
+    ls -la data/embeddings/v2/
+else
+    echo "[ERROR] PHASE 1 FAILED (Exit code: $EXIT_CODE)"
+fi
+echo "[INFO] END: $(date)"
+echo "[INFO] ========================================================================"
+
+exit $EXIT_CODE

@@ -1,0 +1,60 @@
+#!/bin/bash
+#SBATCH --job-name=full_cluster
+#SBATCH --partition=a100
+#SBATCH --nodelist=aisurrey26
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+#SBATCH --time=00:30:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
+
+# ============================================================================
+# TRAKTOR ML - Full Collection Clustering & Visualization
+# ============================================================================
+
+set -euo pipefail
+
+echo "[INFO] ========================================================================"
+echo "[INFO] TRAKTOR ML - Full Collection Clustering & Visualization"
+echo "[INFO] START: $(date)"
+echo "[INFO] ========================================================================"
+
+# Environment setup
+export HOME="/mnt/fast/nobackup/users/gb0048"
+export PYTHONUSERBASE="$HOME/.local"
+REPO="/mnt/fast/nobackup/users/gb0048/traktor"
+
+# Set PYTHONPATH
+export PYTHONPATH="$PYTHONUSERBASE/lib/python3.11/site-packages:$REPO:${PYTHONPATH:-}"
+
+echo "[SETUP] Using system Python with user packages"
+which /usr/bin/python3.11
+/usr/bin/python3.11 --version
+
+INPUT_DIR="$REPO/data/outputs/full_collection"
+OUTPUT_DIR="$REPO/results/full_collection"
+
+mkdir -p "$OUTPUT_DIR"
+
+echo ""
+echo "[RUN] Running UMAP + HDBSCAN clustering..."
+/usr/bin/python3.11 "$REPO/scripts/hpc/process/reduce_and_cluster.py" \
+    --embeddings-dir "$INPUT_DIR" \
+    --output-dir "$INPUT_DIR"
+
+echo ""
+echo "[RUN] Generating interactive visualization..."
+/usr/bin/python3.11 "$REPO/scripts/hpc/process/generate_visualization.py" \
+    --input-csv "$INPUT_DIR/results.csv" \
+    --output-html "$INPUT_DIR/cluster_visualization.html"
+
+echo ""
+echo "[COPY] Copying final artifacts to results/full_collection..."
+cp "$INPUT_DIR/results.csv" "$OUTPUT_DIR/"
+cp "$INPUT_DIR/cluster_visualization.html" "$OUTPUT_DIR/"
+
+echo ""
+echo "[INFO] ========================================================================"
+echo "[INFO] END: $(date)"
+echo "[INFO] Results saved to: $OUTPUT_DIR"
+echo "[INFO] ========================================================================"

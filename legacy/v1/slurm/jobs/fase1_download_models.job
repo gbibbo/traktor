@@ -1,0 +1,59 @@
+#!/bin/bash
+#SBATCH --job-name=fase1_download
+#SBATCH --partition=debug
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=4G
+#SBATCH --time=01:00:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
+
+# =============================================================================
+# TRAKTOR ML - Phase 1: Download Essentia Models (CPU Job)
+# =============================================================================
+# Downloads discogs-effnet-bs64 and discogs-maest-30s-pw models from Essentia.
+#
+# Usage:
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/fase1_download_models.job
+# =============================================================================
+
+set -euo pipefail
+
+REPO="/mnt/fast/nobackup/users/gb0048/traktor"
+
+echo "[INFO] ========================================================================"
+echo "[INFO] TRAKTOR ML - Model Download Job"
+echo "[INFO] START: $(date)"
+echo "[INFO] ========================================================================"
+
+cd "$REPO"
+
+# Ensure directories exist
+mkdir -p "$REPO/models/essentia" "$REPO/logs"
+
+# Use system Python (download script only needs stdlib)
+echo "[SETUP] Using system Python"
+which python3
+python3 --version
+
+# Set PYTHONPATH
+export PYTHONPATH="$REPO:${PYTHONPATH:-}"
+
+# Run download script
+echo "[RUN] Downloading Essentia models..."
+python3 scripts/hpc/process/download_essentia_models.py \
+    --output-dir "$REPO/models/essentia"
+
+EXIT_CODE=$?
+
+echo "[INFO] ========================================================================"
+if [ $EXIT_CODE -eq 0 ]; then
+    echo "[INFO] Model download COMPLETE"
+    echo "[INFO] Files:"
+    ls -lh "$REPO/models/essentia/"
+else
+    echo "[ERROR] Model download FAILED (Exit code: $EXIT_CODE)"
+fi
+echo "[INFO] END: $(date)"
+echo "[INFO] ========================================================================"
+
+exit $EXIT_CODE

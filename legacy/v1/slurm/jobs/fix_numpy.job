@@ -1,0 +1,34 @@
+#!/bin/bash
+#SBATCH --job-name=fix_numpy
+#SBATCH --partition=a100
+#SBATCH --nodelist=aisurrey26
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+#SBATCH --time=00:15:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
+
+# Fix NumPy version for numba compatibility
+
+export HOME="/mnt/fast/nobackup/users/gb0048"
+export PYTHONUSERBASE="$HOME/.local"
+export PATH="$PYTHONUSERBASE/bin:$PATH"
+export PIP_CACHE_DIR="$HOME/.cache/pip"
+
+mkdir -p "$PIP_CACHE_DIR"
+
+echo "=== Current NumPy version ==="
+/usr/bin/python3.11 -c "import numpy; print(f'numpy {numpy.__version__}')"
+
+echo ""
+echo "=== Downgrading NumPy to 2.3.x ==="
+/usr/bin/python3.11 -m pip install --user "numpy>=2.0,<2.4"
+
+echo ""
+echo "=== Verifying ==="
+/usr/bin/python3.11 -c "import numpy; print(f'numpy {numpy.__version__}')"
+/usr/bin/python3.11 -c "import numba; print(f'numba {numba.__version__}')"
+/usr/bin/python3.11 -c "import umap; print('umap imported successfully')"
+/usr/bin/python3.11 -c "import pandas; print(f'pandas {pandas.__version__}')"
+
+echo "Done!"

@@ -1,0 +1,113 @@
+#!/bin/bash
+#SBATCH --job-name=v2_smoke_test
+#SBATCH --partition=a100
+#SBATCH --nodelist=aisurrey26
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+#SBATCH --time=01:00:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
+
+# =============================================================================
+# TRAKTOR ML V2 - Smoke Test
+# =============================================================================
+# Quick integration test for Demucs + Essentia pipeline.
+# Auto-detects Python 3.11 installation.
+#
+# Usage:
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/v2/v2_smoke_test.job
+# =============================================================================
+
+set -euo pipefail
+
+REPO="/mnt/fast/nobackup/users/gb0048/traktor"
+
+echo "[INFO] ========================================================================"
+echo "[INFO] TRAKTOR ML V2 - SMOKE TEST"
+echo "[INFO] START: $(date)"
+echo "[INFO] Node: $(hostname)"
+echo "[INFO] ========================================================================"
+
+cd "$REPO"
+
+# Environment Setup
+export HF_HOME="$REPO/data/cache/huggingface"
+export PIP_CACHE_DIR="$REPO/data/cache/pip"
+export TMPDIR="$REPO/data/tmp"
+export PYTHONPATH="$REPO:${PYTHONPATH:-}"
+export PYTHONUSERBASE="/mnt/fast/nobackup/users/gb0048/.local"
+export PATH="/mnt/fast/nobackup/users/gb0048/.local/bin:$PATH"
+
+mkdir -p "$HF_HOME" "$PIP_CACHE_DIR" "$TMPDIR" "logs"
+
+# Diagnostic: show available Python versions
+echo "[DIAG] Available Python installations:"
+ls -la /usr/bin/python* 2>/dev/null || true
+which python3 python3.11 2>/dev/null || true
+
+# Find Python 3.11
+PYTHON=""
+for candidate in /usr/bin/python3.11 /usr/local/bin/python3.11 python3.11; do
+    if command -v "$candidate" &>/dev/null; then
+        PYTHON="$candidate"
+        break
+    fi
+done
+
+# Fallback: try python3 and check version
+if [ -z "$PYTHON" ]; then
+    PY_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "")
+    if [[ "$PY_VERSION" == "3.11" || "$PY_VERSION" == "3.10" || "$PY_VERSION" == "3.9" ]]; then
+        PYTHON="python3"
+    fi
+fi
+
+if [ -z "$PYTHON" ]; then
+    echo "[ERROR] Could not find Python 3.9+ installation"
+    echo "[DIAG] python3 version: $(python3 --version 2>&1)"
+    exit 1
+fi
+
+echo "[SETUP] Using Python: $PYTHON"
+$PYTHON --version
+
+# Install missing dependencies
+echo "[SETUP] Installing/checking core dependencies..."
+$PYTHON -m pip install --user --quiet typing_extensions soundfile
+
+# Check for PyTorch
+echo "[SETUP] Checking PyTorch..."
+$PYTHON -c "import torch; print(f'PyTorch: {torch.__version__}, CUDA: {torch.cuda.is_available()}')" || {
+    echo "[ERROR] PyTorch not found. Please install it first."
+    exit 1
+}
+
+# GPU Info
+echo "[INFO] GPU Info:"
+nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv || true
+
+# Ensure Demucs is installed
+echo "[SETUP] Checking Demucs..."
+$PYTHON -c "import demucs; print(f'Demucs: {demucs.__version__}')" 2>/dev/null || {
+    echo "[SETUP] Installing Demucs..."
+    $PYTHON -m pip install --user demucs
+    echo "[SETUP] Demucs installed"
+}
+
+# Run smoke test
+echo "[RUN] Executing smoke test..."
+$PYTHON tests/smoke_test_v2.py --device cuda --max-duration 30
+
+EXIT_CODE=$?
+
+echo "[INFO] ========================================================================"
+if [ $EXIT_CODE -eq 0 ]; then
+    echo "[INFO] SMOKE TEST PASSED"
+else
+    echo "[ERROR] SMOKE TEST FAILED (Exit code: $EXIT_CODE)"
+fi
+echo "[INFO] END: $(date)"
+echo "[INFO] ========================================================================"
+
+exit $EXIT_CODE

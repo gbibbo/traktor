@@ -1,0 +1,25 @@
+#!/bin/bash
+#SBATCH --job-name=install_pandas
+#SBATCH --partition=a100
+#SBATCH --nodelist=aisurrey26
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+#SBATCH --time=00:10:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
+
+# Quick job to install pandas in user site-packages
+
+export HOME="/mnt/fast/nobackup/users/gb0048"
+export PYTHONUSERBASE="$HOME/.local"
+export PIP_CACHE_DIR="$HOME/.cache/pip"
+
+mkdir -p "$PIP_CACHE_DIR"
+
+echo "Installing pandas..."
+/usr/bin/python3.11 -m pip install --user pandas
+
+echo "Verifying installation..."
+/usr/bin/python3.11 -c "import pandas; print(f'pandas {pandas.__version__} installed successfully')"
+
+echo "Done!"

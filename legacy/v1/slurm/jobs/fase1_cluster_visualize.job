@@ -1,0 +1,100 @@
+#!/bin/bash
+#SBATCH --job-name=fase1_cluster
+#SBATCH --partition=a100
+#SBATCH --nodelist=aisurrey26
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=16G
+#SBATCH --time=01:00:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
+
+# =============================================================================
+# TRAKTOR ML - Phase 1: Clustering & Visualization (CPU Job)
+# =============================================================================
+# Applies UMAP + HDBSCAN to embeddings and generates interactive HTML plot.
+#
+# Prerequisites:
+#   - Embeddings extracted via fase1_extract_embeddings.job
+#
+# Usage:
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/fase1_cluster_visualize.job
+# =============================================================================
+
+set -euo pipefail
+
+REPO="/mnt/fast/nobackup/users/gb0048/traktor"
+REPO_PARENT="/mnt/fast/nobackup/users/gb0048"
+OUTPUT_DIR="$REPO/data/outputs/fase1_validation"
+
+echo "[INFO] ========================================================================"
+echo "[INFO] TRAKTOR ML - Clustering & Visualization Job (CPU)"
+echo "[INFO] START: $(date)"
+echo "[INFO] ========================================================================"
+
+cd "$REPO"
+mkdir -p "$REPO/logs" "$REPO/results/fase1_validation"
+
+# Use system Python with user packages
+export HOME="$REPO_PARENT"
+export PYTHONUSERBASE="$REPO_PARENT/.local"
+export PATH="$PYTHONUSERBASE/bin:$PATH"
+export PYTHONPATH="$PYTHONUSERBASE/lib/python3.11/site-packages:$REPO:${PYTHONPATH:-}"
+
+echo "[SETUP] Using system Python with user packages"
+which /usr/bin/python3.11
+/usr/bin/python3.11 --version
+
+# Verify embeddings exist
+if [ ! -f "$OUTPUT_DIR/embeddings_effnet.npy" ]; then
+    echo "[ERROR] Embeddings not found! Run fase1_extract_embeddings.job first."
+    exit 1
+fi
+
+# Step 1: UMAP + HDBSCAN
+echo "[RUN] Running UMAP + HDBSCAN clustering..."
+/usr/bin/python3.11 scripts/hpc/process/reduce_and_cluster.py \
+    --embeddings-dir "$OUTPUT_DIR" \
+    --output-dir "$OUTPUT_DIR" \
+    --n-neighbors 15 \
+    --min-dist 0.1 \
+    --min-cluster-size 3 \
+    --min-samples 2
+
+# Check clustering succeeded
+if [ ! -f "$OUTPUT_DIR/results.csv" ]; then
+    echo "[ERROR] Clustering failed - results.csv not created"
+    exit 1
+fi
+
+# Step 2: Generate visualization
+echo "[RUN] Generating interactive visualization..."
+/usr/bin/python3.11 scripts/hpc/process/generate_visualization.py \
+    --input-csv "$OUTPUT_DIR/results.csv" \
+    --output-html "$OUTPUT_DIR/cluster_visualization.html" \
+    --title "Phase 1: TRAKTOR-ML Embedding Clusters (20 tracks)"
+
+# Step 3: Copy final results to results/ directory
+echo "[INFO] Copying final artifacts to results/fase1_validation/..."
+cp "$OUTPUT_DIR/results.csv" "$REPO/results/fase1_validation/"
+cp "$OUTPUT_DIR/cluster_visualization.html" "$REPO/results/fase1_validation/"
+
+EXIT_CODE=$?
+
+echo "[INFO] ========================================================================"
+if [ $EXIT_CODE -eq 0 ]; then
+    echo "[INFO] Clustering & Visualization COMPLETE"
+    echo ""
+    echo "[INFO] Final outputs:"
+    ls -lh "$OUTPUT_DIR/results.csv"
+    ls -lh "$OUTPUT_DIR/cluster_visualization.html"
+    echo ""
+    echo "[INFO] Results also copied to:"
+    ls -lh "$REPO/results/fase1_validation/"
+else
+    echo "[ERROR] Job FAILED (Exit code: $EXIT_CODE)"
+fi
+echo "[INFO] END: $(date)"
+echo "[INFO] ========================================================================"
+
+exit $EXIT_CODE

@@ -1,0 +1,32 @@
+#!/bin/bash
+#SBATCH --job-name=install_pandas3
+#SBATCH --partition=a100
+#SBATCH --nodelist=aisurrey26
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+#SBATCH --time=00:15:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
+
+# Install pandas for Python 3.11 using the correct pip
+
+export HOME="/mnt/fast/nobackup/users/gb0048"
+export PYTHONUSERBASE="$HOME/.local"
+export PATH="$PYTHONUSERBASE/bin:$PATH"
+export PIP_CACHE_DIR="$HOME/.cache/pip"
+
+mkdir -p "$PIP_CACHE_DIR"
+
+echo "=== Using Python 3.11 pip ==="
+/usr/bin/python3.11 -m pip --version
+
+echo ""
+echo "=== Installing pandas for Python 3.11 ==="
+/usr/bin/python3.11 -m pip install --user pandas
+
+echo ""
+echo "=== Verifying installation ==="
+/usr/bin/python3.11 -c "import pandas; print(f'pandas {pandas.__version__} installed for Python 3.11')"
+
+echo ""
+echo "Done!"

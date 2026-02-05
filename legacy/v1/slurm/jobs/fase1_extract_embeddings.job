@@ -1,0 +1,95 @@
+#!/bin/bash
+#SBATCH --job-name=fase1_embed
+#SBATCH --partition=a100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=04:00:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
+
+# =============================================================================
+# TRAKTOR ML - Phase 1: Extract Audio Embeddings (GPU Job)
+# =============================================================================
+# Extracts embeddings from 20 random tracks using EffNet and MAEST models.
+#
+# Prerequisites:
+#   - Models downloaded via fase1_download_models.job
+#
+# Usage:
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/fase1_extract_embeddings.job
+# =============================================================================
+
+set -euo pipefail
+
+REPO="/mnt/fast/nobackup/users/gb0048/traktor"
+REPO_PARENT="/mnt/fast/nobackup/users/gb0048"
+
+echo "[INFO] ========================================================================"
+echo "[INFO] TRAKTOR ML - Embedding Extraction Job (GPU)"
+echo "[INFO] START: $(date)"
+echo "[INFO] ========================================================================"
+echo "[INFO] Repo: $REPO"
+
+# GPU Info
+echo "[INFO] GPU Info:"
+nvidia-smi --query-gpu=name,memory.total --format=csv || echo "No GPU detected"
+
+cd "$REPO"
+
+# Environment setup
+export HOME="$REPO_PARENT"
+export HF_HOME="$REPO_PARENT/.cache/huggingface"
+export TRANSFORMERS_CACHE="$HF_HOME/transformers"
+export HF_HUB_CACHE="$HF_HOME/hub"
+export PIP_CACHE_DIR="$REPO_PARENT/.cache/pip"
+export TMPDIR="$REPO_PARENT/tmp"
+export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
+
+# User site-packages - add to PYTHONPATH
+export PYTHONUSERBASE="$REPO_PARENT/.local"
+export PATH="$PYTHONUSERBASE/bin:$PATH"
+export PYTHONPATH="$REPO:$PYTHONUSERBASE/lib/python3.11/site-packages:${PYTHONPATH:-}"
+
+mkdir -p "$HF_HOME" "$TRANSFORMERS_CACHE" "$HF_HUB_CACHE" "$PIP_CACHE_DIR" "$TMPDIR"
+mkdir -p "$REPO/logs" "$REPO/data/outputs/fase1_validation"
+
+# Use system Python 3.11 with user packages
+echo "[SETUP] Using Python 3.11 with user packages"
+/usr/bin/python3.11 --version
+echo "[SETUP] PYTHONPATH: $PYTHONPATH"
+
+# Verify essentia
+echo "[SETUP] Verifying essentia..."
+/usr/bin/python3.11 -c "import essentia; print(f'Essentia: {essentia.__version__}')" || echo "[WARN] Essentia import failed"
+
+# Verify models exist
+if [ ! -f "$REPO/models/essentia/discogs-effnet-bs64-1.pb" ]; then
+    echo "[ERROR] EffNet model not found! Run fase1_download_models.job first."
+    exit 1
+fi
+
+# Run extraction
+echo "[RUN] Extracting embeddings from 20 random tracks..."
+/usr/bin/python3.11 scripts/hpc/process/extract_embeddings.py \
+    --audio-dir "$REPO/data/raw_audio/test_20" \
+    --model-dir "$REPO/models/essentia" \
+    --output-dir "$REPO/data/outputs/fase1_validation" \
+    --models effnet \
+    --n-tracks 20 \
+    --seed 42
+
+EXIT_CODE=$?
+
+echo "[INFO] ========================================================================"
+if [ $EXIT_CODE -eq 0 ]; then
+    echo "[INFO] Embedding extraction COMPLETE"
+    echo "[INFO] Output files:"
+    ls -lh "$REPO/data/outputs/fase1_validation/"
+else
+    echo "[ERROR] Embedding extraction FAILED (Exit code: $EXIT_CODE)"
+fi
+echo "[INFO] END: $(date)"
+echo "[INFO] ========================================================================"
+
+exit $EXIT_CODE

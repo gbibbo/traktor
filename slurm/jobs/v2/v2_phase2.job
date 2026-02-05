@@ -1,0 +1,100 @@
+#!/bin/bash
+#SBATCH --job-name=v2_phase2_analysis
+#SBATCH --partition=a100
+#SBATCH --nodelist=aisurrey26
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=16G
+#SBATCH --time=02:00:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
+
+# =============================================================================
+# TRAKTOR ML V2 - Phase 2: Analysis & Classification
+# =============================================================================
+# Performs two-level clustering, genre classification, and report generation.
+#
+# Expected runtime: ~1 hour for 245 tracks on CPU
+# Output: results/v2_hierarchy/*.csv, visualization.html
+#
+# Prerequisites: Phase 1 must be completed (embeddings exist)
+#
+# Usage:
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/v2/v2_phase2.job
+# =============================================================================
+
+set -euo pipefail
+
+# 1. Project Configuration
+REPO="/mnt/fast/nobackup/users/gb0048/traktor"
+
+echo "[INFO] ========================================================================"
+echo "[INFO] TRAKTOR ML V2 - Phase 2: Analysis & Classification"
+echo "[INFO] START: $(date)"
+echo "[INFO] ========================================================================"
+
+cd "$REPO"
+
+# 2. Environment Setup
+export PYTHONPATH="$REPO:${PYTHONPATH:-}"
+export PYTHONUSERBASE="/mnt/fast/nobackup/users/gb0048/.local"
+export PATH="/mnt/fast/nobackup/users/gb0048/.local/bin:$PATH"
+
+mkdir -p "logs" "results/v2_hierarchy"
+
+# 3. Python Setup (use Python 3.11 explicitly)
+PYTHON="/usr/bin/python3.11"
+echo "[SETUP] Python Environment:"
+$PYTHON --version
+
+# Install dependencies if needed
+$PYTHON -m pip install --user --quiet tqdm pandas plotly umap-learn scikit-learn
+
+# 4. Verify embeddings exist
+EMBEDDINGS_DIR="$REPO/data/embeddings/v2"
+if [ ! -f "$EMBEDDINGS_DIR/manifest_v2.json" ]; then
+    echo "[ERROR] Embeddings not found. Run Phase 1 first."
+    echo "[HINT] ./slurm/tools/on_submit.sh sbatch slurm/jobs/v2/v2_phase1.job"
+    exit 1
+fi
+echo "[INFO] Embeddings found:"
+ls -la "$EMBEDDINGS_DIR"
+
+# 5. Check for genre model (optional)
+GENRE_MODEL="$REPO/models/essentia/genre_discogs400-discogs-effnet-1.pb"
+SKIP_GENRES=""
+if [ ! -f "$GENRE_MODEL" ]; then
+    echo "[WARN] Genre model not found: $GENRE_MODEL"
+    echo "[INFO] Will skip genre classification. Run download_models.py to enable."
+    SKIP_GENRES="--skip-genres"
+fi
+
+# 6. Execute Phase 2
+echo "[RUN] Starting Phase 2 analysis..."
+$PYTHON scripts/hpc/process/v2/phase2_analysis.py \
+    --embeddings-dir "$EMBEDDINGS_DIR" \
+    --audio-dir data/raw_audio/test_20 \
+    --output-dir results/v2_hierarchy \
+    --effnet-model models/essentia/discogs-effnet-bs64-1.pb \
+    --genre-model "$GENRE_MODEL" \
+    --min-cluster-size 5 \
+    --min-subcluster-size 3 \
+    --local-audio-dir "C:\\Música\\2020 new - copia" \
+    $SKIP_GENRES
+
+EXIT_CODE=$?
+
+echo "[INFO] ========================================================================"
+if [ $EXIT_CODE -eq 0 ]; then
+    echo "[INFO] PHASE 2 COMPLETE - SUCCESS"
+    echo "[INFO] Output files:"
+    ls -la results/v2_hierarchy/
+    echo ""
+    echo "[INFO] Final organization preview:"
+    head -20 results/v2_hierarchy/final_organization.csv 2>/dev/null || echo "(file not found)"
+else
+    echo "[ERROR] PHASE 2 FAILED (Exit code: $EXIT_CODE)"
+fi
+echo "[INFO] END: $(date)"
+echo "[INFO] ========================================================================"
+
+exit $EXIT_CODE
