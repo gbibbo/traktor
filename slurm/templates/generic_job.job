@@ -63,13 +63,15 @@ export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 mkdir -p "$HF_HOME" "$TRANSFORMERS_CACHE" "$HF_HUB_CACHE" "$PIP_CACHE_DIR" "$TMPDIR" "logs" "results"
 
 # 4. Conda Activation
-# We use 'source' to activate because 'conda activate' often fails in non-interactive shells
+# NOTE: On compute nodes $HOME may differ from login node, so we source
+# conda.sh directly from the known miniconda3 install path.
+CONDA_BASE="/mnt/fast/nobackup/users/gb0048/miniconda3"
 echo "[SETUP] Activating Conda environment: $CONDA_ENV_NAME"
-source ~/.bashrc  # Adjust if your conda init is in .bash_profile
-if command -v conda >/dev/null 2>&1; then
+if [ -f "$CONDA_BASE/etc/profile.d/conda.sh" ]; then
+    . "$CONDA_BASE/etc/profile.d/conda.sh"
     conda activate "$CONDA_ENV_NAME"
 else
-    echo "[WARN] Conda command not found, trying module load..."
+    echo "[WARN] Conda not found at $CONDA_BASE, trying module load..."
     module load anaconda/3 2>/dev/null || module load miniconda/3 2>/dev/null
     source activate "$CONDA_ENV_NAME"
 fi

@@ -1,0 +1,10 @@
+transformers
+torchaudio
+scikit-learn
+hdbscan
+streamlit
+pandas
+pyarrow
+fastparquet
+soundfile
+tqdm

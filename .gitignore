@@ -28,11 +28,16 @@ env/
 *.h5
 *.pkl
 *.joblib
+*.pb
+*.npy
+*.parquet
 
 # Heavy directories
 data/
 models/
 logs/
+artifacts/
+.conda_envs/
 
 # IDE
 .vscode/
