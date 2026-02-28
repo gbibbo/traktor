@@ -5,6 +5,8 @@ Parte B: Smoke test GPU (vía Slurm, requiere intervención humana).
 
 Ejecutar desde repo root: python tests/v4/test_block2_pipeline.py
 """
+import ast
+import importlib.util
 import json
 import subprocess
 import sys

@@ -25,7 +25,7 @@ Formato: - [x] Tarea X.Y — Descripción | Completado: YYYY-MM-DD
 - [x] 2.2 phase1_extract.py                                        | Completado: 2026-02-28
 - [x] 2.3 phase1_merge_shards.py                                   | Completado: 2026-02-28
 - [x] 2.4 Slurm jobs V4 (todos)                                    | Completado: 2026-02-28
-- [ ] TEST-2 Verificación de bloque 2 (Phase 0 run + validaciones) | Completado: ____
+- [x] TEST-2 Verificación de bloque 2 (Phase 0 run + validaciones) | Completado: 2026-02-28
 
 ## >>> PAUSA HUMANA: ejecutar Phase 0, submit Phase 1 GPU, revisar embeddings <<<
 

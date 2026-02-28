@@ -29,7 +29,7 @@ datasets:
     audio_root: null          # null => REPO_ROOT/data/raw_audio/test_20/
     metadata_csv: null
     manifest_csv: null
-    expected_n: 242           # Número de tracks válidos esperados (1 archivo malo conocido)
+    expected_n: 243           # Total de archivos MP3 en el directorio (Phase 1 fallará ~1 bad file)
 
 clustering:
   l1_min_cluster_size: 10

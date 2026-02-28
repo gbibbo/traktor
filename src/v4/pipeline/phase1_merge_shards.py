@@ -142,7 +142,11 @@ def main() -> int:
 
     # Generar run_manifest.json
     elapsed = time.time() - t0
-    import torch
+    try:
+        import torch as _torch
+        torch_ver = _torch.__version__
+    except ImportError:
+        torch_ver = "not_installed"
     manifest = {
         "dataset_name": args.dataset_name,
         "n_tracks_merged": len(all_uids),
