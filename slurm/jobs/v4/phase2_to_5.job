@@ -1,0 +1,58 @@
+#!/bin/bash
+#SBATCH --job-name=v4_phases2to5
+#SBATCH --partition=debug
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=8G
+#SBATCH --time=01:00:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
+
+# =============================================================================
+# TRAKTOR ML V4 — Phases 2-5: Clustering, Naming, Ordering, Export (CPU)
+#
+# Usage:
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/v4/phase2_to_5.job <dataset-name>
+# =============================================================================
+
+set -euo pipefail
+
+REPO="/mnt/fast/nobackup/users/gb0048/traktor"
+PY="/usr/bin/python3.11"
+
+if [ "$#" -ne 1 ]; then
+    echo "[ERROR] Missing dataset name."
+    exit 1
+fi
+DATASET_NAME="$1"
+
+echo "[INFO] Phases 2-5 | Dataset: $DATASET_NAME | $(date)"
+cd "$REPO"
+mkdir -p logs
+
+SCR="/mnt/fast/nobackup/scratch4weeks/$USER"
+mkdir -p "$SCR"/{python_userbase,tmp,cache/pip}
+export PYTHONUSERBASE="$SCR/python_userbase"
+export PATH="$SCR/python_userbase/bin:$PATH"
+export PIP_CACHE_DIR="$SCR/cache/pip"
+OLD_USER_SITE="/mnt/fast/nobackup/users/$USER/.local/lib/python3.11/site-packages"
+export PYTHONPATH="${OLD_USER_SITE}:${PYTHONPATH:-}"
+export TMPDIR="$SCR/tmp"
+
+$PY -m ensurepip --user 2>/dev/null || true
+$PY -m pip install --user --quiet pyarrow pandas scikit-learn hdbscan umap-learn
+
+export PYTHONPATH="$REPO:${PYTHONPATH:-}"
+
+echo "[RUN] Phase 2: Clustering..."
+$PY "$REPO/src/v4/pipeline/phase2_cluster.py" --dataset-name "$DATASET_NAME"
+
+echo "[RUN] Phase 3: Naming..."
+$PY "$REPO/src/v4/pipeline/phase3_name.py" --dataset-name "$DATASET_NAME"
+
+echo "[RUN] Phase 4: Ordering..."
+$PY "$REPO/src/v4/pipeline/phase4_order.py" --dataset-name "$DATASET_NAME"
+
+echo "[RUN] Phase 5: Export..."
+$PY "$REPO/src/v4/pipeline/phase5_export.py" --dataset-name "$DATASET_NAME"
+
+echo "[INFO] Phases 2-5 done | $(date)"

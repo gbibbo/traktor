@@ -21,10 +21,10 @@ Formato: - [x] Tarea X.Y — Descripción | Completado: YYYY-MM-DD
 - [x] TEST-1 Verificación de bloque 1 (integration test)           | Completado: 2026-02-28
 
 ## BLOQUE 2: Pipeline scripts + Slurm
-- [ ] 2.1 phase0_ingest.py                                         | Completado: ____
-- [ ] 2.2 phase1_extract.py                                        | Completado: ____
-- [ ] 2.3 phase1_merge_shards.py                                   | Completado: ____
-- [ ] 2.4 Slurm jobs V4 (todos)                                    | Completado: ____
+- [x] 2.1 phase0_ingest.py                                         | Completado: 2026-02-28
+- [x] 2.2 phase1_extract.py                                        | Completado: 2026-02-28
+- [x] 2.3 phase1_merge_shards.py                                   | Completado: 2026-02-28
+- [x] 2.4 Slurm jobs V4 (todos)                                    | Completado: 2026-02-28
 - [ ] TEST-2 Verificación de bloque 2 (Phase 0 run + validaciones) | Completado: ____
 
 ## >>> PAUSA HUMANA: ejecutar Phase 0, submit Phase 1 GPU, revisar embeddings <<<

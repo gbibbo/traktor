@@ -1,0 +1,139 @@
+#!/bin/bash
+#SBATCH --job-name=v4_smoke_test_gpu
+#SBATCH --partition=a100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+#SBATCH --time=00:30:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
+
+# =============================================================================
+# TRAKTOR ML V4 — GPU Smoke Test: 3 tracks
+# Valida que el pipeline GPU funciona antes del run completo.
+# Verifica: shapes (3,1024), valores finitos, mert_perc != mert_full.
+#
+# Usage:
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/v4/smoke_test_gpu.job <dataset-name>
+#
+# Example:
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/v4/smoke_test_gpu.job test_20
+# =============================================================================
+
+set -euo pipefail
+
+REPO="/mnt/fast/nobackup/users/gb0048/traktor"
+PY="/usr/bin/python3.11"
+
+if [ "$#" -ne 1 ]; then
+    echo "[ERROR] Missing dataset name."
+    exit 1
+fi
+DATASET_NAME="$1"
+
+echo "[INFO] ========================================================================"
+echo "[INFO] TRAKTOR ML V4 — GPU Smoke Test (3 tracks)"
+echo "[INFO] ========================================================================"
+echo "[INFO] Dataset: $DATASET_NAME | $(date)"
+nvidia-smi --query-gpu=name,memory.total --format=csv || echo "No GPU"
+
+cd "$REPO"
+mkdir -p logs
+
+SCR="/mnt/fast/nobackup/scratch4weeks/$USER"
+mkdir -p "$SCR"/{python_userbase,tmp,cache/pip,cache/huggingface,cache/torch,cache/xdg}
+export PYTHONUSERBASE="$SCR/python_userbase"
+export PATH="$SCR/python_userbase/bin:$PATH"
+export PIP_CACHE_DIR="$SCR/cache/pip"
+OLD_USER_SITE="/mnt/fast/nobackup/users/$USER/.local/lib/python3.11/site-packages"
+export PYTHONPATH="${OLD_USER_SITE}:${PYTHONPATH:-}"
+export HF_HOME="$SCR/cache/huggingface"
+export TRANSFORMERS_CACHE="$HF_HOME"
+export TORCH_HOME="$SCR/cache/torch"
+export XDG_CACHE_HOME="$SCR/cache/xdg"
+export TMPDIR="$SCR/tmp"
+export PYTORCH_ALLOC_CONF="expandable_segments:True"
+export TRAKTOR_HF_CACHE="$HF_HOME"
+export TRAKTOR_TORCH_CACHE="$TORCH_HOME"
+
+$PY -m ensurepip --user 2>/dev/null || true
+$PY -m pip install --user --quiet transformers pyarrow soundfile tqdm demucs essentia
+
+export PYTHONPATH="$REPO:${PYTHONPATH:-}"
+
+# Pre-download models
+$PY -c "
+from transformers import AutoModel, Wav2Vec2FeatureExtractor
+Wav2Vec2FeatureExtractor.from_pretrained('m-a-p/MERT-v1-330M', trust_remote_code=True)
+AutoModel.from_pretrained('m-a-p/MERT-v1-330M', trust_remote_code=True)
+from demucs.pretrained import get_model; get_model('htdemucs')
+print('[OK] Models pre-downloaded')
+"
+
+# Run Phase 1 with --max-tracks 3
+echo "[RUN] Extracting 3 tracks (smoke test)..."
+$PY "$REPO/src/v4/pipeline/phase1_extract.py" \
+    --dataset-name "$DATASET_NAME" \
+    --device cuda \
+    --shard-id 0 \
+    --num-shards 1 \
+    --checkpoint-every 1 \
+    --max-tracks 3
+
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -eq 0 ]; then
+    # Validate smoke test results
+    echo "[VALIDATE] Checking smoke test output..."
+    $PY -c "
+import numpy as np, json, sys
+from pathlib import Path
+
+repo = Path('$REPO')
+artifacts = repo / 'artifacts/v4/datasets/$DATASET_NAME'
+shards = artifacts / 'embeddings/shards'
+
+perc = np.load(shards / 'mert_perc_shard_00.npy')
+full = np.load(shards / 'mert_full_shard_00.npy')
+with open(shards / 'track_uids_shard_00.json') as f:
+    uids = json.load(f)
+
+print(f'  mert_perc shape: {perc.shape}')
+print(f'  mert_full shape: {full.shape}')
+
+assert perc.shape == (3, 1024), f'Expected (3,1024), got {perc.shape}'
+assert full.shape == (3, 1024), f'Expected (3,1024), got {full.shape}'
+assert np.isfinite(perc).all(), 'mert_perc has non-finite values!'
+assert np.isfinite(full).all(), 'mert_full has non-finite values!'
+assert len(uids) == 3, f'Expected 3 UIDs, got {len(uids)}'
+
+# Check mert_perc != mert_full (percussive vs full mix are distinct)
+from numpy.linalg import norm
+cos_dists = []
+for i in range(len(uids)):
+    p, f = perc[i], full[i]
+    cos = 1 - np.dot(p, f) / (norm(p) * norm(f))
+    cos_dists.append(cos)
+mean_cos = float(np.mean(cos_dists))
+print(f'  Mean cosine distance (perc vs full): {mean_cos:.4f}')
+assert mean_cos > 0.05, f'mert_perc and mert_full are too similar (cos_dist={mean_cos:.4f}). Pipeline may be reusing the same audio.'
+
+print('[OK] SMOKE TEST PASSED: shapes, finite values, perc!=full verified')
+"
+    VALIDATE_CODE=$?
+else
+    echo "[ERROR] Phase 1 failed, skipping validation."
+    VALIDATE_CODE=1
+fi
+
+echo "[INFO] ========================================================================"
+if [ $VALIDATE_CODE -eq 0 ]; then
+    echo "[INFO] SMOKE TEST COMPLETE — ALL CHECKS PASSED"
+    echo "[INFO] Ready to submit full Phase 1 extraction."
+else
+    echo "[ERROR] SMOKE TEST FAILED — check logs before full run"
+fi
+echo "[INFO] End time: $(date)"
+echo "[INFO] ========================================================================"
+
+exit $VALIDATE_CODE

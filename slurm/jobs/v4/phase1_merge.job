@@ -1,0 +1,51 @@
+#!/bin/bash
+#SBATCH --job-name=v4_phase1_merge
+#SBATCH --partition=debug
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=4G
+#SBATCH --time=00:30:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
+
+# =============================================================================
+# TRAKTOR ML V4 — Phase 1: Merge Shards (CPU, debug partition)
+#
+# Usage:
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/v4/phase1_merge.job <dataset-name>
+# =============================================================================
+
+set -euo pipefail
+
+REPO="/mnt/fast/nobackup/users/gb0048/traktor"
+PY="/usr/bin/python3.11"
+
+if [ "$#" -ne 1 ]; then
+    echo "[ERROR] Missing dataset name."
+    exit 1
+fi
+DATASET_NAME="$1"
+
+echo "[INFO] Phase 1 Merge | Dataset: $DATASET_NAME | $(date)"
+cd "$REPO"
+mkdir -p logs
+
+SCR="/mnt/fast/nobackup/scratch4weeks/$USER"
+mkdir -p "$SCR"/{python_userbase,tmp,cache/pip}
+export PYTHONUSERBASE="$SCR/python_userbase"
+export PATH="$SCR/python_userbase/bin:$PATH"
+export PIP_CACHE_DIR="$SCR/cache/pip"
+OLD_USER_SITE="/mnt/fast/nobackup/users/$USER/.local/lib/python3.11/site-packages"
+export PYTHONPATH="${OLD_USER_SITE}:${PYTHONPATH:-}"
+export TMPDIR="$SCR/tmp"
+
+$PY -m ensurepip --user 2>/dev/null || true
+$PY -m pip install --user --quiet pyarrow pandas
+
+export PYTHONPATH="$REPO:${PYTHONPATH:-}"
+
+$PY "$REPO/src/v4/pipeline/phase1_merge_shards.py" \
+    --dataset-name "$DATASET_NAME"
+
+EXIT_CODE=$?
+echo "[INFO] Merge done. Exit: $EXIT_CODE | $(date)"
+exit $EXIT_CODE
