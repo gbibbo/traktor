@@ -1,11 +1,11 @@
 ================================================================================
 CONTENIDO COMPLETO DEL PROYECTO TRAKTOR
-Total de archivos: 42
+Total de archivos: 48
 ================================================================================
 
 
 ================================================================================
-[1/42] ARCHIVO: CLAUDE.md
+[1/48] ARCHIVO: CLAUDE.md
 RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/CLAUDE.md
 ================================================================================
 
@@ -61,7 +61,7 @@ Do not pollute the root. Stick to this structure:
 
 
 ================================================================================
-[2/42] ARCHIVO: concat_all_code.py
+[2/48] ARCHIVO: concat_all_code.py
 RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/concat_all_code.py
 ================================================================================
 
@@ -150,374 +150,7 @@ if __name__ == "__main__":
 
 
 ================================================================================
-[3/42] ARCHIVO: docs/LESSONS_LEARNED.md
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/docs/LESSONS_LEARNED.md
-================================================================================
-
-# TRAKTOR ML - Lecciones Aprendidas
-
-Documento centralizado de lecciones aprendidas durante el desarrollo del proyecto.
-Antes de agregar una nueva entrada, buscar si existe una similar y expandirla.
-
----
-
-## Infraestructura HPC (Surrey)
-
-### Python 3.11 solo disponible en nodos A100
-
-**Fecha:** 2025-02-05
-**Contexto:** Jobs de Phase 2 fallaban en partición `2080ti`
-
-**Problema:**
-- Nodos `2080ti` tienen Python 3.6.8 por defecto
-- `/usr/bin/python3.11` no existe en esos nodos
-- Dependencias modernas (tqdm, umap-learn) no funcionan con Python 3.6
-
-**Solución:**
-- Usar siempre partición `a100` con `--nodelist=aisurrey26` para jobs que requieren Python 3.11
-- O usar Conda environment si se necesita otra partición
-
-**Archivos afectados:**
-- `slurm/jobs/v2/v2_phase2.job`
-
----
-
-### Partición "cpu" no existe
-
-**Fecha:** 2025-02-05
-**Contexto:** Intento de enviar job CPU-only
-
-**Problema:**
-- El cluster Surrey HPC no tiene partición llamada "cpu"
-- `sbatch: error: invalid partition specified: cpu`
-
-**Solución:**
-- Usar partición con GPU disponible (`a100`, `2080ti`, `3090`, etc.)
-- Los jobs CPU-only funcionan en cualquier partición, solo no usan la GPU
-
-**Particiones disponibles:** `debug`, `2080ti`, `3090`, `3090_risk`, `a100`, `rtx8000`, `rtx5000`
-
----
-
-### Rutas absolutas requeridas para sbatch via SSH
-
-**Fecha:** 2025-02-05
-**Contexto:** `on_submit.sh` ejecuta comandos via SSH a `aisurrey-submit01`
-
-**Problema:**
-- `sbatch slurm/jobs/v2/v2_phase1.job` falla con "Unable to open file"
-- El path relativo no funciona porque SSH aterriza en un directorio diferente
-
-**Solución:**
-- Siempre usar rutas absolutas:
-  ```bash
-  ./slurm/tools/on_submit.sh sbatch /mnt/fast/nobackup/users/gb0048/traktor/slurm/jobs/v2/v2_phase1.job
-  ```
-
----
-
-## Audio Processing
-
-### soundfile + torchaudio.transforms.Resample como alternativa a FFmpeg
-
-**Fecha:** 2025-02-04
-**Contexto:** Smoke test de Demucs fallaba por falta de FFmpeg
-
-**Problema:**
-- `torchaudio.load()` requiere backend FFmpeg para MP3
-- FFmpeg no está instalado en nodos HPC
-
-**Solución:**
-- Usar `soundfile` para cargar audio (soporta WAV, FLAC, OGG)
-- Para MP3: primero convertir a WAV o usar `audioread` como fallback
-- Implementado en `scripts/common/demucs_utils.py`
-
----
-
-## Pipeline V2
-
-### Velocidad real vs estimada
-
-**Fecha:** 2025-02-05
-**Contexto:** Phase 1 completó en 1 hora vs 5-6 horas estimadas
-
-**Datos reales:**
-- 242 tracks procesados en 1h 02min
-- ~15 segundos por track (Demucs + 2x Essentia embeddings)
-- GPU: NVIDIA A100-SXM4-80GB
-
-**Notas:**
-- La estimación original era muy conservadora
-- El procesamiento on-the-fly en GPU es eficiente
-- Checkpointing cada 10 tracks no añade overhead significativo
-
----
-
-### TensorflowPredict2D requiere nodo input explícito para genre_discogs400
-
-**Fecha:** 2025-02-05
-**Contexto:** Clasificación de géneros fallaba con "not a valid node name"
-
-**Problema:**
-- `es.TensorflowPredict2D(graphFilename=..., output="PartitionedCall:0")` fallaba
-- Error: `'model/Placeholder' is not a valid node name of this graph`
-- El modelo `genre_discogs400` usa nombres de nodos diferentes al default
-
-**Solución:**
-- Especificar explícitamente el nodo de entrada:
-  ```python
-  genre_model = es.TensorflowPredict2D(
-      graphFilename=str(genre_model_path),
-      input="serving_default_model_Placeholder",  # <- REQUERIDO
-      output="PartitionedCall:0"
-  )
-  ```
-
-**Archivos afectados:**
-- `scripts/common/embedding_utils.py` → función `extract_genre_predictions()`
-
----
-
-## Visualización
-
-### Separar generación de visualización del pipeline principal
-
-**Fecha:** 2025-02-05
-**Contexto:** Iterar sobre visualización requería re-ejecutar todo phase2_analysis.py
-
-**Problema:**
-- `phase2_analysis.py` generaba `visualization.html` como parte del pipeline
-- Cualquier cambio a la visualización requería re-ejecutar clustering y clasificación
-- Ciclo de iteración lento para ajustes de UI/UX
-
-**Solución:**
-- Crear script separado `scripts/local/generate_visualization.py`
-- Lee CSVs intermedios ya generados (level1_clusters.csv, level2_clusters.csv, etc.)
-- Permite regenerar visualización en segundos sin re-procesar datos
-- Sin dependencias externas (solo stdlib de Python)
-
-**Beneficios:**
-- Iteración rápida sobre cambios visuales
-- Puede ejecutarse localmente (Windows) o en HPC
-- CSVs como "contrato" entre procesamiento y visualización
-
-**Archivos:**
-- `scripts/local/generate_visualization.py` - Nuevo script de visualización
-- `results/v2_hierarchy/*.csv` - Datos intermedios (input)
-- `results/v2_hierarchy/visualization.html` - Output regenerable
-
----
-
-## Changelog
-
-| Fecha | Cambio |
-|-------|--------|
-| 2025-02-05 | Añadida lección sobre separación de visualización |
-| 2025-02-05 | Añadido fix TensorflowPredict2D para genre_discogs400 |
-| 2025-02-05 | Creación inicial con lecciones de sesión V2 |
-
-
-================================================================================
-[4/42] ARCHIVO: docs/PROJECT_MAP.md
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/docs/PROJECT_MAP.md
-================================================================================
-
-# TRAKTOR-ML Project Map
-
-**Última actualización:** 2025-02-05
-**Versión actual:** V2 (Drum-First Hierarchy)
-
-## Estructura del Proyecto
-
-```
-traktor/
-├── CLAUDE.md                           # Instrucciones del proyecto
-├── data/
-│   ├── raw_audio/
-│   │   └── test_20/                    # 245 tracks MP3 de prueba
-│   ├── embeddings/
-│   │   └── v2/                         # [NUEVO] Embeddings V2
-│   └── outputs/
-│       └── fase1_validation/           # Outputs de Fase 1 (legacy)
-├── docs/
-│   └── PROJECT_MAP.md                  # Este archivo
-├── legacy/                             # [NUEVO] Código V1 archivado
-│   └── v1/
-│       ├── scripts/hpc/process/        # Scripts V1 originales
-│       └── slurm/jobs/                 # Jobs V1 originales
-├── logs/                               # Logs de jobs Slurm
-├── models/
-│   └── essentia/                       # Modelos Essentia TensorFlow
-│       ├── discogs-effnet-bs64-1.pb
-│       ├── discogs-maest-30s-pw-1.pb
-│       └── genre_discogs400-*.pb       # [PENDIENTE] Clasificador géneros
-├── plans/
-│   ├── 20250203_fase1_validacion_embeddings.md
-│   └── v2_drum_hierarchy.md            # [NUEVO] Plan V2
-├── results/
-│   ├── fase1_validation/               # Resultados V1
-│   └── v2_hierarchy/                   # [NUEVO] Resultados V2
-├── scripts/
-│   ├── common/                         # [NUEVO] Utilidades compartidas V2
-│   │   ├── audio_utils.py              # Carga audio, conversión
-│   │   ├── embedding_utils.py          # Funciones Essentia
-│   │   ├── clustering_utils.py         # UMAP/HDBSCAN
-│   │   └── demucs_utils.py             # Wrapper Demucs
-│   ├── local/                          # [NUEVO] Scripts para ejecución local
-│   │   └── generate_visualization.py   # Genera visualization.html con toggle L1/L2
-│   └── hpc/
-│       └── process/
-│           └── v2/                     # [NUEVO] Pipeline V2
-│               ├── download_models.py
-│               ├── phase1_extraction.py  # GPU: Demucs + embeddings
-│               └── phase2_analysis.py    # CPU: Clustering + reporte
-└── slurm/
-    ├── jobs/
-    │   └── v2/                         # [NUEVO] Jobs V2
-    │       ├── v2_phase1.job
-    │       └── v2_phase2.job
-    ├── templates/
-    │   └── generic_job.job             # Template genérico
-    └── tools/
-        └── on_submit.sh                # Wrapper para Slurm
-```
-
-## Pipeline V2: Drum-First Hierarchy
-
-### Arquitectura
-
-| Fase | Script | Recurso | Descripción |
-|------|--------|---------|-------------|
-| Setup | `download_models.py` | CPU | Descarga genre_discogs400 |
-| Phase 1 | `phase1_extraction.py` | GPU A100 | Demucs → embeddings (on-the-fly) |
-| Phase 2 | `phase2_analysis.py` | CPU | Clustering L1/L2 + géneros + reporte |
-
-### Flujo de Datos
-
-```
-raw_audio/*.mp3
-      │
-      ▼
-┌─────────────────────────────┐
-│  Phase 1 (GPU, ~5h)         │
-│  - Demucs: separar drums    │
-│  - Essentia: embeddings     │
-│  - TODO en memoria (0 WAV)  │
-└─────────────────────────────┘
-      │
-      ▼
-embeddings/v2/
-├── drum_embeddings.npy       (245, 1280)
-├── fulltrack_embeddings.npy  (245, 1280)
-└── manifest_v2.json
-      │
-      ▼
-┌─────────────────────────────┐
-│  Phase 2 (CPU, ~1h)         │
-│  - Clustering Nivel 1       │
-│  - Clustering Nivel 2       │
-│  - Clasificación géneros    │
-│  - Votación + renombrado    │
-└─────────────────────────────┘
-      │
-      ▼
-results/v2_hierarchy/
-├── level1_clusters.csv
-├── level2_clusters.csv
-├── genre_predictions.csv
-├── final_organization.csv
-└── visualization.html         # Generado por generate_visualization.py
-      │
-      ▼
-┌─────────────────────────────┐
-│  Visualización (Local)      │
-│  generate_visualization.py  │
-│  - Toggle L1 (Drums) / L2   │
-│  - Colores únicos por L2    │
-│  - Double-click playback    │
-└─────────────────────────────┘
-```
-
-## Visualización Interactiva
-
-### Script: `scripts/local/generate_visualization.py`
-
-Genera `visualization.html` desde los CSVs de resultados, independiente del pipeline de procesamiento.
-
-**Características:**
-- Toggle para alternar entre vista L1 (Según Drums) y L2 (Según Todo)
-- Colores únicos para cada subcluster L2 derivados del color del padre L1
-- Double-click en puntos para reproducir audio (Windows)
-- Sin dependencias externas (solo stdlib de Python)
-
-**Uso:**
-```bash
-# Regenerar visualización
-python scripts/local/generate_visualization.py results/v2_hierarchy/
-
-# Con directorio de audio personalizado
-python scripts/local/generate_visualization.py results/v2_hierarchy/ --audio-dir "D:/Mi Musica/"
-
-# Guardar en ubicación diferente
-python scripts/local/generate_visualization.py results/v2_hierarchy/ --output mi_viz.html
-```
-
-**Entrada (CSVs):**
-- `level1_clusters.csv` → track, cluster_l1, umap_x, umap_y
-- `level2_clusters.csv` → track, cluster_l1, cluster_l2
-- `final_organization.csv` → track, folder_l1, folder_l2
-
-**Salida:**
-- `visualization.html` con toggle L1/L2
-
-## Código Legacy (V1)
-
-Los scripts originales de Fase 1 están archivados en `legacy/v1/`:
-
-| Archivo | Propósito |
-|---------|-----------|
-| `download_essentia_models.py` | Descarga modelos Essentia |
-| `extract_embeddings.py` | Extrae embeddings (effnet/maest) |
-| `reduce_and_cluster.py` | UMAP + HDBSCAN |
-| `generate_visualization.py` | Plotly HTML |
-
-**Reutilización:** Funciones core extraídas a `scripts/common/`.
-
-## Jobs Slurm V2
-
-| Job | Partición | GPUs | RAM | Tiempo |
-|-----|-----------|------|-----|--------|
-| `v2_phase1.job` | a100 | 1 | 32GB | ~5h |
-| `v2_phase2.job` | cpu | 0 | 16GB | ~1h |
-
-**Ejecución:**
-```bash
-./slurm/tools/on_submit.sh sbatch slurm/jobs/v2/v2_phase1.job
-./slurm/tools/on_submit.sh sbatch slurm/jobs/v2/v2_phase2.job
-```
-
-## Dependencias V2
-
-| Paquete | Estado | Propósito |
-|---------|--------|-----------|
-| `demucs` | **Pendiente** | Separación de stems |
-| `essentia-tensorflow` | Instalado | Embeddings |
-| `torch`, `torchaudio` | Instalado | Backend GPU |
-| `umap-learn` | Instalado | Reducción dimensional |
-| `scikit-learn` | Instalado | HDBSCAN clustering |
-| `plotly` | Instalado | Visualización |
-
-## Convenciones
-
-- **Paths:** Usar `pathlib` (OS-agnostic)
-- **Docstrings:** Incluir `PURPOSE` y `CHANGELOG`
-- **Slurm:** Siempre usar `./slurm/tools/on_submit.sh`
-- **Planes:** Crear en `plans/*.md` antes de implementar
-- **Legacy:** Código obsoleto va a `legacy/vN/`
-
-
-================================================================================
-[5/42] ARCHIVO: generate_playlists.py
+[3/48] ARCHIVO: generate_playlists.py
 RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/generate_playlists.py
 ================================================================================
 
@@ -747,7 +380,7 @@ if __name__ == "__main__":
 
 
 ================================================================================
-[6/42] ARCHIVO: legacy/v1/scripts/common/__init__.py
+[4/48] ARCHIVO: legacy/v1/scripts/common/__init__.py
 RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v1/scripts/common/__init__.py
 ================================================================================
 
@@ -755,7 +388,7 @@ RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v1/scripts/common/
 
 
 ================================================================================
-[7/42] ARCHIVO: legacy/v1/scripts/hpc/process/download_essentia_models.py
+[5/48] ARCHIVO: legacy/v1/scripts/hpc/process/download_essentia_models.py
 RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v1/scripts/hpc/process/download_essentia_models.py
 ================================================================================
 
@@ -927,7 +560,7 @@ if __name__ == "__main__":
 
 
 ================================================================================
-[8/42] ARCHIVO: legacy/v1/scripts/hpc/process/extract_embeddings.py
+[6/48] ARCHIVO: legacy/v1/scripts/hpc/process/extract_embeddings.py
 RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v1/scripts/hpc/process/extract_embeddings.py
 ================================================================================
 
@@ -1318,7 +951,7 @@ if __name__ == "__main__":
 
 
 ================================================================================
-[9/42] ARCHIVO: legacy/v1/scripts/hpc/process/generate_visualization.py
+[7/48] ARCHIVO: legacy/v1/scripts/hpc/process/generate_visualization.py
 RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v1/scripts/hpc/process/generate_visualization.py
 ================================================================================
 
@@ -1722,7 +1355,7 @@ if __name__ == "__main__":
 
 
 ================================================================================
-[10/42] ARCHIVO: legacy/v1/scripts/hpc/process/reduce_and_cluster.py
+[8/48] ARCHIVO: legacy/v1/scripts/hpc/process/reduce_and_cluster.py
 RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v1/scripts/hpc/process/reduce_and_cluster.py
 ================================================================================
 
@@ -2070,7 +1703,7 @@ if __name__ == "__main__":
 
 
 ================================================================================
-[11/42] ARCHIVO: legacy/v1/slurm/jobs/fase1_cluster_visualize.job
+[9/48] ARCHIVO: legacy/v1/slurm/jobs/fase1_cluster_visualize.job
 RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v1/slurm/jobs/fase1_cluster_visualize.job
 ================================================================================
 
@@ -2177,7 +1810,7 @@ exit $EXIT_CODE
 
 
 ================================================================================
-[12/42] ARCHIVO: legacy/v1/slurm/jobs/fase1_download_models.job
+[10/48] ARCHIVO: legacy/v1/slurm/jobs/fase1_download_models.job
 RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v1/slurm/jobs/fase1_download_models.job
 ================================================================================
 
@@ -2243,7 +1876,7 @@ exit $EXIT_CODE
 
 
 ================================================================================
-[13/42] ARCHIVO: legacy/v1/slurm/jobs/fase1_extract_embeddings.job
+[11/48] ARCHIVO: legacy/v1/slurm/jobs/fase1_extract_embeddings.job
 RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v1/slurm/jobs/fase1_extract_embeddings.job
 ================================================================================
 
@@ -2345,7 +1978,7 @@ exit $EXIT_CODE
 
 
 ================================================================================
-[14/42] ARCHIVO: legacy/v1/slurm/jobs/fix_numpy.job
+[12/48] ARCHIVO: legacy/v1/slurm/jobs/fix_numpy.job
 RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v1/slurm/jobs/fix_numpy.job
 ================================================================================
 
@@ -2386,7 +2019,7 @@ echo "Done!"
 
 
 ================================================================================
-[15/42] ARCHIVO: legacy/v1/slurm/jobs/full_cluster_visualize.job
+[13/48] ARCHIVO: legacy/v1/slurm/jobs/full_cluster_visualize.job
 RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v1/slurm/jobs/full_cluster_visualize.job
 ================================================================================
 
@@ -2453,7 +2086,7 @@ echo "[INFO] ===================================================================
 
 
 ================================================================================
-[16/42] ARCHIVO: legacy/v1/slurm/jobs/full_extract_embeddings.job
+[14/48] ARCHIVO: legacy/v1/slurm/jobs/full_extract_embeddings.job
 RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v1/slurm/jobs/full_extract_embeddings.job
 ================================================================================
 
@@ -2509,7 +2142,7 @@ echo "[INFO] ===================================================================
 
 
 ================================================================================
-[17/42] ARCHIVO: legacy/v1/slurm/jobs/install_pandas.job
+[15/48] ARCHIVO: legacy/v1/slurm/jobs/install_pandas.job
 RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v1/slurm/jobs/install_pandas.job
 ================================================================================
 
@@ -2541,7 +2174,7 @@ echo "Done!"
 
 
 ================================================================================
-[18/42] ARCHIVO: legacy/v1/slurm/jobs/install_pandas2.job
+[16/48] ARCHIVO: legacy/v1/slurm/jobs/install_pandas2.job
 RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v1/slurm/jobs/install_pandas2.job
 ================================================================================
 
@@ -2591,7 +2224,7 @@ echo "Done checking"
 
 
 ================================================================================
-[19/42] ARCHIVO: legacy/v1/slurm/jobs/install_pandas3.job
+[17/48] ARCHIVO: legacy/v1/slurm/jobs/install_pandas3.job
 RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v1/slurm/jobs/install_pandas3.job
 ================================================================================
 
@@ -2630,7 +2263,7 @@ echo "Done!"
 
 
 ================================================================================
-[20/42] ARCHIVO: legacy/v1/slurm/jobs/regenerate_viz.job
+[18/48] ARCHIVO: legacy/v1/slurm/jobs/regenerate_viz.job
 RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v1/slurm/jobs/regenerate_viz.job
 ================================================================================
 
@@ -2666,8 +2299,375 @@ echo "[INFO] Done!"
 
 
 ================================================================================
-[21/42] ARCHIVO: plans/20250203_fase1_validacion_embeddings.md
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/plans/20250203_fase1_validacion_embeddings.md
+[19/48] ARCHIVO: legacy/v2/docs/LESSONS_LEARNED.md
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v2/docs/LESSONS_LEARNED.md
+================================================================================
+
+# TRAKTOR ML - Lecciones Aprendidas
+
+Documento centralizado de lecciones aprendidas durante el desarrollo del proyecto.
+Antes de agregar una nueva entrada, buscar si existe una similar y expandirla.
+
+---
+
+## Infraestructura HPC (Surrey)
+
+### Python 3.11 solo disponible en nodos A100
+
+**Fecha:** 2025-02-05
+**Contexto:** Jobs de Phase 2 fallaban en partición `2080ti`
+
+**Problema:**
+- Nodos `2080ti` tienen Python 3.6.8 por defecto
+- `/usr/bin/python3.11` no existe en esos nodos
+- Dependencias modernas (tqdm, umap-learn) no funcionan con Python 3.6
+
+**Solución:**
+- Usar siempre partición `a100` con `--nodelist=aisurrey26` para jobs que requieren Python 3.11
+- O usar Conda environment si se necesita otra partición
+
+**Archivos afectados:**
+- `slurm/jobs/v2/v2_phase2.job`
+
+---
+
+### Partición "cpu" no existe
+
+**Fecha:** 2025-02-05
+**Contexto:** Intento de enviar job CPU-only
+
+**Problema:**
+- El cluster Surrey HPC no tiene partición llamada "cpu"
+- `sbatch: error: invalid partition specified: cpu`
+
+**Solución:**
+- Usar partición con GPU disponible (`a100`, `2080ti`, `3090`, etc.)
+- Los jobs CPU-only funcionan en cualquier partición, solo no usan la GPU
+
+**Particiones disponibles:** `debug`, `2080ti`, `3090`, `3090_risk`, `a100`, `rtx8000`, `rtx5000`
+
+---
+
+### Rutas absolutas requeridas para sbatch via SSH
+
+**Fecha:** 2025-02-05
+**Contexto:** `on_submit.sh` ejecuta comandos via SSH a `aisurrey-submit01`
+
+**Problema:**
+- `sbatch slurm/jobs/v2/v2_phase1.job` falla con "Unable to open file"
+- El path relativo no funciona porque SSH aterriza en un directorio diferente
+
+**Solución:**
+- Siempre usar rutas absolutas:
+  ```bash
+  ./slurm/tools/on_submit.sh sbatch /mnt/fast/nobackup/users/gb0048/traktor/slurm/jobs/v2/v2_phase1.job
+  ```
+
+---
+
+## Audio Processing
+
+### soundfile + torchaudio.transforms.Resample como alternativa a FFmpeg
+
+**Fecha:** 2025-02-04
+**Contexto:** Smoke test de Demucs fallaba por falta de FFmpeg
+
+**Problema:**
+- `torchaudio.load()` requiere backend FFmpeg para MP3
+- FFmpeg no está instalado en nodos HPC
+
+**Solución:**
+- Usar `soundfile` para cargar audio (soporta WAV, FLAC, OGG)
+- Para MP3: primero convertir a WAV o usar `audioread` como fallback
+- Implementado en `scripts/common/demucs_utils.py`
+
+---
+
+## Pipeline V2
+
+### Velocidad real vs estimada
+
+**Fecha:** 2025-02-05
+**Contexto:** Phase 1 completó en 1 hora vs 5-6 horas estimadas
+
+**Datos reales:**
+- 242 tracks procesados en 1h 02min
+- ~15 segundos por track (Demucs + 2x Essentia embeddings)
+- GPU: NVIDIA A100-SXM4-80GB
+
+**Notas:**
+- La estimación original era muy conservadora
+- El procesamiento on-the-fly en GPU es eficiente
+- Checkpointing cada 10 tracks no añade overhead significativo
+
+---
+
+### TensorflowPredict2D requiere nodo input explícito para genre_discogs400
+
+**Fecha:** 2025-02-05
+**Contexto:** Clasificación de géneros fallaba con "not a valid node name"
+
+**Problema:**
+- `es.TensorflowPredict2D(graphFilename=..., output="PartitionedCall:0")` fallaba
+- Error: `'model/Placeholder' is not a valid node name of this graph`
+- El modelo `genre_discogs400` usa nombres de nodos diferentes al default
+
+**Solución:**
+- Especificar explícitamente el nodo de entrada:
+  ```python
+  genre_model = es.TensorflowPredict2D(
+      graphFilename=str(genre_model_path),
+      input="serving_default_model_Placeholder",  # <- REQUERIDO
+      output="PartitionedCall:0"
+  )
+  ```
+
+**Archivos afectados:**
+- `scripts/common/embedding_utils.py` → función `extract_genre_predictions()`
+
+---
+
+## Visualización
+
+### Separar generación de visualización del pipeline principal
+
+**Fecha:** 2025-02-05
+**Contexto:** Iterar sobre visualización requería re-ejecutar todo phase2_analysis.py
+
+**Problema:**
+- `phase2_analysis.py` generaba `visualization.html` como parte del pipeline
+- Cualquier cambio a la visualización requería re-ejecutar clustering y clasificación
+- Ciclo de iteración lento para ajustes de UI/UX
+
+**Solución:**
+- Crear script separado `scripts/local/generate_visualization.py`
+- Lee CSVs intermedios ya generados (level1_clusters.csv, level2_clusters.csv, etc.)
+- Permite regenerar visualización en segundos sin re-procesar datos
+- Sin dependencias externas (solo stdlib de Python)
+
+**Beneficios:**
+- Iteración rápida sobre cambios visuales
+- Puede ejecutarse localmente (Windows) o en HPC
+- CSVs como "contrato" entre procesamiento y visualización
+
+**Archivos:**
+- `scripts/local/generate_visualization.py` - Nuevo script de visualización
+- `results/v2_hierarchy/*.csv` - Datos intermedios (input)
+- `results/v2_hierarchy/visualization.html` - Output regenerable
+
+---
+
+## Changelog
+
+| Fecha | Cambio |
+|-------|--------|
+| 2025-02-05 | Añadida lección sobre separación de visualización |
+| 2025-02-05 | Añadido fix TensorflowPredict2D para genre_discogs400 |
+| 2025-02-05 | Creación inicial con lecciones de sesión V2 |
+
+
+================================================================================
+[20/48] ARCHIVO: legacy/v2/docs/PROJECT_MAP.md
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v2/docs/PROJECT_MAP.md
+================================================================================
+
+# TRAKTOR-ML Project Map
+
+**Última actualización:** 2025-02-05
+**Versión actual:** V2 (Drum-First Hierarchy)
+
+## Estructura del Proyecto
+
+```
+traktor/
+├── CLAUDE.md                           # Instrucciones del proyecto
+├── data/
+│   ├── raw_audio/
+│   │   └── test_20/                    # 245 tracks MP3 de prueba
+│   ├── embeddings/
+│   │   └── v2/                         # [NUEVO] Embeddings V2
+│   └── outputs/
+│       └── fase1_validation/           # Outputs de Fase 1 (legacy)
+├── docs/
+│   └── PROJECT_MAP.md                  # Este archivo
+├── legacy/                             # [NUEVO] Código V1 archivado
+│   └── v1/
+│       ├── scripts/hpc/process/        # Scripts V1 originales
+│       └── slurm/jobs/                 # Jobs V1 originales
+├── logs/                               # Logs de jobs Slurm
+├── models/
+│   └── essentia/                       # Modelos Essentia TensorFlow
+│       ├── discogs-effnet-bs64-1.pb
+│       ├── discogs-maest-30s-pw-1.pb
+│       └── genre_discogs400-*.pb       # [PENDIENTE] Clasificador géneros
+├── plans/
+│   ├── 20250203_fase1_validacion_embeddings.md
+│   └── v2_drum_hierarchy.md            # [NUEVO] Plan V2
+├── results/
+│   ├── fase1_validation/               # Resultados V1
+│   └── v2_hierarchy/                   # [NUEVO] Resultados V2
+├── scripts/
+│   ├── common/                         # [NUEVO] Utilidades compartidas V2
+│   │   ├── audio_utils.py              # Carga audio, conversión
+│   │   ├── embedding_utils.py          # Funciones Essentia
+│   │   ├── clustering_utils.py         # UMAP/HDBSCAN
+│   │   └── demucs_utils.py             # Wrapper Demucs
+│   ├── local/                          # [NUEVO] Scripts para ejecución local
+│   │   └── generate_visualization.py   # Genera visualization.html con toggle L1/L2
+│   └── hpc/
+│       └── process/
+│           └── v2/                     # [NUEVO] Pipeline V2
+│               ├── download_models.py
+│               ├── phase1_extraction.py  # GPU: Demucs + embeddings
+│               └── phase2_analysis.py    # CPU: Clustering + reporte
+└── slurm/
+    ├── jobs/
+    │   └── v2/                         # [NUEVO] Jobs V2
+    │       ├── v2_phase1.job
+    │       └── v2_phase2.job
+    ├── templates/
+    │   └── generic_job.job             # Template genérico
+    └── tools/
+        └── on_submit.sh                # Wrapper para Slurm
+```
+
+## Pipeline V2: Drum-First Hierarchy
+
+### Arquitectura
+
+| Fase | Script | Recurso | Descripción |
+|------|--------|---------|-------------|
+| Setup | `download_models.py` | CPU | Descarga genre_discogs400 |
+| Phase 1 | `phase1_extraction.py` | GPU A100 | Demucs → embeddings (on-the-fly) |
+| Phase 2 | `phase2_analysis.py` | CPU | Clustering L1/L2 + géneros + reporte |
+
+### Flujo de Datos
+
+```
+raw_audio/*.mp3
+      │
+      ▼
+┌─────────────────────────────┐
+│  Phase 1 (GPU, ~5h)         │
+│  - Demucs: separar drums    │
+│  - Essentia: embeddings     │
+│  - TODO en memoria (0 WAV)  │
+└─────────────────────────────┘
+      │
+      ▼
+embeddings/v2/
+├── drum_embeddings.npy       (245, 1280)
+├── fulltrack_embeddings.npy  (245, 1280)
+└── manifest_v2.json
+      │
+      ▼
+┌─────────────────────────────┐
+│  Phase 2 (CPU, ~1h)         │
+│  - Clustering Nivel 1       │
+│  - Clustering Nivel 2       │
+│  - Clasificación géneros    │
+│  - Votación + renombrado    │
+└─────────────────────────────┘
+      │
+      ▼
+results/v2_hierarchy/
+├── level1_clusters.csv
+├── level2_clusters.csv
+├── genre_predictions.csv
+├── final_organization.csv
+└── visualization.html         # Generado por generate_visualization.py
+      │
+      ▼
+┌─────────────────────────────┐
+│  Visualización (Local)      │
+│  generate_visualization.py  │
+│  - Toggle L1 (Drums) / L2   │
+│  - Colores únicos por L2    │
+│  - Double-click playback    │
+└─────────────────────────────┘
+```
+
+## Visualización Interactiva
+
+### Script: `scripts/local/generate_visualization.py`
+
+Genera `visualization.html` desde los CSVs de resultados, independiente del pipeline de procesamiento.
+
+**Características:**
+- Toggle para alternar entre vista L1 (Según Drums) y L2 (Según Todo)
+- Colores únicos para cada subcluster L2 derivados del color del padre L1
+- Double-click en puntos para reproducir audio (Windows)
+- Sin dependencias externas (solo stdlib de Python)
+
+**Uso:**
+```bash
+# Regenerar visualización
+python scripts/local/generate_visualization.py results/v2_hierarchy/
+
+# Con directorio de audio personalizado
+python scripts/local/generate_visualization.py results/v2_hierarchy/ --audio-dir "D:/Mi Musica/"
+
+# Guardar en ubicación diferente
+python scripts/local/generate_visualization.py results/v2_hierarchy/ --output mi_viz.html
+```
+
+**Entrada (CSVs):**
+- `level1_clusters.csv` → track, cluster_l1, umap_x, umap_y
+- `level2_clusters.csv` → track, cluster_l1, cluster_l2
+- `final_organization.csv` → track, folder_l1, folder_l2
+
+**Salida:**
+- `visualization.html` con toggle L1/L2
+
+## Código Legacy (V1)
+
+Los scripts originales de Fase 1 están archivados en `legacy/v1/`:
+
+| Archivo | Propósito |
+|---------|-----------|
+| `download_essentia_models.py` | Descarga modelos Essentia |
+| `extract_embeddings.py` | Extrae embeddings (effnet/maest) |
+| `reduce_and_cluster.py` | UMAP + HDBSCAN |
+| `generate_visualization.py` | Plotly HTML |
+
+**Reutilización:** Funciones core extraídas a `scripts/common/`.
+
+## Jobs Slurm V2
+
+| Job | Partición | GPUs | RAM | Tiempo |
+|-----|-----------|------|-----|--------|
+| `v2_phase1.job` | a100 | 1 | 32GB | ~5h |
+| `v2_phase2.job` | cpu | 0 | 16GB | ~1h |
+
+**Ejecución:**
+```bash
+./slurm/tools/on_submit.sh sbatch slurm/jobs/v2/v2_phase1.job
+./slurm/tools/on_submit.sh sbatch slurm/jobs/v2/v2_phase2.job
+```
+
+## Dependencias V2
+
+| Paquete | Estado | Propósito |
+|---------|--------|-----------|
+| `demucs` | **Pendiente** | Separación de stems |
+| `essentia-tensorflow` | Instalado | Embeddings |
+| `torch`, `torchaudio` | Instalado | Backend GPU |
+| `umap-learn` | Instalado | Reducción dimensional |
+| `scikit-learn` | Instalado | HDBSCAN clustering |
+| `plotly` | Instalado | Visualización |
+
+## Convenciones
+
+- **Paths:** Usar `pathlib` (OS-agnostic)
+- **Docstrings:** Incluir `PURPOSE` y `CHANGELOG`
+- **Slurm:** Siempre usar `./slurm/tools/on_submit.sh`
+- **Planes:** Crear en `plans/*.md` antes de implementar
+- **Legacy:** Código obsoleto va a `legacy/vN/`
+
+
+================================================================================
+[21/48] ARCHIVO: legacy/v2/plans/20250203_fase1_validacion_embeddings.md
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v2/plans/20250203_fase1_validacion_embeddings.md
 ================================================================================
 
 # Plan: Fase 1 - Validación del Pipeline de Embeddings
@@ -2753,8 +2753,8 @@ numpy
 
 
 ================================================================================
-[22/42] ARCHIVO: plans/v2_drum_hierarchy.md
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/plans/v2_drum_hierarchy.md
+[22/48] ARCHIVO: legacy/v2/plans/v2_drum_hierarchy.md
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v2/plans/v2_drum_hierarchy.md
 ================================================================================
 
 # Plan V2: "Drum-First Hierarchy" Pipeline
@@ -3153,24 +3153,24 @@ cat results/v2_hierarchy/final_organization.csv
 
 
 ================================================================================
-[23/42] ARCHIVO: scripts/__init__.py
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/scripts/__init__.py
+[23/48] ARCHIVO: legacy/v2/scripts/__init__.py
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v2/scripts/__init__.py
 ================================================================================
 
 
 
 
 ================================================================================
-[24/42] ARCHIVO: scripts/common/__init__.py
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/scripts/common/__init__.py
+[24/48] ARCHIVO: legacy/v2/scripts/common/__init__.py
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v2/scripts/common/__init__.py
 ================================================================================
 
 
 
 
 ================================================================================
-[25/42] ARCHIVO: scripts/common/audio_utils.py
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/scripts/common/audio_utils.py
+[25/48] ARCHIVO: legacy/v2/scripts/common/audio_utils.py
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v2/scripts/common/audio_utils.py
 ================================================================================
 
 """
@@ -3316,8 +3316,8 @@ def validate_audio_file(audio_path: Path) -> bool:
 
 
 ================================================================================
-[26/42] ARCHIVO: scripts/common/clustering_utils.py
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/scripts/common/clustering_utils.py
+[26/48] ARCHIVO: legacy/v2/scripts/common/clustering_utils.py
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v2/scripts/common/clustering_utils.py
 ================================================================================
 
 """
@@ -3521,8 +3521,8 @@ def simplify_genre_name(genre: str) -> str:
 
 
 ================================================================================
-[27/42] ARCHIVO: scripts/common/demucs_utils.py
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/scripts/common/demucs_utils.py
+[27/48] ARCHIVO: legacy/v2/scripts/common/demucs_utils.py
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v2/scripts/common/demucs_utils.py
 ================================================================================
 
 """
@@ -3741,8 +3741,8 @@ def process_track_stems(
 
 
 ================================================================================
-[28/42] ARCHIVO: scripts/common/embedding_utils.py
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/scripts/common/embedding_utils.py
+[28/48] ARCHIVO: legacy/v2/scripts/common/embedding_utils.py
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v2/scripts/common/embedding_utils.py
 ================================================================================
 
 """
@@ -3892,32 +3892,32 @@ def batch_extract_embeddings(
 
 
 ================================================================================
-[29/42] ARCHIVO: scripts/hpc/__init__.py
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/scripts/hpc/__init__.py
+[29/48] ARCHIVO: legacy/v2/scripts/hpc/__init__.py
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v2/scripts/hpc/__init__.py
 ================================================================================
 
 # TRAKTOR ML - HPC scripts
 
 
 ================================================================================
-[30/42] ARCHIVO: scripts/hpc/process/__init__.py
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/scripts/hpc/process/__init__.py
+[30/48] ARCHIVO: legacy/v2/scripts/hpc/process/__init__.py
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v2/scripts/hpc/process/__init__.py
 ================================================================================
 
 # TRAKTOR ML - HPC Processing scripts
 
 
 ================================================================================
-[31/42] ARCHIVO: scripts/hpc/process/v2/__init__.py
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/scripts/hpc/process/v2/__init__.py
+[31/48] ARCHIVO: legacy/v2/scripts/hpc/process/v2/__init__.py
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v2/scripts/hpc/process/v2/__init__.py
 ================================================================================
 
 
 
 
 ================================================================================
-[32/42] ARCHIVO: scripts/hpc/process/v2/download_models.py
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/scripts/hpc/process/v2/download_models.py
+[32/48] ARCHIVO: legacy/v2/scripts/hpc/process/v2/download_models.py
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v2/scripts/hpc/process/v2/download_models.py
 ================================================================================
 
 """
@@ -4111,8 +4111,8 @@ if __name__ == "__main__":
 
 
 ================================================================================
-[33/42] ARCHIVO: scripts/hpc/process/v2/phase1_extraction.py
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/scripts/hpc/process/v2/phase1_extraction.py
+[33/48] ARCHIVO: legacy/v2/scripts/hpc/process/v2/phase1_extraction.py
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v2/scripts/hpc/process/v2/phase1_extraction.py
 ================================================================================
 
 """
@@ -4508,8 +4508,8 @@ if __name__ == "__main__":
 
 
 ================================================================================
-[34/42] ARCHIVO: scripts/hpc/process/v2/phase2_analysis.py
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/scripts/hpc/process/v2/phase2_analysis.py
+[34/48] ARCHIVO: legacy/v2/scripts/hpc/process/v2/phase2_analysis.py
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v2/scripts/hpc/process/v2/phase2_analysis.py
 ================================================================================
 
 """
@@ -5349,8 +5349,8 @@ if __name__ == "__main__":
 
 
 ================================================================================
-[35/42] ARCHIVO: scripts/local/generate_tree.py
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/scripts/local/generate_tree.py
+[35/48] ARCHIVO: legacy/v2/scripts/local/generate_tree.py
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v2/scripts/local/generate_tree.py
 ================================================================================
 
 """
@@ -5526,8 +5526,8 @@ if __name__ == "__main__":
 
 
 ================================================================================
-[36/42] ARCHIVO: scripts/local/generate_visualization.py
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/scripts/local/generate_visualization.py
+[36/48] ARCHIVO: legacy/v2/scripts/local/generate_visualization.py
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v2/scripts/local/generate_visualization.py
 ================================================================================
 
 #!/usr/bin/env python3
@@ -6305,8 +6305,8 @@ if __name__ == '__main__':
 
 
 ================================================================================
-[37/42] ARCHIVO: slurm/jobs/v2/v2_phase1.job
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/slurm/jobs/v2/v2_phase1.job
+[37/48] ARCHIVO: legacy/v2/slurm/jobs/v2/v2_phase1.job
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v2/slurm/jobs/v2/v2_phase1.job
 ================================================================================
 
 #!/bin/bash
@@ -6412,8 +6412,8 @@ exit $EXIT_CODE
 
 
 ================================================================================
-[38/42] ARCHIVO: slurm/jobs/v2/v2_phase2.job
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/slurm/jobs/v2/v2_phase2.job
+[38/48] ARCHIVO: legacy/v2/slurm/jobs/v2/v2_phase2.job
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v2/slurm/jobs/v2/v2_phase2.job
 ================================================================================
 
 #!/bin/bash
@@ -6519,8 +6519,8 @@ exit $EXIT_CODE
 
 
 ================================================================================
-[39/42] ARCHIVO: slurm/jobs/v2/v2_smoke_test.job
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/slurm/jobs/v2/v2_smoke_test.job
+[39/48] ARCHIVO: legacy/v2/slurm/jobs/v2/v2_smoke_test.job
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v2/slurm/jobs/v2/v2_smoke_test.job
 ================================================================================
 
 #!/bin/bash
@@ -6639,125 +6639,8 @@ exit $EXIT_CODE
 
 
 ================================================================================
-[40/42] ARCHIVO: slurm/templates/generic_job.job
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/slurm/templates/generic_job.job
-================================================================================
-
-#!/bin/bash
-#SBATCH --job-name=traktor_ml
-#SBATCH --partition=a100
-#SBATCH --gpus=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=32G
-#SBATCH --time=48:00:00
-#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
-#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
-
-# =============================================================================
-# TRAKTOR ML - Generic Job Template
-# =============================================================================
-# Standard template for running python scripts on HPC (Training/Inference)
-#
-# Usage:
-#   ./slurm/tools/on_submit.sh sbatch slurm/templates/generic_job.job <SCRIPT_PATH> [ARGS...]
-#
-# Examples:
-#   # Run setup
-#   ./slurm/tools/on_submit.sh sbatch slurm/templates/generic_job.job scripts/hpc/ingest/setup_resources.py
-#
-#   # Run feature extraction
-#   ./slurm/tools/on_submit.sh sbatch slurm/templates/generic_job.job scripts/hpc/process/extract_features.py --model essentia
-# =============================================================================
-
-set -euo pipefail
-
-# 1. Project Configuration
-REPO="/mnt/fast/nobackup/users/gb0048/traktor"
-CONDA_ENV_NAME="traktor_ml"
-
-# 2. Argument Validation
-if [ "$#" -lt 1 ]; then
-    echo "[ERROR] No script specified."
-    echo "Usage: sbatch generic_job.job <path_to_script.py> [args...]"
-    exit 1
-fi
-
-SCRIPT_TO_RUN="$1"
-shift # Remove script from args list so "$@" contains only script arguments
-
-echo "[INFO] ========================================================================"
-echo "[INFO] TRAKTOR ML JOB - START: $(date)"
-echo "[INFO] ========================================================================"
-echo "[INFO] Repo: $REPO"
-echo "[INFO] Script: $SCRIPT_TO_RUN"
-echo "[INFO] Args: $*"
-echo "[INFO] GPU Info:"
-nvidia-smi --query-gpu=name,memory.total --format=csv || echo "No GPU detected or nvidia-smi failed"
-
-cd "$REPO"
-
-# 3. Environment Setup (Caches & Paths)
-# Redirect HuggingFace/Pip caches to fast storage to avoid filling up $HOME
-export HF_HOME="$REPO/data/cache/huggingface"
-export TRANSFORMERS_CACHE="$HF_HOME/transformers"
-export HF_HUB_CACHE="$HF_HOME/hub"
-export PIP_CACHE_DIR="$REPO/data/cache/pip"
-export TMPDIR="$REPO/data/tmp"
-export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
-
-mkdir -p "$HF_HOME" "$TRANSFORMERS_CACHE" "$HF_HUB_CACHE" "$PIP_CACHE_DIR" "$TMPDIR" "logs" "results"
-
-# 4. Conda Activation
-# We use 'source' to activate because 'conda activate' often fails in non-interactive shells
-echo "[SETUP] Activating Conda environment: $CONDA_ENV_NAME"
-source ~/.bashrc  # Adjust if your conda init is in .bash_profile
-if command -v conda >/dev/null 2>&1; then
-    conda activate "$CONDA_ENV_NAME"
-else
-    echo "[WARN] Conda command not found, trying module load..."
-    module load anaconda/3 2>/dev/null || module load miniconda/3 2>/dev/null
-    source activate "$CONDA_ENV_NAME"
-fi
-
-# 5. Verify Dependencies
-echo "[SETUP] Python Environment:"
-python3 -c "import sys; print(sys.executable)"
-python3 -c "import torch; print(f'PyTorch: {torch.__version__}, CUDA: {torch.cuda.is_available()}')"
-
-# 6. Execution
-echo "[RUN] Executing..."
-export PYTHONPATH="$REPO:${PYTHONPATH:-}"
-
-# Run the python script passing all remaining arguments
-python3 "$SCRIPT_TO_RUN" "$@"
-
-EXIT_CODE=$?
-
-echo "[INFO] ========================================================================"
-if [ $EXIT_CODE -eq 0 ]; then
-    echo "[INFO] JOB COMPLETE - SUCCESS"
-else
-    echo "[ERROR] JOB FAILED (Exit code: $EXIT_CODE)"
-fi
-echo "[INFO] END: $(date)"
-echo "[INFO] ========================================================================"
-
-exit $EXIT_CODE
-
-
-================================================================================
-[41/42] ARCHIVO: slurm/tools/on_submit.sh
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/slurm/tools/on_submit.sh
-================================================================================
-
-#!/usr/bin/env bash
-set -euo pipefail
-ssh -o BatchMode=yes aisurrey-submit01.surrey.ac.uk "$@"
-
-
-================================================================================
-[42/42] ARCHIVO: tests/smoke_test_v2.py
-RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/tests/smoke_test_v2.py
+[40/48] ARCHIVO: legacy/v2/tests/smoke_test_v2.py
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/legacy/v2/tests/smoke_test_v2.py
 ================================================================================
 
 #!/usr/bin/env python3
@@ -7025,4 +6908,673 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+================================================================================
+[41/48] ARCHIVO: plans/v3_mert_pipeline.md
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/plans/v3_mert_pipeline.md
+================================================================================
+
+# V3: MERT Embeddings & Modular Clustering Pipeline
+
+## 0. Stack Tecnológico
+* **Embeddings:** MERT-v1-330M (24kHz, layer combination)
+* **Dimensionality:** PCA a 128D
+* **Clustering:** Híbrido (Plano K-elegible / HDBSCAN y Jerárquico de 2 niveles)
+* **UI:** Streamlit para exploración interactiva
+
+## 1. Diseño de Arquitectura (Pipeline Desacoplado)
+
+### A) Preprocesamiento (Costoso, Run-Once)
+**Inputs:** Audio files
+**Outputs (Artifacts en `artifacts/dataset/<id>/`):**
+1. `manifest.parquet`: Metadata, checksums, paths.
+2. `embeddings_mert.npy`: Matriz [N, 1024].
+3. `X_pca128.npy`: Matriz [N, 128] (Features finales para clustering).
+4. `pca_128.joblib`: Objeto PCA entrenado.
+
+### B) Clustering (Barato, Interactivo)
+**Inputs:** `X_pca128.npy` + `manifest.parquet`
+**Outputs:** CSVs con labels, configs y métricas.
+**Constraint:** El clustering NUNCA recalcula embeddings.
+
+## 2. Estructura de Directorios (Obligatoria)
+```text
+traktor_ml_v3/
+  src/
+    preprocess/
+      build_manifest.py       # Scan, checksums, audio validation
+      extract_embeddings.py   # MERT inference (GPU)
+      fit_pca.py             # Normalization + PCA
+    clustering/
+      interface.py           # Base abstract class
+      flat.py                # KMeans, Agglomerative, HDBSCAN
+      hierarchical.py        # Two-stage logic
+    ui/
+      app.py                 # Streamlit dashboard
+  artifacts/                 # Storage for generated .npy/.parquet
+  configs/                   # YAMLs for defaults
+  slurm/
+    jobs/v3/                 # New job templates
+```
+
+## 3. Detalles de Implementación Críticos
+
+**MERT Config:** Resample a 24kHz. Pooling de segmentos de 5s (padding start/end 45s).
+
+**PCA:** Entrenar sobre todo el dataset. Output fijo a 128 dimensiones.
+
+**Jerarquía:**
+- Nivel 1: Clusters macro (Groove/Energy).
+- Nivel 2: Sub-clusters (Timbre/Elements).
+
+
+================================================================================
+[42/48] ARCHIVO: requirements_v3.txt
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/requirements_v3.txt
+================================================================================
+
+transformers
+torchaudio
+scikit-learn
+hdbscan
+streamlit
+pandas
+pyarrow
+fastparquet
+soundfile
+tqdm
+plotly
+
+
+================================================================================
+[43/48] ARCHIVO: slurm/jobs/v3/diag_env.job
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/slurm/jobs/v3/diag_env.job
+================================================================================
+
+#!/bin/bash
+#SBATCH --job-name=diag_env
+#SBATCH --partition=a100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+#SBATCH --time=00:05:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
+
+echo "=== DIAG START $(date) ==="
+echo "hostname   : $(hostname)"
+echo "whoami     : $(whoami)"
+echo "HOME       : $HOME"
+echo "pwd        : $(pwd)"
+
+echo "--- Filesystem ---"
+ls -ld /user/HS300/gb0048 2>&1 && echo "OK_LOGIN_HOME" || echo "NO_LOGIN_HOME"
+ls -ld /mnt/fast/nobackup/scratch4weeks/ 2>&1 && echo "OK_SCRATCH" || echo "NO_SCRATCH"
+
+echo "--- GPU ---"
+nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv
+
+echo "--- Python ---"
+PY=/usr/bin/python3.11
+$PY -V 2>&1 || echo "NO_PYTHON311"
+$PY -c "
+import sys, torch
+print(f'python   = {sys.executable}')
+print(f'torch    = {torch.__version__}')
+print(f'cuda     = {torch.cuda.is_available()}')
+if torch.cuda.is_available():
+    print(f'gpu_name = {torch.cuda.get_device_name(0)}')
+try:
+    import torchaudio
+    print(f'torchaudio = {torchaudio.__version__}')
+except ImportError:
+    print('torchaudio = NOT INSTALLED')
+try:
+    import transformers
+    print(f'transformers = {transformers.__version__}')
+except ImportError:
+    print('transformers = NOT INSTALLED')
+try:
+    import soundfile
+    print(f'soundfile = {soundfile.__version__}')
+except ImportError:
+    print('soundfile = NOT INSTALLED')
+" 2>&1
+
+echo "=== DIAG END $(date) ==="
+
+
+================================================================================
+[44/48] ARCHIVO: slurm/jobs/v3/extract_embeddings.job
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/slurm/jobs/v3/extract_embeddings.job
+================================================================================
+
+#!/bin/bash
+#SBATCH --job-name=mert_embeddings
+#SBATCH --partition=a100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=48:00:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
+
+# =============================================================================
+# TRAKTOR ML V3 - MERT Embedding Extraction
+# =============================================================================
+# Extracts 1024-dim embeddings from audio using m-a-p/MERT-v1-330M (GPU).
+# Uses system Python 3.11 (no conda). Caches on scratch4weeks.
+#
+# Usage:
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/v3/extract_embeddings.job <dataset-name>
+#
+# Example:
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/v3/extract_embeddings.job test_20
+# =============================================================================
+
+set -euo pipefail
+
+# 1. Project Configuration
+REPO="/mnt/fast/nobackup/users/gb0048/traktor"
+PY="/usr/bin/python3.11"
+
+# 2. Argument Validation
+if [ "$#" -ne 1 ]; then
+    echo "[ERROR] Missing dataset name."
+    echo "Usage: sbatch extract_embeddings.job <dataset-name>"
+    exit 1
+fi
+
+DATASET_NAME="$1"
+
+echo "[INFO] ========================================================================"
+echo "[INFO] TRAKTOR ML V3 — MERT Embedding Extraction"
+echo "[INFO] ========================================================================"
+echo "[INFO] Repo        : $REPO"
+echo "[INFO] Dataset     : $DATASET_NAME"
+echo "[INFO] Start time  : $(date)"
+echo "[INFO] GPU Info    :"
+nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv || echo "No GPU detected"
+
+cd "$REPO"
+
+# 3. Environment Setup (scratch4weeks — no conda, no HOME writes)
+SCR="/mnt/fast/nobackup/scratch4weeks/$USER"
+mkdir -p "$SCR"/{python_userbase,tmp,cache/pip,cache/huggingface,cache/torch,cache/xdg}
+
+export PYTHONUSERBASE="$SCR/python_userbase"
+export PATH="$SCR/python_userbase/bin:$PATH"
+export PIP_CACHE_DIR="$SCR/cache/pip"
+
+# torch, torchaudio, soundfile were installed by V2 jobs via pip --user into
+# the default ~/.local on nobackup. Since we override PYTHONUSERBASE to scratch,
+# Python no longer sees them. Add the old site-packages as a read-only fallback.
+OLD_USER_SITE="/mnt/fast/nobackup/users/$USER/.local/lib/python3.11/site-packages"
+export PYTHONPATH="${OLD_USER_SITE}:${PYTHONPATH:-}"
+export HF_HOME="$SCR/cache/huggingface"
+export TRANSFORMERS_CACHE="$HF_HOME"
+export HF_DATASETS_CACHE="$HF_HOME"
+export TORCH_HOME="$SCR/cache/torch"
+export XDG_CACHE_HOME="$SCR/cache/xdg"
+export TMPDIR="$SCR/tmp"
+export PYTORCH_ALLOC_CONF="expandable_segments:True"
+
+mkdir -p "logs"
+
+# 4. Python verification (system python, no conda)
+echo "[DIAG] hostname : $(hostname)"
+echo "[DIAG] whoami   : $(whoami)"
+echo "[DIAG] python   : $PY"
+$PY --version
+
+# 5. Bootstrap pip + install transformers
+# System python3.11 has no pip module; bootstrap it, then install transformers.
+# torch, torchaudio, soundfile are system-provided — do NOT install them.
+echo "[SETUP] Bootstrapping pip..."
+$PY -m ensurepip --user 2>/dev/null || {
+    echo "[SETUP] ensurepip unavailable, using pip from legacy .local..."
+    export PYTHONPATH="/mnt/fast/nobackup/users/gb0048/.local/lib/python3.11/site-packages:${PYTHONPATH:-}"
+}
+$PY -m pip install --user --quiet transformers pyarrow
+
+echo "[SETUP] Verifying versions:"
+$PY -c "import transformers; print(f'transformers = {transformers.__version__}')"
+$PY -m pip freeze 2>&1 | grep -iE 'torch|torchaudio|transformers|soundfile'
+
+echo "[SETUP] Verifying imports..."
+$PY -c "
+import torch, torchaudio, transformers, soundfile
+print(f'PyTorch: {torch.__version__}, CUDA: {torch.cuda.is_available()}')
+print(f'torchaudio: {torchaudio.__version__}')
+print(f'transformers: {transformers.__version__}')
+print(f'soundfile: {soundfile.__version__}')
+print('[OK] V3 deps verified')
+"
+
+# 6. Pre-download MERT model to cache (avoids timeout during processing)
+echo "[SETUP] Pre-downloading MERT model..."
+$PY -c "
+from transformers import AutoModel, Wav2Vec2FeatureExtractor
+model_name = 'm-a-p/MERT-v1-330M'
+print(f'[INFO] Downloading {model_name} to cache...')
+Wav2Vec2FeatureExtractor.from_pretrained(model_name)
+AutoModel.from_pretrained(model_name, trust_remote_code=True)
+print('[OK] Model cached successfully')
+"
+
+# 7. Execute Embedding Extraction
+echo "[RUN] ========================================================================"
+echo "[RUN] Extracting MERT embeddings for dataset: $DATASET_NAME"
+echo "[RUN] ========================================================================"
+
+export PYTHONPATH="$REPO:${PYTHONPATH:-}"
+
+$PY "$REPO/src/preprocess/extract_embeddings.py" \
+    --dataset-name "$DATASET_NAME" \
+    --device cuda \
+    --checkpoint-every 25
+
+EXIT_CODE=$?
+
+# 8. Completion Report
+echo "[INFO] ========================================================================"
+if [ $EXIT_CODE -eq 0 ]; then
+    echo "[INFO] JOB COMPLETE - SUCCESS"
+    echo "[INFO] Embeddings saved to: artifacts/dataset/$DATASET_NAME/embeddings/"
+else
+    echo "[ERROR] JOB FAILED (Exit code: $EXIT_CODE)"
+fi
+echo "[INFO] End time: $(date)"
+echo "[INFO] ========================================================================"
+
+exit $EXIT_CODE
+
+
+================================================================================
+[45/48] ARCHIVO: slurm/jobs/v3/fit_pca.job
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/slurm/jobs/v3/fit_pca.job
+================================================================================
+
+#!/bin/bash
+#SBATCH --job-name=fit_pca
+#SBATCH --partition=debug
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=8G
+#SBATCH --time=01:00:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
+
+# =============================================================================
+# TRAKTOR ML V3 - PCA Dimensionality Reduction
+# =============================================================================
+# L2-normalizes MERT embeddings and reduces from 1024 -> 128 dims via PCA.
+# Uses system Python 3.11 (no conda). Caches on scratch4weeks.
+#
+# Usage:
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/v3/fit_pca.job <dataset-name>
+#
+# Example:
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/v3/fit_pca.job test_20
+# =============================================================================
+
+set -euo pipefail
+
+# 1. Project Configuration
+REPO="/mnt/fast/nobackup/users/gb0048/traktor"
+PY="/usr/bin/python3.11"
+
+# 2. Argument Validation
+if [ "$#" -ne 1 ]; then
+    echo "[ERROR] Missing dataset name."
+    echo "Usage: sbatch fit_pca.job <dataset-name>"
+    exit 1
+fi
+
+DATASET_NAME="$1"
+
+echo "[INFO] ========================================================================"
+echo "[INFO] TRAKTOR ML V3 — PCA Dimensionality Reduction"
+echo "[INFO] ========================================================================"
+echo "[INFO] Repo        : $REPO"
+echo "[INFO] Dataset     : $DATASET_NAME"
+echo "[INFO] Start time  : $(date)"
+
+cd "$REPO"
+
+# 3. Environment Setup (scratch4weeks — no conda, no HOME writes)
+SCR="/mnt/fast/nobackup/scratch4weeks/$USER"
+mkdir -p "$SCR"/{python_userbase,tmp,cache/pip,cache/huggingface,cache/torch,cache/xdg}
+
+export PYTHONUSERBASE="$SCR/python_userbase"
+export PATH="$SCR/python_userbase/bin:$PATH"
+export PIP_CACHE_DIR="$SCR/cache/pip"
+
+# torch, torchaudio, soundfile were installed by V2 jobs via pip --user into
+# the default ~/.local on nobackup. Since we override PYTHONUSERBASE to scratch,
+# Python no longer sees them. Add the old site-packages as a read-only fallback.
+OLD_USER_SITE="/mnt/fast/nobackup/users/$USER/.local/lib/python3.11/site-packages"
+export PYTHONPATH="${OLD_USER_SITE}:${PYTHONPATH:-}"
+export HF_HOME="$SCR/cache/huggingface"
+export TRANSFORMERS_CACHE="$HF_HOME"
+export HF_DATASETS_CACHE="$HF_HOME"
+export TORCH_HOME="$SCR/cache/torch"
+export XDG_CACHE_HOME="$SCR/cache/xdg"
+export TMPDIR="$SCR/tmp"
+
+mkdir -p "logs"
+
+# 4. Python verification (system python, no conda)
+echo "[DIAG] hostname : $(hostname)"
+echo "[DIAG] whoami   : $(whoami)"
+echo "[DIAG] python   : $PY"
+$PY --version
+
+# 5. Bootstrap pip + install scikit-learn
+echo "[SETUP] Bootstrapping pip..."
+$PY -m ensurepip --user 2>/dev/null || {
+    echo "[SETUP] ensurepip unavailable, using pip from legacy .local..."
+    export PYTHONPATH="/mnt/fast/nobackup/users/gb0048/.local/lib/python3.11/site-packages:${PYTHONPATH:-}"
+}
+$PY -m pip install --user --quiet scikit-learn joblib
+
+echo "[SETUP] Verifying versions:"
+$PY -m pip freeze 2>&1 | grep -iE 'scikit-learn|joblib|numpy'
+
+echo "[SETUP] Verifying imports..."
+$PY -c "
+import numpy as np
+import sklearn
+import joblib
+print(f'numpy: {np.__version__}')
+print(f'scikit-learn: {sklearn.__version__}')
+print(f'joblib: {joblib.__version__}')
+print('[OK] PCA deps verified')
+"
+
+# 6. Execute PCA fitting
+echo "[RUN] ========================================================================"
+echo "[RUN] Fitting PCA for dataset: $DATASET_NAME"
+echo "[RUN] ========================================================================"
+
+export PYTHONPATH="$REPO:${PYTHONPATH:-}"
+
+$PY "$REPO/src/preprocess/fit_pca.py" \
+    --dataset-name "$DATASET_NAME"
+
+EXIT_CODE=$?
+
+# 7. Completion Report
+echo "[INFO] ========================================================================"
+if [ $EXIT_CODE -eq 0 ]; then
+    echo "[INFO] JOB COMPLETE - SUCCESS"
+    echo "[INFO] Outputs saved to: artifacts/dataset/$DATASET_NAME/"
+else
+    echo "[ERROR] JOB FAILED (Exit code: $EXIT_CODE)"
+fi
+echo "[INFO] End time: $(date)"
+echo "[INFO] ========================================================================"
+
+exit $EXIT_CODE
+
+
+================================================================================
+[46/48] ARCHIVO: slurm/jobs/v3/run_clustering.job
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/slurm/jobs/v3/run_clustering.job
+================================================================================
+
+#!/bin/bash
+#SBATCH --job-name=run_clustering
+#SBATCH --partition=debug
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=8G
+#SBATCH --time=01:00:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
+
+# =============================================================================
+# TRAKTOR ML V3 - Clustering
+# =============================================================================
+# Runs flat or hierarchical clustering on PCA-reduced MERT embeddings.
+# Uses system Python 3.11 (no conda). Caches on scratch4weeks.
+#
+# Usage:
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/v3/run_clustering.job <dataset-name> [extra-args...]
+#
+# Examples:
+#   # Flat KMeans (k=5):
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/v3/run_clustering.job test_20 --mode flat --algorithm kmeans --n-clusters 5
+#
+#   # Hierarchical (KMeans L1 k=4, KMeans L2 k=3):
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/v3/run_clustering.job test_20 --mode hierarchical --algorithm kmeans --n-clusters 4 --l2-algorithm kmeans --l2-n-clusters 3
+#
+#   # Flat HDBSCAN:
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/v3/run_clustering.job test_20 --mode flat --algorithm hdbscan --min-cluster-size 5
+# =============================================================================
+
+set -euo pipefail
+
+# 1. Project Configuration
+REPO="/mnt/fast/nobackup/users/gb0048/traktor"
+PY="/usr/bin/python3.11"
+
+# 2. Argument Validation
+if [ "$#" -lt 1 ]; then
+    echo "[ERROR] Missing dataset name."
+    echo "Usage: sbatch run_clustering.job <dataset-name> [--mode flat] [--algorithm kmeans] [...]"
+    exit 1
+fi
+
+DATASET_NAME="$1"
+shift
+EXTRA_ARGS="$@"
+
+echo "[INFO] ========================================================================"
+echo "[INFO] TRAKTOR ML V3 — Clustering"
+echo "[INFO] ========================================================================"
+echo "[INFO] Repo        : $REPO"
+echo "[INFO] Dataset     : $DATASET_NAME"
+echo "[INFO] Extra args  : $EXTRA_ARGS"
+echo "[INFO] Start time  : $(date)"
+
+cd "$REPO"
+
+# 3. Environment Setup (scratch4weeks — no conda, no HOME writes)
+SCR="/mnt/fast/nobackup/scratch4weeks/$USER"
+mkdir -p "$SCR"/{python_userbase,tmp,cache/pip,cache/huggingface,cache/torch,cache/xdg}
+
+export PYTHONUSERBASE="$SCR/python_userbase"
+export PATH="$SCR/python_userbase/bin:$PATH"
+export PIP_CACHE_DIR="$SCR/cache/pip"
+
+# torch, torchaudio, soundfile were installed by V2 jobs via pip --user into
+# the default ~/.local on nobackup. Since we override PYTHONUSERBASE to scratch,
+# Python no longer sees them. Add the old site-packages as a read-only fallback.
+OLD_USER_SITE="/mnt/fast/nobackup/users/$USER/.local/lib/python3.11/site-packages"
+export PYTHONPATH="${OLD_USER_SITE}:${PYTHONPATH:-}"
+export HF_HOME="$SCR/cache/huggingface"
+export TRANSFORMERS_CACHE="$HF_HOME"
+export HF_DATASETS_CACHE="$HF_HOME"
+export TORCH_HOME="$SCR/cache/torch"
+export XDG_CACHE_HOME="$SCR/cache/xdg"
+export TMPDIR="$SCR/tmp"
+
+mkdir -p "logs"
+
+# 4. Python verification (system python, no conda)
+echo "[DIAG] hostname : $(hostname)"
+echo "[DIAG] whoami   : $(whoami)"
+echo "[DIAG] python   : $PY"
+$PY --version
+
+# 5. Bootstrap pip + install dependencies
+echo "[SETUP] Bootstrapping pip..."
+$PY -m ensurepip --user 2>/dev/null || {
+    echo "[SETUP] ensurepip unavailable, using pip from legacy .local..."
+    export PYTHONPATH="/mnt/fast/nobackup/users/gb0048/.local/lib/python3.11/site-packages:${PYTHONPATH:-}"
+}
+$PY -m pip install --user --quiet scikit-learn joblib pandas pyarrow
+
+echo "[SETUP] Verifying versions:"
+$PY -m pip freeze 2>&1 | grep -iE 'scikit-learn|joblib|pandas|pyarrow|numpy'
+
+echo "[SETUP] Verifying imports..."
+$PY -c "
+import numpy as np
+import sklearn
+import sklearn.cluster
+import pandas as pd
+import joblib
+print(f'numpy: {np.__version__}')
+print(f'scikit-learn: {sklearn.__version__}')
+print(f'pandas: {pd.__version__}')
+print(f'joblib: {joblib.__version__}')
+from sklearn.cluster import HDBSCAN
+print('[OK] Clustering deps verified (HDBSCAN in sklearn)')
+"
+
+# 6. Execute clustering
+echo "[RUN] ========================================================================"
+echo "[RUN] Running clustering for dataset: $DATASET_NAME"
+echo "[RUN] ========================================================================"
+
+export PYTHONPATH="$REPO:${PYTHONPATH:-}"
+
+$PY "$REPO/src/clustering/run.py" \
+    --dataset-name "$DATASET_NAME" \
+    $EXTRA_ARGS
+
+EXIT_CODE=$?
+
+# 7. Completion Report
+echo "[INFO] ========================================================================"
+if [ $EXIT_CODE -eq 0 ]; then
+    echo "[INFO] JOB COMPLETE - SUCCESS"
+    echo "[INFO] Outputs saved to: artifacts/dataset/$DATASET_NAME/"
+else
+    echo "[ERROR] JOB FAILED (Exit code: $EXIT_CODE)"
+fi
+echo "[INFO] End time: $(date)"
+echo "[INFO] ========================================================================"
+
+exit $EXIT_CODE
+
+
+================================================================================
+[47/48] ARCHIVO: slurm/templates/generic_job.job
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/slurm/templates/generic_job.job
+================================================================================
+
+#!/bin/bash
+#SBATCH --job-name=traktor_ml
+#SBATCH --partition=a100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=48:00:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
+
+# =============================================================================
+# TRAKTOR ML - Generic Job Template
+# =============================================================================
+# Standard template for running python scripts on HPC (Training/Inference)
+#
+# Usage:
+#   ./slurm/tools/on_submit.sh sbatch slurm/templates/generic_job.job <SCRIPT_PATH> [ARGS...]
+#
+# Examples:
+#   # Run setup
+#   ./slurm/tools/on_submit.sh sbatch slurm/templates/generic_job.job scripts/hpc/ingest/setup_resources.py
+#
+#   # Run feature extraction
+#   ./slurm/tools/on_submit.sh sbatch slurm/templates/generic_job.job scripts/hpc/process/extract_features.py --model essentia
+# =============================================================================
+
+set -euo pipefail
+
+# 1. Project Configuration
+REPO="/mnt/fast/nobackup/users/gb0048/traktor"
+CONDA_ENV_NAME="traktor_ml"
+
+# 2. Argument Validation
+if [ "$#" -lt 1 ]; then
+    echo "[ERROR] No script specified."
+    echo "Usage: sbatch generic_job.job <path_to_script.py> [args...]"
+    exit 1
+fi
+
+SCRIPT_TO_RUN="$1"
+shift # Remove script from args list so "$@" contains only script arguments
+
+echo "[INFO] ========================================================================"
+echo "[INFO] TRAKTOR ML JOB - START: $(date)"
+echo "[INFO] ========================================================================"
+echo "[INFO] Repo: $REPO"
+echo "[INFO] Script: $SCRIPT_TO_RUN"
+echo "[INFO] Args: $*"
+echo "[INFO] GPU Info:"
+nvidia-smi --query-gpu=name,memory.total --format=csv || echo "No GPU detected or nvidia-smi failed"
+
+cd "$REPO"
+
+# 3. Environment Setup (Caches & Paths)
+# Redirect HuggingFace/Pip caches to fast storage to avoid filling up $HOME
+export HF_HOME="$REPO/data/cache/huggingface"
+export TRANSFORMERS_CACHE="$HF_HOME/transformers"
+export HF_HUB_CACHE="$HF_HOME/hub"
+export PIP_CACHE_DIR="$REPO/data/cache/pip"
+export TMPDIR="$REPO/data/tmp"
+export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
+
+mkdir -p "$HF_HOME" "$TRANSFORMERS_CACHE" "$HF_HUB_CACHE" "$PIP_CACHE_DIR" "$TMPDIR" "logs" "results"
+
+# 4. Conda Activation
+# NOTE: On compute nodes $HOME may differ from login node, so we source
+# conda.sh directly from the known miniconda3 install path.
+CONDA_BASE="/mnt/fast/nobackup/users/gb0048/miniconda3"
+echo "[SETUP] Activating Conda environment: $CONDA_ENV_NAME"
+if [ -f "$CONDA_BASE/etc/profile.d/conda.sh" ]; then
+    . "$CONDA_BASE/etc/profile.d/conda.sh"
+    conda activate "$CONDA_ENV_NAME"
+else
+    echo "[WARN] Conda not found at $CONDA_BASE, trying module load..."
+    module load anaconda/3 2>/dev/null || module load miniconda/3 2>/dev/null
+    source activate "$CONDA_ENV_NAME"
+fi
+
+# 5. Verify Dependencies
+echo "[SETUP] Python Environment:"
+python3 -c "import sys; print(sys.executable)"
+python3 -c "import torch; print(f'PyTorch: {torch.__version__}, CUDA: {torch.cuda.is_available()}')"
+
+# 6. Execution
+echo "[RUN] Executing..."
+export PYTHONPATH="$REPO:${PYTHONPATH:-}"
+
+# Run the python script passing all remaining arguments
+python3 "$SCRIPT_TO_RUN" "$@"
+
+EXIT_CODE=$?
+
+echo "[INFO] ========================================================================"
+if [ $EXIT_CODE -eq 0 ]; then
+    echo "[INFO] JOB COMPLETE - SUCCESS"
+else
+    echo "[ERROR] JOB FAILED (Exit code: $EXIT_CODE)"
+fi
+echo "[INFO] END: $(date)"
+echo "[INFO] ========================================================================"
+
+exit $EXIT_CODE
+
+
+================================================================================
+[48/48] ARCHIVO: slurm/tools/on_submit.sh
+RUTA COMPLETA: /mnt/fast/nobackup/users/gb0048/traktor/slurm/tools/on_submit.sh
+================================================================================
+
+#!/usr/bin/env bash
+set -euo pipefail
+ssh -o BatchMode=yes aisurrey-submit01.surrey.ac.uk "$@"
 

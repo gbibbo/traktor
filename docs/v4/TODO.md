@@ -1,0 +1,49 @@
+# TRAKTOR ML V4 — Progress Tracker
+
+Claude Code: al completar cada tarea, marcar [x] y agregar fecha de finalización.
+Formato: - [x] Tarea X.Y — Descripción | Completado: YYYY-MM-DD
+
+---
+
+## BLOQUE 0: Setup y organización
+- [x] 0.1 Leer plan completo + crear este archivo TODO.md          | Completado: 2026-02-28
+- [ ] 0.2 Mover V3 a legacy                                        | Completado: ____
+- [ ] 0.3 Crear estructura V4 + config.py + v4.yaml + requirements | Completado: ____
+- [ ] TEST-0 Verificación de bloque 0                              | Completado: ____
+
+## BLOQUE 1: Common utilities
+- [ ] 1.1 config_loader.py + path_resolver.py                      | Completado: ____
+- [ ] 1.2 catalog.py                                               | Completado: ____
+- [ ] 1.3 audio_utils.py (carga + segmentación DJ)                 | Completado: ____
+- [ ] 1.4 demucs_utils.py                                          | Completado: ____
+- [ ] 1.5 embedding_utils.py (MERTEmbedder)                        | Completado: ____
+- [ ] 1.6 logging_utils.py (JSONL + run manifests)                 | Completado: ____
+- [ ] TEST-1 Verificación de bloque 1 (integration test)           | Completado: ____
+
+## BLOQUE 2: Pipeline scripts + Slurm
+- [ ] 2.1 phase0_ingest.py                                         | Completado: ____
+- [ ] 2.2 phase1_extract.py                                        | Completado: ____
+- [ ] 2.3 phase1_merge_shards.py                                   | Completado: ____
+- [ ] 2.4 Slurm jobs V4 (todos)                                    | Completado: ____
+- [ ] TEST-2 Verificación de bloque 2 (Phase 0 run + validaciones) | Completado: ____
+
+## >>> PAUSA HUMANA: ejecutar Phase 0, submit Phase 1 GPU, revisar embeddings <<<
+
+## BLOQUE 3: Clustering + evaluación
+- [ ] 3.1 phase2_cluster.py                                        | Completado: ____
+- [ ] 3.2 metrics.py + eval_runner.py                              | Completado: ____
+- [ ] TEST-3 Verificación de bloque 3 (clustering + eval stats)    | Completado: ____
+
+## >>> PAUSA HUMANA: revisar clustering, ajustar hiperparámetros <<<
+
+## BLOQUE 4: Export pipeline
+- [ ] 4.1 phase3_name.py                                           | Completado: ____
+- [ ] 4.2 phase4_order.py                                          | Completado: ____
+- [ ] 4.3 phase5_export.py                                         | Completado: ____
+- [ ] TEST-4 Verificación de bloque 4 (playlists + human review)   | Completado: ____
+
+## BLOQUE 5: UI + finalización
+- [ ] 5.1 UI Streamlit                                             | Completado: ____
+- [ ] 5.2 Adaptation stubs (projection_head + contrastive_trainer) | Completado: ____
+- [ ] 5.3 Integración end-to-end + documentación                   | Completado: ____
+- [ ] TEST-5 Verificación final del sistema                        | Completado: ____

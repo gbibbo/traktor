@@ -8,3 +8,4 @@ pyarrow
 fastparquet
 soundfile
 tqdm
+plotly

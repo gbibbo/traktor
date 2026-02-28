@@ -1,0 +1,135 @@
+#!/bin/bash
+#SBATCH --job-name=run_clustering
+#SBATCH --partition=debug
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=8G
+#SBATCH --time=01:00:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
+
+# =============================================================================
+# TRAKTOR ML V3 - Clustering
+# =============================================================================
+# Runs flat or hierarchical clustering on PCA-reduced MERT embeddings.
+# Uses system Python 3.11 (no conda). Caches on scratch4weeks.
+#
+# Usage:
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/v3/run_clustering.job <dataset-name> [extra-args...]
+#
+# Examples:
+#   # Flat KMeans (k=5):
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/v3/run_clustering.job test_20 --mode flat --algorithm kmeans --n-clusters 5
+#
+#   # Hierarchical (KMeans L1 k=4, KMeans L2 k=3):
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/v3/run_clustering.job test_20 --mode hierarchical --algorithm kmeans --n-clusters 4 --l2-algorithm kmeans --l2-n-clusters 3
+#
+#   # Flat HDBSCAN:
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/v3/run_clustering.job test_20 --mode flat --algorithm hdbscan --min-cluster-size 5
+# =============================================================================
+
+set -euo pipefail
+
+# 1. Project Configuration
+REPO="/mnt/fast/nobackup/users/gb0048/traktor"
+PY="/usr/bin/python3.11"
+
+# 2. Argument Validation
+if [ "$#" -lt 1 ]; then
+    echo "[ERROR] Missing dataset name."
+    echo "Usage: sbatch run_clustering.job <dataset-name> [--mode flat] [--algorithm kmeans] [...]"
+    exit 1
+fi
+
+DATASET_NAME="$1"
+shift
+EXTRA_ARGS="$@"
+
+echo "[INFO] ========================================================================"
+echo "[INFO] TRAKTOR ML V3 — Clustering"
+echo "[INFO] ========================================================================"
+echo "[INFO] Repo        : $REPO"
+echo "[INFO] Dataset     : $DATASET_NAME"
+echo "[INFO] Extra args  : $EXTRA_ARGS"
+echo "[INFO] Start time  : $(date)"
+
+cd "$REPO"
+
+# 3. Environment Setup (scratch4weeks — no conda, no HOME writes)
+SCR="/mnt/fast/nobackup/scratch4weeks/$USER"
+mkdir -p "$SCR"/{python_userbase,tmp,cache/pip,cache/huggingface,cache/torch,cache/xdg}
+
+export PYTHONUSERBASE="$SCR/python_userbase"
+export PATH="$SCR/python_userbase/bin:$PATH"
+export PIP_CACHE_DIR="$SCR/cache/pip"
+
+# torch, torchaudio, soundfile were installed by V2 jobs via pip --user into
+# the default ~/.local on nobackup. Since we override PYTHONUSERBASE to scratch,
+# Python no longer sees them. Add the old site-packages as a read-only fallback.
+OLD_USER_SITE="/mnt/fast/nobackup/users/$USER/.local/lib/python3.11/site-packages"
+export PYTHONPATH="${OLD_USER_SITE}:${PYTHONPATH:-}"
+export HF_HOME="$SCR/cache/huggingface"
+export TRANSFORMERS_CACHE="$HF_HOME"
+export HF_DATASETS_CACHE="$HF_HOME"
+export TORCH_HOME="$SCR/cache/torch"
+export XDG_CACHE_HOME="$SCR/cache/xdg"
+export TMPDIR="$SCR/tmp"
+
+mkdir -p "logs"
+
+# 4. Python verification (system python, no conda)
+echo "[DIAG] hostname : $(hostname)"
+echo "[DIAG] whoami   : $(whoami)"
+echo "[DIAG] python   : $PY"
+$PY --version
+
+# 5. Bootstrap pip + install dependencies
+echo "[SETUP] Bootstrapping pip..."
+$PY -m ensurepip --user 2>/dev/null || {
+    echo "[SETUP] ensurepip unavailable, using pip from legacy .local..."
+    export PYTHONPATH="/mnt/fast/nobackup/users/gb0048/.local/lib/python3.11/site-packages:${PYTHONPATH:-}"
+}
+$PY -m pip install --user --quiet scikit-learn joblib pandas pyarrow
+
+echo "[SETUP] Verifying versions:"
+$PY -m pip freeze 2>&1 | grep -iE 'scikit-learn|joblib|pandas|pyarrow|numpy'
+
+echo "[SETUP] Verifying imports..."
+$PY -c "
+import numpy as np
+import sklearn
+import sklearn.cluster
+import pandas as pd
+import joblib
+print(f'numpy: {np.__version__}')
+print(f'scikit-learn: {sklearn.__version__}')
+print(f'pandas: {pd.__version__}')
+print(f'joblib: {joblib.__version__}')
+from sklearn.cluster import HDBSCAN
+print('[OK] Clustering deps verified (HDBSCAN in sklearn)')
+"
+
+# 6. Execute clustering
+echo "[RUN] ========================================================================"
+echo "[RUN] Running clustering for dataset: $DATASET_NAME"
+echo "[RUN] ========================================================================"
+
+export PYTHONPATH="$REPO:${PYTHONPATH:-}"
+
+$PY "$REPO/src/clustering/run.py" \
+    --dataset-name "$DATASET_NAME" \
+    $EXTRA_ARGS
+
+EXIT_CODE=$?
+
+# 7. Completion Report
+echo "[INFO] ========================================================================"
+if [ $EXIT_CODE -eq 0 ]; then
+    echo "[INFO] JOB COMPLETE - SUCCESS"
+    echo "[INFO] Outputs saved to: artifacts/dataset/$DATASET_NAME/"
+else
+    echo "[ERROR] JOB FAILED (Exit code: $EXIT_CODE)"
+fi
+echo "[INFO] End time: $(date)"
+echo "[INFO] ========================================================================"
+
+exit $EXIT_CODE
