@@ -1,0 +1,44 @@
+# TRAKTOR ML V4 - Configuración de rutas y datasets
+# Valores por defecto para HPC (y laptop). Override con --config o env vars.
+# Precedencia de rutas: CLI override > env var > YAML > defaults en config.py.
+
+paths:
+  artifacts_root: null        # env: TRAKTOR_ARTIFACTS_ROOT
+  audio_roots:                # env: TRAKTOR_AUDIO_ROOTS (separado por ":")
+    - null                    # null => REPO_ROOT/data/raw_audio/
+  hf_cache: null              # env: TRAKTOR_HF_CACHE o TRAKTOR_CACHE_ROOT/hf
+  torch_cache: null           # env: TRAKTOR_TORCH_CACHE o TRAKTOR_CACHE_ROOT/torch
+  download_cache: null        # (opcional) donde guardar descargas HTTP antes de mover a audio_root
+  local_windows_audio_dir: 'C:\Música\2020 new - copia'  # para export m3u en Windows
+
+hashing:
+  mode: "full"                # "full" (default robusto, SHA256 archivo completo) o "fast"
+  fast_bytes_to_read: 1048576 # 1MB (solo aplica si mode="fast")
+
+segmentation:
+  mode: "auto"                # "auto" | "bars" | "seconds"
+  beat_conf_threshold: 0.5    # si beat_confidence < threshold => fallback a seconds
+  segment_duration_s: 5.0
+  segment_duration_bars: 16
+  n_intro_segments: 1
+  n_mid_segments: 2
+  n_outro_segments: 1
+
+datasets:
+  test_20:
+    audio_root: null          # null => REPO_ROOT/data/raw_audio/test_20/
+    metadata_csv: null
+    manifest_csv: null
+    expected_n: 242           # Número de tracks válidos esperados (1 archivo malo conocido)
+
+clustering:
+  l1_min_cluster_size: 10
+  l1_min_samples: 3
+  l2_min_cluster_size: 4
+  l2_min_samples: 2
+
+ordering:
+  weights:
+    embedding: 0.5
+    bpm: 0.3
+    key: 0.2

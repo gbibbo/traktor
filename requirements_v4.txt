@@ -1,0 +1,15 @@
+transformers
+torchaudio
+scikit-learn
+hdbscan
+pandas
+pyarrow
+soundfile
+tqdm
+plotly
+joblib
+demucs
+streamlit
+umap-learn
+pyyaml
+essentia
