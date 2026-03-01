@@ -3,6 +3,9 @@ PURPOSE: Phase 1 — Extracción de features: Essentia (BPM/key/beats), Demucs (
          MERT embeddings (full mix + drums percusivo). Reentrante via progress_shard_XX.json.
          EJECUTAR SOLO VIA SLURM (partición a100, GPU). Nunca en el nodo de login.
 CHANGELOG:
+  - 2026-03-01: Añadido run_id en progress_shard_XX.json. Si el run_id no coincide con el
+                run actual (e.g. smoke test vs full run), se resetea el checkpoint para
+                evitar que tracks marcados como procesados sean silenciosamente omitidos.
   - 2026-02-28: Creación inicial V4. Reentrancia, sharding, logging JSONL.
 """
 import argparse
@@ -40,15 +43,36 @@ from src.v4.config import (
 )
 
 
-def load_progress(progress_path: Path) -> dict:
-    """Cargar estado reentrante. Retorna dict vacío si no existe."""
-    if progress_path.exists():
-        with open(progress_path) as f:
-            return json.load(f)
-    return {"processed": [], "failed": [], "last_checkpoint": 0}
+def compute_run_id() -> str:
+    """Genera un run_id estable para este Slurm job (o 'local' si no hay Slurm).
+
+    Si hay SLURM_JOB_ID, es único por job — detecta correctamente smoke_test vs full_run.
+    Si no hay Slurm, usa 'local' para que re-runs locales preserven el checkpoint.
+    """
+    slurm_id = os.environ.get("SLURM_JOB_ID") or os.environ.get("SLURM_ARRAY_JOB_ID")
+    if slurm_id:
+        return f"slurm_{slurm_id}"
+    return "local"
+
+
+def load_progress(progress_path: Path, expected_run_id: str) -> dict:
+    """Cargar estado reentrante. Resetea si run_id no coincide (run diferente)."""
+    empty = {"processed": [], "failed": [], "last_checkpoint": 0, "run_id": expected_run_id}
+    if not progress_path.exists():
+        return empty
+    with open(progress_path) as f:
+        data = json.load(f)
+    stored_run_id = data.get("run_id", "")
+    if stored_run_id and stored_run_id != expected_run_id:
+        print(f"[WARN] Progress mismatch: stored run_id={stored_run_id!r}, "
+              f"current={expected_run_id!r} — resetting shard checkpoint.")
+        return empty
+    return data
 
 
 def save_progress(progress_path: Path, progress: dict) -> None:
+    import datetime
+    progress["updated_utc"] = datetime.datetime.utcnow().isoformat()
     tmp = progress_path.with_suffix(".tmp")
     with open(tmp, "w") as f:
         json.dump(progress, f, indent=2)
@@ -124,6 +148,7 @@ def main() -> int:
 
     shard_tag = f"shard_{args.shard_id:02d}"
     progress_path = embeddings_dir / f"progress_{shard_tag}.json"
+    run_id = compute_run_id()
 
     log_fh = open_phase_log(logs_root, f"phase1_extract_{shard_tag}")
     log_event(log_fh, {
@@ -146,8 +171,8 @@ def main() -> int:
         shard_uids = shard_uids[:args.max_tracks]
     print(f"[INFO] Shard {args.shard_id}: {len(shard_uids)} tracks to process")
 
-    # Cargar estado reentrante
-    progress = load_progress(progress_path)
+    # Cargar estado reentrante (resetea si run_id no coincide con job anterior)
+    progress = load_progress(progress_path, expected_run_id=run_id)
     already_processed = set(progress["processed"])
     remaining = [uid for uid in shard_uids if uid not in already_processed]
     print(f"[INFO] Already processed: {len(already_processed)}, remaining: {len(remaining)}")

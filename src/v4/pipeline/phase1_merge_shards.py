@@ -3,6 +3,8 @@ PURPOSE: Phase 1 Merge — Consolidar shards de embeddings en archivos finales.
          Verifica cobertura completa del catálogo, genera run_manifest.json.
          Ignorar graciosamente tracks fallidos (no presentes en los shards).
 CHANGELOG:
+  - 2026-03-01: Crear catalog_success.parquet (join catalog ⋈ track_uids.json en orden).
+                Añadir processed_uids/failed_uids/skipped_uids al run_manifest.json.
   - 2026-02-28: Creación inicial V4.
 """
 import argparse
@@ -101,8 +103,8 @@ def main() -> int:
         return 1
 
     # Verificar cobertura vs catálogo
-    catalog = load_catalog(args.dataset_name, config)
-    catalog_uids = set(catalog["track_uid"].tolist())
+    catalog_for_check = load_catalog(args.dataset_name, config)
+    catalog_uids = set(catalog_for_check["track_uid"].tolist())
     merged_uids = set(all_uids)
     missing = catalog_uids - merged_uids
     extra = merged_uids - catalog_uids
@@ -126,6 +128,16 @@ def main() -> int:
         json.dump(all_uids, f)
 
     print(f"[INFO] Saved mert_perc.npy {mert_perc.shape}, mert_full.npy {mert_full.shape}")
+
+    # Crear catalog_success.parquet: catalog filtrado a tracks exitosos, en orden de all_uids
+    # Este es el N canónico para Phase 2-5, tests y export.
+    catalog = load_catalog(args.dataset_name, config)
+    catalog_indexed = catalog.set_index("track_uid")
+    success_rows = [catalog_indexed.loc[uid] for uid in all_uids if uid in catalog_indexed.index]
+    catalog_success = pd.DataFrame(success_rows).reset_index()
+    catalog_success_path = artifacts_dir / "catalog_success.parquet"
+    catalog_success.to_parquet(catalog_success_path, index=False)
+    print(f"[INFO] Saved catalog_success.parquet ({len(catalog_success)} rows, N canónico)")
 
     # Guardar features BPM/key
     if all_bpm_key:
@@ -169,6 +181,9 @@ def main() -> int:
             "transformers": get_version("transformers"),
             "numpy": get_version("numpy"),
         },
+        "processed_uids": all_uids,
+        "failed_uids": sorted(missing),
+        "skipped_uids": sorted(extra),
         "artifacts": {
             "mert_perc_shape": list(mert_perc.shape),
             "mert_full_shape": list(mert_full.shape),

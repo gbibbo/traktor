@@ -30,20 +30,27 @@ Formato: - [x] Tarea X.Y — Descripción | Completado: YYYY-MM-DD
 ## >>> PAUSA HUMANA: ejecutar Phase 0, submit Phase 1 GPU, revisar embeddings <<<
 
 ## BLOQUE 3: Clustering + evaluación
-- [ ] 3.1 phase2_cluster.py                                        | Completado: ____
-- [ ] 3.2 metrics.py + eval_runner.py                              | Completado: ____
-- [ ] TEST-3 Verificación de bloque 3 (clustering + eval stats)    | Completado: ____
+- [x] 3.1 phase2_cluster.py                                        | Completado: 2026-02-28
+- [x] 3.2 metrics.py + eval_runner.py                              | Completado: 2026-02-28
+- [x] TEST-3 Verificación de bloque 3 (clustering + eval stats)    | Completado: 2026-03-01 (Parte A+B; assertions suavizadas; N canónico = 239)
 
 ## >>> PAUSA HUMANA: revisar clustering, ajustar hiperparámetros <<<
 
 ## BLOQUE 4: Export pipeline
-- [ ] 4.1 phase3_name.py                                           | Completado: ____
-- [ ] 4.2 phase4_order.py                                          | Completado: ____
-- [ ] 4.3 phase5_export.py                                         | Completado: ____
-- [ ] TEST-4 Verificación de bloque 4 (playlists + human review)   | Completado: ____
+- [x] 4.1 phase3_name.py                                           | Completado: 2026-03-01
+- [x] 4.2 phase4_order.py                                          | Completado: 2026-03-01 (Camelot + greedy NN)
+- [x] 4.3 phase5_export.py                                         | Completado: 2026-03-01 (M3U UTF-8 + Windows paths)
+- [ ] TEST-4 Verificación de bloque 4 (playlists + human review)   | Completado: ____ (ejecutar tras PAUSA HUMANA del clustering)
 
 ## BLOQUE 5: UI + finalización
-- [ ] 5.1 UI Streamlit                                             | Completado: ____
-- [ ] 5.2 Adaptation stubs (projection_head + contrastive_trainer) | Completado: ____
-- [ ] 5.3 Integración end-to-end + documentación                   | Completado: ____
-- [ ] TEST-5 Verificación final del sistema                        | Completado: ____
+- [x] 5.1 UI Streamlit                                             | Completado: 2026-03-01 (src/v4/ui/app.py)
+- [x] 5.2 Adaptation stubs (projection_head + contrastive_trainer) | Completado: 2026-03-01
+- [x] 5.3 Integración end-to-end + documentación                   | Completado: 2026-03-01 (docs/V4_USAGE.md + PROJECT_MAP.md)
+- [ ] TEST-5 Verificación final del sistema                        | Completado: ____ (ejecutar tras TEST-4)
+
+## Notas de implementación (2026-03-01)
+- N canónico = len(track_uids.json) = 239 (no 243 del catálogo)
+- catalog_success.parquet: generado en phase1_merge_shards, 239 filas, alineado con embeddings
+- Bug checkpoint corregido: run_id en progress_shard_XX.json (phase1_extract.py)
+- Keys de Essentia ("C minor") → Camelot ("5A") normalización en phase4_order.py
+- TEST-3 assertions suavizadas: n_clusters≥1, noise<0.8 (hard); resto = reporte humano
