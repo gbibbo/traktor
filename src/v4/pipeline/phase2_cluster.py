@@ -22,6 +22,9 @@ from typing import Dict, List
 import numpy as np
 import pandas as pd
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO_ROOT))
+
 from src.v4.common.config_loader import load_config
 from src.v4.common.path_resolver import resolve_dataset_artifacts
 
