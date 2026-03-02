@@ -29,6 +29,8 @@ MERT_EMBEDDING_DIM = 1024
 DEMUCS_MODEL_NAME = "htdemucs"
 
 # === Clustering defaults ===
+PCA_DIM = 50              # Dims PCA antes de HDBSCAN (0 = desactivado)
+ASSIGN_NOISE = True       # reasignar puntos noise al cluster vecino más cercano (1-NN)
 L1_MIN_CLUSTER_SIZE = 10
 L1_MIN_SAMPLES = 3
 L2_MIN_CLUSTER_SIZE = 4

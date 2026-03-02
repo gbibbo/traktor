@@ -1,0 +1,30 @@
+#!/bin/bash
+#SBATCH --job-name=diag_env_gpu
+#SBATCH --partition=a100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+#SBATCH --time=00:05:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/diag_env_gpu_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/diag_env_gpu_%j.err
+
+echo "=== hostname ==="
+hostname
+
+echo "=== OS release ==="
+cat /etc/os-release 2>/dev/null | grep -E "NAME|VERSION_ID" || true
+
+echo "=== All Python binaries on system ==="
+find /usr /opt /apps /sw -name "python3*" -type f 2>/dev/null | head -20 || true
+
+echo "=== singularity / apptainer available? ==="
+which singularity apptainer 2>/dev/null || echo "neither in PATH"
+ls /usr/bin/singularity /usr/bin/apptainer /usr/local/bin/singularity /usr/local/bin/apptainer 2>/dev/null || true
+
+echo "=== SIF/Apptainer images on shared storage ==="
+find /mnt/fast/nobackup /mnt/scratch /scratch -name "*.sif" -maxdepth 5 2>/dev/null | head -10 || true
+
+echo "=== nvidia-smi ==="
+nvidia-smi --query-gpu=name,driver_version,cuda_version --format=csv,noheader 2>/dev/null || echo "no GPU"
+
+echo "=== DONE ==="

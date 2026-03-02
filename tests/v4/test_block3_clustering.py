@@ -170,6 +170,7 @@ def test_phase2_cluster_on_test20():
     config = load_config()
     cluster_cfg = config.get("clustering", {})
     artifacts = resolve_dataset_artifacts("test_20", config)
+    assign_noise = cluster_cfg.get("assign_noise", True)
 
     results_path = run_clustering(
         dataset_name="test_20",
@@ -180,6 +181,8 @@ def test_phase2_cluster_on_test20():
         l2_min_samples=cluster_cfg.get("l2_min_samples", 2),
         config_tag="test_block3",
         skip_umap=True,  # Más rápido para el test
+        pca_dim=cluster_cfg.get("pca_dim", 0),
+        assign_noise=assign_noise,
     )
 
     import pandas as pd
@@ -210,15 +213,23 @@ def test_phase2_cluster_on_test20():
     n_clusters_l1 = len(set(labels_l1[labels_l1 != -1]))
     assert n_clusters_l1 >= 1, f"Sin clusters L1 ({n_clusters_l1}) — revisar HDBSCAN"
 
+    # Verificar comportamiento de assign_noise
+    if assign_noise:
+        assert noise_l1 == 0.0, f"Con assign_noise=True, noise debe ser 0%, got {noise_l1:.1%}"
+        assert "label_l1_raw" in df.columns, "Falta columna label_l1_raw"
+        assert "label_l2_raw" in df.columns, "Falta columna label_l2_raw"
+        n_reassigned = int((df["label_l1_raw"] == -1).sum())
+        print(f"      [INFO] Tracks reasignados L1: {n_reassigned} ({n_reassigned/N:.1%})")
+    else:
+        # Sin reassignment: contrato original — si label_l1==-1, label_l2 debe ser -1
+        noise_mask = labels_l1 == -1
+        assert np.all(labels_l2[noise_mask] == -1), (
+            "Tracks con label_l1=-1 deben tener label_l2=-1"
+        )
+
     # Reporte humano (no son asserts, son guías)
     print(f"      [HUMAN REVIEW] n_clusters_l1={n_clusters_l1}, noise={noise_l1:.1%}")
     print(f"      Objetivo sugerido: 3-10 clusters, <30% noise para ~250 tracks")
-
-    # Verificar contrato de labels: si label_l1 == -1, label_l2 debe ser -1
-    noise_mask = labels_l1 == -1
-    assert np.all(labels_l2[noise_mask] == -1), (
-        "Tracks con label_l1=-1 deben tener label_l2=-1"
-    )
 
     print(f"  OK: Phase 2 clustering completado")
     print(f"      N={N}, L1 clusters={n_clusters_l1}, noise={noise_l1:.1%}")
@@ -242,11 +253,13 @@ def test_eval_runner_on_test20():
     config = load_config()
     cluster_cfg = config.get("clustering", {})
     cluster_params = {
+        "pca_dim": cluster_cfg.get("pca_dim", 0),
         "l1_min_cluster_size": cluster_cfg.get("l1_min_cluster_size", 10),
         "l1_min_samples": cluster_cfg.get("l1_min_samples", 3),
         "l2_min_cluster_size": cluster_cfg.get("l2_min_cluster_size", 4),
         "l2_min_samples": cluster_cfg.get("l2_min_samples", 2),
         "l2_min_parent_size": 8,
+        "assign_noise": cluster_cfg.get("assign_noise", True),
         "config_tag": "test_block3",
         "dataset_name": "test_20",
     }
@@ -265,6 +278,8 @@ def test_eval_runner_on_test20():
             l2_min_samples=cluster_params["l2_min_samples"],
             config_tag="test_block3",
             skip_umap=True,
+            pca_dim=cluster_params["pca_dim"],
+            assign_noise=cluster_params["assign_noise"],
         )
 
     result = run_evaluation(

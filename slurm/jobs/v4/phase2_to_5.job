@@ -39,7 +39,7 @@ export PYTHONPATH="${OLD_USER_SITE}:${PYTHONPATH:-}"
 export TMPDIR="$SCR/tmp"
 
 $PY -m ensurepip --user 2>/dev/null || true
-$PY -m pip install --user --quiet pyarrow pandas scikit-learn hdbscan umap-learn
+$PY -m pip install --user --quiet pyarrow pandas scikit-learn umap-learn
 
 export PYTHONPATH="$REPO:${PYTHONPATH:-}"
 

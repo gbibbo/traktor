@@ -1,0 +1,31 @@
+#!/bin/bash
+#SBATCH --job-name=diag_python
+#SBATCH --partition=debug
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=2G
+#SBATCH --time=00:05:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/diag_python_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/diag_python_%j.err
+
+echo "=== hostname ==="
+hostname
+
+echo "=== Python binaries in PATH ==="
+which python python3 python3.9 python3.10 python3.11 python3.12 2>/dev/null || true
+
+echo "=== /usr/bin/python* ==="
+ls /usr/bin/python* 2>/dev/null || echo "none"
+
+echo "=== /usr/local/bin/python* ==="
+ls /usr/local/bin/python* 2>/dev/null || echo "none"
+
+echo "=== module avail python ==="
+module avail python 2>&1 | head -20 || echo "no module command"
+
+echo "=== find python3.11 in /opt /apps /software ==="
+find /opt /apps /software /sw -name "python3.11" -maxdepth 8 2>/dev/null | head -10 || true
+
+echo "=== PATH ==="
+echo "$PATH"
+
+echo "=== DONE ==="

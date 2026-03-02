@@ -40,13 +40,13 @@ Formato: - [x] Tarea X.Y — Descripción | Completado: YYYY-MM-DD
 - [x] 4.1 phase3_name.py                                           | Completado: 2026-03-01
 - [x] 4.2 phase4_order.py                                          | Completado: 2026-03-01 (Camelot + greedy NN)
 - [x] 4.3 phase5_export.py                                         | Completado: 2026-03-01 (M3U UTF-8 + Windows paths)
-- [ ] TEST-4 Verificación de bloque 4 (playlists + human review)   | Completado: ____ (ejecutar tras PAUSA HUMANA del clustering)
+- [x] TEST-4 Verificación de bloque 4 (playlists + human review)   | Completado: 2026-03-01 (239/239 tracks, transition_score=0.797, fix doble conteo phase5)
 
 ## BLOQUE 5: UI + finalización
 - [x] 5.1 UI Streamlit                                             | Completado: 2026-03-01 (src/v4/ui/app.py)
 - [x] 5.2 Adaptation stubs (projection_head + contrastive_trainer) | Completado: 2026-03-01
 - [x] 5.3 Integración end-to-end + documentación                   | Completado: 2026-03-01 (docs/V4_USAGE.md + PROJECT_MAP.md)
-- [ ] TEST-5 Verificación final del sistema                        | Completado: ____ (ejecutar tras TEST-4)
+- [x] TEST-5 Verificación final del sistema                        | Completado: 2026-03-01 (todos los módulos importan, ProjectionHead OK)
 
 ## Notas de implementación (2026-03-01)
 - N canónico = len(track_uids.json) = 239 (no 243 del catálogo)

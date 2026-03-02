@@ -12,10 +12,45 @@ Logs en: `logs/v4_<jobname>_<jobid>.out`
 Phase 0 (local)  ✅ DONE  → catalog.parquet (243 tracks)
                              artifacts/v4/datasets/test_20/catalog.parquet
 
-Smoke test GPU   🔄 RUNNING/PENDING
-Phase 1 GPU      ⏳ PENDING (enviar tras smoke test OK)
-Phase 1 Merge    ⏳ PENDING (enviar tras Phase 1 completa, si hubo sharding)
-Phases 2-5       ⏳ PENDING (enviar tras merge/embeddings validados)
+Smoke test GPU   ✅ PASSED (job 2068466, 2026-03-01)
+                   shapes (3,1024) ✅ | finite ✅ | cos_dist=0.091 ✅ | 46.9s
+
+Phase 1 GPU      ✅ DONE (job 2068468, 1h03m) — 239 OK, 1 failed (Lorenzo), 3 skipped*
+Phase 1 Merge    ✅ DONE (job 2068566, 0.4s) — N=239 | shapes (239,1024) ✅ | cos=0.121 ✅
+                   *3 tracks marcados como done por smoke test pero no en npy final (N=239 aceptable)
+Phase 2 cluster  ✅ DONE (job 2068637, 29s) — 8 clusters L1, 53.1% noise, UMAP 2D ✅
+                   hash=7b299510 | results_7b299510.parquet (239 rows, umap_x/umap_y ✅)
+Phases 3-5       ✅ DONE (job 2068637, 44s total) — names, ordering, M3U export
+                   playlists/V4_3/ (239 tracks, 8 grupos L1, 9 subclusters L2 + All_Noise)
+Phase 2 cluster  ✅ DONE (job 2068899, 20s) — noise reassignment 1-NN activo
+                   hash=f07e0de4 | 8 clusters L1, noise raw=51.0% → final=0.0% (122 reasignados)
+                   label_l1_raw + label_l2_raw guardados para diagnóstico
+Phases 3-5       ✅ DONE (job 2068899, 31s total) — names, ordering, M3U export
+                   playlists/V4_4/ (239 tracks, 8 grupos L1, 10 subclusters L2)
+Streamlit UI     ✅ RUNNING — localhost:8501 (datamove1, process background)
+                   UI actualizada: muestra "Noise original: 51%" junto a "Noise rate: 0%"
+```
+
+### Infraestructura (resuelto 2026-03-01)
+
+Los nodos `a100` (Rocky Linux 8.6) solo tienen Python 3.6 — se usa **Apptainer**:
+- SIF: `/mnt/fast/nobackup/scratch4weeks/gb0048/apptainer/pytorch_2.5.1_cu124.sif`
+- SIF v2 (preferido): `pytorch_2.7.0_cu128.sif` — actualizar job scripts cuando se migre
+- `transformers==4.44.2` pinned (PyTorch 2.5 compat); con SIF v2 se puede usar latest
+- pandas, pyarrow, soundfile, tqdm, demucs, essentia: instalados en `python_userbase_sif/`
+
+### Artefactos Phase 1 validados (2026-03-01)
+
+```
+artifacts/v4/datasets/test_20/
+  catalog.parquet              ✅ (243 tracks en catálogo)
+  embeddings/
+    mert_perc.npy              ✅ (239, 1024) — embeddings percusivos
+    mert_full.npy              ✅ (239, 1024) — embeddings full mix
+    track_uids.json            ✅ (239 UIDs, fuente de verdad de alineación)
+  features/
+    bpm_key.parquet            ✅ (239 rows, BPM 86-167, mediana 123.9)
+  run_manifest.json            ✅
 ```
 
 ---
@@ -24,7 +59,13 @@ Phases 2-5       ⏳ PENDING (enviar tras merge/embeddings validados)
 
 | Job ID  | Job Name          | Estado    | Fecha       | Descripción |
 |---------|-------------------|-----------|-------------|-------------|
-| 2068338 | v4_smoke_test_gpu | PD→RUN    | 2026-02-28  | Smoke test: 3 tracks, a100, 30min |
+| 2068338 | v4_smoke_test_gpu | FAILED    | 2026-02-28  | Python 3.11 no disponible en a100 |
+| 2068466 | v4_smoke_test_gpu | ✅ PASSED  | 2026-03-01  | Smoke OK con Apptainer (46.9s, 3 tracks) |
+| 2068468 | v4_phase1_extract | ✅ DONE    | 2026-03-01  | Phase 1: 239 OK, 1 failed, 1h03m |
+| 2068566 | v4_phase1_merge   | ✅ DONE    | 2026-03-01  | Merge shards → mert_perc/full (239,1024) |
+| 2068629 | v4_phases2to5     | ❌ FAILED  | 2026-03-01  | hdbscan pip build fail (Python.h missing on debug node) |
+| 2068637 | v4_phases2to5     | ✅ DONE    | 2026-03-01  | Phases 2-5 OK (44s) — switched to sklearn.cluster.HDBSCAN |
+| 2068899 | v4_phases2to5     | ✅ DONE    | 2026-03-02  | Phases 2-5 OK (31s) — noise reassignment 1-NN, hash=f07e0de4 |
 
 ---
 

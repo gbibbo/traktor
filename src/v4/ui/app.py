@@ -4,6 +4,7 @@ PURPOSE: Streamlit dashboard para exploración interactiva del clustering V4.
          y botón de export de playlists.
 CHANGELOG:
   - 2026-03-01: Creación inicial V4.
+  - 2026-03-01: load_data() prefiere parquet con UMAP real; re-cluster pasa --pca-dim y do_umap=True por defecto.
 """
 import json
 import subprocess
@@ -50,13 +51,19 @@ def load_data(dataset_name: str):
     artifacts_dir = resolve_dataset_artifacts(dataset_name, config)
     clustering_dir = artifacts_dir / "clustering"
 
-    # Auto-detect último resultado de clustering
+    # Auto-detect último resultado de clustering con UMAP real (no ceros)
     candidates = sorted(clustering_dir.glob("results_*.parquet"),
                         key=lambda p: p.stat().st_mtime)
     if not candidates:
         return None, None, None, None
 
-    results_path = candidates[-1]
+    # Preferir el más reciente que tenga coordenadas UMAP reales (no ceros)
+    results_path = candidates[-1]  # fallback: el más reciente
+    for p in reversed(candidates):
+        df_check = pd.read_parquet(p, columns=["umap_x"])
+        if df_check["umap_x"].abs().sum() > 0:
+            results_path = p
+            break
     config_hash = results_path.stem.replace("results_", "")
 
     df = pd.read_parquet(results_path)
@@ -122,7 +129,7 @@ def main():
         l1_min_cluster_size = st.slider("L1 min_cluster_size", 3, 30, 10)
         l1_min_samples = st.slider("L1 min_samples", 1, 10, 3)
         l2_min_cluster_size = st.slider("L2 min_cluster_size", 2, 15, 4)
-        do_umap = st.checkbox("Incluir UMAP (más lento)", value=False)
+        do_umap = st.checkbox("Incluir UMAP (más lento)", value=True)
         recluster_btn = st.button("🔄 Re-cluster", type="primary")
 
         st.divider()
@@ -203,15 +210,22 @@ def main():
     st.plotly_chart(fig, use_container_width=True)
 
     # === Stats ===
-    col1, col2, col3, col4 = st.columns(4)
+    has_raw = "label_l1_raw" in df.columns
     n_clusters_l1 = len([l for l in df["label_l1"].unique() if l >= 0])
     noise_rate = float((df["label_l1"] == -1).sum() / len(df))
-    col1.metric("N tracks", N)
-    col2.metric("L1 Clusters", n_clusters_l1)
-    col3.metric("Noise rate", f"{noise_rate:.1%}")
+    cols = st.columns(5 if has_raw else 4)
+    cols[0].metric("N tracks", N)
+    cols[1].metric("L1 Clusters", n_clusters_l1)
+    cols[2].metric("Noise rate", f"{noise_rate:.1%}")
+    if has_raw:
+        raw_noise = float((df["label_l1_raw"] == -1).sum() / len(df))
+        cols[3].metric("Noise original", f"{raw_noise:.1%}")
+        bpm_col = cols[4]
+    else:
+        bpm_col = cols[3]
     if "bpm" in df.columns:
         bpm_med = df["bpm"].median()
-        col4.metric("BPM median", f"{bpm_med:.1f}")
+        bpm_col.metric("BPM median", f"{bpm_med:.1f}")
 
     # === Cluster breakdown ===
     st.subheader("Distribución de clusters")
@@ -238,6 +252,7 @@ def main():
     if recluster_btn:
         st.subheader("Re-clustering en progreso...")
         log_area = st.empty()
+        pca_dim = (config or {}).get("clustering", {}).get("pca_dim", 50)
         cmd = [
             sys.executable, str(REPO_ROOT / "src/v4/pipeline/phase2_cluster.py"),
             "--dataset-name", dataset_name,
@@ -245,6 +260,7 @@ def main():
             "--l1-min-samples", str(l1_min_samples),
             "--l2-min-cluster-size", str(l2_min_cluster_size),
             "--l2-min-samples", "2",
+            "--pca-dim", str(pca_dim),
         ]
         if not do_umap:
             cmd.append("--skip-umap")

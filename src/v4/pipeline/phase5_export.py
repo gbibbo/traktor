@@ -5,6 +5,8 @@ PURPOSE: Phase 5 — Exportar playlists M3U compatibles con Traktor DJ.
          Total de tracks exportados siempre == N canónico (track_uids.json).
 CHANGELOG:
   - 2026-03-01: Creación inicial V4.
+  - 2026-03-01: Fix doble conteo: clusters con todos label_l2=-1 no generan playlist trivial adicional.
+  - 2026-03-02: Fix nombre: grupos donde HDBSCAN L2 no encontró subclusters → playlist limpia en lugar de L2_X_Noise.m3u.
 """
 import argparse
 import json
@@ -184,7 +186,22 @@ def run_export(
         mask_l1 = df["label_l1"] == l1
         l2_labels = sorted([l for l in df.loc[mask_l1, "label_l2"].unique() if l >= 0])
 
-        # Tracks L2-noise dentro de L1 → L1_X_Noise.m3u
+        # Caso especial: todos los tracks del cluster tienen label_l2 == -1.
+        # HDBSCAN L2 no encontró ningún subcluster (todo es "noise" interno).
+        # Exportar el grupo L1 completo como una sola playlist con nombre limpio.
+        if not l2_labels and (df[mask_l1]["label_l2"] == -1).all():
+            tracks_all = df[mask_l1].copy()
+            if tracks_all["position"].max() > 0:
+                tracks_all = tracks_all.sort_values("position")
+            l2_name = names.get(f"l1_{l1}_l2_0", f"{l1_letter}1")
+            fn = f"L2_{_sanitize_dirname(l2_name)}.m3u"
+            _write_m3u(l1_dir / fn, tracks_all, windows_audio_dir)
+            total_exported += len(tracks_all)
+            summary_lines.append(f"L1_{l1_letter} (all)  | {fn:<35} | {len(tracks_all):>4} tracks")
+            print(f"  [OK] {l1_dirname}/{fn} ({len(tracks_all)} tracks)")
+            continue
+
+        # Tracks L2-noise dentro de L1 (cuando sí hay subclusters reales) → L1_X_Noise.m3u
         noise_l2 = df[mask_l1 & (df["label_l2"] == -1)].copy()
         if not noise_l2.empty:
             if noise_l2["position"].max() > 0:
@@ -193,11 +210,13 @@ def run_export(
             _write_m3u(l1_dir / fn, noise_l2, windows_audio_dir)
             total_exported += len(noise_l2)
             summary_lines.append(f"L1_{l1_letter} Noise  | {fn:<35} | {len(noise_l2):>4} tracks")
+            print(f"  [OK] {l1_dirname}/{fn} ({len(noise_l2)} tracks, L2-noise)")
 
-        # L2 subclusters triviales (label_l2 == 0, cluster L1 pequeño)
+        # L2 subcluster trivial (label_l2 == 0, cluster L1 pequeño con < L2_MIN_PARENT_SIZE tracks).
         if not l2_labels:
-            # Toda el cluster L1 como un único playlist
-            tracks_l1 = df[mask_l1].copy()
+            tracks_l1 = df[mask_l1 & (df["label_l2"] >= 0)].copy()
+            if tracks_l1.empty:
+                continue
             if tracks_l1["position"].max() > 0:
                 tracks_l1 = tracks_l1.sort_values("position")
             l2_name = names.get(f"l1_{l1}_l2_0", f"{l1_letter}1")

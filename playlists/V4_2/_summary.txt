@@ -1,0 +1,22 @@
+TRAKTOR ML V4 — Playlist Export Summary
+Dataset: test_20 | N tracks: 239
+Windows audio dir: C:\Música\test_export
+======================================================================
+Cluster      | Archivo M3U                         |      N
+------------------------------------------------------------
+Noise        | All_Noise.m3u                     |  122 tracks
+L1_A        | L2_A1.m3u                           |    4 tracks
+L1_A        | L2_A2.m3u                           |    4 tracks
+L1_B        | L2_B1.m3u                           |    6 tracks
+L1_C        | L2_C1.m3u                           |    7 tracks
+L1_D Noise  | L2_D_Noise.m3u                      |   11 tracks
+L1_E Noise  | L2_E_Noise.m3u                      |   24 tracks
+L1_F Noise  | L2_F_Noise.m3u                      |   16 tracks
+L1_F        | L2_F1.m3u                           |   10 tracks
+L1_F        | L2_F2.m3u                           |    7 tracks
+L1_G Noise  | L2_G_Noise.m3u                      |    8 tracks
+L1_H Noise  | L2_H_Noise.m3u                      |    3 tracks
+L1_H        | L2_H1.m3u                           |   11 tracks
+L1_H        | L2_H2.m3u                           |    6 tracks
+------------------------------------------------------------
+TOTAL                                              |    239

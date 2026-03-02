@@ -1,7 +1,6 @@
 transformers
 torchaudio
 scikit-learn
-hdbscan
 pandas
 pyarrow
 soundfile

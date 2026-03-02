@@ -134,7 +134,7 @@ def main() -> int:
     catalog = load_catalog(args.dataset_name, config)
     catalog_indexed = catalog.set_index("track_uid")
     success_rows = [catalog_indexed.loc[uid] for uid in all_uids if uid in catalog_indexed.index]
-    catalog_success = pd.DataFrame(success_rows).reset_index()
+    catalog_success = pd.DataFrame(success_rows).reset_index().rename(columns={"index": "track_uid"})
     catalog_success_path = artifacts_dir / "catalog_success.parquet"
     catalog_success.to_parquet(catalog_success_path, index=False)
     print(f"[INFO] Saved catalog_success.parquet ({len(catalog_success)} rows, N canónico)")

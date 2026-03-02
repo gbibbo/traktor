@@ -1,0 +1,42 @@
+#!/bin/bash
+#SBATCH --job-name=diag_net_pull
+#SBATCH --partition=debug
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=8G
+#SBATCH --time=01:00:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/diag_net_pull_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/diag_net_pull_%j.err
+
+SIF_DIR="/mnt/fast/nobackup/scratch4weeks/gb0048/apptainer"
+mkdir -p "$SIF_DIR"
+
+echo "=== hostname & OS ==="
+hostname
+cat /etc/os-release | grep -E "^NAME|^VERSION_ID" 2>/dev/null
+
+echo "=== apptainer version ==="
+apptainer --version 2>/dev/null || singularity --version 2>/dev/null || echo "ERROR: neither found"
+
+echo "=== internet access check ==="
+curl -s --max-time 5 https://registry-1.docker.io/v2/ -o /dev/null && echo "Docker Hub: REACHABLE" || echo "Docker Hub: NOT REACHABLE"
+curl -s --max-time 5 https://ghcr.io -o /dev/null && echo "GHCR: REACHABLE" || echo "GHCR: NOT REACHABLE"
+
+echo "=== pulling PyTorch container (python 3.11 + cuda) ==="
+echo "Target: docker://pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime"
+echo "Output: $SIF_DIR/pytorch_2.5.1_cu124.sif"
+
+APPTAINER_CACHEDIR="/mnt/fast/nobackup/scratch4weeks/gb0048/cache/apptainer"
+export APPTAINER_CACHEDIR
+mkdir -p "$APPTAINER_CACHEDIR"
+
+apptainer pull \
+    --dir "$SIF_DIR" \
+    pytorch_2.5.1_cu124.sif \
+    docker://pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime \
+    && echo "[OK] SIF downloaded: $SIF_DIR/pytorch_2.5.1_cu124.sif" \
+    || echo "[FAIL] Pull failed - check internet access or try another image"
+
+echo "=== SIF files in $SIF_DIR ==="
+ls -lh "$SIF_DIR"/*.sif 2>/dev/null || echo "none"
+
+echo "=== DONE ==="

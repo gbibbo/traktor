@@ -32,10 +32,12 @@ datasets:
     expected_n: 243           # Total de archivos MP3 en el directorio (Phase 1 fallará ~1 bad file)
 
 clustering:
-  l1_min_cluster_size: 10
-  l1_min_samples: 3
+  pca_dim: 50              # dims PCA antes de HDBSCAN (0 = sin PCA); 93.7% var retained en 1024→50
+  l1_min_cluster_size: 6   # tuned para test_20 (N=239): 8 clusters L1, ~52% noise
+  l1_min_samples: 1
   l2_min_cluster_size: 4
   l2_min_samples: 2
+  assign_noise: true       # reasignar puntos noise al cluster vecino más cercano (1-NN)
 
 ordering:
   weights:

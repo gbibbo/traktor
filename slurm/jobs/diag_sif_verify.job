@@ -1,0 +1,51 @@
+#!/bin/bash
+#SBATCH --job-name=diag_sif_verify
+#SBATCH --partition=a100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=8G
+#SBATCH --time=00:10:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/diag_sif_verify_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/diag_sif_verify_%j.err
+
+SIF="/mnt/fast/nobackup/scratch4weeks/gb0048/apptainer/pytorch_2.5.1_cu124.sif"
+
+echo "=== hostname / GPU ==="
+hostname
+nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null || echo "no GPU"
+
+echo "=== Python & PyTorch inside SIF ==="
+apptainer exec --nv \
+    --bind /mnt/fast/nobackup \
+    "$SIF" \
+    python -c "
+import sys
+print('Python:', sys.version)
+import torch
+print('PyTorch:', torch.__version__)
+print('CUDA available:', torch.cuda.is_available())
+if torch.cuda.is_available():
+    print('GPU:', torch.cuda.get_device_name(0))
+"
+
+echo "=== pip install test (tqdm, soundfile) ==="
+SCR="/mnt/fast/nobackup/scratch4weeks/gb0048"
+USERBASE="$SCR/python_userbase_sif"
+mkdir -p "$USERBASE"
+
+apptainer exec --nv \
+    --bind /mnt/fast/nobackup \
+    --env PYTHONUSERBASE="$USERBASE" \
+    "$SIF" \
+    pip install --user --quiet tqdm soundfile pyarrow 2>&1 | tail -5
+
+apptainer exec --nv \
+    --bind /mnt/fast/nobackup \
+    --env PYTHONUSERBASE="$USERBASE" \
+    "$SIF" \
+    python -c "
+import tqdm, soundfile, pyarrow
+print('[OK] tqdm, soundfile, pyarrow importan correctamente')
+"
+
+echo "=== DONE ==="

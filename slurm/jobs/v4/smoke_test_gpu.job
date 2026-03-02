@@ -3,15 +3,18 @@
 #SBATCH --partition=a100
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=16G
+#SBATCH --mem=32G
 #SBATCH --time=00:30:00
 #SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.out
 #SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/%x_%j.err
 
 # =============================================================================
-# TRAKTOR ML V4 — GPU Smoke Test: 3 tracks
+# TRAKTOR ML V4 — GPU Smoke Test: 3 tracks (Apptainer edition)
 # Valida que el pipeline GPU funciona antes del run completo.
 # Verifica: shapes (3,1024), valores finitos, mert_perc != mert_full.
+#
+# Requisito: SIF descargado en scratch4weeks/apptainer/pytorch_2.5.1_cu124.sif
+# (ver slurm/jobs/diag_net_pull.job para descargarlo si no está)
 #
 # Usage:
 #   ./slurm/tools/on_submit.sh sbatch slurm/jobs/v4/smoke_test_gpu.job <dataset-name>
@@ -23,7 +26,7 @@
 set -euo pipefail
 
 REPO="/mnt/fast/nobackup/users/gb0048/traktor"
-PY="/usr/bin/python3.11"
+SIF="/mnt/fast/nobackup/scratch4weeks/$USER/apptainer/pytorch_2.5.1_cu124.sif"
 
 if [ "$#" -ne 1 ]; then
     echo "[ERROR] Missing dataset name."
@@ -35,34 +38,63 @@ echo "[INFO] ===================================================================
 echo "[INFO] TRAKTOR ML V4 — GPU Smoke Test (3 tracks)"
 echo "[INFO] ========================================================================"
 echo "[INFO] Dataset: $DATASET_NAME | $(date)"
+echo "[INFO] SIF: $SIF"
 nvidia-smi --query-gpu=name,memory.total --format=csv || echo "No GPU"
+
+if [ ! -f "$SIF" ]; then
+    echo "[ERROR] SIF not found: $SIF"
+    echo "[ERROR] Run slurm/jobs/diag_net_pull.job first to download the container."
+    exit 1
+fi
 
 cd "$REPO"
 mkdir -p logs
 
+# === Scratch dirs ===
 SCR="/mnt/fast/nobackup/scratch4weeks/$USER"
-mkdir -p "$SCR"/{python_userbase,tmp,cache/pip,cache/huggingface,cache/torch,cache/xdg}
-export PYTHONUSERBASE="$SCR/python_userbase"
-export PATH="$SCR/python_userbase/bin:$PATH"
+mkdir -p "$SCR"/{python_userbase_sif,tmp,cache/pip,cache/huggingface,cache/torch,cache/xdg}
+
+# === Env vars (heredados por apptainer exec) ===
+# PYTHONUSERBASE separado para el SIF (no mezclar con el antiguo .local)
+export PYTHONUSERBASE="$SCR/python_userbase_sif"
+export PATH="$SCR/python_userbase_sif/bin:$PATH"
 export PIP_CACHE_DIR="$SCR/cache/pip"
-OLD_USER_SITE="/mnt/fast/nobackup/users/$USER/.local/lib/python3.11/site-packages"
-export PYTHONPATH="${OLD_USER_SITE}:${PYTHONPATH:-}"
 export HF_HOME="$SCR/cache/huggingface"
 export TRANSFORMERS_CACHE="$HF_HOME"
+export HF_DATASETS_CACHE="$HF_HOME"
 export TORCH_HOME="$SCR/cache/torch"
 export XDG_CACHE_HOME="$SCR/cache/xdg"
 export TMPDIR="$SCR/tmp"
 export PYTORCH_ALLOC_CONF="expandable_segments:True"
 export TRAKTOR_HF_CACHE="$HF_HOME"
 export TRAKTOR_TORCH_CACHE="$TORCH_HOME"
-
-$PY -m ensurepip --user 2>/dev/null || true
-$PY -m pip install --user --quiet transformers pyarrow soundfile tqdm demucs essentia
-
 export PYTHONPATH="$REPO:${PYTHONPATH:-}"
 
-# Pre-download models
-$PY -c "
+# Alias de ejecución (--nv pasa drivers NVIDIA; bind auto por sysadmin)
+APRUN="apptainer exec --nv $SIF"
+
+# === Verificar Python + GPU ===
+echo "[DIAG] $(hostname)"
+$APRUN python -c "
+import sys, torch
+print(f'Python: {sys.version.split()[0]}')
+print(f'PyTorch: {torch.__version__}')
+print(f'CUDA: {torch.cuda.is_available()}, GPU: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else \"N/A\"}')"
+
+# === Instalar dependencias extras (no incluidas en el SIF base) ===
+echo "[SETUP] Installing extra dependencies..."
+# Pin transformers<4.49 para compatibilidad con PyTorch 2.5.x (CVE-2025-32434 check added in >=4.49)
+$APRUN pip install --user --quiet "transformers==4.44.2" pandas pyarrow soundfile tqdm demucs essentia
+
+# === Verificar imports ===
+$APRUN python -c "
+import transformers, soundfile, essentia, demucs
+print('[OK] transformers, soundfile, essentia, demucs importan correctamente')
+"
+
+# === Pre-download models ===
+echo "[SETUP] Pre-downloading MERT + Demucs models..."
+$APRUN python -c "
 from transformers import AutoModel, Wav2Vec2FeatureExtractor
 Wav2Vec2FeatureExtractor.from_pretrained('m-a-p/MERT-v1-330M', trust_remote_code=True)
 AutoModel.from_pretrained('m-a-p/MERT-v1-330M', trust_remote_code=True)
@@ -70,9 +102,9 @@ from demucs.pretrained import get_model; get_model('htdemucs')
 print('[OK] Models pre-downloaded')
 "
 
-# Run Phase 1 with --max-tracks 3
+# === Run Phase 1 — 3 tracks only ===
 echo "[RUN] Extracting 3 tracks (smoke test)..."
-$PY "$REPO/src/v4/pipeline/phase1_extract.py" \
+$APRUN python "$REPO/src/v4/pipeline/phase1_extract.py" \
     --dataset-name "$DATASET_NAME" \
     --device cuda \
     --shard-id 0 \
@@ -83,9 +115,8 @@ $PY "$REPO/src/v4/pipeline/phase1_extract.py" \
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -eq 0 ]; then
-    # Validate smoke test results
     echo "[VALIDATE] Checking smoke test output..."
-    $PY -c "
+    $APRUN python -c "
 import numpy as np, json, sys
 from pathlib import Path
 
@@ -107,7 +138,6 @@ assert np.isfinite(perc).all(), 'mert_perc has non-finite values!'
 assert np.isfinite(full).all(), 'mert_full has non-finite values!'
 assert len(uids) == 3, f'Expected 3 UIDs, got {len(uids)}'
 
-# Check mert_perc != mert_full (percussive vs full mix are distinct)
 from numpy.linalg import norm
 cos_dists = []
 for i in range(len(uids)):
@@ -116,7 +146,7 @@ for i in range(len(uids)):
     cos_dists.append(cos)
 mean_cos = float(np.mean(cos_dists))
 print(f'  Mean cosine distance (perc vs full): {mean_cos:.4f}')
-assert mean_cos > 0.05, f'mert_perc and mert_full are too similar (cos_dist={mean_cos:.4f}). Pipeline may be reusing the same audio.'
+assert mean_cos > 0.05, f'mert_perc and mert_full are too similar (cos_dist={mean_cos:.4f}).'
 
 print('[OK] SMOKE TEST PASSED: shapes, finite values, perc!=full verified')
 "

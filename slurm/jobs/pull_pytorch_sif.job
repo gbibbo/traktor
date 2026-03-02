@@ -1,0 +1,25 @@
+#!/bin/bash
+#SBATCH --job-name=pull_pytorch_sif
+#SBATCH --partition=debug
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=8G
+#SBATCH --time=01:00:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/pull_pytorch_sif_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/pull_pytorch_sif_%j.err
+
+# Pull PyTorch 2.7 + CUDA 12.8 container (PyTorch>=2.6 requerido por transformers>=4.49)
+SIF_DIR="/mnt/fast/nobackup/scratch4weeks/gb0048/apptainer"
+TARGET="$SIF_DIR/pytorch_2.7.0_cu128.sif"
+
+echo "[INFO] Pulling pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime → $TARGET"
+
+export APPTAINER_CACHEDIR="/mnt/fast/nobackup/scratch4weeks/gb0048/cache/apptainer"
+mkdir -p "$APPTAINER_CACHEDIR"
+
+apptainer pull --dir "$SIF_DIR" pytorch_2.7.0_cu128.sif \
+    docker://pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime \
+    && echo "[OK] SIF pulled: $TARGET" \
+    || echo "[FAIL] Pull failed"
+
+ls -lh "$SIF_DIR"/*.sif 2>/dev/null
+echo "[DONE] $(date)"
