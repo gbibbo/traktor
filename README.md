@@ -1,6 +1,6 @@
 # TRAKTOR ML
 
-Personal project. Not reproducible.
+Personal project; dataset not included. Code and documentation are shared as portfolio material.
 
 ML pipeline to analyze, classify, and organize an electronic music collection (Techno / Tech House). It extracts audio embeddings with MERT and Demucs, groups tracks by rhythmic and timbral similarity with hierarchical HDBSCAN, and exports M3U playlists ready to import into Traktor DJ.
 
