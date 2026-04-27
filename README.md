@@ -1,119 +1,115 @@
 # TRAKTOR ML
 
-Audio ML pipeline for organizing a DJ music library by rhythmic, timbral and transition similarity.
+Audio ML pipeline for organizing a Techno / Tech House DJ library into Traktor-ready playlists.
 
-This repository is shared as portfolio evidence. The private music collection and large generated artifacts are not included, because the source audio is personal and copyright protected. The repo includes the V4 pipeline code, Slurm jobs, tests, documentation, UI screenshot and exported playlist examples.
+This project started from a practical DJ workflow: a large folder of tracks does not show which songs share groove, percussion, timbre, tempo range or harmonic movement. Metadata helps, but it is too coarse for building playable groups. TRAKTOR ML turns a local music collection into versioned M3U playlists by extracting audio representations, clustering similar tracks, ordering each group for smoother transitions and exposing the result in a Streamlit dashboard.
+
+The source audio and large generated artifacts are not included because the collection is private and copyright protected. The repository includes the V4 pipeline code, configuration, Slurm jobs, tests, documentation, UI screenshot and exported playlist examples.
 
 ![Streamlit clustering explorer](interface.png)
 
-## Problem
+## From audio folder to playlists
 
-Large DJ libraries are hard to organize with filenames, folders or broad genre tags alone. For Techno and Tech House, tracks that look similar in metadata can behave very differently in a set because of groove, percussion, timbre, BPM and harmonic compatibility.
+```text
+Audio files
+  -> catalog with stable track IDs
+  -> Demucs stems, MERT embeddings, Essentia BPM/key features
+  -> PCA, HDBSCAN and UMAP clustering
+  -> cluster naming and transition-aware ordering
+  -> Traktor-ready M3U playlists
+  -> Streamlit review and re-export
+```
 
-The practical problem was to reduce manual sorting time and generate Traktor-ready playlists that group musically similar tracks while preserving useful transition order inside each group.
+The pipeline is split into phases so that GPU-heavy feature extraction can run on an HPC node, while clustering, ordering, export and inspection can run on CPU.
 
-## What I built
-
-I built an end-to-end audio ML system that turns a folder of tracks into versioned M3U playlists for Traktor DJ.
-
-The V4 pipeline has five stages:
-
-| Stage | What it does | Main output |
+| Phase | Main task | Output |
 |---|---|---|
-| Phase 0: Ingest | Scans audio files, validates paths, computes stable track IDs and builds a canonical catalog | `catalog.parquet`, `ingest_report.json` |
-| Phase 1: Feature extraction | Runs GPU feature extraction with Demucs, MERT and Essentia | `mert_perc.npy`, `mert_full.npy`, `bpm_key.parquet` |
-| Phase 2: Clustering | Builds two-level clusters with PCA, HDBSCAN and UMAP | `results_<hash>.parquet`, `config_<hash>.json` |
-| Phase 3: Naming | Assigns readable cluster names using metadata when available and safe fallbacks otherwise | `names_<hash>.json` |
-| Phase 4: Ordering | Orders tracks inside clusters for smoother transitions using embeddings, BPM and Camelot key compatibility | `ordered_<hash>.parquet` |
-| Phase 5: Export | Writes versioned M3U playlists with Windows paths ready for Traktor DJ | `playlists/V4_<N>/` |
+| 0 | Scan the collection, validate paths and build the catalog | `catalog.parquet`, `ingest_report.json` |
+| 1 | Extract Demucs stems, MERT embeddings and Essentia BPM/key features | `mert_perc.npy`, `mert_full.npy`, `bpm_key.parquet` |
+| 2 | Cluster tracks with PCA, HDBSCAN and UMAP | `results_<hash>.parquet` |
+| 3 | Assign readable names to clusters | `names_<hash>.json` |
+| 4 | Order tracks inside each cluster using embedding, BPM and key compatibility | `ordered_<hash>.parquet` |
+| 5 | Export UTF-8 M3U playlists with Windows paths for Traktor | `playlists/V4_<N>/` |
 
-The system also includes a Streamlit dashboard for reviewing clustering results, changing clustering parameters locally and re-exporting playlists.
+## Implementation
 
-## Key design decisions
+The current V4 implementation is a Python 3.11 pipeline under `src/v4/`.
 
-### Separate groove from full-track similarity
+- `m-a-p/MERT-v1-330M` provides 1024-dimensional audio embeddings.
+- Demucs `htdemucs` separates stems so the system can compare both percussion-focused and full-mix representations.
+- Essentia extracts BPM, beat confidence and musical key metadata.
+- PCA reduces the MERT space before HDBSCAN, which is more stable on a small and stylistically homogeneous Techno / Tech House collection.
+- UMAP gives the dashboard a 2D view of the clustering result.
+- Track ordering combines cosine distance, BPM distance and Camelot key compatibility.
+- Artifacts are stored as Parquet, NumPy arrays, JSON and JSONL logs.
+- GPU work is submitted through Slurm jobs using Apptainer on A100 nodes.
+- The Streamlit and Plotly dashboard supports visual inspection, cluster filtering and playlist re-export.
 
-The pipeline extracts two MERT embedding views:
+A key detail in V4 is the canonical track set. After feature extraction, `track_uids.json` becomes the source of truth for row alignment across catalog rows, embeddings, BPM/key features, clustering outputs and exported playlists. This avoids silent mismatches when an audio file fails during processing.
 
-- `mert_perc.npy`: embeddings from the percussive/drums stem, used for first-level clustering by groove.
-- `mert_full.npy`: embeddings from the full mix, used for second-level clustering and transition ordering.
+## Current V4 run
 
-This keeps the first grouping close to DJ-relevant rhythm and groove, while the second grouping can still capture broader timbral and musical context.
+The validated run used a private Techno / Tech House collection.
 
-### Use PCA before HDBSCAN
+| Item | Result |
+|---|---:|
+| Files found in catalog | 243 |
+| Canonical tracks after feature extraction | 239 |
+| GPU smoke test | 3 tracks in 46.9 s |
+| Full GPU extraction | 239 tracks in 1 h 03 m |
+| MERT percussion embeddings | `(239, 1024)` |
+| MERT full-mix embeddings | `(239, 1024)` |
+| BPM/key rows | 239 |
+| BPM range | 86 to 167 |
+| Median BPM | 123.9 |
+| First-level clusters | 8 |
+| Latest exported set | `playlists/V4_5/` |
+| Exported tracks | 239 / 239 |
+| Exported playlists | 14 M3U files |
+| Transition score reported by the validation tracker | 0.797 |
 
-MERT embeddings are 1024-dimensional. Direct density clustering was unstable on a small, homogeneous Techno/Tech House collection. V4 applies PCA before HDBSCAN. On the validated `test_20` run, `pca_dim=50` retained 93.7% of variance and produced useful L1 structure.
+The latest included export is `playlists/V4_5/`:
 
-### Keep a canonical N across artifacts
+```text
+playlists/V4_5/
+├── L1_A_Group A/L2_A1.m3u
+├── L1_B_Group B/L2_B1.m3u
+├── L1_C_Group C/L2_C1.m3u
+├── L1_D_Group D/L2_D1.m3u
+├── L1_D_Group D/L2_D2.m3u
+├── L1_E_Group E/L2_E1.m3u
+├── L1_F_Group F/L2_F1.m3u
+├── L1_F_Group F/L2_F2.m3u
+├── L1_F_Group F/L2_F3.m3u
+├── L1_F_Group F/L2_F4.m3u
+├── L1_G_Group G/L2_G1.m3u
+├── L1_G_Group G/L2_G2.m3u
+├── L1_G_Group G/L2_G3.m3u
+├── L1_H_Group H/L2_H1.m3u
+└── _summary.txt
+```
 
-The code treats `track_uids.json` as the source of truth after GPU extraction. This prevents misalignment between catalog rows, embedding matrices, BPM/key features, clustering outputs and exported playlists when one track fails during processing.
+Raw HDBSCAN noise is preserved for diagnosis. For playlist export, V4 can reassign noise points to the nearest cluster with 1-NN so that every processed track can be placed in a usable playlist.
 
-### Export for a real downstream tool
-
-The final artifact is not only a plot or notebook. The pipeline writes UTF-8 M3U playlists with Windows paths and `#EXTM3U` metadata, so they can be imported directly into Traktor DJ.
-
-## Tech stack
-
-| Area | Tools |
-|---|---|
-| Core language | Python 3.11 |
-| Deep learning | PyTorch, torchaudio, Hugging Face Transformers |
-| Audio representation | `m-a-p/MERT-v1-330M` |
-| Source separation | Demucs `htdemucs` |
-| Music features | Essentia BPM, beat confidence and key extraction |
-| Clustering and reduction | scikit-learn PCA, scikit-learn HDBSCAN, UMAP |
-| Data artifacts | pandas, Parquet, NumPy arrays, JSONL logs |
-| UI | Streamlit, Plotly |
-| HPC execution | Slurm, Apptainer, A100 GPU jobs |
-| Validation | Block-level Python and shell tests |
-
-## Result and evidence
-
-The V4 implementation was run end to end on a private 243-track Techno/Tech House collection.
-
-| Evidence | Result |
-|---|---|
-| Catalog size | 243 audio files scanned |
-| Canonical processed set | 239 tracks with successful embeddings |
-| GPU smoke test | 3-track smoke test passed in 46.9 s |
-| Full GPU extraction | 239 successful tracks in 1 h 03 m |
-| Embedding artifacts | `mert_perc.npy` and `mert_full.npy`, each with shape `(239, 1024)` |
-| BPM/key artifact | 239 rows, BPM range 86 to 167, median BPM 123.9 |
-| Clustering run | 8 first-level clusters with UMAP coordinates |
-| Noise handling | Raw HDBSCAN noise retained for diagnosis, with optional 1-NN reassignment for playlist export |
-| Playlist export | 239 of 239 canonical tracks exported |
-| Latest playlist set | `playlists/V4_5/`, 14 M3U files across 8 L1 groups |
-| Ordering check | `transition_score=0.797` reported in the V4 validation tracker |
-
-The repository includes several concrete evidence points:
-
-- `src/v4/`: current V4 implementation.
-- `slurm/jobs/v4/`: reproducible HPC jobs for GPU extraction and CPU phases.
-- `tests/v4/`: block-level tests for setup, common utilities, pipeline, clustering, export and system integration.
-- `docs/v4/JOBS_STATUS.md`: job history and validated artifact shapes.
-- `docs/v4/TODO.md`: completed implementation tracker.
-- `playlists/V4_1/` to `playlists/V4_5/`: exported playlist examples.
-- `interface.png`: Streamlit UI screenshot from the clustering explorer.
-
-## Repository structure
+## Repository layout
 
 ```text
 config/v4.yaml              Main configuration for paths, datasets, clustering and ordering
-src/v4/common/              Shared utilities for config, paths, catalog, audio, Demucs, MERT and logs
+src/v4/common/              Config, path, catalog, audio, Demucs, embedding and logging utilities
 src/v4/pipeline/            Phase 0 to Phase 5 pipeline scripts
-src/v4/evaluation/          Metrics for clustering, retrieval, ordering and noise analysis
+src/v4/evaluation/          Clustering, retrieval, ordering and noise metrics
 src/v4/ui/app.py            Streamlit clustering explorer
-src/v4/adaptation/          Projection-head and contrastive-training stubs for future adaptation
-slurm/jobs/v4/              Slurm jobs for GPU and CPU execution
+src/v4/adaptation/          Projection-head and contrastive-training scaffolding
+slurm/jobs/v4/              GPU and CPU jobs for the HPC workflow
 tests/v4/                   Block-level validation tests
-docs/                       Usage guide, project map, job status and lessons learned
+docs/                       Usage guide, project map, job status and implementation notes
 playlists/                  Exported M3U playlist examples
-legacy/                     Older V1 to V3 experiments retained for traceability
+legacy/                     Earlier V2 and V3 experiments retained for traceability
 ```
 
-## How to run
+## Run it on your own collection
 
-### 1. Install dependencies
+Install dependencies:
 
 ```bash
 python -m venv .venv
@@ -121,72 +117,66 @@ source .venv/bin/activate
 pip install -r requirements_v4.txt
 ```
 
-On Surrey HPC, Phase 1 uses Slurm and Apptainer because the A100 nodes do not provide the required Python environment natively. See `docs/V4_USAGE.md` and `slurm/jobs/v4/` for the validated HPC workflow.
-
-### 2. Configure the dataset
-
-Edit `config/v4.yaml`:
+Configure a dataset in `config/v4.yaml`:
 
 ```yaml
 datasets:
-  test_20:
+  my_collection:
     audio_root: "/path/to/audio"
+    metadata_csv: null
+    manifest_csv: null
     expected_n: null
 
 paths:
   local_windows_audio_dir: "C:\\Music\\My DJ Library"
 ```
 
-The repository does not include the private audio dataset. To reproduce the pipeline, point `audio_root` to your own local collection.
-
-### 3. Build the catalog
+Build the catalog:
 
 ```bash
-python src/v4/pipeline/phase0_ingest.py --dataset-name test_20
+python src/v4/pipeline/phase0_ingest.py --dataset-name my_collection
 ```
 
-### 4. Extract features on GPU
-
-Small dataset, single job:
+Run feature extraction on GPU:
 
 ```bash
-./slurm/tools/on_submit.sh sbatch slurm/jobs/v4/phase1_extract.job test_20
-./slurm/tools/on_submit.sh sbatch slurm/jobs/v4/phase1_merge.job test_20
+./slurm/tools/on_submit.sh sbatch slurm/jobs/v4/phase1_extract.job my_collection
+./slurm/tools/on_submit.sh sbatch slurm/jobs/v4/phase1_merge.job my_collection
 ```
 
-Larger dataset, sharded extraction:
+For larger collections, use the array job:
 
 ```bash
-./slurm/tools/on_submit.sh sbatch slurm/jobs/v4/phase1_extract_array.job test_20
-./slurm/tools/on_submit.sh sbatch slurm/jobs/v4/phase1_merge.job test_20
+./slurm/tools/on_submit.sh sbatch slurm/jobs/v4/phase1_extract_array.job my_collection
+./slurm/tools/on_submit.sh sbatch slurm/jobs/v4/phase1_merge.job my_collection
 ```
 
-### 5. Run clustering, naming, ordering and export
+Run clustering, naming, ordering and export:
 
 ```bash
-python src/v4/pipeline/phase2_cluster.py --dataset-name test_20 --config-tag baseline
-python src/v4/pipeline/phase3_name.py --dataset-name test_20
-python src/v4/pipeline/phase4_order.py --dataset-name test_20
+python src/v4/pipeline/phase2_cluster.py --dataset-name my_collection --config-tag baseline
+python src/v4/pipeline/phase3_name.py --dataset-name my_collection
+python src/v4/pipeline/phase4_order.py --dataset-name my_collection
 python src/v4/pipeline/phase5_export.py \
-  --dataset-name test_20 \
+  --dataset-name my_collection \
   --windows-audio-dir "C:\\Music\\My DJ Library"
 ```
 
-Or run the combined Slurm job for Phases 2 to 5:
+Or submit the combined CPU job:
 
 ```bash
-./slurm/tools/on_submit.sh sbatch slurm/jobs/v4/phase2_to_5.job test_20
+./slurm/tools/on_submit.sh sbatch slurm/jobs/v4/phase2_to_5.job my_collection
 ```
 
-### 6. Open the Streamlit demo
+## Open the dashboard
 
-From the machine running Streamlit:
+Start Streamlit from the repository root:
 
 ```bash
 streamlit run src/v4/ui/app.py --server.port 8501
 ```
 
-From Windows, using an SSH tunnel to the HPC login node:
+When running on the HPC login node from Windows, open an SSH tunnel first:
 
 ```powershell
 ssh -L 8501:localhost:8501 datamove1
@@ -198,11 +188,9 @@ Then open:
 http://localhost:8501
 ```
 
-The UI lets you inspect the UMAP embedding map, filter L1/L2 clusters, view BPM/key metadata, test local clustering parameters and export playlist versions.
+The dashboard loads the clustering artifacts, shows the UMAP map, filters by L1 and L2 clusters, displays BPM/key metadata and supports local re-export after parameter changes.
 
-## Validation
-
-Run the available checks from the repository root:
+## Validation commands
 
 ```bash
 python tests/v4/test_block1_common.py
@@ -212,18 +200,12 @@ python tests/v4/test_block4_export.py
 python tests/v4/test_block5_system.py
 ```
 
-Some tests require generated artifacts from Phase 1 onward. If the private dataset or embeddings are not present, those checks will skip or report missing artifacts rather than reproducing the original private run.
+Some checks require generated artifacts from Phase 1 onward. Without the private audio collection or embeddings, those checks will report missing artifacts or skip the artifact-dependent parts.
 
-## Limitations
+## Reproducibility notes
 
-- The private music collection is not included.
-- Large generated artifacts under `artifacts/v4/` are not included.
-- Cluster names are conservative when external metadata is missing.
-- `src/v4/adaptation/` contains future-facing stubs for contrastive adaptation, not a completed fine-tuning pipeline.
-- Musical quality still requires human review in Traktor, because clustering metrics cannot fully judge DJ transition quality.
+This repository is meant to show the complete workflow and implementation, but it is not a drop-in reproduction package. The private audio files are not distributed, and the exported M3U examples point to local Windows paths from the original collection.
 
-## Why this repo matters
+The completed V4 path covers ingestion, feature extraction, clustering, naming, ordering, export, UI inspection, Slurm execution and tests. The files under `src/v4/adaptation/` define scaffolding for future contrastive adaptation, but they are not part of the completed playlist-generation path.
 
-This project shows that I can build beyond a notebook: GPU audio feature extraction, HPC execution, artifact alignment, clustering, evaluation, UI inspection and final export into a real user workflow.
-
-The core engineering pattern is transferable to audio ML, recommendation, retrieval, music intelligence and applied machine learning systems where model outputs must become usable artifacts for a downstream user.
+The clustering result is used as a decision aid, not as an automatic replacement for DJ judgment. The dashboard and playlist versions are part of the workflow because musical grouping still benefits from listening, inspection and iteration.
