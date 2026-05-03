@@ -20,6 +20,8 @@ env/
 *.ogg
 *.aiff
 *.aac
+*.m4a
+*.aif
 
 # ML model weights
 *.pt
@@ -31,6 +33,8 @@ env/
 *.pb
 *.npy
 *.parquet
+*.npz
+*.ckpt
 
 # Heavy directories
 data/
@@ -38,6 +42,8 @@ models/
 logs/
 artifacts/
 .conda_envs/
+runs/
+.cache/
 
 # IDE
 .vscode/

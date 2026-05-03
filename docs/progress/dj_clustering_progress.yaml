@@ -13,8 +13,8 @@ project:
 progress:
   current_cut: D0
   current_phase: 0
-  current_task: D0.4
-  last_completed_task: D0.3
+  current_task: D0.5
+  last_completed_task: D0.4
   blocked: false
   blocker: null
 
@@ -27,6 +27,9 @@ progress:
       completed: true
     - id: D0.3
       description: Install plan files and create progress trackers
+      completed: true
+    - id: D0.4
+      description: Configure ignored runtime artifact paths in .gitignore
       completed: true
 
 regime:
