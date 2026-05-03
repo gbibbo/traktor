@@ -49,6 +49,6 @@ $APRUN env \
     PYTHONUSERBASE="$PYTHONUSERBASE" \
     HF_HOME="$HF_HOME" \
     HF_HUB_CACHE="$HF_HUB_CACHE" \
-    python scripts/dj_clustering/validate_mert_backend.py
+    python "$REPO/scripts/dj_clustering/validate_mert_backend.py"
 
 echo "[INFO] DONE: $(date)"
