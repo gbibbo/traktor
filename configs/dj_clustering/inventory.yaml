@@ -23,7 +23,7 @@ allowed_extensions:
 artifact_root: artifacts/dj_clustering
 
 # Inventory output path, relative to artifact_root
-inventory_output: inventory/library_inventory.parquet
+inventory_output: inventory/library_inventory.csv
 
 # Path privacy policy:
 #   private_paths: full absolute audio paths written only to ignored artifact_root

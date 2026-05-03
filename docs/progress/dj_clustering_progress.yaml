@@ -13,8 +13,8 @@ project:
 progress:
   current_cut: D1
   current_phase: 1
-  current_task: D1.2
-  last_completed_task: D1.1
+  current_task: D1.3
+  last_completed_task: D1.2
   blocked: false
   blocker: null
 
@@ -37,6 +37,24 @@ progress:
     - id: D1.1
       description: Define local library inventory configuration
       completed: true
+    - id: D1.2
+      description: Implement library inventory script and identity modules
+      completed: true
+
+inventory:
+  total_files_scanned: 492
+  audio_files_whitelisted: 246
+  total_rows: 246
+  canonical_track_count: 246
+  canonical_decoded_count: 246
+  decode_failed_count: 0
+  exact_duplicate_count: 0
+  decode_failure_rate: 0.0
+  metadata_full_tags: 242
+  metadata_partial_tags: 3
+  metadata_no_tags: 1
+  inventory_artifact: artifacts/dj_clustering/inventory/library_inventory.csv
+  inventory_summary_report: reports/dj_clustering/library_inventory_summary.md
 
 regime:
   id: 1

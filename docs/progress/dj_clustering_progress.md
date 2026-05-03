@@ -4,8 +4,8 @@
 **Integration branch:** main
 **Current cut:** D1
 **Current phase:** 1
-**Current task:** D1.2
-**Last completed:** D1.1
+**Current task:** D1.3
+**Last completed:** D1.2
 **Blocked:** No
 
 ---
@@ -29,7 +29,28 @@
 | Task | Description | Status |
 |---|---|---|
 | D1.1 | Define local library inventory configuration | DONE |
-| D1.2 | Implement library inventory script | pending |
+| D1.2 | Implement library inventory script | DONE |
+| D1.3 | Create metadata quality report | pending |
+
+### D1.2 results
+
+| Metric | Value |
+|---|---|
+| Total files scanned | 492 |
+| Audio files (whitelist) | 246 |
+| Non-audio excluded | 246 |
+| Decode ok | 246 (100%) |
+| Decode failed | 0 (0.0%) |
+| Unique audio hashes | 246 |
+| Exact duplicates | 0 |
+| Canonical decoded (N_canonical_decoded) | 246 |
+| Metadata full_tags | 242 |
+| Metadata partial_tags | 3 |
+| Metadata no_tags | 1 |
+
+Backends used: soundfile (primary), mutagen 1.47.0 (ID3 metadata).
+Tests: 37/37 passed.
+Decode guard: PASS (0.0% < 20% threshold).
 
 ---
 
@@ -54,4 +75,4 @@
 | v4_competing | false |
 | v4_diagnostic_only | true |
 
-_Last updated: D1.1 (scratch library root activated)_
+_Last updated: D1.2 (library inventory complete)_
