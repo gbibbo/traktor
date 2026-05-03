@@ -2,10 +2,10 @@
 
 **Branch:** feature/dj-clustering-v1
 **Integration branch:** main
-**Current cut:** D2
-**Current phase:** 2
-**Current task:** D2.3
-**Last completed:** D2.2
+**Current cut:** D3
+**Current phase:** 3
+**Current task:** D3.1
+**Last completed:** D2.3
 **Blocked:** No
 
 ---
@@ -58,7 +58,25 @@ D1 gate PASSED.
 |---|---|---|
 | D2.1 | Create feature extraction configuration | DONE |
 | D2.2 | Implement feature extraction | DONE |
-| D2.3 | Evaluate V2 and current V4 availability | pending |
+| D2.3 | Evaluate V2 and current V4 availability | DONE |
+
+**D2 gate: PASSED** — default features, feature_manifest, feature_quality_report, and reference_availability_report complete. Ready for Cut D3 / D3.1.
+
+### D2.3 results
+
+| Item | Value |
+|---|---|
+| Report | `reports/dj_clustering/reference_availability_report.md` |
+| V2 status | diagnostic_only (cluster IDs + UMAP coords + playlists; no embeddings) |
+| V2 embeddings | unavailable (rerun forbidden by plan §3) |
+| V2 playlists | 17 (counts only) |
+| V4 code available | true |
+| V4 artifacts available | false |
+| V4 playlist status | v4_playlist_only (5 directories, 72 m3u files) |
+| V4 competing baseline | false |
+| V4 diagnostic only | true |
+| Cut D2 gate | PASSED |
+| Next plan-defined task | D3.1 (build pairwise feature table) |
 
 ### D2.2 results
 
@@ -129,16 +147,19 @@ Decode guard: PASS (0.0% < 20% threshold).
 
 ---
 
-## Reference status (resolved in D0.5)
+## Reference status (resolved in D0.5, finalized in D2.3)
 
 | System | Status |
 |---|---|
-| V2 | unknown |
+| V2 | diagnostic_only |
+| V2 embeddings | unavailable |
+| V2 result tables | available (cluster IDs + UMAP coords) |
+| V2 playlists | 17 m3u files (counts only) |
 | V4 | diagnostic_reference_only |
 | v4_code_available | true |
 | v4_artifacts_available | false |
-| v4_playlist_status | v4_playlist_only (5 dirs, 8 files) |
+| v4_playlist_status | v4_playlist_only (5 dirs, 72 m3u files) |
 | v4_competing | false |
 | v4_diagnostic_only | true |
 
-_Last updated: D2.2 (feature extraction pipeline complete)_
+_Last updated: D2.3 (Cut D2 closed; advancing to Cut D3 / D3.1)._

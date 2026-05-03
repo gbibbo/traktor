@@ -1,0 +1,238 @@
+# Reference Availability Report — DJ Clustering v1
+
+## Audit metadata
+
+| Field | Value |
+| :--- | :--- |
+| Date | 2026-05-04 |
+| Branch | feature/dj-clustering-v1 |
+| Plan version | dj_clustering_plan.md (v6) |
+| Task | D2.3 |
+| Cut | D2 (closes Cut D2 gate) |
+
+---
+
+## Summary
+
+| Reference | Status | Direct metric? | Indirect ref? | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| Legacy V2 result tables | diagnostic_only | no | yes (after track-id join) | cluster IDs + UMAP coords only |
+| Legacy V2 embeddings | unavailable | no | no | not in repo; rerun forbidden by plan §3 |
+| Legacy V2 playlist exports | diagnostic_only | no | no | counts only |
+| Current V4 source / configs / tests / docs / jobs | v4_code_available + v4_diagnostic_only | no | no | frozen by plan §6 |
+| Current V4 heavy artifacts | unavailable | no | no | gitignored; not in repo |
+| Current V4 playlist exports | v4_playlist_only + v4_diagnostic_only | no | no | counts only |
+| Current V4 as competing baseline | unavailable | no | no | no reusable embedding or similarity space |
+
+---
+
+## Legacy V2 audit
+
+### V2 source code (frozen, out_of_scope_for_v1)
+
+| Component | Repo-relative directory | Item count |
+| :--- | :--- | :--- |
+| Common utilities | legacy/v2/scripts/common/ | 5 .py |
+| HPC processing | legacy/v2/scripts/hpc/process/v2/ | 4 .py |
+| Local utilities | legacy/v2/scripts/local/ | 2 .py |
+| Slurm jobs | legacy/v2/slurm/jobs/v2/ | 3 jobs |
+| Tests | legacy/v2/tests/ | 1 .py |
+| Plans | legacy/v2/plans/ | 2 .md |
+| Docs | legacy/v2/docs/ | 2 .md |
+
+### V2 model weights
+
+Three Essentia encoder pairs (.pb + .json) under legacy/v2/models/essentia/: discogs-effnet-bs64-1, discogs-maest-30s-pw-1, genre_discogs400-discogs-effnet-1. These are encoder weights, not embeddings of the current library.
+
+### V2 result tables (legacy/v2/results/)
+
+Header schemas only; cell values not inspected. Row counts include the header line.
+
+| File | Row count | Header schema |
+| :--- | :--- | :--- |
+| v2_hierarchy/final_organization.csv | 243 | track, cluster_l1, cluster_l2, folder_l1, folder_l2 |
+| v2_hierarchy/level1_clusters.csv | 243 | track, cluster_l1, umap_x, umap_y |
+| v2_hierarchy/level2_clusters.csv | 243 | track, cluster_l1, cluster_l2 |
+| v2_hierarchy/genre_predictions.csv | 243 | track, genre_1, conf_1, genre_2, conf_2, genre_3, conf_3 |
+| full_collection/results.csv | 244 | track, cluster, umap_x, umap_y |
+
+Companion human-readable assets under legacy/v2/results/ (not parsed): organization_tree.txt, cluster_visualization.html, visualization_v2.html, clusters_by_group.txt.
+
+### V2 playlist exports
+
+Aggregate count: 17 m3u files under legacy/v2/playlists/V1/. Contents not opened.
+
+### V2 embeddings
+
+No embedding arrays committed under legacy/v2/. No .npy / .npz / .parquet / .pt / .pth / .ckpt files present. Recomputing V2-compatible embeddings against the current library would require running legacy/v2/scripts/hpc/process/v2/phase1_extraction.py on GPU; rerun is forbidden by plan §3 (V2 and current V4 are diagnostic references, not ground truth, and must not be re-run during D0–D7).
+
+### V2 evaluability
+
+- Direct metric comparison: not available (no embedding space, no pairwise similarity table).
+- Indirect reference: yes — V2 cluster IDs and 2-D UMAP coordinates can be compared against the v1 winning assignment via ARI / NMI in D5 once the legacy `track` strings are joined to current D1 inventory `track_id` (audio content hash). Mapping pass deferred; not part of D2.3.
+- Playlist-as-supervision: deferred to D3.2 if a mapping attempt is approved.
+
+### V2 classification (plan §11 D2.3, decision rule 1)
+
+`diagnostic_only` — V2 provides only cluster IDs, a 2-D UMAP projection, and playlist exports; no high-dimensional embedding or pairwise similarity matrix is committed; therefore V2 cannot enter the leaderboard sweep as a competing similarity profile under the no-rerun rule.
+
+---
+
+## Current V4 audit
+
+Cross-reference: reports/dj_clustering/v4_reuse_map.md (D0.5 audit), which classified each V4 component as `reuse_by_import`, `adapt_into_src_dj_clustering`, `diagnostic_reference_only`, or `out_of_scope_for_v1`. D2.3 confirms that classification and adds aggregate availability counts.
+
+### V4 source, configs, tests, docs, jobs
+
+| Component | Repo-relative directory or file | Item count |
+| :--- | :--- | :--- |
+| Source modules | src/v4/ | 23 .py (excludes __pycache__) |
+| Tests | tests/v4/ | 5 .py + 1 .sh |
+| Slurm jobs | slurm/jobs/v4/ | 6 jobs |
+| Docs (subdir) | docs/v4/ | 2 .md |
+| Top-level usage doc | docs/V4_USAGE.md | 1 .md |
+| Config | config/v4.yaml | 1 .yaml |
+| Requirements | requirements_v4.txt | 1 .txt |
+
+### V4 heavy artifacts
+
+| Artifact class | Status in repo |
+| :--- | :--- |
+| Embeddings (.npy / .npz / .parquet / .pt) | not present |
+| Track UID tables | not present |
+| Clustering parquet | not present |
+| Pairwise similarity tables | not present |
+
+These artifact paths are gitignored. Not regenerated by D2.3.
+
+### V4 playlist exports
+
+| Directory | m3u count |
+| :--- | :--- |
+| playlists/V4_1/ | 17 |
+| playlists/V4_2/ | 14 |
+| playlists/V4_3/ | 13 |
+| playlists/V4_4/ | 14 |
+| playlists/V4_5/ | 14 |
+| **Total** | **72** |
+
+Counts only; contents not opened. Per D0.5: paths inside the m3u files are absolute Windows-style and cannot be mapped to current D1 inventory `track_id` without a join pass (deferred to D3.2 if useful).
+
+(The maxdepth-3 enumeration above supersedes the shallower enumeration recorded in v4_reuse_map.md; v4_reuse_map.md is not modified.)
+
+### V4 evaluability
+
+- Direct metric comparison: not available — no embedding space or similarity space committed; rerun forbidden by plan §3.
+- Diagnostic reference: yes — V4 source and tests inform engineering decisions. Selected utilities are reusable per D0.5: `src/v4/common/audio_utils.py`, `src/v4/common/demucs_utils.py`, and `src/v4/evaluation/metrics.py` are classified `reuse_by_import`. Adaptation candidates remain `adapt_into_src_dj_clustering` and are handled in D2 (already integrated where applicable).
+- Playlist-as-supervision: deferred to D3.2.
+
+### V4 classification (plan §11 D2.3, decision rules 4 and 5)
+
+| Vocabulary | Value |
+| :--- | :--- |
+| v4_code_available | true |
+| v4_artifacts_available | false |
+| v4_playlist_only | true |
+| v4_competing | false |
+| v4_diagnostic_only | true |
+
+---
+
+## D2.2 feature artifact aggregates (v1 pipeline)
+
+| Field | Value |
+| :--- | :--- |
+| feature_manifest rows | 2214 |
+| feature sources present | mert_full, mert_perc, mert_concat |
+| feature_manifest status: ok | 2205 |
+| feature_manifest status: omitted | 6 |
+| feature_manifest status: failed | 3 |
+| segment_manifest rows | 738 |
+| segment_manifest unique tracks | 246 |
+| BPM metadata coverage | 246 / 246 |
+| mert_full failure rate | 1.2% (3 / 246), within 10% gate |
+
+These confirm the v1 pipeline already has its own self-sufficient embedding source. V2 and V4 are reference-only; the v1 leaderboard sweep does not depend on either reference.
+
+---
+
+## Required files per status
+
+### `diagnostic_only` — Legacy V2
+
+Frozen, must remain in place:
+
+- legacy/v2/results/v2_hierarchy/
+- legacy/v2/results/full_collection/
+- legacy/v2/playlists/V1/
+- legacy/v2/scripts/common/
+- legacy/v2/scripts/hpc/process/v2/
+- legacy/v2/scripts/local/
+- legacy/v2/slurm/jobs/v2/
+- legacy/v2/models/essentia/
+- legacy/v2/plans/
+- legacy/v2/docs/
+- legacy/v2/tests/
+
+### `v4_code_available` + `v4_diagnostic_only` — Current V4
+
+Frozen, must remain in place:
+
+- src/v4/
+- tests/v4/
+- slurm/jobs/v4/
+- docs/v4/
+- docs/V4_USAGE.md
+- config/v4.yaml
+- requirements_v4.txt
+
+### `v4_playlist_only` — Current V4 playlists
+
+Frozen, must remain in place:
+
+- playlists/V4_1/
+- playlists/V4_2/
+- playlists/V4_3/
+- playlists/V4_4/
+- playlists/V4_5/
+
+Counts only; per-file content not committed by this task and not inspected.
+
+### `unavailable`
+
+- Legacy V2 embedding arrays: no committed files; rerun forbidden by plan §3.
+- Current V4 embeddings, track UID tables, clustering parquet, pairwise similarity tables: no committed artifacts.
+
+---
+
+## Privacy guarantees
+
+This report contains:
+
+- aggregate counts only (numbers of files, rows, directories);
+- repo-relative directory paths;
+- CSV header schemas (no row content).
+
+This report does **not** contain:
+
+- music file names;
+- playlist contents;
+- per-track human-readable descriptors (performer, track name, release name, imprint);
+- folder hints or per-track folder values;
+- per-track audio identifiers;
+- repository-private infrastructure substrings.
+
+---
+
+## Cut D2 gate status
+
+| Gate item | Source task | Status |
+| :--- | :--- | :--- |
+| Default features extracted (mert_full, mert_perc, mert_concat, BPM) | D2.2 | DONE |
+| feature_manifest.csv | D2.2 | DONE |
+| feature_quality_report.md | D2.2 | DONE |
+| reference_availability_report.md | D2.3 | DONE (this report) |
+
+**Cut D2 gate: PASSED.**
+
+Next plan-defined task: **D3.1 — Build pairwise feature table** (operational plan §12, line 1000).

@@ -11,10 +11,10 @@ project:
   integration_branch: main
 
 progress:
-  current_cut: D2
-  current_phase: 2
-  current_task: D2.3
-  last_completed_task: D2.2
+  current_cut: D3
+  current_phase: 3
+  current_task: D3.1
+  last_completed_task: D2.3
   blocked: false
   blocker: null
 
@@ -49,6 +49,10 @@ progress:
     - id: D2.2
       description: Implement feature extraction
       completed: true
+    - id: D2.3
+      description: Evaluate V2 and current V4 availability
+      completed: true
+      completed_date: 2026-05-04
 
 features:
   feature_config: configs/dj_clustering/features.yaml
@@ -98,10 +102,17 @@ regime:
   validated_1001_positives: 0
 
 references:
-  v2_status: unknown
+  v2_status: diagnostic_only
+  v2_embeddings_available: false
+  v2_result_tables_available: true
+  v2_playlists_available: true
+  v2_playlist_count: 17
   v4_status: diagnostic_reference_only
   v4_code_available: true
   v4_artifacts_available: false
   v4_playlist_status: v4_playlist_only
+  v4_playlist_dir_count: 5
+  v4_playlist_file_count: 72
   v4_competing: false
   v4_diagnostic_only: true
+  reference_availability_report: reports/dj_clustering/reference_availability_report.md
