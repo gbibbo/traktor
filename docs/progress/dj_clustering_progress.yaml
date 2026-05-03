@@ -11,9 +11,9 @@ project:
   integration_branch: main
 
 progress:
-  current_cut: D1
-  current_phase: 1
-  current_task: D1.4
+  current_cut: D2
+  current_phase: 2
+  current_task: D2.1
   last_completed_task: D1.3
   blocked: false
   blocker: null

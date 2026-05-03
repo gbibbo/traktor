@@ -2,9 +2,9 @@
 
 **Branch:** feature/dj-clustering-v1
 **Integration branch:** main
-**Current cut:** D1
-**Current phase:** 1
-**Current task:** D1.4
+**Current cut:** D2
+**Current phase:** 2
+**Current task:** D2.1
 **Last completed:** D1.3
 **Blocked:** No
 
@@ -48,7 +48,7 @@
 | BPM coverage | 99.6% (valid as numeric feature) |
 
 Warnings: key absent (data gap, not a blocker); folder_hint invalid for sanity scoring (expected — single library root).
-D1 gate PASSED. D1.4 is now current task.
+D1 gate PASSED. Next task: D2.1 (Create feature extraction config).
 
 ### D1.2 results
 
