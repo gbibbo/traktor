@@ -11,10 +11,10 @@ project:
   integration_branch: main
 
 progress:
-  current_cut: D0
-  current_phase: 0
-  current_task: D0.5
-  last_completed_task: D0.4
+  current_cut: D1
+  current_phase: 1
+  current_task: D1.1
+  last_completed_task: D0.5
   blocked: false
   blocker: null
 
@@ -31,6 +31,9 @@ progress:
     - id: D0.4
       description: Configure ignored runtime artifact paths in .gitignore
       completed: true
+    - id: D0.5
+      description: Audit V4 reuse map and project namespace
+      completed: true
 
 regime:
   id: 1
@@ -39,4 +42,9 @@ regime:
 
 references:
   v2_status: unknown
-  v4_status: unknown
+  v4_status: diagnostic_reference_only
+  v4_code_available: true
+  v4_artifacts_available: false
+  v4_playlist_status: v4_playlist_only
+  v4_competing: false
+  v4_diagnostic_only: true

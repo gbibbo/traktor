@@ -110,3 +110,39 @@ playlists/V4_<N>/
 | `docs/v4/JOBS_STATUS.md` | Estado de jobs Slurm + comandos de monitoreo |
 | `docs/LESSONS_LEARNED.md` | Base de conocimiento de lecciones aprendidas |
 | `v4_implementation_plan.md` | Plan de implementación completo (rev.5) |
+
+---
+
+## DJ Clustering Pipeline (feature/dj-clustering-v1)
+
+### Operational plan and trackers
+
+| File | Description |
+| :--- | :--- |
+| `docs/plans/dj_clustering_plan.md` | Sole operational source of truth for DJ clustering work |
+| `docs/progress/dj_clustering_progress.md` | Markdown task tracker |
+| `docs/progress/dj_clustering_progress.yaml` | YAML state tracker |
+| `reports/dj_clustering/v4_reuse_map.md` | D0.5 V4 component audit and classification |
+
+### Approved implementation namespace
+
+| Directory | Purpose |
+| :--- | :--- |
+| `src/dj_clustering/` | Core library modules |
+| `scripts/dj_clustering/` | Pipeline entry-point scripts |
+| `configs/dj_clustering/` | YAML configuration files |
+| `tests/dj_clustering/` | Tests for dj_clustering |
+| `reports/dj_clustering/` | Small committed reports |
+
+These directories are created incrementally from D1 onward.
+
+### Frozen V4 policy (D0–D7)
+
+V4 (`src/v4/`, `tests/v4/`, `config/v4.yaml`, `slurm/jobs/v4/`, `docs/v4/`,
+`docs/V4_USAGE.md`, `playlists/V4_*/`, `requirements_v4.txt`) is frozen during D0–D7.
+
+- V4 must not be modified, moved, deleted, or renamed.
+- New DJ clustering work must not be implemented under `src/v4/`.
+- V4 is classified as `v4_diagnostic_only` for the leaderboard (no reusable embeddings in Git).
+- Selected V4 utilities are classified `reuse_by_import` or `adapt_into_src_dj_clustering` per `reports/dj_clustering/v4_reuse_map.md`.
+- This separate namespace (`src/dj_clustering/` etc.) is authorized by `docs/plans/dj_clustering_plan.md §6` and overrides the CLAUDE.md refactor-preference for D0–D7 only.
