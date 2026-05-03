@@ -1,0 +1,54 @@
+#!/bin/bash
+#SBATCH --job-name=validate_mert_backend
+#SBATCH --partition=a100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=16G
+#SBATCH --time=00:15:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/validate_mert_backend_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/validate_mert_backend_%j.err
+
+# =============================================================================
+# D2.2b — Validate MERT backend inside pytorch_2.7.0_cu128.sif on a100
+# Confirms: SIF loads, transformers imports, MERT-v1-330M loads, 1 forward pass.
+# Submit via: ./slurm/tools/on_submit.sh sbatch slurm/jobs/dj_clustering/validate_mert_backend.job
+# =============================================================================
+
+set -euo pipefail
+
+REPO="/mnt/fast/nobackup/users/gb0048/traktor"
+SCR="/mnt/fast/nobackup/scratch4weeks/gb0048"
+SIF="$SCR/apptainer/pytorch_2.7.0_cu128.sif"
+
+export PYTHONUSERBASE="$SCR/python_userbase_sif"
+export HF_HOME="$SCR/cache/huggingface"
+export HF_HUB_CACHE="$HF_HOME/hub"
+export APPTAINER_CACHEDIR="$SCR/cache/apptainer"
+export PYTORCH_ALLOC_CONF="expandable_segments:True"
+
+mkdir -p "$PYTHONUSERBASE" "$HF_HOME/hub" "$APPTAINER_CACHEDIR" "$REPO/logs"
+
+echo "[INFO] hostname: $(hostname)"
+echo "[INFO] SIF: $SIF"
+nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null || echo "[WARN] nvidia-smi unavailable"
+
+if [ ! -f "$SIF" ]; then
+    echo "[ERROR] SIF not found: $SIF"
+    echo "[ERROR] Run pull_pytorch_sif.job first"
+    exit 1
+fi
+
+APRUN="apptainer exec --nv $SIF"
+
+echo "[INFO] Installing Python extras into PYTHONUSERBASE..."
+$APRUN pip install --user --quiet "transformers" pandas soundfile tqdm 2>&1 | tail -5
+
+echo "[INFO] Running MERT backend validation..."
+$APRUN env \
+    PYTHONPATH="$REPO:${PYTHONPATH:-}" \
+    PYTHONUSERBASE="$PYTHONUSERBASE" \
+    HF_HOME="$HF_HOME" \
+    HF_HUB_CACHE="$HF_HUB_CACHE" \
+    python scripts/dj_clustering/validate_mert_backend.py
+
+echo "[INFO] DONE: $(date)"

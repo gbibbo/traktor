@@ -1,0 +1,70 @@
+#!/bin/bash
+#SBATCH --job-name=dj_extract_features
+#SBATCH --partition=a100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=64G
+#SBATCH --time=48:00:00
+#SBATCH --output=/mnt/fast/nobackup/users/gb0048/traktor/logs/dj_extract_features_%j.out
+#SBATCH --error=/mnt/fast/nobackup/users/gb0048/traktor/logs/dj_extract_features_%j.err
+
+# =============================================================================
+# D2.2c/D2.2d — DJ clustering feature extraction via pytorch_2.7.0_cu128.sif
+#
+# Smoke (3 tracks):
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/dj_clustering/extract_features.job --max-tracks 3
+#
+# Full extraction:
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/dj_clustering/extract_features.job
+#
+# Optional args (passed after job name, forwarded to extract_features.py):
+#   --max-tracks N    limit to N tracks
+#   --smoke           alias for --max-tracks 3
+#   --device cpu      force CPU (testing only)
+# =============================================================================
+
+set -euo pipefail
+
+REPO="/mnt/fast/nobackup/users/gb0048/traktor"
+SCR="/mnt/fast/nobackup/scratch4weeks/gb0048"
+SIF="$SCR/apptainer/pytorch_2.7.0_cu128.sif"
+
+export PYTHONUSERBASE="$SCR/python_userbase_sif"
+export HF_HOME="$SCR/cache/huggingface"
+export HF_HUB_CACHE="$HF_HOME/hub"
+export APPTAINER_CACHEDIR="$SCR/cache/apptainer"
+export PYTORCH_ALLOC_CONF="expandable_segments:True"
+
+mkdir -p "$PYTHONUSERBASE" "$HF_HOME/hub" "$APPTAINER_CACHEDIR" "$REPO/logs"
+
+echo "[INFO] hostname: $(hostname)"
+echo "[INFO] SIF: $SIF"
+echo "[INFO] Extra args: $*"
+nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null || echo "[WARN] nvidia-smi unavailable"
+
+if [ ! -f "$SIF" ]; then
+    echo "[ERROR] SIF not found: $SIF"
+    echo "[ERROR] Run pull_pytorch_sif.job and validate_mert_backend.job first"
+    exit 1
+fi
+
+APRUN="apptainer exec --nv $SIF"
+
+echo "[INFO] Installing Python extras into PYTHONUSERBASE..."
+$APRUN pip install --user --quiet "transformers" pandas pyarrow soundfile tqdm 2>&1 | tail -5
+
+echo "[INFO] Starting feature extraction..."
+$APRUN env \
+    PYTHONPATH="$REPO:${PYTHONPATH:-}" \
+    PYTHONUSERBASE="$PYTHONUSERBASE" \
+    HF_HOME="$HF_HOME" \
+    HF_HUB_CACHE="$HF_HUB_CACHE" \
+    python scripts/dj_clustering/extract_features.py \
+        --config configs/dj_clustering/features.yaml \
+        --device cuda \
+        "$@"
+
+EXIT_CODE=$?
+
+echo "[INFO] DONE: $(date) — exit code $EXIT_CODE"
+exit $EXIT_CODE
