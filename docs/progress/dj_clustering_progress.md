@@ -4,8 +4,8 @@
 **Integration branch:** main
 **Current cut:** D2
 **Current phase:** 2
-**Current task:** D2.1
-**Last completed:** D1.3
+**Current task:** D2.2
+**Last completed:** D2.1
 **Blocked:** No
 
 ---
@@ -48,7 +48,31 @@
 | BPM coverage | 99.6% (valid as numeric feature) |
 
 Warnings: key absent (data gap, not a blocker); folder_hint invalid for sanity scoring (expected — single library root).
-D1 gate PASSED. Next task: D2.1 (Create feature extraction config).
+D1 gate PASSED.
+
+---
+
+## Cut D2 — Feature extraction foundation
+
+| Task | Description | Status |
+|---|---|---|
+| D2.1 | Create feature extraction configuration | DONE |
+| D2.2 | Implement feature extraction | pending |
+
+### D2.1 results
+
+| Item | Value |
+|---|---|
+| Config | `configs/dj_clustering/features.yaml` |
+| MERT model | m-a-p/MERT-v1-330M |
+| MERT backend | planned_hpc_apptainer (D2.2 must validate) |
+| essentia | not installed → continue_without_essentia |
+| demucs | not installed → HPSS default |
+| HPSS backend | requires D2.2 validation (scipy_numpy preferred) |
+| Percussion fallback | omit_mert_perc_and_mert_concat if HPSS unavailable |
+| BPM feature | enabled (99.6% coverage) |
+| key feature | disabled (0% coverage) |
+| genre/artist/label | sanity evaluation only, not embedding input |
 
 ### D1.2 results
 
@@ -93,4 +117,4 @@ Decode guard: PASS (0.0% < 20% threshold).
 | v4_competing | false |
 | v4_diagnostic_only | true |
 
-_Last updated: D1.3 (metadata quality report complete, D1 gate PASSED)_
+_Last updated: D2.1 (feature extraction configuration created)_

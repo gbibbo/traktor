@@ -1,0 +1,108 @@
+schema_version: "1.0"
+
+inventory_input: artifacts/dj_clustering/inventory/library_inventory.csv
+artifact_root: artifacts/dj_clustering
+feature_output_root: artifacts/dj_clustering/features
+segment_manifest: features/segment_manifest.csv
+feature_manifest: features/feature_manifest.csv
+feature_quality_report: reports/dj_clustering/feature_quality_report.md
+
+audio:
+  sample_rate: 24000         # MERT-v1-330M is trained at 24 kHz
+  mono: true
+  loading_backend: soundfile # torchaudio.load() is broken; use soundfile.read() directly
+
+segment_policy:
+  long_track:
+    min_duration_seconds: 150
+    num_segments: 3
+    segment_duration_seconds: 30
+    center_fractions: [0.25, 0.50, 0.75]
+    edge_margin_seconds: 30   # avoid first and last 30s
+  medium_track:
+    min_duration_seconds: 75
+    max_duration_seconds: 150  # exclusive upper bound
+    num_segments: 1
+    segment_duration_seconds: 60
+    position: center
+  short_track:
+    min_duration_seconds: 35
+    max_duration_seconds: 75   # exclusive upper bound
+    num_segments: 1
+    segment_duration_seconds: 30
+    position: center
+  very_short_track:
+    max_duration_seconds: 35   # exclusive upper bound
+    policy: full_track
+    mark_short_track: true
+
+feature_sources:
+  mert_full:
+    enabled: true
+    source: full_mix
+    requires: [mert_backend]
+  mert_perc:
+    enabled: true
+    source: hpss_percussive
+    requires: [mert_backend, percussion_source]
+  mert_concat:
+    enabled: true
+    requires: [mert_full, mert_perc]
+    policy: l2_normalize_each_then_concat_then_l2_normalize
+  essentia:
+    enabled: false
+    reason: not_installed
+  metadata_numeric:
+    enabled: true
+
+mert:
+  model: m-a-p/MERT-v1-330M
+  trust_remote_code: true
+  aggregation_choices:
+    - last_layer_mean
+    - last_4_layers_mean
+    - layer_7_mean
+  default_aggregation: last_layer_mean
+  segment_aggregation: l2_normalize_per_segment_then_mean
+  track_aggregation: l2_normalize_track_mean
+  l2_normalize_before_storage: true
+
+percussion:
+  default_method: hpss
+  hpss_backend_preference:
+    - scipy_numpy
+    - torchaudio_or_torch
+  hpss_backend_status: requires_d2_2_validation
+  demucs_if_stems_exist: true
+  stems_path: artifacts/dj_clustering/demucs_stems
+  omit_if_unavailable: true
+
+fallback_policy:
+  no_mert_backend: block
+  no_essentia: continue_without_essentia
+  hpss_backend_unavailable: omit_mert_perc_and_mert_concat
+  hpss_failure_per_track: omit_mert_perc_for_track
+  feature_source_failure_threshold:
+    max_failure_rate: 0.10
+    action: omit_source_and_record
+
+mert_backend:
+  available: planned_hpc_apptainer
+  note: "Expected via Apptainer pytorch_2.7.0_cu128.sif on a100 nodes; D2.2 must validate before extraction."
+
+metadata_features:
+  bpm:
+    enabled: true
+    source_column: bpm
+    type: numeric
+    normalize: true
+  key:
+    enabled: false
+    reason: zero_coverage
+  genre_artist_label:
+    use_as_embedding_input: false
+    use_for_sanity_evaluation: true
+
+privacy_policy:
+  no_private_paths_in_committed_reports: true
+  full_paths_in_ignored_artifacts_only: true
