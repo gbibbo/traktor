@@ -7,7 +7,7 @@ This file is the execution plan for the DJ music collection clustering project. 
 Source-of-truth rule:
 
 ```text
-If this implementation plan conflicts with docs/plans/dj_music_clustering_system_objectives_and_strategies_v9_1.md, the v9.1 specification wins unless the user explicitly approves the change.
+This plan is the sole operational source of truth for this branch. If any external document conflicts with this plan, this plan wins unless the user explicitly approves a change.
 ```
 
 
@@ -18,24 +18,22 @@ Read this file after `CLAUDE.md` and before implementation work.
 Execution rule:
 
 1. Read `CLAUDE.md`.
-2. Read `docs/plans/dj_music_clustering_system_objectives_and_strategies_v9_1.md`.
-3. Read `docs/plans/dj_clustering_plan.md`.
-4. Read `docs/progress/dj_clustering_progress.md` and `docs/progress/dj_clustering_progress.yaml` if they exist.
-5. Identify the first pending task.
-6. Execute only that task.
-7. Run the verification for that task.
-8. Update the DJ clustering progress trackers.
-9. Commit only source code, configs, documentation, small reports, and tracker updates.
-10. Do not commit local music files, downloaded audio, embeddings, large pairwise tables, caches, model checkpoints, generated playlists with private paths unless explicitly allowed, or large run artifacts.
-11. Stop at gates and report status.
+2. Read `docs/plans/dj_clustering_plan.md`.
+3. Read `docs/progress/dj_clustering_progress.md` and `docs/progress/dj_clustering_progress.yaml` if they exist.
+4. Identify the first pending task.
+5. Execute only that task.
+6. Run the verification for that task.
+7. Update the DJ clustering progress trackers.
+8. Commit only source code, configs, documentation, small reports, and tracker updates.
+9. Do not commit local music files, downloaded audio, embeddings, large pairwise tables, caches, model checkpoints, generated playlists with private paths unless explicitly allowed, or large run artifacts.
+10. Stop at gates and report status.
 
 If a task depends on an earlier task that is not complete, do the earlier task first and update the tracker.
 
 Bootstrap rule:
 
 ```text
-If docs/plans/dj_music_clustering_system_objectives_and_strategies_v9_1.md does not exist, install it from the final v9.1 strategy specification before implementation work.
-If docs/plans/dj_clustering_plan.md does not exist, create it from this plan before implementation work.
+If docs/plans/dj_clustering_plan.md does not exist, restore it from git history on feature/dj-clustering-v1 before implementation work.
 If docs/progress/dj_clustering_progress.md or docs/progress/dj_clustering_progress.yaml do not exist, create them in Task D0.3.
 ```
 
@@ -570,24 +568,22 @@ Decision rules:
 Actions:
 
 1. create `docs/plans/` if missing;
-2. install or update `docs/plans/dj_music_clustering_system_objectives_and_strategies_v9_1.md` from the final v9.1 strategy specification;
-3. create or update `docs/plans/dj_clustering_plan.md` from this implementation plan;
-4. verify both plan files exist before implementation work continues;
-5. create `docs/progress/` if missing;
-6. create `docs/progress/dj_clustering_progress.md` if missing;
-7. create `docs/progress/dj_clustering_progress.yaml` if missing;
-8. initialize current cut as `D0`;
-9. initialize current task as the first incomplete task;
-10. do not reuse unrelated legacy trackers for this branch.
+2. create or update `docs/plans/dj_clustering_plan.md`;
+3. verify plan file exists before implementation work continues;
+4. create `docs/progress/` if missing;
+5. create `docs/progress/dj_clustering_progress.md` if missing;
+6. create `docs/progress/dj_clustering_progress.yaml` if missing;
+7. initialize current cut as `D0`;
+8. initialize current task as the first incomplete task;
+9. do not reuse unrelated legacy trackers for this branch.
 
 Done when:
 
-1. `docs/plans/dj_music_clustering_system_objectives_and_strategies_v9_1.md` exists inside the repo;
-2. `docs/plans/dj_clustering_plan.md` exists inside the repo;
-3. both DJ clustering trackers exist;
-4. tracker format is valid;
-5. next pending task is visible;
-6. tracker does not conflict with unrelated branch trackers.
+1. `docs/plans/dj_clustering_plan.md` exists inside the repo;
+2. both DJ clustering trackers exist;
+3. tracker format is valid;
+4. next pending task is visible;
+5. tracker does not conflict with unrelated branch trackers.
 
 Decision rules:
 
@@ -2109,25 +2105,24 @@ Cut D7 gate: final evaluation or documented fallback decision must be complete b
 The DJ clustering branch is done when:
 
 1. plan file exists in `docs/plans/dj_clustering_plan.md`;
-2. strategy specification exists in `docs/plans/dj_music_clustering_system_objectives_and_strategies_v9_1.md`;
-3. progress trackers are current;
-4. local inventory and identity logic exist;
-5. decode failures are handled without blocking the whole pipeline;
-6. exact duplicates are detected and excluded from clustering by default;
-7. default frozen features exist or missing feature blockers are documented;
-8. pairwise features and similarity profiles are implemented;
-9. manual triplet question queue and ingestion are implemented;
-10. 1001Tracklists evidence is either implemented or explicitly marked unavailable;
-11. Regime 1 sweep runs with conditional grid and fixed baselines;
-12. validation metrics and guardrails select a winner without test leakage;
-13. overlapping clusters, auxiliary memberships, bridge scores, and weak primary flags are exported;
-14. primary manifests, auxiliary manifests, bridge report, `_uncertain`, and `_singletons` outputs exist where applicable;
-15. exact duplicate rows are restored only at export time;
-16. no audio duplication occurs by default;
-17. final evaluation report exists;
-18. Regime 2 is either not needed, skipped with reason, or completed under the trigger rules;
-19. all large and private artifacts remain outside Git;
-20. branch is committed and pushed to GitHub.
+2. progress trackers are current;
+3. local inventory and identity logic exist;
+4. decode failures are handled without blocking the whole pipeline;
+5. exact duplicates are detected and excluded from clustering by default;
+6. default frozen features exist or missing feature blockers are documented;
+7. pairwise features and similarity profiles are implemented;
+8. manual triplet question queue and ingestion are implemented;
+9. 1001Tracklists evidence is either implemented or explicitly marked unavailable;
+10. Regime 1 sweep runs with conditional grid and fixed baselines;
+11. validation metrics and guardrails select a winner without test leakage;
+12. overlapping clusters, auxiliary memberships, bridge scores, and weak primary flags are exported;
+13. primary manifests, auxiliary manifests, bridge report, `_uncertain`, and `_singletons` outputs exist where applicable;
+14. exact duplicate rows are restored only at export time;
+15. no audio duplication occurs by default;
+16. final evaluation report exists;
+17. Regime 2 is either not needed, skipped with reason, or completed under the trigger rules;
+18. all large and private artifacts remain outside Git;
+19. branch is committed and pushed to GitHub.
 
 ## 18. Practical control rules
 
@@ -2151,9 +2146,8 @@ The DJ clustering branch is done when:
 18. Do not claim success from the composite score alone without component metrics and export review.
 19. Do not duplicate audio in export unless explicitly requested in a later task.
 20. If generated code conflicts with this plan, follow this plan and record the conflict.
-21. If this plan conflicts with `docs/plans/dj_music_clustering_system_objectives_and_strategies_v9_1.md`, follow v9.1 unless the user explicitly approves a change.
-22. If this plan conflicts with `CLAUDE.md`, follow `CLAUDE.md` except for the explicitly approved separate namespace and frozen V4 policy; record the conflict in `docs/PROJECT_MAP.md`.
-23. Stop at gates and report status.
+21. If this plan conflicts with `CLAUDE.md`, follow `CLAUDE.md` except for the explicitly approved separate namespace and frozen V4 policy; record the conflict in `docs/PROJECT_MAP.md`.
+22. Stop at gates and report status.
 
 ## 19. First Claude Code task recommendation
 

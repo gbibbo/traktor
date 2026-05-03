@@ -1,0 +1,39 @@
+# DJ Clustering Progress Tracker
+# Updated by Claude Code after each completed task. Do not edit during an active session.
+
+schema_version: "1.0"
+
+project:
+  repo_root: /mnt/fast/nobackup/users/gb0048/traktor
+  library_root: null
+  artifact_root: null
+  branch: feature/dj-clustering-v1
+  integration_branch: main
+
+progress:
+  current_cut: D0
+  current_phase: 0
+  current_task: D0.4
+  last_completed_task: D0.3
+  blocked: false
+  blocker: null
+
+  completed_tasks:
+    - id: D0.1
+      description: Repository inspection
+      completed: true
+    - id: D0.2
+      description: Create and push feature/dj-clustering-v1
+      completed: true
+    - id: D0.3
+      description: Install plan files and create progress trackers
+      completed: true
+
+regime:
+  id: 1
+  manual_triplets_answered: 0
+  validated_1001_positives: 0
+
+references:
+  v2_status: unknown
+  v4_status: unknown
