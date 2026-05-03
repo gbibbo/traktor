@@ -49,6 +49,13 @@ def parse_args() -> argparse.Namespace:
         help="Alias for --max-tracks 3",
     )
     p.add_argument(
+        "--feature-output-root",
+        default=None,
+        type=Path,
+        metavar="PATH",
+        help="Override feature_output_root from config (repo-relative). Smoke: artifacts/dj_clustering/features_smoke",
+    )
+    p.add_argument(
         "--device",
         default=None,
         help="Torch device: cuda or cpu (default: auto-detect)",
@@ -92,11 +99,13 @@ def main() -> int:
     cfg = load_config(args.config)
 
     artifact_root = project_root / cfg["artifact_root"]
-    feature_root = project_root / cfg["feature_output_root"]
+    feature_root = project_root / (args.feature_output_root or cfg["feature_output_root"])
     inventory_path = project_root / cfg["inventory_input"]
     segment_manifest_path = feature_root / "segment_manifest.csv"
     feature_manifest_path = feature_root / "feature_manifest.csv"
     quality_report_path = project_root / cfg["feature_quality_report"]
+    if args.max_tracks:
+        quality_report_path = feature_root / "smoke_quality_report.md"
 
     # Load inventory
     print("[INFO] Loading inventory...")
@@ -105,7 +114,7 @@ def main() -> int:
     print(f"[INFO] Canonical decoded tracks: {len(canonical)}")
 
     if args.max_tracks:
-        canonical = canonical.head(args.max_tracks)
+        canonical = canonical.sort_values("track_id").head(args.max_tracks)
         print(f"[INFO] Limiting to {len(canonical)} tracks (smoke/debug)")
 
     # Generate segment manifest
@@ -114,7 +123,7 @@ def main() -> int:
     feature_root.mkdir(parents=True, exist_ok=True)
     seg_manifest = build_segment_manifest(canonical)
     seg_manifest.to_csv(segment_manifest_path, index=False)
-    print(f"[INFO] Segment manifest: {len(seg_manifest)} rows → {segment_manifest_path}")
+    print(f"[INFO] Segment manifest: {len(seg_manifest)} rows → {segment_manifest_path.relative_to(project_root)}")
 
     if args.segment_manifest_only:
         print("[INFO] Segment-manifest-only mode complete.")
@@ -150,17 +159,18 @@ def main() -> int:
 
     # Per-track extraction
     results = []
-    for _, row in canonical.iterrows():
+    n_tracks_total = len(canonical)
+    for i, (_, row) in enumerate(canonical.iterrows()):
         tid = str(row["track_id"])
         try:
             result = extractor.extract_track(row, model, processor)
             results.append(result)
             status = "ok" if result["mert_full"] is not None else "FAIL"
-            print(f"[INFO] {tid}: mert_full={status}"
+            print(f"[INFO] track {i+1}/{n_tracks_total}: mert_full={status}"
                   f" perc={'ok' if result['mert_perc'] else ('omit' if not hpss_ok else 'fail')}"
                   f" concat={'ok' if result['mert_concat'] else 'omit'}")
         except Exception as exc:
-            print(f"[ERROR] {tid}: unhandled exception: {type(exc).__name__}: {str(exc)[:80]}")
+            print(f"[ERROR] track {i+1}/{n_tracks_total}: unhandled exception: {type(exc).__name__}: {str(exc)[:80]}")
             results.append({
                 "track_id": tid,
                 "segments_used": 0,
@@ -187,7 +197,7 @@ def main() -> int:
     manifest_df = extractor.build_feature_manifest(results, artifact_root)
     feature_manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_df.to_csv(feature_manifest_path, index=False)
-    print(f"[INFO] Feature manifest: {len(manifest_df)} rows → {feature_manifest_path}")
+    print(f"[INFO] Feature manifest: {len(manifest_df)} rows → {feature_manifest_path.relative_to(project_root)}")
 
     # Failure rate check
     mf_full = manifest_df[manifest_df["feature_source"] == "mert_full"]
@@ -203,7 +213,7 @@ def main() -> int:
         extractor, hpss_ok, failure_rate, len(canonical),
         args.max_tracks,
     )
-    print(f"[INFO] Quality report → {quality_report_path}")
+    print(f"[INFO] Quality report → {quality_report_path.relative_to(project_root)}")
 
     print("=" * 70)
     if failure_rate > 0.10:

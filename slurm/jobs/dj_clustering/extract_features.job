@@ -12,15 +12,17 @@
 # D2.2c/D2.2d — DJ clustering feature extraction via pytorch_2.7.0_cu128.sif
 #
 # Smoke (3 tracks):
-#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/dj_clustering/extract_features.job --max-tracks 3
+#   ./slurm/tools/on_submit.sh sbatch slurm/jobs/dj_clustering/extract_features.job \
+#       --smoke --feature-output-root artifacts/dj_clustering/features_smoke
 #
 # Full extraction:
 #   ./slurm/tools/on_submit.sh sbatch slurm/jobs/dj_clustering/extract_features.job
 #
 # Optional args (passed after job name, forwarded to extract_features.py):
-#   --max-tracks N    limit to N tracks
-#   --smoke           alias for --max-tracks 3
-#   --device cpu      force CPU (testing only)
+#   --max-tracks N                    limit to N tracks
+#   --smoke                           alias for --max-tracks 3
+#   --feature-output-root PATH        override feature output directory (repo-relative)
+#   --device cpu                      force CPU (testing only)
 # =============================================================================
 
 set -euo pipefail
@@ -28,17 +30,15 @@ set -euo pipefail
 REPO="/mnt/fast/nobackup/users/gb0048/traktor"
 SCR="/mnt/fast/nobackup/scratch4weeks/gb0048"
 SIF="$SCR/apptainer/pytorch_2.7.0_cu128.sif"
+VENV="$SCR/venvs/traktor_mert_extract"
+HF_HOME="$SCR/cache/huggingface"
+PIP_CACHE_DIR="$SCR/cache/pip"
 
-export PYTHONUSERBASE="$SCR/python_userbase_sif"
-export HF_HOME="$SCR/cache/huggingface"
-export HF_HUB_CACHE="$HF_HOME/hub"
-export APPTAINER_CACHEDIR="$SCR/cache/apptainer"
-export PYTORCH_ALLOC_CONF="expandable_segments:True"
-
-mkdir -p "$PYTHONUSERBASE" "$HF_HOME/hub" "$APPTAINER_CACHEDIR" "$REPO/logs"
+mkdir -p "$SCR/venvs" "$HF_HOME" "$PIP_CACHE_DIR" "$REPO/logs"
 
 echo "[INFO] hostname: $(hostname)"
 echo "[INFO] SIF: $SIF"
+echo "[INFO] VENV: $VENV"
 echo "[INFO] Extra args: $*"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null || echo "[WARN] nvidia-smi unavailable"
 
@@ -48,21 +48,31 @@ if [ ! -f "$SIF" ]; then
     exit 1
 fi
 
-APRUN="apptainer exec --nv $SIF"
+APRUN="apptainer exec --nv --cleanenv \
+    --bind $REPO:$REPO \
+    --bind $SCR:$SCR \
+    --env PYTHONNOUSERSITE=1 \
+    --env PYTHONPATH=$REPO \
+    --env HF_HOME=$HF_HOME \
+    --env TRANSFORMERS_CACHE=$HF_HOME \
+    --env PIP_CACHE_DIR=$PIP_CACHE_DIR \
+    $SIF"
 
-echo "[INFO] Installing Python extras into PYTHONUSERBASE..."
-$APRUN pip install --user --quiet "transformers" pandas pyarrow soundfile tqdm 2>&1 | tail -5
+echo "[INFO] Creating extraction venv with system site packages..."
+$APRUN python3 -s -m venv --system-site-packages "$VENV"
+
+echo "[INFO] Upgrading pip..."
+$APRUN "$VENV/bin/python" -m pip install --upgrade pip
+
+echo "[INFO] Installing extraction dependencies..."
+$APRUN "$VENV/bin/python" -m pip install --force-reinstall \
+    "transformers==4.44.2" pandas pyarrow soundfile tqdm scipy
 
 echo "[INFO] Starting feature extraction..."
-$APRUN env \
-    PYTHONPATH="$REPO:${PYTHONPATH:-}" \
-    PYTHONUSERBASE="$PYTHONUSERBASE" \
-    HF_HOME="$HF_HOME" \
-    HF_HUB_CACHE="$HF_HUB_CACHE" \
-    python scripts/dj_clustering/extract_features.py \
-        --config configs/dj_clustering/features.yaml \
-        --device cuda \
-        "$@"
+$APRUN "$VENV/bin/python" -s "$REPO/scripts/dj_clustering/extract_features.py" \
+    --config "$REPO/configs/dj_clustering/features.yaml" \
+    --device cuda \
+    "$@"
 
 EXIT_CODE=$?
 
