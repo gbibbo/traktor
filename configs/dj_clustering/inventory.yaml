@@ -1,12 +1,11 @@
 schema_version: "1.0"
 
 # Library roots — paths must be outside the Git repo.
-# Replace the placeholder below with a real audio library root before running D1.2.
 library_roots:
-  - path: "__PENDING_USER_LIBRARY_ROOT_OUTSIDE_GIT__"
-    status: pending_user_input
+  - path: "/mnt/fast/nobackup/scratch4weeks/gb0048/traktor_dj_clustering/raw_audio"
+    status: active
 
-library_root_status: pending_user_input
+library_root_status: active
 
 recursive: true
 ignore_hidden_files: true

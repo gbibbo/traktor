@@ -6,7 +6,7 @@
 **Current phase:** 1
 **Current task:** D1.2
 **Last completed:** D1.1
-**Blocked:** Yes — Pending user-provided library root outside Git for D1.2 inventory scan
+**Blocked:** No
 
 ---
 
@@ -29,9 +29,7 @@
 | Task | Description | Status |
 |---|---|---|
 | D1.1 | Define local library inventory configuration | DONE |
-| D1.2 | Implement library inventory script | blocked |
-
-**D1.2 blocked:** Pending user-provided library root outside Git. Update `library_roots[0].path` and `library_root_status` in `configs/dj_clustering/inventory.yaml` before proceeding.
+| D1.2 | Implement library inventory script | pending |
 
 ---
 
@@ -56,4 +54,4 @@
 | v4_competing | false |
 | v4_diagnostic_only | true |
 
-_Last updated: D1.1_
+_Last updated: D1.1 (scratch library root activated)_
