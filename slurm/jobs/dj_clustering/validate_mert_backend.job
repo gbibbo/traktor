@@ -19,17 +19,15 @@ set -euo pipefail
 REPO="/mnt/fast/nobackup/users/gb0048/traktor"
 SCR="/mnt/fast/nobackup/scratch4weeks/gb0048"
 SIF="$SCR/apptainer/pytorch_2.7.0_cu128.sif"
+VENV="$SCR/venvs/traktor_mert_validate"
+HF_HOME="$SCR/cache/huggingface"
+PIP_CACHE_DIR="$SCR/cache/pip"
 
-export PYTHONUSERBASE="$SCR/python_userbase_sif"
-export HF_HOME="$SCR/cache/huggingface"
-export HF_HUB_CACHE="$HF_HOME/hub"
-export APPTAINER_CACHEDIR="$SCR/cache/apptainer"
-export PYTORCH_ALLOC_CONF="expandable_segments:True"
-
-mkdir -p "$PYTHONUSERBASE" "$HF_HOME/hub" "$APPTAINER_CACHEDIR" "$REPO/logs"
+mkdir -p "$SCR/venvs" "$HF_HOME" "$PIP_CACHE_DIR" "$REPO/logs"
 
 echo "[INFO] hostname: $(hostname)"
 echo "[INFO] SIF: $SIF"
+echo "[INFO] VENV: $VENV"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null || echo "[WARN] nvidia-smi unavailable"
 
 if [ ! -f "$SIF" ]; then
@@ -38,17 +36,42 @@ if [ ! -f "$SIF" ]; then
     exit 1
 fi
 
-APRUN="apptainer exec --nv $SIF"
+APRUN="apptainer exec --nv --cleanenv \
+    --bind $REPO:$REPO \
+    --bind $SCR:$SCR \
+    --env PYTHONNOUSERSITE=1 \
+    --env PYTHONPATH=$REPO \
+    --env HF_HOME=$HF_HOME \
+    --env TRANSFORMERS_CACHE=$HF_HOME \
+    --env PIP_CACHE_DIR=$PIP_CACHE_DIR \
+    $SIF"
 
-echo "[INFO] Installing Python extras into PYTHONUSERBASE..."
-$APRUN pip install --user --quiet "transformers" pandas soundfile tqdm 2>&1 | tail -5
+echo "[INFO] Creating validation venv with system site packages..."
+$APRUN python3 -s -m venv --system-site-packages "$VENV"
+
+echo "[INFO] Upgrading pip..."
+$APRUN "$VENV/bin/python" -m pip install --upgrade pip
+
+echo "[INFO] Installing validation dependencies..."
+$APRUN "$VENV/bin/python" -m pip install --force-reinstall "transformers==4.44.2" pandas soundfile tqdm
+
+echo "[INFO] Running import sanity check..."
+$APRUN "$VENV/bin/python" -s - <<'PY'
+import sys
+import torch
+import transformers
+from transformers import AutoModel, Wav2Vec2FeatureExtractor
+
+print("[INFO] python:", sys.version)
+print("[INFO] torch:", torch.__version__)
+print("[INFO] cuda_available:", torch.cuda.is_available())
+print("[INFO] transformers:", transformers.__version__)
+print("[INFO] transformers_file:", transformers.__file__)
+print("[INFO] AutoModel available:", AutoModel is not None)
+print("[INFO] Wav2Vec2FeatureExtractor available:", Wav2Vec2FeatureExtractor is not None)
+PY
 
 echo "[INFO] Running MERT backend validation..."
-$APRUN env \
-    PYTHONPATH="$REPO:${PYTHONPATH:-}" \
-    PYTHONUSERBASE="$PYTHONUSERBASE" \
-    HF_HOME="$HF_HOME" \
-    HF_HUB_CACHE="$HF_HUB_CACHE" \
-    python "$REPO/scripts/dj_clustering/validate_mert_backend.py"
+$APRUN "$VENV/bin/python" -s "$REPO/scripts/dj_clustering/validate_mert_backend.py"
 
 echo "[INFO] DONE: $(date)"
