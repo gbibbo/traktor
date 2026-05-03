@@ -1,0 +1,44 @@
+schema_version: "1.0"
+
+# Library roots — paths must be outside the Git repo.
+# Replace the placeholder below with a real audio library root before running D1.2.
+library_roots:
+  - path: "__PENDING_USER_LIBRARY_ROOT_OUTSIDE_GIT__"
+    status: pending_user_input
+
+library_root_status: pending_user_input
+
+recursive: true
+ignore_hidden_files: true
+
+allowed_extensions:
+  - .wav
+  - .flac
+  - .mp3
+  - .m4a
+  - .aiff
+  - .aif
+  - .ogg
+
+# Output root for inventory artifacts (ignored by Git via artifacts/ rule in .gitignore)
+artifact_root: artifacts/dj_clustering
+
+# Inventory output path, relative to artifact_root
+inventory_output: inventory/library_inventory.parquet
+
+# Path privacy policy:
+#   private_paths: full absolute audio paths written only to ignored artifact_root
+#   committed_reports: sanitized paths or non-private identifiers only
+#   generated_m3u_files: runtime artifacts under artifact_root, never committed
+#   commit_absolute_audio_paths: false — do not stage audio paths in committed files
+path_privacy_policy:
+  private_paths: artifacts_only
+  committed_reports: sanitized_paths_only
+  generated_m3u_files: ignored_runtime_artifacts
+  commit_absolute_audio_paths: false
+
+# M3U files are written with absolute host paths for Traktor compatibility.
+# They are runtime artifacts under artifact_root and must not be committed.
+m3u_paths: absolute
+
+hash_method: sha256_full_content

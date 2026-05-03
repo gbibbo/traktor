@@ -6,17 +6,17 @@ schema_version: "1.0"
 project:
   repo_root: /mnt/fast/nobackup/users/gb0048/traktor
   library_root: null
-  artifact_root: null
+  artifact_root: artifacts/dj_clustering
   branch: feature/dj-clustering-v1
   integration_branch: main
 
 progress:
   current_cut: D1
   current_phase: 1
-  current_task: D1.1
-  last_completed_task: D0.5
-  blocked: false
-  blocker: null
+  current_task: D1.2
+  last_completed_task: D1.1
+  blocked: true
+  blocker: "Pending user-provided library root outside Git for D1.2 inventory scan"
 
   completed_tasks:
     - id: D0.1
@@ -29,10 +29,13 @@ progress:
       description: Install plan files and create progress trackers
       completed: true
     - id: D0.4
-      description: Configure ignored runtime artifact paths in .gitignore
+      description: Configure ignored runtime artifact patterns in .gitignore
       completed: true
     - id: D0.5
       description: Audit V4 reuse map and project namespace
+      completed: true
+    - id: D1.1
+      description: Define local library inventory configuration
       completed: true
 
 regime:
