@@ -4,8 +4,8 @@
 **Integration branch:** main
 **Current cut:** D1
 **Current phase:** 1
-**Current task:** D1.3
-**Last completed:** D1.2
+**Current task:** D1.4
+**Last completed:** D1.3
 **Blocked:** No
 
 ---
@@ -30,7 +30,25 @@
 |---|---|---|
 | D1.1 | Define local library inventory configuration | DONE |
 | D1.2 | Implement library inventory script | DONE |
-| D1.3 | Create metadata quality report | pending |
+| D1.3 | Create metadata quality report | DONE |
+
+### D1.3 results
+
+| Metric | Value |
+|---|---|
+| Report | `reports/dj_clustering/metadata_quality_report.md` |
+| Gate | PASS+WARN |
+| N_canonical_decoded | 246 (small-N regime) |
+| Decode failure rate | 0.0% |
+| Exact duplicates | 0 |
+| Key coverage | 0% (absent — excluded from features) |
+| Valid sanity fields | genre, artist, label (3 fields) |
+| Invalid sanity field | folder_hint (98.8% dominant class) |
+| metadata_sanity_score_unavailable | false |
+| BPM coverage | 99.6% (valid as numeric feature) |
+
+Warnings: key absent (data gap, not a blocker); folder_hint invalid for sanity scoring (expected — single library root).
+D1 gate PASSED. D1.4 is now current task.
 
 ### D1.2 results
 
@@ -75,4 +93,4 @@ Decode guard: PASS (0.0% < 20% threshold).
 | v4_competing | false |
 | v4_diagnostic_only | true |
 
-_Last updated: D1.2 (library inventory complete)_
+_Last updated: D1.3 (metadata quality report complete, D1 gate PASSED)_
