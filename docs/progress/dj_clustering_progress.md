@@ -4,8 +4,8 @@
 **Integration branch:** main
 **Current cut:** D2
 **Current phase:** 2
-**Current task:** D2.2
-**Last completed:** D2.1
+**Current task:** D2.3
+**Last completed:** D2.2
 **Blocked:** No
 
 ---
@@ -57,7 +57,31 @@ D1 gate PASSED.
 | Task | Description | Status |
 |---|---|---|
 | D2.1 | Create feature extraction configuration | DONE |
-| D2.2 | Implement feature extraction | pending |
+| D2.2 | Implement feature extraction | DONE |
+| D2.3 | Evaluate V2 and current V4 availability | pending |
+
+### D2.2 results
+
+| Metric | Value |
+|---|---|
+| Report | `reports/dj_clustering/feature_quality_report.md` |
+| Gate | PASS (mert_full failure rate 1.2% ≤ 10%) |
+| Tracks processed | 246 |
+| Segments processed | 738 (3 per track, all `long` class) |
+| MERT backend | validated (Apptainer pytorch_2.7.0_cu128 on a100) |
+| HPSS available | true |
+| mert_full | 245 tracks × 3 aggregations × 1024 dim, L2-normalized |
+| mert_perc | 245 tracks × 3 aggregations × 1024 dim, L2-normalized |
+| mert_concat | 245 tracks × 3 aggregations × 2048 dim, L2-normalized |
+| BPM | 246 tracks × 1 dim (1 imputed) |
+| mert_full failure rate | 1.2% (3 failed manifest rows / 246 tracks) |
+| Aggregations | last_layer_mean, last_4_layers_mean, layer_7_mean |
+
+D2.2 sub-phases:
+- D2.2a (a58a9fd): scaffold + segment_manifest (738 rows)
+- D2.2b (25b156f, ef1a21e): MERT backend validation in Apptainer
+- D2.2c (bc2a4ce): smoke extraction (3 tracks) — all sources passed
+- D2.2d (job 2126808): full extraction on 246 tracks — gate PASS
 
 ### D2.1 results
 
@@ -117,4 +141,4 @@ Decode guard: PASS (0.0% < 20% threshold).
 | v4_competing | false |
 | v4_diagnostic_only | true |
 
-_Last updated: D2.1 (feature extraction configuration created)_
+_Last updated: D2.2 (feature extraction pipeline complete)_

@@ -13,8 +13,8 @@ project:
 progress:
   current_cut: D2
   current_phase: 2
-  current_task: D2.2
-  last_completed_task: D2.1
+  current_task: D2.3
+  last_completed_task: D2.2
   blocked: false
   blocker: null
 
@@ -46,16 +46,32 @@ progress:
     - id: D2.1
       description: Create feature extraction configuration
       completed: true
+    - id: D2.2
+      description: Implement feature extraction
+      completed: true
 
 features:
   feature_config: configs/dj_clustering/features.yaml
   feature_output_root: artifacts/dj_clustering/features
+  segment_manifest_path: artifacts/dj_clustering/features/segment_manifest.csv
+  feature_manifest_path: artifacts/dj_clustering/features/feature_manifest.csv
+  feature_quality_report_path: reports/dj_clustering/feature_quality_report.md
   mert_model: m-a-p/MERT-v1-330M
   essentia_available: false
   demucs_available: false
   percussion_method: hpss
-  mert_backend_available: planned_hpc_apptainer
-  mert_backend_note: "Expected via Apptainer pytorch_2.7.0_cu128.sif on a100 nodes; D2.2 must validate before extraction."
+  mert_backend_available: true
+  mert_backend_note: "Validated via Apptainer pytorch_2.7.0_cu128.sif on a100 (D2.2b job 2126782, D2.2d job 2126808)."
+  hpss_available: true
+  n_tracks_extracted: 246
+  n_segments: 738
+  feature_sources:
+    - mert_full
+    - mert_perc
+    - mert_concat
+    - bpm
+  mert_full_failure_rate: 0.012
+  d2_2d_full_job_id: 2126808
 
 inventory:
   total_files_scanned: 492
