@@ -6,7 +6,7 @@
 **Current phase:** 3
 **Current task:** D3.3
 **Last completed:** D3.2
-**Blocked:** No
+**Blocked:** Yes — Pending user-completed triplet answers for D3.3 ingest
 
 ---
 
@@ -70,6 +70,31 @@ D1 gate PASSED.
 |---|---|---|
 | D3.1 | Build pairwise feature table | DONE |
 | D3.2 | Generate initial manual triplet question queue | DONE |
+| D3.3 | Ingest manual triplet answers | BLOCKED — awaiting user answers |
+
+### D3.3a results (scaffold — blocked awaiting user answers)
+
+| Item | Value |
+|---|---|
+| Library module | `src/dj_clustering/triplet_ingest.py` |
+| Driver script | `scripts/dj_clustering/ingest_manual_triplets.py` |
+| Tests | `tests/dj_clustering/test_triplet_ingest.py` |
+| Answer template | `artifacts/dj_clustering/triplets/triplet_answer_template.csv` (ignored, 40 rows) |
+| Allowed answer values | B, C, skip |
+| Template columns | question_id, answer, confidence, notes |
+| Tests passed | 21/21 (test_triplet_ingest.py), 159/159 full suite |
+| Template ignored | PASS (.gitignore: `artifacts/`) |
+| Tracker blocked | true |
+| Blocker | Pending user-completed triplet answers for D3.3 ingest |
+
+D3.3a sub-steps:
+- module: `src/dj_clustering/triplet_ingest.py`
+- driver: `scripts/dj_clustering/ingest_manual_triplets.py` (modes: create-template, ingest)
+- tests: `tests/dj_clustering/test_triplet_ingest.py`
+
+**Next:** User fills `artifacts/dj_clustering/triplets/triplet_answer_template.csv`, then D3.3 ingest runs.
+
+---
 
 ### D3.2 results
 

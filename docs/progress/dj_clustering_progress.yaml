@@ -15,8 +15,8 @@ progress:
   current_phase: 3
   current_task: D3.3
   last_completed_task: D3.2
-  blocked: false
-  blocker: null
+  blocked: true
+  blocker: "Pending user-completed triplet answers for D3.3 ingest"
 
   completed_tasks:
     - id: D0.1
@@ -158,6 +158,13 @@ triplets:
   v4_boundary_source: v4_playlist_only
   v4_coverage: 1.0
   v4_l1_group_count: 8
+  answer_template_artifact: artifacts/dj_clustering/triplets/triplet_answer_template.csv
+  answer_template_rows: 40
+  answer_template_allowed_values:
+    - B
+    - C
+    - skip
+  ingest_status: awaiting_user_answers
 
 references:
   v2_status: diagnostic_only

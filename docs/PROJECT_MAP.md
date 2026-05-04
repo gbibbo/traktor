@@ -140,6 +140,7 @@ playlists/V4_<N>/
 | `pair_features.py` | D3.1 pair enumeration, cosine pair features, raw-BPM tempo equivalence, metadata similarity |
 | `similarity_profiles.py` | D3.1 committed similarity profile registry (audio_only, audio_plus_metadata_light) |
 | `triplets.py` | D3.2 KNN index, V4 playlist cluster-map parsing, NN and boundary triplet sampling, de-duplication, question DataFrame assembly |
+| `triplet_ingest.py` | D3.3 answer template creation, validation (B/C/skip, unknown/duplicate qids), manual triplet and skip log assembly, summary report generation |
 
 ### Driver scripts (`scripts/dj_clustering/`)
 
@@ -150,6 +151,7 @@ playlists/V4_<N>/
 | `validate_mert_backend.py`, `extract_features.py` | D2.2 MERT validation and feature extraction |
 | `build_pair_features.py` | D3.1 build pair feature parquet, manifest, and summary |
 | `generate_triplet_questions.py` | D3.2 generate initial manual comparison question queue (40 questions) |
+| `ingest_manual_triplets.py` | D3.3 two-mode CLI: create-template (blank answer CSV) and ingest (validate + write manual_triplets.csv + summary) |
 
 ### Tests (`tests/dj_clustering/`)
 
@@ -159,6 +161,7 @@ playlists/V4_<N>/
 | `test_segments.py`, `test_features.py` | D2 segment + feature unit tests |
 | `test_pair_features.py`, `test_similarity_profiles.py` | D3.1 pair feature + profile unit tests |
 | `test_triplets.py` | D3.2 triplet generation unit tests |
+| `test_triplet_ingest.py` | D3.3 answer template, validation, assembly, and summary report unit tests |
 
 ### Configs (`configs/dj_clustering/`)
 
