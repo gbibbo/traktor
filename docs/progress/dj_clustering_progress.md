@@ -4,8 +4,8 @@
 **Integration branch:** main
 **Current cut:** D3
 **Current phase:** 3
-**Current task:** D3.2
-**Last completed:** D3.1
+**Current task:** D3.3
+**Last completed:** D3.2
 **Blocked:** No
 
 ---
@@ -69,6 +69,32 @@ D1 gate PASSED.
 | Task | Description | Status |
 |---|---|---|
 | D3.1 | Build pairwise feature table | DONE |
+| D3.2 | Generate initial manual triplet question queue | DONE |
+
+### D3.2 results
+
+| Item | Value |
+|---|---|
+| Triplet queue CSV | `artifacts/dj_clustering/triplets/triplet_question_queue.csv` (ignored) |
+| Triplet queue M3U | `artifacts/dj_clustering/triplets/triplet_question_queue.m3u` (ignored) |
+| Summary report | `reports/dj_clustering/triplet_queue_summary.md` |
+| V4 mapping report | `reports/dj_clustering/v4_playlist_mapping_report.md` |
+| Total questions | 40 |
+| NN questions (mert_full_knn) | 20 |
+| Boundary questions (v4_boundary) | 20 |
+| V4 coverage | 100.0% (239/239 entries mapped, gate PASS) |
+| Boundary source | v4_boundary (V4_5, 8 L1 groups) |
+| Seed | 42 |
+| KNN k | 50 |
+| Default embedding | mert_full / last_layer_mean |
+| De-duplication removed | 0 |
+| Tests | 27/27 passed (test_triplets.py) |
+| Privacy guard | PASS (both committed reports) |
+
+D3.2 sub-steps:
+- module: `src/dj_clustering/triplets.py`
+- driver: `scripts/dj_clustering/generate_triplet_questions.py`
+- tests: `tests/dj_clustering/test_triplets.py`
 
 ### D3.1 results
 
@@ -202,4 +228,4 @@ Decode guard: PASS (0.0% < 20% threshold).
 | v4_competing | false |
 | v4_diagnostic_only | true |
 
-_Last updated: D3.1 (Cut D3 active; advancing to D3.2)._
+_Last updated: D3.2 (Cut D3 active; advancing to D3.3)._

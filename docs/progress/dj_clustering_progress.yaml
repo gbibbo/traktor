@@ -13,8 +13,8 @@ project:
 progress:
   current_cut: D3
   current_phase: 3
-  current_task: D3.2
-  last_completed_task: D3.1
+  current_task: D3.3
+  last_completed_task: D3.2
   blocked: false
   blocker: null
 
@@ -55,6 +55,10 @@ progress:
       completed_date: 2026-05-04
     - id: D3.1
       description: Build pairwise feature table
+      completed: true
+      completed_date: 2026-05-04
+    - id: D3.2
+      description: Generate initial manual triplet question queue
       completed: true
       completed_date: 2026-05-04
 
@@ -139,6 +143,21 @@ pairs:
   omitted_profiles:
     audio_plus_bpm_key_light: key_compat_unavailable
     audio_plus_bpm_key_metadata_light: key_compat_unavailable
+
+triplets:
+  triplet_queue_artifact: artifacts/dj_clustering/triplets/triplet_question_queue.csv
+  triplet_queue_m3u: artifacts/dj_clustering/triplets/triplet_question_queue.m3u
+  triplet_queue_summary_report: reports/dj_clustering/triplet_queue_summary.md
+  v4_mapping_report: reports/dj_clustering/v4_playlist_mapping_report.md
+  n_questions: 40
+  seed: 42
+  knn_k: 50
+  default_embedding: mert_full_last_layer_mean
+  nn_question_count: 20
+  boundary_question_count: 20
+  v4_boundary_source: v4_playlist_only
+  v4_coverage: 1.0
+  v4_l1_group_count: 8
 
 references:
   v2_status: diagnostic_only

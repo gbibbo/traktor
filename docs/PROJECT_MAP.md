@@ -128,6 +128,8 @@ playlists/V4_<N>/
 | `reports/dj_clustering/feature_quality_report.md` | D2.2 frozen feature quality |
 | `reports/dj_clustering/reference_availability_report.md` | D2.3 V2/V4 reference availability |
 | `reports/dj_clustering/pair_features_summary.md` | D3.1 pair feature aggregate summary |
+| `reports/dj_clustering/triplet_queue_summary.md` | D3.2 triplet question queue generation summary |
+| `reports/dj_clustering/v4_playlist_mapping_report.md` | D3.2 V4 playlist mapping coverage and decision |
 
 ### Source modules (`src/dj_clustering/`)
 
@@ -137,6 +139,7 @@ playlists/V4_<N>/
 | `segments.py`, `mert.py`, `hpss.py`, `features.py` | D2.1/D2.2 segment selection, MERT extraction, HPSS, orchestration |
 | `pair_features.py` | D3.1 pair enumeration, cosine pair features, raw-BPM tempo equivalence, metadata similarity |
 | `similarity_profiles.py` | D3.1 committed similarity profile registry (audio_only, audio_plus_metadata_light) |
+| `triplets.py` | D3.2 KNN index, V4 playlist cluster-map parsing, NN and boundary triplet sampling, de-duplication, question DataFrame assembly |
 
 ### Driver scripts (`scripts/dj_clustering/`)
 
@@ -146,6 +149,7 @@ playlists/V4_<N>/
 | `report_metadata_quality.py` | D1.3 emit metadata quality report |
 | `validate_mert_backend.py`, `extract_features.py` | D2.2 MERT validation and feature extraction |
 | `build_pair_features.py` | D3.1 build pair feature parquet, manifest, and summary |
+| `generate_triplet_questions.py` | D3.2 generate initial manual comparison question queue (40 questions) |
 
 ### Tests (`tests/dj_clustering/`)
 
@@ -154,6 +158,7 @@ playlists/V4_<N>/
 | `test_inventory.py`, `test_identity.py` | D1 inventory + identity unit tests |
 | `test_segments.py`, `test_features.py` | D2 segment + feature unit tests |
 | `test_pair_features.py`, `test_similarity_profiles.py` | D3.1 pair feature + profile unit tests |
+| `test_triplets.py` | D3.2 triplet generation unit tests |
 
 ### Configs (`configs/dj_clustering/`)
 
