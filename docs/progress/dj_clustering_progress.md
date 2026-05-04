@@ -4,8 +4,8 @@
 **Integration branch:** main
 **Current cut:** D3
 **Current phase:** 3
-**Current task:** D3.1
-**Last completed:** D2.3
+**Current task:** D3.2
+**Last completed:** D3.1
 **Blocked:** No
 
 ---
@@ -61,6 +61,46 @@ D1 gate PASSED.
 | D2.3 | Evaluate V2 and current V4 availability | DONE |
 
 **D2 gate: PASSED** — default features, feature_manifest, feature_quality_report, and reference_availability_report complete. Ready for Cut D3 / D3.1.
+
+---
+
+## Cut D3 — Pair features and evaluation evidence
+
+| Task | Description | Status |
+|---|---|---|
+| D3.1 | Build pairwise feature table | DONE |
+
+### D3.1 results
+
+| Item | Value |
+|---|---|
+| Pair features artifact | `artifacts/dj_clustering/pairs/pair_features.parquet` (ignored) |
+| Pair manifest artifact | `artifacts/dj_clustering/pairs/pair_manifest.json` (ignored) |
+| Summary report | `reports/dj_clustering/pair_features_summary.md` |
+| N_canonical_decoded | 246 |
+| Expected pairs | 30135 |
+| Actual pairs | 30135 |
+| Pair_id format | `{track_id_a}__{track_id_b}` with `a < b` |
+| Default embedding source | mert_full + last_layer_mean |
+| Cosine families stored | 9 (3 sources × 3 aggregations) |
+| MERT pair availability (each combo) | 29890 / 30135 |
+| BPM pair availability | 29890 / 30135 |
+| BPM source | inventory `bpm` column (raw BPM units) |
+| BPM tolerance | 8.0 BPM |
+| Metadata pair availability | 29890 / 30135 |
+| Metadata sanity fields | 3 (per `pairs.metadata_sanity_fields`) |
+| Committed profiles | audio_only, audio_plus_metadata_light |
+| Omitted profiles | audio_plus_bpm_key_light, audio_plus_bpm_key_metadata_light (key_compat unavailable) |
+| Tests | 25/25 passed |
+| Range checks | all similarity columns ∈ [0, 1] when available |
+
+D3.1 sub-steps:
+- modules: `src/dj_clustering/pair_features.py`, `src/dj_clustering/similarity_profiles.py`
+- driver: `scripts/dj_clustering/build_pair_features.py`
+- tests: `tests/dj_clustering/test_pair_features.py`, `tests/dj_clustering/test_similarity_profiles.py`
+- config update: `configs/dj_clustering/features.yaml` (`pairs:` block added)
+- privacy guard: PASS on `reports/dj_clustering/pair_features_summary.md`
+- raw BPM is the source for tempo equivalence; normalized BPM is used only as an aligned cross-check (`bpm_norm_abs_diff` column).
 
 ### D2.3 results
 
@@ -162,4 +202,4 @@ Decode guard: PASS (0.0% < 20% threshold).
 | v4_competing | false |
 | v4_diagnostic_only | true |
 
-_Last updated: D2.3 (Cut D2 closed; advancing to Cut D3 / D3.1)._
+_Last updated: D3.1 (Cut D3 active; advancing to D3.2)._

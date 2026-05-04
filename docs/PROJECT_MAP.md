@@ -123,6 +123,44 @@ playlists/V4_<N>/
 | `docs/progress/dj_clustering_progress.md` | Markdown task tracker |
 | `docs/progress/dj_clustering_progress.yaml` | YAML state tracker |
 | `reports/dj_clustering/v4_reuse_map.md` | D0.5 V4 component audit and classification |
+| `reports/dj_clustering/library_inventory_summary.md` | D1.2 inventory summary |
+| `reports/dj_clustering/metadata_quality_report.md` | D1.3 metadata quality and sanity field validation |
+| `reports/dj_clustering/feature_quality_report.md` | D2.2 frozen feature quality |
+| `reports/dj_clustering/reference_availability_report.md` | D2.3 V2/V4 reference availability |
+| `reports/dj_clustering/pair_features_summary.md` | D3.1 pair feature aggregate summary |
+
+### Source modules (`src/dj_clustering/`)
+
+| File | Description |
+| :--- | :--- |
+| `inventory.py`, `identity.py` | D1.1/D1.2 inventory and track identity |
+| `segments.py`, `mert.py`, `hpss.py`, `features.py` | D2.1/D2.2 segment selection, MERT extraction, HPSS, orchestration |
+| `pair_features.py` | D3.1 pair enumeration, cosine pair features, raw-BPM tempo equivalence, metadata similarity |
+| `similarity_profiles.py` | D3.1 committed similarity profile registry (audio_only, audio_plus_metadata_light) |
+
+### Driver scripts (`scripts/dj_clustering/`)
+
+| File | Description |
+| :--- | :--- |
+| `inventory_library.py` | D1.2 build inventory CSV |
+| `report_metadata_quality.py` | D1.3 emit metadata quality report |
+| `validate_mert_backend.py`, `extract_features.py` | D2.2 MERT validation and feature extraction |
+| `build_pair_features.py` | D3.1 build pair feature parquet, manifest, and summary |
+
+### Tests (`tests/dj_clustering/`)
+
+| File | Description |
+| :--- | :--- |
+| `test_inventory.py`, `test_identity.py` | D1 inventory + identity unit tests |
+| `test_segments.py`, `test_features.py` | D2 segment + feature unit tests |
+| `test_pair_features.py`, `test_similarity_profiles.py` | D3.1 pair feature + profile unit tests |
+
+### Configs (`configs/dj_clustering/`)
+
+| File | Description |
+| :--- | :--- |
+| `inventory.yaml` | D1.1 library roots and inventory output |
+| `features.yaml` | D2.1 feature config; D3.1 adds the `pairs:` block |
 
 ### Approved implementation namespace
 

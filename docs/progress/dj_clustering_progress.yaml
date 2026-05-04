@@ -13,8 +13,8 @@ project:
 progress:
   current_cut: D3
   current_phase: 3
-  current_task: D3.1
-  last_completed_task: D2.3
+  current_task: D3.2
+  last_completed_task: D3.1
   blocked: false
   blocker: null
 
@@ -51,6 +51,10 @@ progress:
       completed: true
     - id: D2.3
       description: Evaluate V2 and current V4 availability
+      completed: true
+      completed_date: 2026-05-04
+    - id: D3.1
+      description: Build pairwise feature table
       completed: true
       completed_date: 2026-05-04
 
@@ -100,6 +104,41 @@ regime:
   id: 1
   manual_triplets_answered: 0
   validated_1001_positives: 0
+
+pairs:
+  pair_features_artifact: artifacts/dj_clustering/pairs/pair_features.parquet
+  pair_manifest_artifact: artifacts/dj_clustering/pairs/pair_manifest.json
+  pair_features_summary_report: reports/dj_clustering/pair_features_summary.md
+  n_canonical_decoded: 246
+  expected_pair_count: 30135
+  actual_pair_count: 30135
+  default_embedding_source: mert_full
+  default_embedding_aggregation: last_layer_mean
+  bpm_tolerance_bpm: 8.0
+  bpm_source_column: bpm
+  bpm_source_units: raw_bpm
+  bpm_pair_availability: 29890
+  metadata_sanity_fields:
+    - genre
+    - artist
+    - label
+  metadata_pair_availability: 29890
+  cosine_pair_availability:
+    mert_full_last_layer_mean: 29890
+    mert_full_last_4_layers_mean: 29890
+    mert_full_layer_7_mean: 29890
+    mert_perc_last_layer_mean: 29890
+    mert_perc_last_4_layers_mean: 29890
+    mert_perc_layer_7_mean: 29890
+    mert_concat_last_layer_mean: 29890
+    mert_concat_last_4_layers_mean: 29890
+    mert_concat_layer_7_mean: 29890
+  committed_profiles:
+    - audio_only
+    - audio_plus_metadata_light
+  omitted_profiles:
+    audio_plus_bpm_key_light: key_compat_unavailable
+    audio_plus_bpm_key_metadata_light: key_compat_unavailable
 
 references:
   v2_status: diagnostic_only

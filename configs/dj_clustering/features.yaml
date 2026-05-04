@@ -106,3 +106,24 @@ metadata_features:
 privacy_policy:
   no_private_paths_in_committed_reports: true
   full_paths_in_ignored_artifacts_only: true
+
+pairs:
+  output_root: artifacts/dj_clustering/pairs
+  parquet_filename: pair_features.parquet
+  manifest_filename: pair_manifest.json
+  bpm_tolerance_bpm: 8.0
+  bpm_source_column: bpm
+  bpm_source_units: raw_bpm
+  default_embedding_source: mert_full
+  default_embedding_aggregation: last_layer_mean
+  committed_profiles:
+    - audio_only
+    - audio_plus_metadata_light
+  omitted_profiles:
+    audio_plus_bpm_key_light: key_unavailable
+    audio_plus_bpm_key_metadata_light: key_unavailable
+  metadata_sanity_fields:
+    - genre
+    - artist
+    - label
+  pair_summary_report: reports/dj_clustering/pair_features_summary.md
