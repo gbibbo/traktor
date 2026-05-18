@@ -17,6 +17,13 @@ progress:
   last_completed_task: D3.4
   blocked: false
   blocker: null
+  subphase: D4.1a
+  subphase_note: >-
+    D4.1a implemented the Regime 1 sweep runner, config, and tests
+    (sweep.py, clustering.py, metrics.py, run_similarity_sweep.py,
+    sweep_regime1.yaml, three test files). No sweep executed. Targeted
+    tests 30/30 and full dj_clustering suite 211/211 passing. D4.1 is
+    not complete; awaiting approval to run the D4.1b validation subset.
 
   completed_tasks:
     - id: D0.1

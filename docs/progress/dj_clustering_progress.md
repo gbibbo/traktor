@@ -75,6 +75,37 @@ D1 gate PASSED.
 
 **Cut D3 gate: PASSED** — pair features, manual triplet queue, manual ingestion path, and 1001 matching report (no usable source) complete. Ready for Phase 4 / D4.1.
 
+---
+
+## Cut D4 — First sweep and active manual evidence
+
+| Task | Description | Status |
+|---|---|---|
+| D4.1 | Implement Regime 1 sweep runner | IN PROGRESS (D4.1a complete) |
+
+### D4.1a results (Regime 1 sweep runner scaffold)
+
+D4.1 is executed in three internal subphases: D4.1a implement runner/config/tests
+(no sweep execution), D4.1b validation-subset run (~10 configs + baselines),
+D4.1c capped full first sweep (200 sampled + baselines) with final report.
+
+| Item | Value |
+|---|---|
+| Config | `configs/dj_clustering/sweep_regime1.yaml` (committed Regime 1 vector grid) |
+| Source modules | `src/dj_clustering/sweep.py`, `clustering.py`, `metrics.py` |
+| Driver script | `scripts/dj_clustering/run_similarity_sweep.py` (plan-only / subset / full modes) |
+| Test files | `test_sweep.py`, `test_metrics.py`, `test_clustering_membership.py` |
+| Regime 1 scope | Vector grid only — no similarity_profile sweep axis; pair profiles diagnostic-only |
+| Grid size | 2304 non-baseline configs → seed-13 cap of 200 + 3 fixed baselines + 2 diagnostic refs |
+| Dependency preflight | sklearn / umap / hdbscan / numpy / pandas / yaml / pyarrow all available |
+| Targeted tests | 30/30 passed |
+| Full dj_clustering suite | 211/211 passed |
+| quality_gate.sh | Absent; full `tests/dj_clustering/` suite used as gate |
+| Sweep executed | No — D4.1a is scaffold only |
+
+**Status:** D4.1 not complete. D4.1a implemented the runner, config, and tests
+and awaits approval to run the D4.1b validation subset.
+
 ### D3.4 results (1001Tracklists matching input)
 
 | Item | Value |
@@ -276,4 +307,4 @@ Decode guard: PASS (0.0% < 20% threshold).
 | v4_competing | false |
 | v4_diagnostic_only | true |
 
-_Last updated: D3.4 (Cut D3 gate passed; Phase 4 active; advancing to D4.1)._
+_Last updated: D4.1a (Regime 1 sweep runner/config/tests implemented; D4.1 still active; awaiting D4.1b validation-subset approval)._

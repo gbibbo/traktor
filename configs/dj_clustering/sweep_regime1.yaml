@@ -1,0 +1,96 @@
+# PURPOSE: Committed Regime 1 similarity sweep grid for DJ clustering (Task D4.1).
+#          Encodes the operational-plan vector grid exactly as written. No
+#          similarity_profile sweep axis exists in Regime 1: clustering operates
+#          directly on frozen MERT embeddings. The audio_only and
+#          audio_plus_metadata_light pair profiles are diagnostic/evaluation
+#          references only and are not consumed here.
+# CHANGELOG:
+#   D4.1a - Initial sweep grid definition (scaffold; not executed).
+
+schema_version: "1.0"
+regime: 1
+
+# --- Core grid axes (full cross product, then conditional clusterer branch) ---
+embedding_sources:
+  - mert_perc
+  - mert_full
+  - mert_concat
+
+mert_aggregations:
+  - last_layer_mean
+  - last_4_layers_mean
+  - layer_7_mean
+
+normalization:
+  - l2          # preferred default
+  - none        # diagnostic ablation only
+
+dim_reduction:
+  - none
+  - pca_50
+  - pca_100
+  - umap_15
+
+clusterers:
+  - hdbscan
+  - kmeans
+  - agglomerative
+
+# --- Conditional clusterer branches ---
+hdbscan:
+  min_cluster_size: [4, 6, 8, 10]
+  min_samples: [1, 2]
+  noise_policy:
+    - no_reassignment
+    - confidence_limited_1nn
+    - forced_1nn_export_only
+
+kmeans:
+  k: [10, 12, 15, 18]
+  noise_policy: not_applicable
+
+agglomerative:
+  k: [10, 12, 15, 18]
+  linkage: average
+  noise_policy: not_applicable
+
+# --- Sweep cap policy ---
+sampling:
+  max_configs: 200
+  seed: 13
+
+# --- Fixed baselines (always injected, exempt from the cap) ---
+# Default HDBSCAN baseline definition (descriptive metadata):
+#   mert_aggregation = last_layer_mean
+#   normalization    = l2
+#   dim_reduction    = umap_15
+#   similarity_profile = audio_only   (descriptive only; not a sweep axis)
+#   hdbscan_min_cluster_size = 6
+#   hdbscan_min_samples      = 1
+#   noise_policy             = no_reassignment
+fixed_baselines:
+  - MERT_perc_HDBSCAN_default
+  - MERT_full_HDBSCAN_default
+  - MERT_concat_HDBSCAN_default
+
+baseline_definition:
+  mert_aggregation: last_layer_mean
+  normalization: l2
+  dim_reduction: umap_15
+  similarity_profile: audio_only
+  hdbscan_min_cluster_size: 6
+  hdbscan_min_samples: 1
+  noise_policy: no_reassignment
+
+# --- Diagnostic-only reference systems (never re-run; metrics not competing) ---
+diagnostic_only_references:
+  - V2
+  - V4
+
+# --- Noise policy semantics (hdbscan only) ---
+noise_policy_definitions:
+  no_reassignment: keep native HDBSCAN noise as unassigned for evaluation
+  confidence_limited_1nn: reassign native noise only if nearest non-noise neighbor cosine distance <= 0.30
+  forced_1nn_export_only: keep native noise for metrics, force an export assignment for manifest completeness
+
+confidence_limited_1nn_max_cosine_distance: 0.30

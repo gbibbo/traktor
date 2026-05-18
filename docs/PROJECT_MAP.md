@@ -142,6 +142,9 @@ playlists/V4_<N>/
 | `triplets.py` | D3.2 KNN index, V4 playlist cluster-map parsing, NN and boundary triplet sampling, de-duplication, question DataFrame assembly |
 | `triplet_ingest.py` | D3.3 answer template creation, validation (B/C/skip, unknown/duplicate qids), manual triplet and skip log assembly, summary report generation |
 | `match_1001.py` | D3.4 metadata-only 1001Tracklists matching: name/marker/duration normalization, confidence policy, accepted/rejected/ambiguous categorization, no-usable-source path, aggregate-only report |
+| `sweep.py` | D4.1 Regime 1 sweep planning: deterministic vector-grid expansion, invalid-combination pruning, seed-13 capped sampling, fixed-baseline injection, diagnostic-only V2/V4 rows |
+| `clustering.py` | D4.1 Regime 1 clustering primitives: embedding loading, L2/no-op normalization, dim reduction (none/PCA/UMAP), HDBSCAN/KMeans/agglomerative wrappers, HDBSCAN noise-policy handling |
+| `metrics.py` | D4.1 sweep evaluation: manual triplet accuracy (B/C distance direction, skip exclusion), cluster diagnostics, exploration-evidence status, 1001 no-usable-source handling |
 
 ### Driver scripts (`scripts/dj_clustering/`)
 
@@ -154,6 +157,7 @@ playlists/V4_<N>/
 | `generate_triplet_questions.py` | D3.2 generate initial manual comparison question queue (40 questions) |
 | `ingest_manual_triplets.py` | D3.3 two-mode CLI: create-template (blank answer CSV) and ingest (validate + write manual_triplets.csv + summary) |
 | `match_1001tracklists.py` | D3.4 two-mode CLI: create-input-template (blank 1001 input CSV) and match (match against canonical tracks + write matching report) |
+| `run_similarity_sweep.py` | D4.1 Regime 1 sweep runner: assembles the run plan, optionally executes clustering/scoring, writes leaderboard, component metrics, run metadata, and resolved config under ignored `runs/` |
 
 ### Tests (`tests/dj_clustering/`)
 
@@ -165,6 +169,9 @@ playlists/V4_<N>/
 | `test_triplets.py` | D3.2 triplet generation unit tests |
 | `test_triplet_ingest.py` | D3.3 answer template, validation, assembly, and summary report unit tests |
 | `test_match_1001.py` | D3.4 1001Tracklists matching: normalization, confidence policy, categorization, no-usable-source path, report privacy unit tests |
+| `test_sweep.py` | D4.1 grid expansion, invalid-combination pruning, seed-13 sampling, fixed-baseline injection, diagnostic-only rows |
+| `test_metrics.py` | D4.1 triplet accuracy B/C direction, skip exclusion, unscored handling, evidence status, 1001 no-usable-source |
+| `test_clustering_membership.py` | D4.1 normalization, dim reduction, clusterer wrappers, ward rejection, HDBSCAN noise-policy behavior |
 
 ### Configs (`configs/dj_clustering/`)
 
@@ -172,6 +179,7 @@ playlists/V4_<N>/
 | :--- | :--- |
 | `inventory.yaml` | D1.1 library roots and inventory output |
 | `features.yaml` | D2.1 feature config; D3.1 adds the `pairs:` block |
+| `sweep_regime1.yaml` | D4.1 committed Regime 1 vector grid: axes, conditional clusterer branches, seed-13 cap, fixed baselines, diagnostic references |
 
 ### Approved implementation namespace
 
