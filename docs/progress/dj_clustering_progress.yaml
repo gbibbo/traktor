@@ -13,17 +13,10 @@ project:
 progress:
   current_cut: D4
   current_phase: 4
-  current_task: D4.1
-  last_completed_task: D3.4
+  current_task: D4.2
+  last_completed_task: D4.1
   blocked: false
   blocker: null
-  subphase: D4.1a
-  subphase_note: >-
-    D4.1a implemented the Regime 1 sweep runner, config, and tests
-    (sweep.py, clustering.py, metrics.py, run_similarity_sweep.py,
-    sweep_regime1.yaml, three test files). No sweep executed. Targeted
-    tests 30/30 and full dj_clustering suite 211/211 passing. D4.1 is
-    not complete; awaiting approval to run the D4.1b validation subset.
 
   completed_tasks:
     - id: D0.1
@@ -74,6 +67,10 @@ progress:
       completed_date: 2026-05-18
     - id: D3.4
       description: Create 1001Tracklists matching input
+      completed: true
+      completed_date: 2026-05-19
+    - id: D4.1
+      description: Implement Regime 1 sweep runner and run capped first sweep
       completed: true
       completed_date: 2026-05-19
 
@@ -217,3 +214,25 @@ references:
   v4_competing: false
   v4_diagnostic_only: true
   reference_availability_report: reports/dj_clustering/reference_availability_report.md
+
+first_sweep:
+  first_sweep_run_dir: runs/dj_clustering/first_sweep
+  first_sweep_summary_report: reports/dj_clustering/first_sweep_summary.md
+  sweep_config: configs/dj_clustering/sweep_regime1.yaml
+  grid_total_non_baseline: 2304
+  sampling_seed: 13
+  sampling_cap: 200
+  sampled_grid_configs: 200
+  fixed_baselines: 3
+  diagnostic_only_rows: 2
+  executable_configs_run: 203
+  leaderboard_rows: 205
+  failed_configs: 0
+  triplet_n_scored: 37
+  triplet_n_skip: 3
+  triplet_accuracy_min: 0.405
+  triplet_accuracy_median: 0.541
+  triplet_accuracy_max: 0.622
+  evidence_classification: exploration
+  winner_selected: false
+  tracklists_1001_status: no_usable_source
