@@ -13,10 +13,10 @@ project:
 progress:
   current_cut: D3
   current_phase: 3
-  current_task: D3.3
-  last_completed_task: D3.2
-  blocked: true
-  blocker: "Pending user-completed triplet answers for D3.3 ingest"
+  current_task: D3.4
+  last_completed_task: D3.3
+  blocked: false
+  blocker: null
 
   completed_tasks:
     - id: D0.1
@@ -61,6 +61,10 @@ progress:
       description: Generate initial manual triplet question queue
       completed: true
       completed_date: 2026-05-04
+    - id: D3.3
+      description: Ingest manual triplet answers
+      completed: true
+      completed_date: 2026-05-18
 
 features:
   feature_config: configs/dj_clustering/features.yaml
@@ -106,7 +110,7 @@ inventory:
 
 regime:
   id: 1
-  manual_triplets_answered: 0
+  manual_triplets_answered: 37
   validated_1001_positives: 0
 
 pairs:
@@ -164,7 +168,16 @@ triplets:
     - B
     - C
     - skip
-  ingest_status: awaiting_user_answers
+  ingest_status: ingested
+  total_questions: 40
+  non_skip_answers: 37
+  skip_answers: 3
+  answer_B: 12
+  answer_C: 25
+  decision_rule_non_skip_ge_20: true
+  manual_triplets_artifact: artifacts/dj_clustering/triplets/manual_triplets.csv
+  skip_log_artifact: artifacts/dj_clustering/triplets/triplet_skip_log.csv
+  summary_report: reports/dj_clustering/manual_triplets_summary.md
 
 references:
   v2_status: diagnostic_only

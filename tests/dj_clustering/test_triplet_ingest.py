@@ -7,6 +7,7 @@ PURPOSE: Unit tests for src/dj_clustering/triplet_ingest.py — answer template
 
 CHANGELOG:
   D3.3a - Initial implementation.
+  D3.3b - Add case-insensitive answer normalization tests (B/C/skip).
 """
 
 from __future__ import annotations
@@ -166,6 +167,48 @@ def test_validate_unsure_rejected():
     answers_df = _make_answers(["Q001", "Q002"], ["B", "unsure"])
     result = validate_answers(queue_df, answers_df)
     assert result.has_hard_errors
+
+
+def test_validate_uppercase_unsure_rejected():
+    queue_df = _make_queue(2)
+    answers_df = _make_answers(["Q001", "Q002"], ["B", "UNSURE"])
+    result = validate_answers(queue_df, answers_df)
+    assert result.has_hard_errors
+
+
+# ---------------------------------------------------------------------------
+# Validation — case-insensitive answer normalization (D3.3b)
+# ---------------------------------------------------------------------------
+
+
+def test_validate_skip_case_insensitive():
+    queue_df = _make_queue(4)
+    answers_df = _make_answers(
+        ["Q001", "Q002", "Q003", "Q004"], ["SKIP", "Skip", "skip", "B"]
+    )
+    result = validate_answers(queue_df, answers_df)
+    assert not result.has_hard_errors
+    assert len(result.skip_rows) == 3
+    assert all(result.skip_rows["answer"] == "skip")
+    assert len(result.valid_rows) == 1
+
+
+def test_validate_b_case_insensitive():
+    queue_df = _make_queue(2)
+    answers_df = _make_answers(["Q001", "Q002"], ["b", "B"])
+    result = validate_answers(queue_df, answers_df)
+    assert not result.has_hard_errors
+    assert len(result.valid_rows) == 2
+    assert all(result.valid_rows["answer"] == "B")
+
+
+def test_validate_c_case_insensitive():
+    queue_df = _make_queue(2)
+    answers_df = _make_answers(["Q001", "Q002"], ["c", "C"])
+    result = validate_answers(queue_df, answers_df)
+    assert not result.has_hard_errors
+    assert len(result.valid_rows) == 2
+    assert all(result.valid_rows["answer"] == "C")
 
 
 # ---------------------------------------------------------------------------

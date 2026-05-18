@@ -4,9 +4,9 @@
 **Integration branch:** main
 **Current cut:** D3
 **Current phase:** 3
-**Current task:** D3.3
-**Last completed:** D3.2
-**Blocked:** Yes — Pending user-completed triplet answers for D3.3 ingest
+**Current task:** D3.4
+**Last completed:** D3.3
+**Blocked:** No
 
 ---
 
@@ -70,29 +70,29 @@ D1 gate PASSED.
 |---|---|---|
 | D3.1 | Build pairwise feature table | DONE |
 | D3.2 | Generate initial manual triplet question queue | DONE |
-| D3.3 | Ingest manual triplet answers | BLOCKED — awaiting user answers |
+| D3.3 | Ingest manual triplet answers | DONE |
 
-### D3.3a results (scaffold — blocked awaiting user answers)
+### D3.3 results (manual triplet answer ingest)
 
 | Item | Value |
 |---|---|
 | Library module | `src/dj_clustering/triplet_ingest.py` |
 | Driver script | `scripts/dj_clustering/ingest_manual_triplets.py` |
-| Tests | `tests/dj_clustering/test_triplet_ingest.py` |
-| Answer template | `artifacts/dj_clustering/triplets/triplet_answer_template.csv` (ignored, 40 rows) |
-| Allowed answer values | B, C, skip |
-| Template columns | question_id, answer, confidence, notes |
-| Tests passed | 21/21 (test_triplet_ingest.py), 159/159 full suite |
-| Template ignored | PASS (.gitignore: `artifacts/`) |
-| Tracker blocked | true |
-| Blocker | Pending user-completed triplet answers for D3.3 ingest |
+| Manual triplets artifact | `artifacts/dj_clustering/triplets/manual_triplets.csv` (ignored) |
+| Skip log artifact | `artifacts/dj_clustering/triplets/triplet_skip_log.csv` (ignored) |
+| Summary report | `reports/dj_clustering/manual_triplets_summary.md` (committed) |
+| Total questions | 40 |
+| Non-skip answers | 37 |
+| Skip answers | 3 |
+| Answer distribution | B = 12, C = 25, skip = 3 |
+| Decision rule (non-skip ≥ 20) | PASS — evidence available for sweep |
+| Answer normalization | Case-insensitive (b/B→B, c/C→C, skip/Skip/SKIP→skip); other values rejected |
+| Tests passed | 25/25 (test_triplet_ingest.py), 163/163 full dj_clustering suite |
+| Artifacts ignored | PASS (.gitignore: `artifacts/`) |
+| Summary privacy guard | PASS (aggregate-only; no IDs, notes, or metadata tokens) |
+| Tracker blocked | false |
 
-D3.3a sub-steps:
-- module: `src/dj_clustering/triplet_ingest.py`
-- driver: `scripts/dj_clustering/ingest_manual_triplets.py` (modes: create-template, ingest)
-- tests: `tests/dj_clustering/test_triplet_ingest.py`
-
-**Next:** User fills `artifacts/dj_clustering/triplets/triplet_answer_template.csv`, then D3.3 ingest runs.
+**Next:** D3.4 — Create 1001Tracklists matching input.
 
 ---
 
@@ -253,4 +253,4 @@ Decode guard: PASS (0.0% < 20% threshold).
 | v4_competing | false |
 | v4_diagnostic_only | true |
 
-_Last updated: D3.2 (Cut D3 active; advancing to D3.3)._
+_Last updated: D3.3 (Cut D3 active; advancing to D3.4)._

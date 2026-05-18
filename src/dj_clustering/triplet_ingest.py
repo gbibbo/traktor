@@ -7,6 +7,8 @@ PURPOSE: D3.3 manual triplet answer ingest library. Provides answer template
 
 CHANGELOG:
   D3.3a - Initial implementation.
+  D3.3b - Case-insensitive answer-value normalization during validation
+          (b/B->B, c/C->C, skip/Skip/SKIP->skip); other values still rejected.
 """
 
 from __future__ import annotations
@@ -135,6 +137,24 @@ def load_answers(answers_csv: Path) -> pd.DataFrame:
     return pd.read_csv(answers_csv, dtype=str).fillna("")
 
 
+def _normalize_answer(value: str) -> str:
+    """Normalize an answer value case-insensitively to canonical form.
+
+    Recognized (any case): b/B -> "B", c/C -> "C", skip/Skip/SKIP -> "skip".
+    Unrecognized values (e.g. "unsure", "X", "") are returned stripped but
+    otherwise unchanged, so they are still flagged as invalid downstream.
+    """
+    s = (value or "").strip()
+    low = s.lower()
+    if low == "b":
+        return "B"
+    if low == "c":
+        return "C"
+    if low == "skip":
+        return "skip"
+    return s
+
+
 # ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
@@ -193,10 +213,12 @@ def validate_answers(
             f"duplicate question_id values in answers ({len(duplicates)}): {sorted(set(duplicates))}"
         )
 
-    # Hard: bad answer values (for non-blank rows)
+    # Hard: bad answer values (for non-blank rows). Normalization is
+    # case-insensitive (b/B, c/C, skip/SKIP); no other value is accepted.
     answered_mask = answers_df["answer"].str.strip() != ""
     answered_df = answers_df[answered_mask]
-    bad_values = answered_df[~answered_df["answer"].str.strip().isin(ALLOWED_ANSWERS)]
+    norm = answered_df["answer"].map(_normalize_answer)
+    bad_values = answered_df[~norm.isin(ALLOWED_ANSWERS)]
     if not bad_values.empty:
         bad_list = sorted(bad_values["answer"].str.strip().unique().tolist())
         hard_errors.append(
@@ -219,9 +241,9 @@ def validate_answers(
             f"{len(unanswered)} question(s) in queue have no answer row"
         )
 
-    # Split valid non-skip vs skip rows
-    answered_df = answers_df[answered_df["answer"].str.strip() != ""].copy()
-    answered_df["answer"] = answered_df["answer"].str.strip()
+    # Split valid non-skip vs skip rows (answers normalized to canonical case)
+    answered_df = answers_df[answers_df["answer"].str.strip() != ""].copy()
+    answered_df["answer"] = answered_df["answer"].map(_normalize_answer)
 
     non_skip = answered_df[answered_df["answer"] != "skip"].copy()
     skip_rows = answered_df[answered_df["answer"] == "skip"].copy()
