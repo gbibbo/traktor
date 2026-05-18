@@ -141,6 +141,7 @@ playlists/V4_<N>/
 | `similarity_profiles.py` | D3.1 committed similarity profile registry (audio_only, audio_plus_metadata_light) |
 | `triplets.py` | D3.2 KNN index, V4 playlist cluster-map parsing, NN and boundary triplet sampling, de-duplication, question DataFrame assembly |
 | `triplet_ingest.py` | D3.3 answer template creation, validation (B/C/skip, unknown/duplicate qids), manual triplet and skip log assembly, summary report generation |
+| `match_1001.py` | D3.4 metadata-only 1001Tracklists matching: name/marker/duration normalization, confidence policy, accepted/rejected/ambiguous categorization, no-usable-source path, aggregate-only report |
 
 ### Driver scripts (`scripts/dj_clustering/`)
 
@@ -152,6 +153,7 @@ playlists/V4_<N>/
 | `build_pair_features.py` | D3.1 build pair feature parquet, manifest, and summary |
 | `generate_triplet_questions.py` | D3.2 generate initial manual comparison question queue (40 questions) |
 | `ingest_manual_triplets.py` | D3.3 two-mode CLI: create-template (blank answer CSV) and ingest (validate + write manual_triplets.csv + summary) |
+| `match_1001tracklists.py` | D3.4 two-mode CLI: create-input-template (blank 1001 input CSV) and match (match against canonical tracks + write matching report) |
 
 ### Tests (`tests/dj_clustering/`)
 
@@ -162,6 +164,7 @@ playlists/V4_<N>/
 | `test_pair_features.py`, `test_similarity_profiles.py` | D3.1 pair feature + profile unit tests |
 | `test_triplets.py` | D3.2 triplet generation unit tests |
 | `test_triplet_ingest.py` | D3.3 answer template, validation, assembly, and summary report unit tests |
+| `test_match_1001.py` | D3.4 1001Tracklists matching: normalization, confidence policy, categorization, no-usable-source path, report privacy unit tests |
 
 ### Configs (`configs/dj_clustering/`)
 

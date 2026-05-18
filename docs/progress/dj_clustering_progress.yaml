@@ -11,10 +11,10 @@ project:
   integration_branch: main
 
 progress:
-  current_cut: D3
-  current_phase: 3
-  current_task: D3.4
-  last_completed_task: D3.3
+  current_cut: D4
+  current_phase: 4
+  current_task: D4.1
+  last_completed_task: D3.4
   blocked: false
   blocker: null
 
@@ -65,6 +65,10 @@ progress:
       description: Ingest manual triplet answers
       completed: true
       completed_date: 2026-05-18
+    - id: D3.4
+      description: Create 1001Tracklists matching input
+      completed: true
+      completed_date: 2026-05-19
 
 features:
   feature_config: configs/dj_clustering/features.yaml
@@ -178,6 +182,18 @@ triplets:
   manual_triplets_artifact: artifacts/dj_clustering/triplets/manual_triplets.csv
   skip_log_artifact: artifacts/dj_clustering/triplets/triplet_skip_log.csv
   summary_report: reports/dj_clustering/manual_triplets_summary.md
+
+tracklists_1001:
+  mode: metadata_only
+  source_status: no_usable_source
+  input_template_artifact: artifacts/dj_clustering/tracklists_1001/1001_input_template.csv
+  matches_artifact_written: false
+  matching_report: reports/dj_clustering/1001_matching_report.md
+  accepted_count: 0
+  rejected_count: 0
+  ambiguous_count: 0
+  confidence_min_accept: 0.7
+  used_as_clustering_feature: false
 
 references:
   v2_status: diagnostic_only

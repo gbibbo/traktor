@@ -2,10 +2,10 @@
 
 **Branch:** feature/dj-clustering-v1
 **Integration branch:** main
-**Current cut:** D3
-**Current phase:** 3
-**Current task:** D3.4
-**Last completed:** D3.3
+**Current cut:** D4
+**Current phase:** 4
+**Current task:** D4.1
+**Last completed:** D3.4
 **Blocked:** No
 
 ---
@@ -71,6 +71,29 @@ D1 gate PASSED.
 | D3.1 | Build pairwise feature table | DONE |
 | D3.2 | Generate initial manual triplet question queue | DONE |
 | D3.3 | Ingest manual triplet answers | DONE |
+| D3.4 | Create 1001Tracklists matching input | DONE |
+
+**Cut D3 gate: PASSED** — pair features, manual triplet queue, manual ingestion path, and 1001 matching report (no usable source) complete. Ready for Phase 4 / D4.1.
+
+### D3.4 results (1001Tracklists matching input)
+
+| Item | Value |
+|---|---|
+| Library module | `src/dj_clustering/match_1001.py` |
+| Driver script | `scripts/dj_clustering/match_1001tracklists.py` (modes: create-input-template, match) |
+| Input template artifact | `artifacts/dj_clustering/tracklists_1001/1001_input_template.csv` (ignored, header-only) |
+| Matches artifact | Not written — no usable source (no-source policy) |
+| Matching report | `reports/dj_clustering/1001_matching_report.md` (committed, aggregate-only) |
+| Mode | Metadata-only (no scraping, no credentials) |
+| Source status | `no_usable_source` |
+| Accepted / rejected / ambiguous | 0 / 0 / 0 |
+| Confidence policy | ≥ 0.7 accept; 0.7 metadata tier; 1.0 strong audio identity; MERT never sole proof |
+| Tests passed | 18/18 (test_match_1001.py), 181/181 full dj_clustering suite |
+| Artifacts ignored | PASS (.gitignore: `artifacts/`) |
+| Report privacy guard | PASS (aggregate-only; no IDs or metadata tokens) |
+| Used as Regime 1 clustering feature | No (weak evidence / eval support only) |
+
+**Next:** D4.1 — Implement Regime 1 sweep runner.
 
 ### D3.3 results (manual triplet answer ingest)
 
@@ -253,4 +276,4 @@ Decode guard: PASS (0.0% < 20% threshold).
 | v4_competing | false |
 | v4_diagnostic_only | true |
 
-_Last updated: D3.3 (Cut D3 active; advancing to D3.4)._
+_Last updated: D3.4 (Cut D3 gate passed; Phase 4 active; advancing to D4.1)._
