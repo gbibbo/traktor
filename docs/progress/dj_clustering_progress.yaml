@@ -13,18 +13,10 @@ project:
 progress:
   current_cut: D4
   current_phase: 4
-  current_task: D4.2
-  last_completed_task: D4.1
+  current_task: D4.3
+  last_completed_task: D4.2
   blocked: false
   blocker: null
-  subphase: D4.2a
-  subphase_note: >-
-    D4.2a implemented the active-triplet selection code and tests
-    (triplets.py active-selection functions, generate_active_triplets.py,
-    test_active_triplets.py). No generator run; the triplet queue, M3U,
-    and active summary are not yet written. Targeted tests 43/43 and full
-    dj_clustering suite 227/227 passing. D4.2 is not complete; awaiting
-    approval to run the D4.2b generation step.
 
   completed_tasks:
     - id: D0.1
@@ -79,6 +71,10 @@ progress:
       completed_date: 2026-05-19
     - id: D4.1
       description: Implement Regime 1 sweep runner and run capped first sweep
+      completed: true
+      completed_date: 2026-05-19
+    - id: D4.2
+      description: Generate active triplet questions from first-sweep disagreement
       completed: true
       completed_date: 2026-05-19
 
@@ -222,6 +218,25 @@ references:
   v4_competing: false
   v4_diagnostic_only: true
   reference_availability_report: reports/dj_clustering/reference_availability_report.md
+
+active_triplets:
+  queue_artifact: artifacts/dj_clustering/triplets/triplet_question_queue.csv
+  m3u_artifact: artifacts/dj_clustering/triplets/triplet_question_queue.m3u
+  summary_report: reports/dj_clustering/active_triplet_queue_summary.md
+  existing_questions_before_d4_2: 40
+  new_active_questions: 85
+  total_questions_after_d4_2: 125
+  requested_active_questions: 85
+  active_seed: 42
+  config_space_seed: 13
+  top3_tie_break: triplet_accuracy_desc_then_config_id_asc
+  top_configs_compared: 3
+  candidate_pool_size: 1500
+  disagreement_candidates_found: 479
+  active_disagreement_count: 85
+  active_boundary_fill_count: 0
+  duplicate_exclusions_vs_existing_queue: 5
+  within_set_and_hash_collision_exclusions: 628
 
 first_sweep:
   first_sweep_run_dir: runs/dj_clustering/first_sweep
