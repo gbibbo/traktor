@@ -15,8 +15,25 @@ progress:
   current_phase: 4
   current_task: D4.3
   last_completed_task: D4.2
-  blocked: false
-  blocker: null
+  blocked: true
+  blocker: "Pending user-completed active triplet answers for D4.3"
+  subphase: D4.3a
+  subphase_note: >-
+    D4.3a created the active answer template for the 85 unanswered active
+    questions (Q041-Q125) at
+    artifacts/dj_clustering/triplets/active_triplet_answer_template.csv.
+    The triplet_ingest library gained filter_unanswered / collect_answered_ids
+    / merge_answer_rows and the ingest CLI gained --exclude-answered and
+    --merge-with. No answers ingested. D4.3 is blocked until the user fills
+    the active answer template; the ingest branch then merges into the single
+    combined manual_triplets.csv.
+  active_d4_3:
+    active_answer_template: artifacts/dj_clustering/triplets/active_triplet_answer_template.csv
+    active_questions_pending: 85
+    answered_prior_questions: 40
+    existing_non_skip: 37
+    existing_skip: 3
+    expected_question_range: Q041-Q125
 
   completed_tasks:
     - id: D0.1

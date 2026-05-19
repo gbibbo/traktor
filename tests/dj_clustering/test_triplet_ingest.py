@@ -28,9 +28,12 @@ from src.dj_clustering.triplet_ingest import (
     build_manual_triplets,
     build_skip_log,
     build_summary,
+    collect_answered_ids,
     create_answer_template,
+    filter_unanswered,
     load_answers,
     load_queue,
+    merge_answer_rows,
     validate_answers,
 )
 
@@ -334,3 +337,95 @@ def test_build_summary_decision_rule_at_20():
     skip_df = build_skip_log(queue_df, result.skip_rows)
     text = build_summary(queue_df, manual_df, skip_df, result)
     assert "YES" in text
+
+
+# ---------------------------------------------------------------------------
+# D4.3a active-answer filtering and merge tests
+# ---------------------------------------------------------------------------
+
+
+def _manual_rows(qids):
+    """Build a minimal manual/skip-style DataFrame for the given question_ids."""
+    return pd.DataFrame(
+        {
+            "question_id": list(qids),
+            "anchor_track_id": [f"tid_a{q}" for q in qids],
+            "candidate_b_track_id": [f"tid_b{q}" for q in qids],
+            "candidate_c_track_id": [f"tid_c{q}" for q in qids],
+            "selection_source": ["mert_full_knn"] * len(qids),
+            "answer": ["B"] * len(qids),
+            "confidence": [""] * len(qids),
+            "notes": [""] * len(qids),
+        }
+    )
+
+
+def test_collect_answered_ids_unions_csv_question_ids(tmp_path):
+    manual = tmp_path / "manual_triplets.csv"
+    skip = tmp_path / "triplet_skip_log.csv"
+    _manual_rows(["Q001", "Q002"]).to_csv(manual, index=False)
+    _manual_rows(["Q003"]).to_csv(skip, index=False)
+    ids = collect_answered_ids([manual, skip])
+    assert ids == {"Q001", "Q002", "Q003"}
+
+
+def test_collect_answered_ids_skips_missing_files(tmp_path):
+    manual = tmp_path / "manual_triplets.csv"
+    _manual_rows(["Q001"]).to_csv(manual, index=False)
+    ids = collect_answered_ids([manual, tmp_path / "absent.csv"])
+    assert ids == {"Q001"}
+
+
+def test_filter_unanswered_excludes_answered_ids():
+    queue_df = _make_queue(10)  # Q001..Q010
+    answered = {"Q001", "Q002", "Q003", "Q004", "Q005"}
+    out = filter_unanswered(queue_df, answered)
+    assert len(out) == 5
+    assert set(out["question_id"]) == {"Q006", "Q007", "Q008", "Q009", "Q010"}
+
+
+def test_filter_unanswered_keeps_all_when_none_answered():
+    queue_df = _make_queue(6)
+    out = filter_unanswered(queue_df, set())
+    assert len(out) == 6
+
+
+def test_active_template_covers_only_unanswered(tmp_path):
+    # queue of 12; first 4 already answered -> active template has 8 rows
+    queue_df = _make_queue(12)
+    answered = {"Q001", "Q002", "Q003", "Q004"}
+    active_queue = filter_unanswered(queue_df, answered)
+    out = tmp_path / "active_template.csv"
+    n = create_answer_template(active_queue, out)
+    assert n == 8
+    df = pd.read_csv(out, dtype=str).fillna("")
+    assert list(df["question_id"]) == [f"Q{i:03d}" for i in range(5, 13)]
+    assert all(df["answer"] == "")
+
+
+def test_create_template_without_filter_still_full():
+    # original full-template behavior is unchanged when no filter is applied
+    queue_df = _make_queue(7)
+    out = filter_unanswered(queue_df, set())
+    assert len(out) == len(queue_df)
+
+
+def test_merge_answer_rows_preserves_existing_and_appends():
+    existing = _manual_rows(["Q001", "Q002"])
+    new = _manual_rows(["Q041", "Q042"])
+    merged = merge_answer_rows(existing, new)
+    assert list(merged["question_id"]) == ["Q001", "Q002", "Q041", "Q042"]
+
+
+def test_merge_answer_rows_rejects_question_id_collision():
+    existing = _manual_rows(["Q001", "Q002"])
+    new = _manual_rows(["Q002", "Q041"])  # Q002 collides
+    with pytest.raises(ValueError):
+        merge_answer_rows(existing, new)
+
+
+def test_merge_answer_rows_with_empty_existing():
+    existing = pd.DataFrame(columns=list(MANUAL_TRIPLET_COLUMNS))
+    new = _manual_rows(["Q041", "Q042"])
+    merged = merge_answer_rows(existing, new)
+    assert list(merged["question_id"]) == ["Q041", "Q042"]

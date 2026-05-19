@@ -9,6 +9,10 @@ CHANGELOG:
   D3.3a - Initial implementation.
   D3.3b - Case-insensitive answer-value normalization during validation
           (b/B->B, c/C->C, skip/Skip/SKIP->skip); other values still rejected.
+  D4.3a - Add active-answer support: collect already-answered question_ids,
+          filter the queue to unanswered questions for an active template, and
+          a merge helper that concatenates new answer rows with existing ones
+          while rejecting question_id collisions.
 """
 
 from __future__ import annotations
@@ -122,6 +126,65 @@ def create_answer_template(queue_df: pd.DataFrame, out_path: Path) -> int:
     template_df = pd.DataFrame(rows, columns=list(ANSWER_TEMPLATE_COLUMNS))
     template_df.to_csv(out_path, index=False)
     return len(rows)
+
+
+# ---------------------------------------------------------------------------
+# D4.3 active-answer filtering and merge helpers
+# ---------------------------------------------------------------------------
+
+
+def collect_answered_ids(answered_csv_paths: List[Path]) -> set:
+    """Collect question_id values already answered in prior ingest artifacts.
+
+    Reads each existing manual-triplet / skip-log CSV (missing files are
+    skipped) and returns the union of their question_id values as strings.
+    """
+    ids: set = set()
+    for path in answered_csv_paths:
+        path = Path(path)
+        if not path.exists():
+            continue
+        df = pd.read_csv(path, dtype=str)
+        if "question_id" in df.columns:
+            ids.update(df["question_id"].astype(str).tolist())
+    return ids
+
+
+def filter_unanswered(queue_df: pd.DataFrame, answered_ids: set) -> pd.DataFrame:
+    """Return queue rows whose question_id is not in ``answered_ids``.
+
+    Used to build an active answer template covering only the questions the
+    user has not answered yet, so already-answered questions are not re-asked.
+    """
+    answered = {str(q) for q in answered_ids}
+    mask = ~queue_df["question_id"].astype(str).isin(answered)
+    return queue_df[mask].reset_index(drop=True)
+
+
+def merge_answer_rows(
+    existing_df: pd.DataFrame, new_df: pd.DataFrame
+) -> pd.DataFrame:
+    """Concatenate two answer-row DataFrames, rejecting question_id collisions.
+
+    Preserves every existing row and appends the new rows. Raises ValueError if
+    any question_id appears in both frames (an active answer must not collide
+    with an already-answered question). Used by the D4.3 ingest branch to merge
+    active answers into the combined manual_triplets / skip-log artifacts.
+    """
+    existing_ids = (
+        set(existing_df["question_id"].astype(str))
+        if not existing_df.empty
+        else set()
+    )
+    new_ids = (
+        set(new_df["question_id"].astype(str)) if not new_df.empty else set()
+    )
+    collisions = sorted(existing_ids & new_ids)
+    if collisions:
+        raise ValueError(
+            f"question_id collision during merge ({len(collisions)})"
+        )
+    return pd.concat([existing_df, new_df], ignore_index=True)
 
 
 # ---------------------------------------------------------------------------

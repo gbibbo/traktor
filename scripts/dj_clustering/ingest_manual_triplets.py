@@ -8,6 +8,9 @@ PURPOSE: D3.3 driver. Manages the manual triplet answer lifecycle:
 
 CHANGELOG:
   D3.3a - Initial implementation (create-template mode only; ingest scaffolded).
+  D4.3a - create-template gains --exclude-answered (build an active template
+          covering only unanswered questions); ingest gains --merge-with
+          (merge new answers into existing combined manual/skip artifacts).
 """
 
 from __future__ import annotations
@@ -24,14 +27,25 @@ from src.dj_clustering.triplet_ingest import (
     build_manual_triplets,
     build_skip_log,
     build_summary,
+    collect_answered_ids,
     create_answer_template,
+    filter_unanswered,
     load_answers,
     load_queue,
+    merge_answer_rows,
     validate_answers,
     write_manual_triplets,
     write_skip_log,
     write_summary_report,
 )
+import pandas as pd
+
+
+def _split_paths(value: str):
+    """Parse a comma-separated path list argument into a list of strings."""
+    if not value:
+        return []
+    return [p.strip() for p in value.split(",") if p.strip()]
 
 BANNER = "=" * 70
 
@@ -53,6 +67,15 @@ def cmd_create_template(args: argparse.Namespace) -> int:
     print(f"[INFO] Loading queue: {queue_path}")
     queue_df = load_queue(queue_path)
     print(f"[INFO] Queue rows: {len(queue_df)}")
+
+    exclude_paths = _split_paths(getattr(args, "exclude_answered", "") or "")
+    if exclude_paths:
+        answered_ids = collect_answered_ids([Path(p) for p in exclude_paths])
+        queue_df = filter_unanswered(queue_df, answered_ids)
+        print(
+            f"[INFO] Excluding {len(answered_ids)} already-answered question(s); "
+            f"active template covers {len(queue_df)} unanswered question(s)"
+        )
 
     n = create_answer_template(queue_df, out_path)
     print(f"[INFO] Template written: {out_path} ({n} rows)")
@@ -107,6 +130,27 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     manual_df = build_manual_triplets(queue_df, result.valid_rows)
     skip_df = build_skip_log(queue_df, result.skip_rows)
 
+    merge_paths = _split_paths(getattr(args, "merge_with", "") or "")
+    if merge_paths:
+        if len(merge_paths) != 2:
+            print(
+                "[ERROR] --merge-with expects exactly two paths: "
+                "existing_manual.csv,existing_skip.csv"
+            )
+            return 1
+        existing_manual = pd.read_csv(merge_paths[0], dtype=str)
+        existing_skip = pd.read_csv(merge_paths[1], dtype=str)
+        try:
+            manual_df = merge_answer_rows(existing_manual, manual_df)
+            skip_df = merge_answer_rows(existing_skip, skip_df)
+        except ValueError as exc:
+            print(f"[ERROR] merge failed — active answers collide with existing: {exc}")
+            return 1
+        print(
+            f"[INFO] Merged with existing: combined manual={len(manual_df)}, "
+            f"skip={len(skip_df)}"
+        )
+
     out_manual = Path(args.output_manual)
     out_skip = Path(args.output_skip)
     out_summary = Path(args.output_summary)
@@ -139,6 +183,12 @@ def main() -> int:
     p_create = sub.add_parser("create-template", help="Generate blank answer template")
     p_create.add_argument("--queue", default=str(DEFAULT_QUEUE))
     p_create.add_argument("--output", default=str(DEFAULT_TEMPLATE))
+    p_create.add_argument(
+        "--exclude-answered",
+        default="",
+        help="comma-separated CSV paths whose question_ids are already "
+        "answered; the template then covers only unanswered questions",
+    )
 
     p_ingest = sub.add_parser("ingest", help="Validate and ingest completed answers")
     p_ingest.add_argument("--answers", required=True)
@@ -146,6 +196,12 @@ def main() -> int:
     p_ingest.add_argument("--output-manual", default=str(DEFAULT_MANUAL_TRIPLETS))
     p_ingest.add_argument("--output-skip", default=str(DEFAULT_SKIP_LOG))
     p_ingest.add_argument("--output-summary", default=str(DEFAULT_SUMMARY))
+    p_ingest.add_argument(
+        "--merge-with",
+        default="",
+        help="comma-separated existing_manual.csv,existing_skip.csv to merge "
+        "new answers into; question_id collisions are rejected",
+    )
 
     args = parser.parse_args()
     if args.command == "create-template":

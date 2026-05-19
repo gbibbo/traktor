@@ -6,7 +6,7 @@
 **Current phase:** 4
 **Current task:** D4.3
 **Last completed:** D4.2
-**Blocked:** No
+**Blocked:** Yes — pending user-completed active triplet answers for D4.3
 
 ---
 
@@ -83,6 +83,33 @@ D1 gate PASSED.
 |---|---|---|
 | D4.1 | Implement Regime 1 sweep runner | DONE |
 | D4.2 | Generate active triplet questions | DONE |
+| D4.3 | Collect remaining triplet answers | BLOCKED (D4.3a complete; awaiting user answers) |
+
+### D4.3a results (active answer template prepared)
+
+D4.3 is executed in two internal subphases: D4.3a prepares the active answer
+template; the D4.3 ingest branch validates and merges the user-completed
+answers once they exist.
+
+| Item | Value |
+|---|---|
+| Library changes | `src/dj_clustering/triplet_ingest.py` — added `collect_answered_ids`, `filter_unanswered`, `merge_answer_rows` |
+| CLI changes | `scripts/dj_clustering/ingest_manual_triplets.py` — `create-template --exclude-answered`, `ingest --merge-with` |
+| Active answer template | `artifacts/dj_clustering/triplets/active_triplet_answer_template.csv` (ignored) |
+| Template rows | 85 (question range Q041–Q125) |
+| Already-answered questions excluded | 40 |
+| Existing non-skip evidence | 37 |
+| Existing skip rows | 3 |
+| Allowed answer values | B, C, skip (case-insensitive normalization) |
+| Targeted tests | 34/34 passed (`test_triplet_ingest.py`) |
+| Full dj_clustering suite | 236/236 passed |
+| quality_gate.sh | Absent; full `tests/dj_clustering/` suite used as gate |
+| Answers ingested | No — D4.3a is template-only |
+
+**Status:** D4.3 is **BLOCKED** — awaiting the user-completed active answer
+template. The ingest branch will validate the answers and merge them into the
+single combined `manual_triplets.csv` / `triplet_skip_log.csv`, then advance to
+D5.1. No answers were invented or auto-filled.
 
 ### D4.2 results (active triplet questions)
 
@@ -352,4 +379,4 @@ Decode guard: PASS (0.0% < 20% threshold).
 | v4_competing | false |
 | v4_diagnostic_only | true |
 
-_Last updated: D4.2 (active triplet questions generated; queue extended to 125; Phase 4 active; advancing to D4.3)._
+_Last updated: D4.3a (active answer template prepared for Q041–Q125; D4.3 blocked awaiting user-completed answers)._
