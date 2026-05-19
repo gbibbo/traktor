@@ -139,7 +139,7 @@ playlists/V4_<N>/
 | `segments.py`, `mert.py`, `hpss.py`, `features.py` | D2.1/D2.2 segment selection, MERT extraction, HPSS, orchestration |
 | `pair_features.py` | D3.1 pair enumeration, cosine pair features, raw-BPM tempo equivalence, metadata similarity |
 | `similarity_profiles.py` | D3.1 committed similarity profile registry (audio_only, audio_plus_metadata_light) |
-| `triplets.py` | D3.2 KNN index, V4 playlist cluster-map parsing, NN and boundary triplet sampling, de-duplication, question DataFrame assembly |
+| `triplets.py` | D3.2 KNN index, V4 playlist cluster-map parsing, NN and boundary triplet sampling, de-duplication, question DataFrame assembly; D4.2 active selection — top-3 leaderboard config tie-break, per-config rank differences, disagreement detection / margin / variance ranking, existing-queue de-dup, active-set assembly |
 | `triplet_ingest.py` | D3.3 answer template creation, validation (B/C/skip, unknown/duplicate qids), manual triplet and skip log assembly, summary report generation |
 | `match_1001.py` | D3.4 metadata-only 1001Tracklists matching: name/marker/duration normalization, confidence policy, accepted/rejected/ambiguous categorization, no-usable-source path, aggregate-only report |
 | `sweep.py` | D4.1 Regime 1 sweep planning: deterministic vector-grid expansion, invalid-combination pruning, seed-13 capped sampling, fixed-baseline injection, diagnostic-only V2/V4 rows |
@@ -158,6 +158,7 @@ playlists/V4_<N>/
 | `ingest_manual_triplets.py` | D3.3 two-mode CLI: create-template (blank answer CSV) and ingest (validate + write manual_triplets.csv + summary) |
 | `match_1001tracklists.py` | D3.4 two-mode CLI: create-input-template (blank 1001 input CSV) and match (match against canonical tracks + write matching report) |
 | `run_similarity_sweep.py` | D4.1 Regime 1 sweep runner: assembles the run plan, optionally executes clustering/scoring, writes leaderboard, component metrics, run metadata, and resolved config under ignored `runs/` |
+| `generate_active_triplets.py` | D4.2 active triplet question generator: selects top-3 sweep configs, scores candidate disagreement, fills with boundary cases, extends the ignored queue/M3U, writes the aggregate summary |
 
 ### Tests (`tests/dj_clustering/`)
 
@@ -172,6 +173,7 @@ playlists/V4_<N>/
 | `test_sweep.py` | D4.1 grid expansion, invalid-combination pruning, seed-13 sampling, fixed-baseline injection, diagnostic-only rows |
 | `test_metrics.py` | D4.1 triplet accuracy B/C direction, skip exclusion, unscored handling, evidence status, 1001 no-usable-source |
 | `test_clustering_membership.py` | D4.1 normalization, dim reduction, clusterer wrappers, ward rejection, HDBSCAN noise-policy behavior |
+| `test_active_triplets.py` | D4.2 top-3 config tie-break, disagreement detection / margin / variance ranking, existing-queue de-dup, hash-collision exclusion, active-set assembly |
 
 ### Configs (`configs/dj_clustering/`)
 

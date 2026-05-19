@@ -17,6 +17,14 @@ progress:
   last_completed_task: D4.1
   blocked: false
   blocker: null
+  subphase: D4.2a
+  subphase_note: >-
+    D4.2a implemented the active-triplet selection code and tests
+    (triplets.py active-selection functions, generate_active_triplets.py,
+    test_active_triplets.py). No generator run; the triplet queue, M3U,
+    and active summary are not yet written. Targeted tests 43/43 and full
+    dj_clustering suite 227/227 passing. D4.2 is not complete; awaiting
+    approval to run the D4.2b generation step.
 
   completed_tasks:
     - id: D0.1

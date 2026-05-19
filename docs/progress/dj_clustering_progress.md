@@ -82,6 +82,28 @@ D1 gate PASSED.
 | Task | Description | Status |
 |---|---|---|
 | D4.1 | Implement Regime 1 sweep runner | DONE |
+| D4.2 | Generate active triplet questions | IN PROGRESS (D4.2a complete) |
+
+### D4.2a results (active triplet selection scaffold)
+
+D4.2 is executed in two internal subphases: D4.2a implements the
+active-selection code and tests (no generator run); D4.2b runs the generator,
+extends the ignored queue/M3U, writes the summary, and completes D4.2.
+
+| Item | Value |
+|---|---|
+| Source module | `src/dj_clustering/triplets.py` (active-selection functions added) |
+| Driver script | `scripts/dj_clustering/generate_active_triplets.py` (new) |
+| Test file | `tests/dj_clustering/test_active_triplets.py` (new) |
+| Selection design | Top-3 sweep configs (accuracy desc, config_id asc tie-break, diagnostics excluded); disagreement_margin with rank-difference variance tie-break; boundary-fill fallback |
+| Planned D4.2b run | `--n-questions 85`, active seed 42, config-space seed 13 |
+| Targeted tests | 43/43 passed (`test_active_triplets.py` + `test_triplets.py`) |
+| Full dj_clustering suite | 227/227 passed |
+| quality_gate.sh | Absent; full `tests/dj_clustering/` suite used as gate |
+| Generator run | No — D4.2a is scaffold only; queue/M3U/summary not yet written |
+
+**Status:** D4.2 not complete. D4.2a implemented the active-selection code and
+tests and awaits approval to run the D4.2b generation step.
 
 ### D4.1 results (Regime 1 sweep runner + capped first sweep)
 
@@ -319,4 +341,4 @@ Decode guard: PASS (0.0% < 20% threshold).
 | v4_competing | false |
 | v4_diagnostic_only | true |
 
-_Last updated: D4.1 (Regime 1 sweep runner implemented; capped first sweep complete; Phase 4 active; advancing to D4.2)._
+_Last updated: D4.2a (active triplet selection code/tests implemented; D4.2 still active; awaiting D4.2b generation approval)._

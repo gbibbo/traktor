@@ -8,7 +8,12 @@ PURPOSE: Triplet question generation for DJ clustering manual comparison queue.
          DataFrame assembly with the 14 plan-required columns.
 
 CHANGELOG:
-  D3.2 - Initial implementation.
+  D3.2  - Initial implementation.
+  D4.2a - Add active-triplet selection: top-3 leaderboard config selection
+          with a documented tie-break, per-config B/C rank differences,
+          disagreement detection / margin / variance scoring, ranking,
+          de-duplication against an already-asked queue, and active-set
+          assembly with disagreement / boundary-fill selection sources.
 """
 
 from __future__ import annotations
@@ -414,11 +419,14 @@ def deduplicate_triplets(
 def assemble_question_df(
     triplets: List[Dict],
     inventory_df: pd.DataFrame,
+    start_index: int = 1,
 ) -> pd.DataFrame:
     """Build the final question DataFrame with all 14 plan-required columns.
 
-    Assigns ``question_id`` values Q001, Q002, … in order. Metadata columns
-    (artist, title, file_path) are populated from ``inventory_df``.
+    Assigns ``question_id`` values Q{start_index:03d}, … in order so that an
+    active queue extension can continue numbering after the existing queue.
+    Metadata columns (artist, title, file_path) are populated from
+    ``inventory_df``.
     """
     meta = (
         inventory_df.set_index("track_id")[["artist", "title", "file_path"]]
@@ -426,7 +434,7 @@ def assemble_question_df(
     )
 
     rows = []
-    for i, t in enumerate(triplets, start=1):
+    for i, t in enumerate(triplets, start=start_index):
         anchor = t["anchor_track_id"]
         b = t["candidate_b_track_id"]
         c = t["candidate_c_track_id"]
@@ -455,3 +463,199 @@ def assemble_question_df(
     if not rows:
         return pd.DataFrame(columns=list(QUESTION_COLUMNS))
     return pd.DataFrame(rows, columns=list(QUESTION_COLUMNS))
+
+
+# ---------------------------------------------------------------------------
+# D4.2 active-triplet selection
+# ---------------------------------------------------------------------------
+
+# Selection sources for active (sweep-driven) triplet questions.
+ACTIVE_DISAGREEMENT_SOURCE = "active_disagreement"
+ACTIVE_BOUNDARY_FILL_SOURCE = "active_boundary_fill"
+
+
+def select_top3_configs(
+    leaderboard_df: pd.DataFrame, n: int = 3
+) -> List[Dict]:
+    """Select the top-N executed sweep configs from a first-sweep leaderboard.
+
+    Documented deterministic tie-break (many configs may tie on accuracy):
+      1. Exclude diagnostic-only reference rows (V2/V4) from selection.
+      2. Sort by ``triplet_accuracy`` descending.
+      3. Break ties by ``config_id`` ascending.
+      4. Take the first ``n`` rows.
+
+    Returns a list of plain dict records (one per selected config).
+    """
+    df = leaderboard_df.copy()
+    if "status" in df.columns:
+        df = df[df["status"] != "diagnostic_only"]
+    if "kind" in df.columns:
+        df = df[df["kind"] != "diagnostic"]
+    if "executable" in df.columns:
+        df = df[df["executable"].astype(bool)]
+    df = df.sort_values(
+        by=["triplet_accuracy", "config_id"],
+        ascending=[False, True],
+        kind="mergesort",
+    )
+    return df.head(n).to_dict("records")
+
+
+def config_rank_difference(
+    transformed_matrix: np.ndarray,
+    track_index: Dict[str, int],
+    anchor: str,
+    candidate_b: str,
+    candidate_c: str,
+) -> Optional[float]:
+    """Return one config's rank difference for a triplet: d(A,C) - d(A,B).
+
+    Distances are Euclidean in the config's transformed embedding space, the
+    same space used for sweep triplet scoring. A positive value means B is
+    closer to the anchor (the config "chooses" B); negative means C. Returns
+    None if any of the three tracks is absent from the embedding space.
+    """
+    if any(t not in track_index for t in (anchor, candidate_b, candidate_c)):
+        return None
+    x_a = transformed_matrix[track_index[anchor]]
+    x_b = transformed_matrix[track_index[candidate_b]]
+    x_c = transformed_matrix[track_index[candidate_c]]
+    dist_b = float(np.linalg.norm(x_a - x_b))
+    dist_c = float(np.linalg.norm(x_a - x_c))
+    return dist_c - dist_b
+
+
+def candidate_votes(rank_diffs: List[Optional[float]]) -> Dict[str, int]:
+    """Count B-choices and C-choices across configs from their rank differences.
+
+    rank_diff > 0 -> config chooses B; < 0 -> chooses C; 0 or None -> abstains.
+    """
+    count_b = sum(1 for rd in rank_diffs if rd is not None and rd > 0)
+    count_c = sum(1 for rd in rank_diffs if rd is not None and rd < 0)
+    n_voting = sum(1 for rd in rank_diffs if rd is not None and rd != 0)
+    return {"count_b": count_b, "count_c": count_c, "n_voting": n_voting}
+
+
+def is_disagreement(rank_diffs: List[Optional[float]]) -> bool:
+    """True if at least one config chooses B and at least one chooses C."""
+    votes = candidate_votes(rank_diffs)
+    return votes["count_b"] >= 1 and votes["count_c"] >= 1
+
+
+def disagreement_margin(rank_diffs: List[Optional[float]]) -> float:
+    """Return min(count_B, count_C) / total_top3_configs.
+
+    The denominator is the number of top configs compared (len(rank_diffs)),
+    per the operational plan's sorting-metric definition.
+    """
+    total = len(rank_diffs)
+    if total == 0:
+        return 0.0
+    votes = candidate_votes(rank_diffs)
+    return min(votes["count_b"], votes["count_c"]) / total
+
+
+def rank_diff_variance(rank_diffs: List[Optional[float]]) -> float:
+    """Variance of the rank differences across configs (tie-break metric).
+
+    Abstaining configs (None) are excluded. Returns 0.0 for fewer than two
+    real values.
+    """
+    vals = [rd for rd in rank_diffs if rd is not None]
+    if len(vals) < 2:
+        return 0.0
+    return float(np.var(vals))
+
+
+def rank_active_candidates(candidates: List[Dict]) -> List[Dict]:
+    """Filter to disagreement candidates and rank them, best first.
+
+    Each candidate dict must carry a ``rank_diffs`` list. Candidates with no
+    disagreement are dropped. Survivors are sorted by ``disagreement_margin``
+    descending, then by ``rank_diff_variance`` descending (greater variance of
+    the B-vs-C rank difference is the plan-defined tie-break).
+    """
+    disagreeing = [c for c in candidates if is_disagreement(c["rank_diffs"])]
+    disagreeing.sort(
+        key=lambda c: (
+            disagreement_margin(c["rank_diffs"]),
+            rank_diff_variance(c["rank_diffs"]),
+        ),
+        reverse=True,
+    )
+    return disagreeing
+
+
+def _triplet_key(triplet: Dict):
+    """Unordered (anchor, {B, C}) identity key for a triplet."""
+    return (
+        triplet["anchor_track_id"],
+        frozenset([triplet["candidate_b_track_id"], triplet["candidate_c_track_id"]]),
+    )
+
+
+def existing_triplet_keys(queue_df: pd.DataFrame) -> set:
+    """Build the set of (anchor, {B, C}) keys already present in a queue.
+
+    Used to keep active questions from duplicating D3.2/D3.3 questions.
+    """
+    keys: set = set()
+    for _, row in queue_df.iterrows():
+        keys.add(
+            (
+                str(row["anchor_track_id"]),
+                frozenset(
+                    [
+                        str(row["candidate_b_track_id"]),
+                        str(row["candidate_c_track_id"]),
+                    ]
+                ),
+            )
+        )
+    return keys
+
+
+def exclude_existing_triplets(
+    triplets: List[Dict], existing_keys: set
+) -> List[Dict]:
+    """Drop triplets whose unordered key is already in ``existing_keys``."""
+    return [t for t in triplets if _triplet_key(t) not in existing_keys]
+
+
+def build_active_triplet_list(
+    ranked_disagreement: List[Dict],
+    boundary_candidates: List[Dict],
+    n_questions: int,
+) -> List[Dict]:
+    """Assemble up to ``n_questions`` active triplets, disagreement first.
+
+    Ranked disagreement candidates are taken first and tagged
+    ``active_disagreement``. If they are insufficient, the remainder is filled
+    from ``boundary_candidates`` tagged ``active_boundary_fill``. Boundary
+    triplets duplicating an already-selected key are skipped. Each returned
+    dict is a copy with ``selection_source`` set.
+    """
+    out: List[Dict] = []
+    used: set = set()
+    for t in ranked_disagreement:
+        if len(out) >= n_questions:
+            break
+        key = _triplet_key(t)
+        if key in used:
+            continue
+        row = dict(t)
+        row["selection_source"] = ACTIVE_DISAGREEMENT_SOURCE
+        out.append(row)
+        used.add(key)
+    for t in boundary_candidates:
+        if len(out) >= n_questions:
+            break
+        key = _triplet_key(t)
+        if key in used:
+            continue
+        row = dict(t)
+        row["selection_source"] = ACTIVE_BOUNDARY_FILL_SOURCE
+        out.append(row)
+        used.add(key)
+    return out
