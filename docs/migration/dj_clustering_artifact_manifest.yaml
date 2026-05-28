@@ -1,0 +1,48 @@
+# DJ Clustering cluster-exit artifact manifest
+# Machine-readable companion to docs/migration/dj_clustering_cluster_exit_plan.md
+# Verification-safe: archive member directories and aggregates only; no private
+# collection values are recorded here.
+
+schema: dj_clustering_export/1
+stamp: "20260528"
+surrey_access_end: "2026-05-31"
+branch: feature/dj-clustering-v1
+export_dir: artifacts/dj_clustering/_export   # ignored by git
+exporter: scripts/dj_clustering/export_portable_state.py
+
+archives:
+  - name: dj_clustering_critical_20260528.tar.zst
+    role: critical
+    size_bytes: 14987165
+    sha256: 071e5e919a63a7bc51277834f4efbbf19840fc30fb75e211fca7eb40329489ea
+    members:
+      - artifacts/dj_clustering/inventory       # track inventory (identity, decode, metadata, bpm, dedup)
+      - artifacts/dj_clustering/features         # frozen MERT embeddings + bpm vector + manifests
+      - artifacts/dj_clustering/pairs            # pairwise feature table + manifest
+      - artifacts/dj_clustering/triplets         # question queue, m3u, human answers, skip log, templates
+      - artifacts/dj_clustering/tracklists_1001  # metadata-only input template
+      - runs/dj_clustering/first_sweep           # exploratory first-sweep ranking + metrics + run metadata
+  - name: dj_clustering_optional_20260528.tar.zst
+    role: optional
+    size_bytes: 140445
+    sha256: 02e56662898233e530a02c36747ecc39a4b781db05751b3ecb514e22bd6fc0be
+    members:
+      - artifacts/dj_clustering/features_smoke           # smoke extraction outputs
+      - runs/dj_clustering/first_sweep_validation        # validation-subset sweep outputs
+
+checksums_file: artifacts/dj_clustering/_export/SHA256SUMS.txt   # ignored
+export_manifest_json: artifacts/dj_clustering/_export/export_manifest_20260528.json   # ignored
+
+raw_audio:
+  # Aggregate only. The per-file manifest carries collection paths and stays ignored.
+  raw_audio_file_count: 492
+  raw_audio_total_bytes: 4415100271
+  raw_audio_manifest_sha256: daed5d8e422b77420ec5859f45c959923236ea45ad42e7e94ec7cc09e40d0ee8
+  raw_audio_manifest_export_path: artifacts/dj_clustering/_export/raw_audio_checksums_20260528.txt
+  raw_audio_backup_destination: user_decision_out_of_band
+
+verification:
+  archives: "cd artifacts/dj_clustering/_export && sha256sum -c SHA256SUMS.txt"
+  restore: "tar --zstd -xf <archive> -C <repo_root>"
+  functional: "conda run -n traktor_ml pytest tests/dj_clustering/ -q"
+restore_guide: docs/migration/dj_clustering_restore_guide.md

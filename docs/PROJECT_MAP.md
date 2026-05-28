@@ -159,6 +159,7 @@ playlists/V4_<N>/
 | `match_1001tracklists.py` | D3.4 two-mode CLI: create-input-template (blank 1001 input CSV) and match (match against canonical tracks + write matching report) |
 | `run_similarity_sweep.py` | D4.1 Regime 1 sweep runner: assembles the run plan, optionally executes clustering/scoring, writes leaderboard, component metrics, run metadata, and resolved config under ignored `runs/` |
 | `generate_active_triplets.py` | D4.2 active triplet question generator: selects top-3 sweep configs, scores candidate disagreement, fills with boundary cases, extends the ignored queue/M3U, writes the aggregate summary |
+| `export_portable_state.py` | EXIT.2–EXIT.4 cluster-exit exporter: inventories critical/optional ignored artifacts, builds `.tar.zst` archives + `SHA256SUMS.txt`, writes the ignored per-file raw-audio checksum manifest plus its verification-safe aggregate, and emits the ignored export manifest JSON |
 
 ### Tests (`tests/dj_clustering/`)
 
@@ -174,6 +175,7 @@ playlists/V4_<N>/
 | `test_metrics.py` | D4.1 triplet accuracy B/C direction, skip exclusion, unscored handling, evidence status, 1001 no-usable-source |
 | `test_clustering_membership.py` | D4.1 normalization, dim reduction, clusterer wrappers, ward rejection, HDBSCAN noise-policy behavior |
 | `test_active_triplets.py` | D4.2 top-3 config tie-break, disagreement detection / margin / variance ranking, existing-queue de-dup, hash-collision exclusion, active-set assembly |
+| `test_export_portable_state.py` | EXIT exporter unit tests: sha256 hashing, item presence/missing resolution, raw-audio aggregate (count/bytes only), per-file manifest determinism, manifest assembly, critical-item coverage |
 
 ### Configs (`configs/dj_clustering/`)
 
@@ -205,3 +207,19 @@ V4 (`src/v4/`, `tests/v4/`, `config/v4.yaml`, `slurm/jobs/v4/`, `docs/v4/`,
 - V4 is classified as `v4_diagnostic_only` for the leaderboard (no reusable embeddings in Git).
 - Selected V4 utilities are classified `reuse_by_import` or `adapt_into_src_dj_clustering` per `reports/dj_clustering/v4_reuse_map.md`.
 - This separate namespace (`src/dj_clustering/` etc.) is authorized by `docs/plans/dj_clustering_plan.md §6` and overrides the CLAUDE.md refactor-preference for D0–D7 only.
+
+### Cluster-exit migration (EXIT.1–EXIT.7)
+
+Operational portability checkpoint taken because Surrey HPC access ends
+2026-05-31. Not a science cut; D0–D7 semantics are unchanged and D4.3 stays
+blocked as an offline human task.
+
+| File | Description |
+| :--- | :--- |
+| `docs/migration/dj_clustering_cluster_exit_plan.md` | Cluster-exit plan: preserved vs ignored, critical vs optional payload, archive checksums, raw-audio aggregate, continuation paths |
+| `docs/migration/dj_clustering_artifact_manifest.yaml` | Machine-readable archive manifest (member dirs, sha256, sizes) + raw-audio aggregate + verification commands |
+| `docs/migration/dj_clustering_restore_guide.md` | Restore on local CPU / paid GPU VM / another HPC; CPU-only continuation; GPU only for re-extraction |
+
+Portable archives, `SHA256SUMS.txt`, the per-file raw-audio checksum manifest,
+and the export manifest JSON are written under the ignored
+`artifacts/dj_clustering/_export/` and are never committed.

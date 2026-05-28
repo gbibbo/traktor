@@ -6,7 +6,35 @@
 **Current phase:** 4
 **Current task:** D4.3
 **Last completed:** D4.2
-**Blocked:** Yes — pending user-completed active triplet answers for D4.3
+**Blocked:** Yes — D4.3 active triplet answers are an offline human task, not a cluster dependency. Cluster-exit migration completed; resume on CPU host or paid GPU host.
+
+---
+
+## Cluster-exit migration (EXIT.1–EXIT.7)
+
+**Status: COMPLETE.** Surrey HPC access ends 2026-05-31. A portable,
+checksummed copy of the resume payload was frozen so the project can continue
+on a local CPU host, a paid GPU VM, or another HPC. This is an operational
+migration, not a science task — the EXIT.* items are intentionally absent from
+the science task history, and no D0–D7 task advanced.
+
+| Item | Value |
+|---|---|
+| Exit block | EXIT.1–EXIT.7 (freeze → inventory → checksums → package → docs → tracker → tag) |
+| Critical archive | `dj_clustering_critical_20260528.tar.zst` (ignored; 14,987,165 bytes) |
+| Critical archive sha256 | `071e5e919a63a7bc51277834f4efbbf19840fc30fb75e211fca7eb40329489ea` |
+| Optional archive | `dj_clustering_optional_20260528.tar.zst` (ignored; 140,445 bytes) |
+| Optional archive sha256 | `02e56662898233e530a02c36747ecc39a4b781db05751b3ecb514e22bd6fc0be` |
+| Raw audio | 492 files, 4,415,100,271 bytes — never committed, never moved |
+| Raw audio manifest sha256 | `daed5d8e422b77420ec5859f45c959923236ea45ad42e7e94ec7cc09e40d0ee8` (ignored per-file manifest) |
+| Raw audio backup | user decision, out of band |
+| Exporter | `scripts/dj_clustering/export_portable_state.py` |
+| Migration docs | `docs/migration/dj_clustering_cluster_exit_plan.md`, `dj_clustering_artifact_manifest.yaml`, `dj_clustering_restore_guide.md` |
+| Exit tag | `dj-clustering-surrey-exit-2026-05-31` |
+
+D4.3 remains blocked as an offline human answer-collection task. The
+first-sweep results stay exploratory; no winner is selected and no final claim
+is made until D4.3/D5 evidence is restored and run.
 
 ---
 

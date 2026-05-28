@@ -16,7 +16,10 @@ progress:
   current_task: D4.3
   last_completed_task: D4.2
   blocked: true
-  blocker: "Pending user-completed active triplet answers for D4.3"
+  blocker: >-
+    D4.3 active triplet answers are an offline human task, not a cluster
+    dependency. Cluster-exit migration completed; resume on CPU host or paid
+    GPU host.
   subphase: D4.3a
   subphase_note: >-
     D4.3a created the active answer template for the 85 unanswered active
@@ -276,3 +279,24 @@ first_sweep:
   evidence_classification: exploration
   winner_selected: false
   tracklists_1001_status: no_usable_source
+
+# Operational cluster-exit migration (EXIT.1-EXIT.7). Not a science task:
+# EXIT.* tasks are intentionally absent from progress.completed_tasks.
+migration:
+  status: complete
+  exit_block: EXIT.1-EXIT.7
+  surrey_access_end: 2026-05-31
+  critical_archive: dj_clustering_critical_20260528.tar.zst
+  critical_archive_sha256: 071e5e919a63a7bc51277834f4efbbf19840fc30fb75e211fca7eb40329489ea
+  optional_archive: dj_clustering_optional_20260528.tar.zst
+  optional_archive_sha256: 02e56662898233e530a02c36747ecc39a4b781db05751b3ecb514e22bd6fc0be
+  raw_audio_manifest_sha256: daed5d8e422b77420ec5859f45c959923236ea45ad42e7e94ec7cc09e40d0ee8
+  raw_audio_file_count: 492
+  raw_audio_total_bytes: 4415100271
+  raw_audio_backup_destination: user_decision_out_of_band
+  export_dir: artifacts/dj_clustering/_export
+  exporter: scripts/dj_clustering/export_portable_state.py
+  cluster_exit_plan: docs/migration/dj_clustering_cluster_exit_plan.md
+  artifact_manifest: docs/migration/dj_clustering_artifact_manifest.yaml
+  restore_guide: docs/migration/dj_clustering_restore_guide.md
+  exit_tag: dj-clustering-surrey-exit-2026-05-31
