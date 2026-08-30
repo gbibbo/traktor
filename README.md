@@ -2,6 +2,8 @@
 
 Audio ML pipeline for organizing a Techno / Tech House DJ library into Traktor-ready playlists.
 
+**Project case study:** https://gbibbo.github.io/work/traktor-ml/
+
 This project started from a practical DJ workflow: a large folder of tracks does not show which songs share groove, percussion, timbre, tempo range or harmonic movement. Metadata helps, but it is too coarse for building playable groups. TRAKTOR ML turns a local music collection into versioned M3U playlists by extracting audio representations, clustering similar tracks, ordering each group for smoother transitions and exposing the result in a Streamlit dashboard.
 
 The source audio and large generated artifacts are not included because the collection is private and copyright protected. The repository includes the V4 pipeline code, configuration, Slurm jobs, tests, documentation, UI screenshot and exported playlist examples.
