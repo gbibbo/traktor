@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anotador DJ</title>
+<style>
+  :root{--bg:#f6f5f2;--card:#ffffff;--ink:#1c1b19;--muted:#6b6862;--line:#e3e0d9;--acc:#0f6b5c;--acc2:#b5462a;--warn:#8a6d00;--chip:#eef2f0}
+  @media (prefers-color-scheme:dark){:root{--bg:#161617;--card:#1f1f21;--ink:#ecebe7;--muted:#a09d95;--line:#333335;--acc:#4fbfa8;--acc2:#e0785a;--warn:#e0b74a;--chip:#26302d}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:16px 16px 96px}
+  h1{font-size:20px;margin:0 0 4px}
+  h2{font-size:15px;margin:0 0 8px}
+  .sub{color:var(--muted);margin:0 0 12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
+  .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:7px 12px;cursor:pointer}
+  button:hover{border-color:var(--acc)}
+  button.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+  button.danger{background:var(--acc2);border-color:var(--acc2);color:#fff}
+  button.small{padding:3px 8px;font-size:12px}
+  button:disabled{opacity:.45;cursor:default}
+  input[type=text],input[type=number],select{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:6px 8px;max-width:100%}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .tabs button.on{background:var(--acc);border-color:var(--acc);color:#fff}
+  .hidden{display:none!important}
+  .status{font-size:12px;color:var(--muted)}
+  .ok{color:var(--acc)} .bad{color:var(--acc2)} .warn{color:var(--warn)}
+  table{border-collapse:collapse;width:100%}
+  th,td{text-align:left;padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{font-size:12px;color:var(--muted);font-weight:600}
+  .tname{word-break:break-word}
+  .cand{border:1px solid var(--line);border-radius:10px;padding:10px;flex:1 1 260px;min-width:0}
+  .cand.anchor{border-color:var(--acc);border-width:2px}
+  .cand h3{margin:0 0 6px;font-size:13px;color:var(--muted)}
+  .cand .tname{font-weight:600;margin-bottom:8px}
+  .chip{display:inline-block;background:var(--chip);border-radius:999px;padding:2px 10px;font-size:12px;margin:2px 4px 2px 0}
+  .chip.on{background:var(--acc);color:#fff}
+  .grp{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;padding:4px 8px;margin:2px}
+  .grp.sel{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc) inset}
+  .grp input{width:120px}
+  .player{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .player .now{flex:1 1 240px;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .player input[type=range]{flex:1 1 200px;min-width:120px}
+  .scroll{max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+  .log{font-size:12px;color:var(--muted);max-height:160px;overflow:auto}
+  kbd{border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:11px}
+</style>
+</head>
+<body>
+<h1>Anotador DJ</h1>
+<p class="sub">Escuchá, decidí y exportá CSV. Todo queda guardado en este navegador hasta que exportes.</p>
+
+<div class="card">
+  <div class="row">
+    <span id="srcStatus" class="status">Audio: buscando archivos junto a esta página…</span>
+    <label><input type="file" id="folderPick" webkitdirectory multiple hidden><button id="folderBtn" class="small">Elegir carpeta de música…</button></label>
+    <span class="status">Ruta Windows para M3U:</span>
+    <input type="text" id="winDir" value="__WINDOWS_DIR__" size="34">
+    <button id="exportAll" class="small primary">Exportar todo (CSV)</button>
+    <button id="resetAll" class="small danger">Borrar sesión</button>
+  </div>
+  <div class="status" id="counts"></div>
+</div>
+
+<div class="tabs">
+  <button data-tab="tri" class="on">1 · Tripletas</button>
+  <button data-tab="grp">2 · Grupos con semillas</button>
+  <button data-tab="tr">3 · Transiciones</button>
+  <button data-tab="lib">Biblioteca</button>
+</div>
+
+<!-- ===== TRIPLETAS ===== -->
+<section id="tab-tri" class="card">
+  <h2>¿Cuál se parece más al ancla?</h2>
+  <p class="sub">Escuchá el ancla y los dos candidatos. Elegí el que pondrías en la misma carpeta que el ancla. Si no podés decidir, saltá.</p>
+  <div class="row" style="margin-bottom:10px">
+    <label>Semilla <input type="number" id="triSeed" value="42" style="width:80px"></label>
+    <label>Preguntas <input type="number" id="triN" value="40" style="width:70px"></label>
+    <button id="triGen" class="small">Generar cola aleatoria</button>
+    <label><input type="file" id="triCsv" accept=".csv" hidden><button id="triCsvBtn" class="small">Cargar cola CSV…</button></label>
+    <button id="triM3u" class="small">M3U de esta pregunta</button>
+    <span class="status" id="triStatus"></span>
+  </div>
+  <div id="triQ" class="row" style="align-items:stretch"></div>
+  <div class="row" style="margin-top:10px">
+    <button id="ansB" class="primary">B se parece más <kbd>B</kbd></button>
+    <button id="ansC" class="primary">C se parece más <kbd>C</kbd></button>
+    <button id="ansSkip">Saltar <kbd>S</kbd></button>
+    <button id="triPrev" class="small">← Anterior</button>
+    <button id="triExport" class="small">Exportar tripletas CSV</button>
+  </div>
+</section>
+
+<!-- ===== GRUPOS ===== -->
+<section id="tab-grp" class="card hidden">
+  <h2>Agrupación con semillas</h2>
+  <p class="sub">Marcá el subconjunto que querés clasificar, creá grupos y asigná a mano algunos temas a cada uno. El sistema completará el resto.</p>
+  <div class="row" style="margin-bottom:8px">
+    <label>Grupos objetivo <input type="number" id="grpK" value="6" min="2" max="30" style="width:60px"></label>
+    <button id="grpAdd" class="small">+ Grupo</button>
+    <button id="grpNone" class="small">Sin grupo (quitar)</button>
+    <button id="subAll" class="small">Subconjunto: todos</button>
+    <button id="subNone" class="small">Subconjunto: ninguno</button>
+    <button id="subM3u" class="small">M3U del subconjunto</button>
+    <button id="grpM3u" class="small">M3U del grupo activo</button>
+    <button id="grpExport" class="small">Exportar grupos CSV</button>
+  </div>
+  <div id="grpList" style="margin-bottom:8px"></div>
+  <div class="row" style="margin-bottom:6px">
+    <input type="text" id="grpFilter" placeholder="Filtrar por nombre…" size="30">
+    <span class="status">Clic en ▶ para escuchar, clic en el nombre para asignar al grupo activo.</span>
+  </div>
+  <div class="scroll"><table id="grpTable"><thead><tr><th>Sub</th><th></th><th>Tema</th><th>Grupo</th></tr></thead><tbody></tbody></table></div>
+</section>
+
+<!-- ===== TRANSICIONES ===== -->
+<section id="tab-tr" class="card hidden">
+  <h2>Transiciones</h2>
+  <p class="sub">Elegí el tema que "suena ahora", probá candidatos y calificá la mezcla. Sirve para el modo de sugerencia en vivo.</p>
+  <div class="row" style="margin-bottom:8px">
+    <label>Suena ahora: <select id="trNow"></select></label>
+    <button id="trRandomNow" class="small">Aleatorio</button>
+    <button id="trExport" class="small">Exportar transiciones CSV</button>
+  </div>
+  <div class="row" style="margin-bottom:6px">
+    <input type="text" id="trFilter" placeholder="Buscar candidato…" size="30">
+    <button id="trShuffle" class="small">10 candidatos al azar</button>
+  </div>
+  <div class="scroll"><table id="trTable"><thead><tr><th></th><th>Candidato</th><th>Mezcla</th></tr></thead><tbody></tbody></table></div>
+  <div class="log" id="trLog" style="margin-top:8px"></div>
+</section>
+
+<!-- ===== BIBLIOTECA ===== -->
+<section id="tab-lib" class="card hidden">
+  <h2>Biblioteca</h2>
+  <div class="row" style="margin-bottom:6px">
+    <input type="text" id="libFilter" placeholder="Filtrar…" size="30">
+    <button id="libM3u" class="small">M3U de toda la biblioteca</button>
+  </div>
+  <div class="scroll"><table id="libTable"><thead><tr><th></th><th>Tema</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
+</section>
+
+<div class="player">
+  <button id="pPlay">▶</button>
+  <span class="now" id="pNow">—</span>
+  <button class="small" data-seek="0.1">10%</button>
+  <button class="small" data-seek="0.35">35%</button>
+  <button class="small" data-seek="0.6">60%</button>
+  <button class="small" data-seek="0.85">85%</button>
+  <input type="range" id="pBar" min="0" max="1000" value="0">
+  <span class="status" id="pTime">0:00</span>
+  <audio id="audio" preload="none"></audio>
+</div>
+
+<script>
+const TRACKS = __TRACKS_JSON__;
+const STORE_KEY = "dj_feedback_v1";
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const stem = f => f.replace(/\.[^.]+$/, "");
+const nowIso = () => new Date().toISOString();
+
+// ---------- state ----------
+let S = load();
+function blank(){ return {tri:{queue:[],i:0,answers:{}}, grp:{groups:[],active:null,assign:{},sub:{}}, tr:{now:null,ratings:[]}, listen:{}}; }
+function load(){ try{ const raw = localStorage.getItem(STORE_KEY); if(raw){ return Object.assign(blank(), JSON.parse(raw)); } }catch(e){} return blank(); }
+function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch(e){} updateCounts(); }
+function updateCounts(){
+  const nAns = Object.values(S.tri.answers).filter(a=>a.answer!=="skip").length;
+  const nSkip = Object.values(S.tri.answers).filter(a=>a.answer==="skip").length;
+  const nAssigned = Object.keys(S.grp.assign).length;
+  const nSub = Object.values(S.grp.sub).filter(Boolean).length;
+  $("#counts").textContent = `${TRACKS.length} temas · tripletas respondidas ${nAns} (saltadas ${nSkip}) · grupos: ${S.grp.groups.length}, semillas ${nAssigned}, subconjunto ${nSub} · transiciones ${S.tr.ratings.length}`;
+}
+
+// ---------- audio source resolution ----------
+const fileMap = new Map();   // filename -> object URL (when folder picked)
+let relativeOk = null;
+function srcFor(name){ return fileMap.has(name) ? fileMap.get(name) : encodeURIComponent(name); }
+async function probeRelative(){
+  const a = new Audio(); a.preload = "metadata";
+  const p = new Promise(res => { a.onloadedmetadata = () => res(true); a.onerror = () => res(false); setTimeout(()=>res(false), 4000); });
+  a.src = encodeURIComponent(TRACKS[0]);
+  relativeOk = await p;
+  $("#srcStatus").innerHTML = relativeOk
+    ? `<span class="ok">Audio: leyendo archivos de la carpeta de esta página.</span>`
+    : `<span class="warn">Audio: no encuentro los archivos junto a la página. Copiá este HTML a la carpeta de música, o usá "Elegir carpeta".</span>`;
+}
+$("#folderBtn").onclick = () => $("#folderPick").click();
+$("#folderPick").onchange = e => {
+  fileMap.clear();
+  for(const f of e.target.files){ fileMap.set(f.name, URL.createObjectURL(f)); }
+  const found = TRACKS.filter(t => fileMap.has(t)).length;
+  $("#srcStatus").innerHTML = `<span class="${found?'ok':'bad'}">Audio: carpeta elegida, ${found}/${TRACKS.length} temas encontrados.</span>`;
+};
+
+// ---------- player ----------
+const audio = $("#audio");
+let current = null, tickStart = null;
+function play(name, frac){
+  if(current !== name){ flushListen(); audio.src = srcFor(name); current = name; $("#pNow").textContent = stem(name); }
+  const go = () => { if(frac!=null && audio.duration) audio.currentTime = frac*audio.duration; audio.play().catch(()=>{}); };
+  if(audio.readyState >= 1) go(); else audio.addEventListener("loadedmetadata", go, {once:true});
+  if(audio.readyState < 1) audio.load();
+}
+function flushListen(){ if(current && tickStart){ S.listen[current] = (S.listen[current]||0) + (Date.now()-tickStart)/1000; tickStart = null; } }
+audio.addEventListener("play", () => { tickStart = Date.now(); $("#pPlay").textContent = "❚❚"; });
+audio.addEventListener("pause", () => { flushListen(); save(); $("#pPlay").textContent = "▶"; });
+audio.addEventListener("timeupdate", () => { if(audio.duration){ $("#pBar").value = Math.round(1000*audio.currentTime/audio.duration); $("#pTime").textContent = fmt(audio.currentTime)+" / "+fmt(audio.duration); } });
+$("#pBar").oninput = e => { if(audio.duration) audio.currentTime = e.target.value/1000*audio.duration; };
+$("#pPlay").onclick = () => { if(!current) return; audio.paused ? audio.play() : audio.pause(); };
+document.querySelectorAll("[data-seek]").forEach(b => b.onclick = () => { if(current) play(current, parseFloat(b.dataset.seek)); });
+function fmt(s){ s = Math.floor(s||0); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+const playBtn = name => `<button class="small" data-play="${esc(name)}">▶</button>`;
+document.addEventListener("click", e => { const b = e.target.closest("[data-play]"); if(b) play(b.dataset.play, 0.35); });
+
+// ---------- tabs ----------
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("on", x===b));
+  ["tri","grp","tr","lib"].forEach(t => $("#tab-"+t).classList.toggle("hidden", t!==b.dataset.tab));
+});
+
+// ---------- utils ----------
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function csvCell(v){ v = v==null ? "" : String(v); return /[",\n\r]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; }
+function download(name, text, mime){
+  const blob = new Blob(["\uFEFF"+text], {type: mime||"text/plain;charset=utf-8"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+}
+function toCsv(rows, cols){ return [cols.join(",")].concat(rows.map(r => cols.map(c => csvCell(r[c])).join(","))).join("\r\n"); }
+function m3u(name, files){
+  const dir = $("#winDir").value.replace(/[\\\/]+$/,"");
+  const lines = ["#EXTM3U"];
+  for(const f of files){ lines.push("#EXTINF:-1,"+stem(f)); lines.push(dir+"\\"+f); }
+  download(name, lines.join("\r\n")+"\r\n", "audio/x-mpegurl");
+}
+function parseCsv(text){
+  const rows=[]; let row=[], cell="", q=false;
+  for(let i=0;i<text.length;i++){ const c=text[i];
+    if(q){ if(c=='"'){ if(text[i+1]=='"'){cell+='"';i++;} else q=false; } else cell+=c; }
+    else if(c=='"') q=true; else if(c==','){row.push(cell);cell="";} else if(c=='\n'||c=='\r'){ if(c=='\r'&&text[i+1]=='\n') i++; row.push(cell); rows.push(row); row=[]; cell=""; } else cell+=c; }
+  if(cell!==""||row.length){ row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(x => x!==""));
+}
+const basename = p => String(p).split(/[\\\/]/).pop();
+const byStem = new Map(TRACKS.map(t => [stem(t).toLowerCase(), t]));
+function matchTrack(v){ if(!v) return null; const b = basename(v); if(TRACKS.includes(b)) return b; return byStem.get(stem(b).toLowerCase()) || null; }
+
+// ---------- TRIPLETAS ----------
+function triGen(){
+  const seed = parseInt($("#triSeed").value)||42, n = parseInt($("#triN").value)||40;
+  const rnd = mulberry32(seed), N = TRACKS.length, q = [], seen = new Set();
+  while(q.length < n && q.length < 5000){
+    const a = Math.floor(rnd()*N), b = Math.floor(rnd()*N), c = Math.floor(rnd()*N);
+    if(a===b||a===c||b===c) continue;
+    const key = a+"|"+Math.min(b,c)+"|"+Math.max(b,c); if(seen.has(key)) continue; seen.add(key);
+    q.push({id:"R"+String(seed)+"_"+String(q.length+1).padStart(3,"0"), anchor:TRACKS[a], b:TRACKS[b], c:TRACKS[c], source:"random_seed_"+seed});
+  }
+  S.tri.queue = q; S.tri.i = 0; save(); triRender();
+}
+$("#triGen").onclick = () => { if(!S.tri.queue.length || confirm("¿Reemplazar la cola actual? Las respuestas ya dadas se conservan por id de pregunta.")) triGen(); };
+$("#triCsvBtn").onclick = () => $("#triCsv").click();
+$("#triCsv").onchange = async e => {
+  const f = e.target.files[0]; if(!f) return;
+  const rows = parseCsv(await f.text()); const h = rows[0].map(x => x.trim().toLowerCase());
+  const col = (...names) => { for(const n of names){ const i = h.indexOf(n); if(i>=0) return i; } return -1; };
+  const iId = col("question_id","id"), iA = col("anchor_file_path","anchor_file","anchor","anchor_track_id"),
+        iB = col("candidate_b_file_path","candidate_b_file","b","candidate_b_track_id"), iC = col("candidate_c_file_path","candidate_c_file","c","candidate_c_track_id"),
+        iS = col("selection_source","source");
+  const q = [], miss = [];
+  rows.slice(1).forEach((r,k) => { const a = matchTrack(r[iA]), b = matchTrack(r[iB]), c = matchTrack(r[iC]);
+    if(a&&b&&c) q.push({id: iId>=0 ? r[iId] : "Q"+(k+1), anchor:a, b, c, source: iS>=0 ? r[iS] : "csv"}); else miss.push(k+2); });
+  if(!q.length){ alert("No pude emparejar ninguna fila con la biblioteca. Necesito columnas con la ruta o nombre de archivo del ancla y candidatos."); return; }
+  S.tri.queue = q; S.tri.i = 0; save(); triRender();
+  $("#triStatus").textContent = `Cola cargada: ${q.length} preguntas` + (miss.length ? `, ${miss.length} filas sin emparejar (líneas ${miss.slice(0,8).join(", ")}${miss.length>8?"…":""})` : "");
+};
+function triRender(){
+  const q = S.tri.queue[S.tri.i];
+  const box = $("#triQ");
+  if(!q){ box.innerHTML = `<div class="status">${S.tri.queue.length ? "Cola terminada. Exportá el CSV." : "Generá una cola aleatoria o cargá la cola CSV del proyecto."}</div>`; $("#triStatus").textContent = S.tri.queue.length ? `${S.tri.queue.length}/${S.tri.queue.length}` : ""; return; }
+  const prev = S.tri.answers[q.id];
+  const card = (lab, name, cls) => `<div class="cand ${cls}"><h3>${lab}</h3><div class="tname">${esc(stem(name))}</div>${playBtn(name)} <span class="status">escuchado ${fmt(S.listen[name]||0)}</span></div>`;
+  box.innerHTML = card("Ancla", q.anchor, "anchor") + card("Candidato B", q.b, "") + card("Candidato C", q.c, "");
+  $("#triStatus").textContent = `Pregunta ${S.tri.i+1}/${S.tri.queue.length} · ${q.id}` + (prev ? ` · ya respondida: ${prev.answer}` : "");
+}
+function triAnswer(ans){
+  const q = S.tri.queue[S.tri.i]; if(!q) return; flushListen();
+  S.tri.answers[q.id] = {question_id:q.id, anchor:q.anchor, candidate_b:q.b, candidate_c:q.c, answer:ans, source:q.source, answered_at:nowIso(),
+    listened_anchor_s:Math.round(S.listen[q.anchor]||0), listened_b_s:Math.round(S.listen[q.b]||0), listened_c_s:Math.round(S.listen[q.c]||0)};
+  S.tri.i++; save(); triRender();
+}
+$("#ansB").onclick = () => triAnswer("B"); $("#ansC").onclick = () => triAnswer("C"); $("#ansSkip").onclick = () => triAnswer("skip");
+$("#triPrev").onclick = () => { if(S.tri.i>0){ S.tri.i--; save(); triRender(); } };
+$("#triM3u").onclick = () => { const q = S.tri.queue[S.tri.i]; if(q) m3u(`tripleta_${q.id}.m3u`, [q.anchor,q.b,q.c]); };
+document.addEventListener("keydown", e => {
+  if(e.target.matches("input,select,textarea") || $("#tab-tri").classList.contains("hidden")) return;
+  const k = e.key.toLowerCase();
+  if(k==="b") triAnswer("B"); else if(k==="c") triAnswer("C"); else if(k==="s") triAnswer("skip");
+  else if(k==="1"||k==="2"||k==="3"){ const q = S.tri.queue[S.tri.i]; if(q) play([q.anchor,q.b,q.c][+k-1], 0.35); }
+  else if(k===" "){ e.preventDefault(); $("#pPlay").click(); }
+});
+const triCols = ["question_id","anchor","candidate_b","candidate_c","answer","source","answered_at","listened_anchor_s","listened_b_s","listened_c_s"];
+const triRows = () => Object.values(S.tri.answers);
+$("#triExport").onclick = () => download("tripletas_respuestas.csv", toCsv(triRows(), triCols), "text/csv");
+
+// ---------- GRUPOS ----------
+function grpEnsure(){ const k = parseInt($("#grpK").value)||6; while(S.grp.groups.length < Math.min(k, 3)) grpAdd(); }
+function grpAdd(){ const L = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"; const id = L[S.grp.groups.length] || "G"+(S.grp.groups.length+1); S.grp.groups.push({id, name:"Grupo "+id}); S.grp.active = id; save(); }
+$("#grpAdd").onclick = () => { grpAdd(); grpRender(); };
+$("#grpNone").onclick = () => { S.grp.active = null; save(); grpRender(); };
+$("#grpK").onchange = () => save();
+function grpRenderGroups(){
+  const box = $("#grpList");
+  box.innerHTML = S.grp.groups.map(g => { const n = Object.values(S.grp.assign).filter(x => x===g.id).length;
+    return `<span class="grp ${S.grp.active===g.id?'sel':''}" data-g="${g.id}"><b>${g.id}</b><input type="text" value="${esc(g.name)}" data-gname="${g.id}"><span class="status">${n}</span></span>`; }).join("")
+    + `<span class="grp ${S.grp.active===null?'sel':''}" data-g="">sin grupo</span>`;
+  box.querySelectorAll(".grp").forEach(el => el.onclick = e => { if(e.target.tagName==="INPUT") return; S.grp.active = el.dataset.g || null; save(); grpRenderGroups(); });
+  box.querySelectorAll("[data-gname]").forEach(inp => inp.onchange = () => { const g = S.grp.groups.find(x => x.id===inp.dataset.gname); if(g){ g.name = inp.value; save(); } });
+}
+function grpRender(){
+  grpRenderGroups();
+  const f = $("#grpFilter").value.toLowerCase();
+  const tb = $("#grpTable tbody");
+  tb.innerHTML = TRACKS.filter(t => !f || t.toLowerCase().includes(f)).map(t => {
+    const g = S.grp.assign[t]; const gn = g ? (S.grp.groups.find(x => x.id===g)||{}).name || g : "";
+    return `<tr><td><input type="checkbox" data-sub="${esc(t)}" ${S.grp.sub[t]?"checked":""}></td><td>${playBtn(t)}</td><td class="tname" data-assign="${esc(t)}" style="cursor:pointer">${esc(stem(t))}</td><td>${g ? `<span class="chip on">${esc(g)}</span> <span class="status">${esc(gn)}</span>` : ""}</td></tr>`; }).join("");
+  tb.querySelectorAll("[data-assign]").forEach(td => td.onclick = () => { const t = td.dataset.assign; if(S.grp.active){ S.grp.assign[t] = S.grp.active; S.grp.sub[t] = true; } else delete S.grp.assign[t]; save(); grpRender(); });
+  tb.querySelectorAll("[data-sub]").forEach(cb => cb.onchange = () => { S.grp.sub[cb.dataset.sub] = cb.checked; save(); updateCounts(); });
+}
+$("#grpFilter").oninput = grpRender;
+$("#subAll").onclick = () => { TRACKS.forEach(t => S.grp.sub[t] = true); save(); grpRender(); };
+$("#subNone").onclick = () => { S.grp.sub = {}; save(); grpRender(); };
+$("#subM3u").onclick = () => m3u("subconjunto.m3u", TRACKS.filter(t => S.grp.sub[t]));
+$("#grpM3u").onclick = () => { if(!S.grp.active) return; m3u(`grupo_${S.grp.active}.m3u`, TRACKS.filter(t => S.grp.assign[t]===S.grp.active)); };
+const grpCols = ["filename","in_subset","seed_group","seed_group_name","target_k","exported_at"];
+function grpRows(){ const k = parseInt($("#grpK").value)||6, ts = nowIso();
+  return TRACKS.filter(t => S.grp.sub[t] || S.grp.assign[t]).map(t => { const g = S.grp.assign[t]||""; const gn = g ? ((S.grp.groups.find(x => x.id===g)||{}).name||"") : "";
+    return {filename:t, in_subset: S.grp.sub[t]?1:0, seed_group:g, seed_group_name:gn, target_k:k, exported_at:ts}; }); }
+$("#grpExport").onclick = () => download("grupos_semillas.csv", toCsv(grpRows(), grpCols), "text/csv");
+
+// ---------- TRANSICIONES ----------
+let trCands = [];
+function trRenderNow(){ const sel = $("#trNow"); sel.innerHTML = `<option value="">— elegir —</option>` + TRACKS.map(t => `<option value="${esc(t)}" ${S.tr.now===t?"selected":""}>${esc(stem(t))}</option>`).join(""); }
+$("#trNow").onchange = e => { S.tr.now = e.target.value || null; save(); trRender(); };
+$("#trRandomNow").onclick = () => { S.tr.now = TRACKS[Math.floor(Math.random()*TRACKS.length)]; save(); trRenderNow(); trRender(); };
+$("#trShuffle").onclick = () => { const pool = TRACKS.filter(t => t!==S.tr.now).sort(() => Math.random()-0.5); trCands = pool.slice(0,10); $("#trFilter").value = ""; trRender(); };
+$("#trFilter").oninput = () => { const f = $("#trFilter").value.toLowerCase(); trCands = f ? TRACKS.filter(t => t!==S.tr.now && t.toLowerCase().includes(f)).slice(0,50) : trCands; trRender(); };
+function trRate(cand, r){ if(!S.tr.now) return; flushListen();
+  S.tr.ratings.push({now_playing:S.tr.now, candidate:cand, rating:r, rated_at:nowIso(), listened_now_s:Math.round(S.listen[S.tr.now]||0), listened_candidate_s:Math.round(S.listen[cand]||0)}); save(); trRender(); }
+function trRender(){
+  const tb = $("#trTable tbody");
+  if(!S.tr.now){ tb.innerHTML = `<tr><td colspan="3" class="status">Elegí el tema que suena ahora.</td></tr>`; }
+  else tb.innerHTML = `<tr><td>${playBtn(S.tr.now)}</td><td class="tname"><b>Ahora: ${esc(stem(S.tr.now))}</b></td><td></td></tr>` + trCands.map(c => {
+    const last = [...S.tr.ratings].reverse().find(r => r.now_playing===S.tr.now && r.candidate===c);
+    return `<tr><td>${playBtn(c)}</td><td class="tname">${esc(stem(c))}</td><td><button class="small" data-rate="good" data-c="${esc(c)}">Buena</button> <button class="small" data-rate="ok" data-c="${esc(c)}">Regular</button> <button class="small" data-rate="bad" data-c="${esc(c)}">Mala</button> ${last?`<span class="chip on">${last.rating}</span>`:""}</td></tr>`; }).join("");
+  tb.querySelectorAll("[data-rate]").forEach(b => b.onclick = () => trRate(b.dataset.c, b.dataset.rate));
+  $("#trLog").innerHTML = S.tr.ratings.slice(-12).reverse().map(r => `${esc(stem(r.now_playing))} → ${esc(stem(r.candidate))}: <b>${r.rating}</b>`).join("<br>");
+}
+const trCols = ["now_playing","candidate","rating","rated_at","listened_now_s","listened_candidate_s"];
+$("#trExport").onclick = () => download("transiciones.csv", toCsv(S.tr.ratings, trCols), "text/csv");
+
+// ---------- BIBLIOTECA ----------
+function libRender(){ const f = $("#libFilter").value.toLowerCase();
+  $("#libTable tbody").innerHTML = TRACKS.filter(t => !f || t.toLowerCase().includes(f)).map(t => `<tr><td>${playBtn(t)}</td><td class="tname">${esc(stem(t))}</td><td class="status">${S.grp.assign[t]?"grupo "+S.grp.assign[t]+" · ":""}escuchado ${fmt(S.listen[t]||0)}</td></tr>`).join(""); }
+$("#libFilter").oninput = libRender;
+$("#libM3u").onclick = () => m3u("biblioteca_completa.m3u", TRACKS);
+
+// ---------- global ----------
+$("#exportAll").onclick = () => { download("tripletas_respuestas.csv", toCsv(triRows(), triCols), "text/csv"); setTimeout(() => download("grupos_semillas.csv", toCsv(grpRows(), grpCols), "text/csv"), 300); setTimeout(() => download("transiciones.csv", toCsv(S.tr.ratings, trCols), "text/csv"), 600); };
+$("#resetAll").onclick = () => { if(confirm("¿Borrar todas las respuestas guardadas en este navegador? Exportá antes si las necesitás.")){ S = blank(); save(); triRender(); grpRender(); trRenderNow(); trRender(); libRender(); } };
+window.addEventListener("beforeunload", () => { flushListen(); save(); });
+
+// ---------- init ----------
+grpEnsure(); triRender(); grpRender(); trRenderNow(); trRender(); libRender(); updateCounts(); probeRelative();
+</script>
+</body>
+</html>

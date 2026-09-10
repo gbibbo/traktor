@@ -100,6 +100,15 @@ playlists/V4_<N>/
 └── _summary.txt                   # Phase 5: tabla resumen de clusters y tracks
 ```
 
+## Herramienta de feedback del DJ (`tools/dj_feedback/`)
+
+| Archivo | Descripción |
+| :--- | :--- |
+| `tools/dj_feedback/template.html` | Plantilla HTML autónoma: tripletas, grupos con semillas, transiciones, export CSV/M3U |
+| `tools/dj_feedback/build_feedback_page.py` | Genera `dj_feedback.html` (embebe filenames del dataset + ruta Windows) y `playlists/feedback/all_tracks.m3u` |
+| `tools/dj_feedback/dj_feedback.html` | Página generada para `test_20` (243 temas); se copia a la carpeta de música en Windows |
+| `docs/DJ_FEEDBACK_TOOL.md` | Uso, esquemas CSV y requisito de agrupación con semillas |
+
 ## Documentación (`docs/`)
 
 | Archivo | Descripción |
@@ -110,3 +119,4 @@ playlists/V4_<N>/
 | `docs/v4/JOBS_STATUS.md` | Estado de jobs Slurm + comandos de monitoreo |
 | `docs/LESSONS_LEARNED.md` | Base de conocimiento de lecciones aprendidas |
 | `v4_implementation_plan.md` | Plan de implementación completo (rev.5) |
+| `docs/DJ_FEEDBACK_TOOL.md` | Herramienta de escucha y anotación del DJ (tripletas, semillas, transiciones) |
