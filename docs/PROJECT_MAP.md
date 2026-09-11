@@ -125,5 +125,6 @@ playlists/V4_<N>/
 | `docs/v4/JOBS_STATUS.md` | Estado de jobs Slurm + comandos de monitoreo |
 | `docs/LESSONS_LEARNED.md` | Base de conocimiento de lecciones aprendidas |
 | `docs/HARMONIC_COMPATIBILITY.md` | Regla de compatibilidad armónica aprobada (relaciones, transposición, ejemplo 12A) |
+| `docs/reports/` | Informes fechados de resultados (p. ej. baselines de tripletas) |
 | `v4_implementation_plan.md` | Plan de implementación completo (rev.5) |
 | `docs/DJ_FEEDBACK_TOOL.md` | Herramienta de escucha y anotación del DJ (tripletas con cola fija) |
