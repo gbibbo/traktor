@@ -20,6 +20,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `demucs_utils.py` | Separación de stems (Demucs htdemucs) |
 | `embedding_utils.py` | MERTEmbedder: embeddings MERT-v1-330M |
 | `logging_utils.py` | Logger JSONL + run manifests |
+| `harmonic.py` | Compatibilidad armónica Camelot con transposición ±2 st (regla 2026-09-11) |
 
 ## Pipeline (`src/v4/pipeline/`)
 
@@ -118,5 +119,6 @@ playlists/V4_<N>/
 | `docs/v4/TODO.md` | Progress tracker con fechas de completado |
 | `docs/v4/JOBS_STATUS.md` | Estado de jobs Slurm + comandos de monitoreo |
 | `docs/LESSONS_LEARNED.md` | Base de conocimiento de lecciones aprendidas |
+| `docs/HARMONIC_COMPATIBILITY.md` | Regla de compatibilidad armónica aprobada (relaciones, transposición, ejemplo 12A) |
 | `v4_implementation_plan.md` | Plan de implementación completo (rev.5) |
 | `docs/DJ_FEEDBACK_TOOL.md` | Herramienta de escucha y anotación del DJ (tripletas con cola fija) |

@@ -3,6 +3,7 @@ PURPOSE: Métricas de evaluación puras para clustering y retrieval de tracks.
          Funciones sin side effects. Compatibles con numpy arrays.
          ARI/NMI requieren ground truth; noise_rate y cluster stats no lo requieren.
 CHANGELOG:
+  - 2026-09-11: _key_compatibility delega en src/v4/common/harmonic.py (nueva regla armónica).
   - 2026-02-28: Creación inicial V4 (Block 3).
 """
 import numpy as np
@@ -230,61 +231,8 @@ def transition_score(
     return float(np.clip(total, 0.0, 1.0))
 
 
-# Camelot wheel: lista de 24 tonalidades en orden de rueda (1A-12A minor, 1B-12B major)
-_CAMELOT_ORDER = [
-    "Am", "Em", "Bm", "F#m", "C#m", "G#m", "D#m", "A#m", "Fm", "Cm", "Gm", "Dm",  # A (minor)
-    "C",  "G",  "D",  "A",   "E",   "B",   "F#",  "C#",  "Ab", "Eb", "Bb", "F",   # B (major)
-]
-
-# Mapas alternativos de notación
-_CAMELOT_ALIASES: Dict[str, str] = {
-    "Abm": "G#m", "Ebm": "D#m", "Bbm": "A#m",
-    "Db": "C#", "Gb": "F#", "Cb": "B",
-    # numeric Camelot notation: "1A" -> "Am", etc.
-    **{f"{i+1}A": _CAMELOT_ORDER[i] for i in range(12)},
-    **{f"{i+1}B": _CAMELOT_ORDER[i + 12] for i in range(12)},
-}
-
-
-def _key_compatibility(key_a: str, key_b: str) -> float:
-    """Compatibilidad Camelot wheel entre dos tonalidades.
-
-    Returns:
-        1.0 = misma tonalidad o vecinos directos en la rueda
-        0.5 = un paso en cualquier dirección
-        0.0 = tonalidades incompatibles o desconocidas
-    """
-    def _resolve(k: str) -> Optional[int]:
-        k = k.strip()
-        k = _CAMELOT_ALIASES.get(k, k)
-        try:
-            return _CAMELOT_ORDER.index(k)
-        except ValueError:
-            return None
-
-    idx_a = _resolve(key_a)
-    idx_b = _resolve(key_b)
-    if idx_a is None or idx_b is None:
-        return 0.0
-
-    # Índices dentro de su anillo (A o B, cada uno de 12 posiciones)
-    ring_a, pos_a = divmod(idx_a, 12)
-    ring_b, pos_b = divmod(idx_b, 12)
-
-    if ring_a == ring_b:
-        # Mismo anillo: distancia circular
-        diff = min(abs(pos_a - pos_b), 12 - abs(pos_a - pos_b))
-    else:
-        # Anillos distintos: solo compatible si mismo número (relativa mayor/menor)
-        if pos_a == pos_b:
-            return 1.0
-        diff = min(abs(pos_a - pos_b), 12 - abs(pos_a - pos_b))
-
-    if diff == 0:
-        return 1.0
-    if diff == 1:
-        return 0.5
-    return 0.0
+# Compatibilidad armónica: regla aprobada 2026-09-11 (src/v4/common/harmonic.py)
+from src.v4.common.harmonic import key_compatibility as _key_compatibility  # noqa: E402,F401
 
 
 # ---------------------------------------------------------------------------

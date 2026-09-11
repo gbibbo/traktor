@@ -114,17 +114,36 @@ def test_transition_score_better_than_worst():
 def test_key_compatibility_camelot():
     """Verificar compatibilidades conocidas del Camelot wheel."""
     from src.v4.evaluation.metrics import _key_compatibility
+    from src.v4.common.harmonic import best_key_shift, key_relation, shift_camelot
+    close = lambda a, b: abs(a - b) < 1e-9
     # Misma tonalidad
-    assert _key_compatibility("Cm", "Cm") == 1.0, "Cm-Cm debería ser 1.0"
-    # Relativa mayor/menor (mismo número Camelot)
-    assert _key_compatibility("Cm", "Eb") == 1.0, "Cm-Eb debería ser 1.0 (8A-8B)"
-    # Vecino en el anillo
-    assert _key_compatibility("Cm", "Gm") == 0.5, "Cm-Gm debería ser 0.5"
-    # Incompatible
-    assert _key_compatibility("Cm", "F#m") == 0.0, "Cm-F#m debería ser 0.0"
+    assert close(_key_compatibility("Cm", "Cm"), 1.0), "Cm-Cm debería ser 1.0"
+    # Relativa mayor/menor (mismo número Camelot): 5A-5B
+    assert close(_key_compatibility("Cm", "Eb"), 0.9), "Cm-Eb debería ser 0.9 (5A-5B)"
+    # Vecino en el anillo: 5A-6A
+    assert close(_key_compatibility("Cm", "Gm"), 0.7), "Cm-Gm debería ser 0.7"
+    # Lejana sin transponer, pero 11A-1st = 4A vecina de 5A: 0.7 - 0.15
+    assert close(_key_compatibility("Cm", "F#m"), 0.55), "Cm-F#m debería ser 0.55 (vecina tras -1 st)"
     # Notación numérica Camelot
-    assert _key_compatibility("8A", "8A") == 1.0, "8A-8A debería ser 1.0"
-    print("  OK: _key_compatibility Camelot wheel correcta")
+    assert close(_key_compatibility("8A", "8A"), 1.0), "8A-8A debería ser 1.0"
+    # Lista aprobada para ancla 12A (2026-09-11): relación y transposición esperadas
+    expected = {
+        "12A": ("same", 0, 1.0), "5A": ("same", 1, 0.85), "7A": ("same", -1, 0.85),
+        "10A": ("same", 2, 0.7), "2A": ("same", -2, 0.7),
+        "12B": ("relative", 0, 0.9), "5B": ("relative", 1, 0.75), "7B": ("relative", -1, 0.75),
+        "11A": ("adjacent", 0, 0.7), "1A": ("adjacent", 0, 0.7),
+        "11B": ("diagonal", 0, 0.7), "1B": ("diagonal", 0, 0.7),
+        "3B": ("parallel", 0, 0.6), "3A": ("parallel_relative", 0, 0.6),
+    }
+    for cand, (rel, shift, score) in expected.items():
+        got_score, got_shift, got_rel = best_key_shift("12A", cand)
+        assert (got_rel, got_shift) == (rel, shift) and close(got_score, score), \
+            f"12A vs {cand}: esperado {(rel, shift, score)}, obtenido {(got_rel, got_shift, got_score)}"
+    # Un semitono = +7 en la rueda; paralela de mayor va hacia atrás
+    assert shift_camelot("7A", -1) == "12A" and shift_camelot("5B", 1) == "12B"
+    assert key_relation("3B", "12A") == "parallel", "3B (Db mayor) -> 12A (Db menor) paralela"
+    assert close(_key_compatibility("?", "5A"), 0.5), "clave desconocida → 0.5 neutro"
+    print("  OK: compatibilidad armónica (regla 2026-09-11) correcta")
 
 
 def test_composite_score():

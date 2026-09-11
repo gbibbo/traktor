@@ -4,6 +4,8 @@ PURPOSE: Phase 4 — Ordenamiento intra-cluster para transiciones suaves entre t
          Normaliza keys de Essentia ('C minor') a Camelot ('5A') antes de calcular compatibilidad.
          Guarda clustering/ordered_<hash>.parquet con columna 'position' por L2 subcluster.
 CHANGELOG:
+  - 2026-09-11: key_compatibility y parsing Camelot movidos a src/v4/common/harmonic.py
+                (nueva regla: relativa, vecinas, diagonales, paralela, transposición ±2 st).
   - 2026-03-01: Creación inicial V4.
 """
 import argparse
@@ -24,92 +26,14 @@ from src.v4.config import ORDERING_WEIGHTS
 
 
 # ---------------------------------------------------------------------------
-# Tabla Camelot completa (clave interna para compatibilidad harmónica)
+# Compatibilidad armónica: ver src/v4/common/harmonic.py (regla aprobada 2026-09-11)
 # ---------------------------------------------------------------------------
-
-# Mapeo: (key_name, scale) → número Camelot (1-12) y modo ('A'=minor, 'B'=major)
-# Essentia devuelve key como "C", "C#", "D", ... y scale como "minor" / "major"
-
-_KEY_SEMITONE: Dict[str, int] = {
-    "C": 0, "C#": 1, "Db": 1, "D": 2, "D#": 3, "Eb": 3,
-    "E": 4, "F": 5, "F#": 6, "Gb": 6, "G": 7, "G#": 8,
-    "Ab": 8, "A": 9, "A#": 10, "Bb": 10, "B": 11,
-}
-
-# Camelot wheel: número por semitono (índice 0=C)
-# Minor (A) y Major (B)
-_MINOR_CAMELOT = [5, 12, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10]   # C=5A, C#=12A, D=7A, ...
-_MAJOR_CAMELOT = [8, 3, 10, 5, 12, 7, 2, 9, 4, 11, 6, 1]   # C=8B, C#=3B, D=10B, ...
+from src.v4.common.harmonic import key_compatibility, to_camelot  # noqa: E402
 
 
 def essentia_to_camelot(key_str: str) -> str:
-    """
-    Convierte el campo 'key' de bpm_key.parquet al formato Camelot.
-
-    Soporta:
-      - Formato combinado Essentia: 'C minor', 'G major', 'F# minor'
-      - Ya en Camelot: '5A', '9B'
-      - Formato corto: 'Cm', 'Gmaj'
-
-    Returns '?' si no se puede parsear.
-    """
-    if not key_str or str(key_str).strip() in ("?", "nan", ""):
-        return "?"
-
-    s = str(key_str).strip()
-
-    # Ya en formato Camelot (e.g. '5A', '12B')
-    if len(s) <= 3 and s[:-1].isdigit() and s[-1] in ("A", "B"):
-        return s
-
-    # Formato 'C minor' / 'G major' (Essentia combinado)
-    parts = s.rsplit(" ", 1)
-    if len(parts) == 2:
-        key_name, scale_str = parts[0].strip(), parts[1].strip().lower()
-        semitone = _KEY_SEMITONE.get(key_name, -1)
-        if semitone >= 0:
-            if scale_str == "minor":
-                return f"{_MINOR_CAMELOT[semitone]}A"
-            if scale_str == "major":
-                return f"{_MAJOR_CAMELOT[semitone]}B"
-
-    # Formato corto 'Cm', 'Gm', 'Ebm', 'G', 'Eb'
-    key_name = s.rstrip("mM")
-    is_minor = s.endswith("m") and not s.endswith("am") or s.lower().endswith("min")
-    semitone = _KEY_SEMITONE.get(key_name, -1)
-    if semitone >= 0:
-        if is_minor:
-            return f"{_MINOR_CAMELOT[semitone]}A"
-        return f"{_MAJOR_CAMELOT[semitone]}B"
-
-    return "?"
-
-
-def key_compatibility(camelot_a: str, camelot_b: str) -> float:
-    """
-    Compatibilidad harmónica entre dos posiciones Camelot.
-
-    Returns:
-        1.0 — misma posición (mismo número, cualquier modo) → relativa mayor/menor
-        0.5 — número adyacente (±1 en el anillo de 12)
-        0.0 — todo lo demás
-    """
-    if camelot_a == "?" or camelot_b == "?" or not camelot_a or not camelot_b:
-        return 0.5  # Unknown key → penalización neutra
-
-    try:
-        num_a = int(camelot_a[:-1])
-        num_b = int(camelot_b[:-1])
-    except (ValueError, IndexError):
-        return 0.5
-
-    if num_a == num_b:
-        return 1.0  # Mismo número (e.g. 5A↔5B = relativa mayor/menor, o 5A↔5A)
-
-    dist = min(abs(num_a - num_b), 12 - abs(num_a - num_b))  # Distancia circular mod 12
-    if dist == 1:
-        return 0.5  # Adyacente en el anillo
-    return 0.0
+    """Convierte el campo 'key' de bpm_key.parquet a Camelot ('5A'). '?' si no se puede."""
+    return to_camelot(key_str)
 
 
 # ---------------------------------------------------------------------------
