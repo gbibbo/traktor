@@ -33,6 +33,24 @@ CSV: `question_id, anchor, candidate_b, candidate_c, answer (B|C|skip), answered
 La cola es fija: la misma pregunta tiene siempre el mismo id, así que las respuestas de varias
 sesiones se pueden unir sin ambigüedad.
 
+## Dónde van las respuestas y cómo se usan
+
+Guardar cada CSV exportado en `tools/dj_feedback/answers/` con la fecha en el nombre
+(`tripletas_respuestas_YYYY-MM-DD.csv`). Se versionan en Git: solo contienen nombres de archivo,
+igual que las M3U ya publicadas. Si una pregunta aparece en varios archivos gana la respuesta más
+reciente por `answered_at`.
+
+Semántica real de la respuesta (Gabriel, 2026-09-11): "cuál de los dos tocaría a continuación del
+ancla sin salto de estilo", es decir mezclabilidad. La compatibilidad armónica influye aunque se
+intente evitar; por eso las carpetas no deben depender de la clave, pero el recomendador sí.
+
+Procesar la evidencia y medir los baselines de clave y BPM:
+
+```bash
+python src/v4/pipeline/phase1_extract.py --dataset-name test_20 --device cpu --essentia-only
+python src/v4/evaluation/triplet_evidence.py --dataset-name test_20
+```
+
 ## Requisito registrado: agrupación con semillas
 
 El DJ marca un subconjunto (por ejemplo 200 temas), fija cuántos grupos quiere (por ejemplo 6) y

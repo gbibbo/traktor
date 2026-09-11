@@ -3,6 +3,9 @@ PURPOSE: Phase 1 — Extracción de features: Essentia (BPM/key/beats), Demucs (
          MERT embeddings (full mix + drums percusivo). Reentrante via progress_shard_XX.json.
          EJECUTAR SOLO VIA SLURM (partición a100, GPU). Nunca en el nodo de login.
 CHANGELOG:
+  - 2026-09-11: Añadido --essentia-only (CPU): solo BPM/key/beats, sin Demucs ni MERT. Usa un
+                checkpoint propio (features/shards/progress_essentia_*.json) para no contaminar
+                el checkpoint de embeddings, y escribe features/bpm_key.parquet al terminar.
   - 2026-03-01: Añadido run_id en progress_shard_XX.json. Si el run_id no coincide con el
                 run actual (e.g. smoke test vs full run), se resetea el checkpoint para
                 evitar que tracks marcados como procesados sean silenciosamente omitidos.
@@ -128,6 +131,8 @@ def main() -> int:
     parser.add_argument("--checkpoint-every", type=int, default=25)
     parser.add_argument("--max-tracks", type=int, default=None, help="Limitar N tracks (smoke test)")
     parser.add_argument("--config", default=None)
+    parser.add_argument("--essentia-only", action="store_true",
+                        help="Solo Essentia (BPM/key) en CPU; omite Demucs y MERT.")
     args = parser.parse_args()
 
     print("=" * 70)
@@ -147,7 +152,8 @@ def main() -> int:
     features_dir.mkdir(parents=True, exist_ok=True)
 
     shard_tag = f"shard_{args.shard_id:02d}"
-    progress_path = embeddings_dir / f"progress_{shard_tag}.json"
+    progress_path = (features_dir / f"progress_essentia_{shard_tag}.json" if args.essentia_only
+                     else embeddings_dir / f"progress_{shard_tag}.json")
     run_id = compute_run_id()
 
     log_fh = open_phase_log(logs_root, f"phase1_extract_{shard_tag}")
@@ -183,18 +189,32 @@ def main() -> int:
         return 0
 
     # Cargar modelos
-    print("[INFO] Loading Demucs model...")
-    demucs_model, demucs_sr = load_demucs_model(device=args.device)
+    if args.essentia_only:
+        print("[INFO] --essentia-only: skipping Demucs and MERT")
+        demucs_model = demucs_sr = embedder = None
+    else:
+        print("[INFO] Loading Demucs model...")
+        demucs_model, demucs_sr = load_demucs_model(device=args.device)
 
-    hf_cache_str = os.environ.get("HF_HOME")
-    print("[INFO] Loading MERT model...")
-    embedder = MERTEmbedder(device=args.device, hf_cache=hf_cache_str)
+        hf_cache_str = os.environ.get("HF_HOME")
+        print("[INFO] Loading MERT model...")
+        embedder = MERTEmbedder(device=args.device, hf_cache=hf_cache_str)
 
     # Buffers
     mert_perc_list = []
     mert_full_list = []
     uid_list = []
     bpm_key_rows = []
+
+    # Reanudar filas Essentia previas de este shard (modo essentia-only)
+    prev_parquet = features_dir / f"bpm_key_{shard_tag}.parquet"
+    if args.essentia_only and prev_parquet.exists() and already_processed:
+        import pandas as pd
+        prev = pd.read_parquet(prev_parquet)
+        prev = prev[prev["track_uid"].isin(already_processed)]
+        bpm_key_rows.extend(prev.to_dict("records"))
+        uid_list.extend(prev["track_uid"].tolist())
+        print(f"[INFO] Resumed {len(prev)} Essentia rows from {prev_parquet.name}")
 
     seg_cfg = config.get("segmentation", {})
     beat_conf_threshold = float(seg_cfg.get("beat_conf_threshold", 0.5))
@@ -214,34 +234,35 @@ def main() -> int:
             # 2. Essentia: BPM + key + beats
             feats = extract_essentia_features(audio_44k)
 
-            # 3. Demucs: separar drums → resample a 24kHz
-            drums_24k, full_24k = process_track_stems(
-                audio_path, demucs_model, demucs_sr, device=args.device, target_sr=MERT_SAMPLE_RATE
-            )
+            if not args.essentia_only:
+                # 3. Demucs: separar drums → resample a 24kHz
+                drums_24k, full_24k = process_track_stems(
+                    audio_path, demucs_model, demucs_sr, device=args.device, target_sr=MERT_SAMPLE_RATE
+                )
 
-            # 4. Segmentos DJ
-            beat_ticks = np.array(feats["beat_ticks"]) * ESSENTIA_SAMPLE_RATE if feats["beat_ticks"] else None
-            segs_perc = get_dj_segments(
-                drums_24k, MERT_SAMPLE_RATE,
-                beat_ticks=beat_ticks,
-                bpm=feats["bpm"],
-                beat_confidence=feats["beat_confidence"],
-                beat_conf_threshold=beat_conf_threshold,
-            )
-            segs_full = get_dj_segments(
-                full_24k, MERT_SAMPLE_RATE,
-                beat_ticks=beat_ticks,
-                bpm=feats["bpm"],
-                beat_confidence=feats["beat_confidence"],
-                beat_conf_threshold=beat_conf_threshold,
-            )
+                # 4. Segmentos DJ
+                beat_ticks = np.array(feats["beat_ticks"]) * ESSENTIA_SAMPLE_RATE if feats["beat_ticks"] else None
+                segs_perc = get_dj_segments(
+                    drums_24k, MERT_SAMPLE_RATE,
+                    beat_ticks=beat_ticks,
+                    bpm=feats["bpm"],
+                    beat_confidence=feats["beat_confidence"],
+                    beat_conf_threshold=beat_conf_threshold,
+                )
+                segs_full = get_dj_segments(
+                    full_24k, MERT_SAMPLE_RATE,
+                    beat_ticks=beat_ticks,
+                    bpm=feats["bpm"],
+                    beat_confidence=feats["beat_confidence"],
+                    beat_conf_threshold=beat_conf_threshold,
+                )
 
-            # 5. MERT embeddings → agregar
-            emb_perc = embedder.aggregate_segments(embedder.embed_segments(segs_perc))
-            emb_full = embedder.aggregate_segments(embedder.embed_segments(segs_full))
+                # 5. MERT embeddings → agregar
+                emb_perc = embedder.aggregate_segments(embedder.embed_segments(segs_perc))
+                emb_full = embedder.aggregate_segments(embedder.embed_segments(segs_full))
 
-            mert_perc_list.append(emb_perc)
-            mert_full_list.append(emb_full)
+                mert_perc_list.append(emb_perc)
+                mert_full_list.append(emb_full)
             uid_list.append(uid)
             bpm_key_rows.append({
                 "track_uid": uid,
@@ -293,6 +314,15 @@ def main() -> int:
                          uid_list, mert_perc_list, mert_full_list, bpm_key_rows)
     save_progress(progress_path, progress)
 
+    if args.essentia_only:
+        import pandas as pd
+        shard_files = sorted(features_dir.glob("bpm_key_shard_*.parquet"))
+        merged = pd.concat([pd.read_parquet(f) for f in shard_files], ignore_index=True)
+        merged = merged.drop_duplicates("track_uid", keep="last")
+        merged_path = features_dir.parent / "bpm_key.parquet"
+        merged.to_parquet(merged_path, index=False)
+        print(f"[INFO] Essentia-only: wrote {merged_path} ({len(merged)} rows from {len(shard_files)} shard files)")
+
     elapsed = time.time() - t0
     log_event(log_fh, {
         "phase": "phase1",
@@ -324,10 +354,11 @@ def _save_checkpoint(
     """Guardar estado parcial de shard."""
     import pandas as pd
 
-    np.save(embeddings_dir / f"mert_perc_{shard_tag}.npy", np.stack(mert_perc_list))
-    np.save(embeddings_dir / f"mert_full_{shard_tag}.npy", np.stack(mert_full_list))
-    with open(embeddings_dir / f"track_uids_{shard_tag}.json", "w") as f:
-        json.dump(uid_list, f)
+    if mert_perc_list:
+        np.save(embeddings_dir / f"mert_perc_{shard_tag}.npy", np.stack(mert_perc_list))
+        np.save(embeddings_dir / f"mert_full_{shard_tag}.npy", np.stack(mert_full_list))
+        with open(embeddings_dir / f"track_uids_{shard_tag}.json", "w") as f:
+            json.dump(uid_list, f)
     pd.DataFrame(bpm_key_rows).to_parquet(features_dir / f"bpm_key_{shard_tag}.parquet", index=False)
 
 

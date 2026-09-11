@@ -40,6 +40,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | :--- | :--- |
 | `metrics.py` | ARI, NMI, Recall@k, MRR, NDCG, pairwise_auc, transition_score, noise_rate |
 | `eval_runner.py` | Loop de evaluación: carga artifacts, calcula métricas, guarda JSON |
+| `triplet_evidence.py` | Carga respuestas de tripletas del DJ, resuelve a track_uid, baselines clave/BPM |
 
 ## Slurm Jobs (`slurm/jobs/v4/`)
 
@@ -69,6 +70,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_block3_clustering.py` | Unit tests métricas (Parte A) + clustering real (Parte B, skip-safe) |
 | `test_block4_export.py` | Tests export pipeline: Phase 3+4+5, N canónico, transition score, quality report |
 | `test_block5_system.py` | Verificación final: todos los módulos importan, catalog_success, ProjectionHead |
+| `test_triplet_evidence.py` | Unit tests de triplet_evidence (dedup, resolución, baselines) |
 
 ## Artifacts (generados, no en git)
 
@@ -82,7 +84,9 @@ artifacts/v4/datasets/<dataset_name>/
 │   ├── track_uids.json            # Phase 1: UIDs en orden (fuente de verdad de alineación)
 │   └── shards/                    # Shards temporales Phase 1
 ├── features/
-│   └── bpm_key.parquet            # Phase 1: BPM, key, beat_confidence
+│   └── bpm_key.parquet            # Phase 1: BPM, key, beat_confidence (también vía --essentia-only en CPU)
+├── evidence/
+│   └── manual_triplets.csv        # triplet_evidence: respuestas resueltas a track_uid
 ├── catalog_success.parquet        # Phase 1 merge: catalog filtrado a N canónico (track_uids.json)
 ├── clustering/
 │   ├── results_<hash>.parquet     # Phase 2: label_l1, label_l2, umap_x, umap_y
@@ -108,6 +112,7 @@ playlists/V4_<N>/
 | `tools/dj_feedback/template.html` | Plantilla HTML mínima: cola fija de tripletas + lista de temas con reproducir + CSV |
 | `tools/dj_feedback/build_feedback_page.py` | Genera `dj_feedback.html` (embebe filenames del dataset + ruta Windows) y `playlists/feedback/all_tracks.m3u` |
 | `tools/dj_feedback/dj_feedback.html` | Página generada para `test_20` (243 temas); se copia a la carpeta de música en Windows |
+| `tools/dj_feedback/answers/*.csv` | Respuestas de tripletas exportadas por Gabriel (evidencia humana, una fecha por archivo) |
 | `docs/DJ_FEEDBACK_TOOL.md` | Uso, esquemas CSV y requisito de agrupación con semillas |
 
 ## Documentación (`docs/`)

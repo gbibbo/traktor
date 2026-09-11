@@ -209,3 +209,14 @@ playlists/V4_<N>/
 ├── All_Noise.m3u
 └── _summary.txt
 ```
+
+## Modo Essentia-only (CPU)
+
+Para obtener solo BPM y tonalidad sin GPU (por ejemplo para los baselines de tripletas):
+
+```bash
+python src/v4/pipeline/phase1_extract.py --dataset-name test_20 --device cpu --essentia-only
+```
+
+Usa un checkpoint propio en `features/shards/progress_essentia_shard_XX.json` (no toca el de
+embeddings) y escribe `features/bpm_key.parquet` al terminar. Unos 11 s por tema en CPU.
