@@ -3,6 +3,8 @@ PURPOSE: Phase 1 — Extracción de features: Essentia (BPM/key/beats), Demucs (
          MERT embeddings (full mix + drums percusivo). Reentrante via progress_shard_XX.json.
          EJECUTAR SOLO VIA SLURM (partición a100, GPU). Nunca en el nodo de login.
 CHANGELOG:
+  - 2026-09-11: Añadido --percussion {demucs,hpss}: HPSS (CPU, ~13 s/tema) como fuente de mert_perc
+                cuando no hay GPU; Demucs sigue siendo el default.
   - 2026-09-11: La segmentación lee config segmentation.* (mode, segment_duration_s, n_*_segments);
                 antes solo usaba beat_conf_threshold y los defaults de config.py. Bug corregido: los beat
                 ticks (segundos) se escalaban con la SR de Essentia aunque el audio segmentado está a 24k.
@@ -27,7 +29,7 @@ import numpy as np
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
-from src.v4.common.audio_utils import get_dj_segments, load_audio_torch, validate_audio_file
+from src.v4.common.audio_utils import get_dj_segments, hpss_percussive, load_audio_torch, validate_audio_file
 from src.v4.common.catalog import load_catalog
 from src.v4.common.config_loader import load_config
 from src.v4.common.demucs_utils import load_demucs_model, process_track_stems
@@ -134,6 +136,8 @@ def main() -> int:
     parser.add_argument("--checkpoint-every", type=int, default=25)
     parser.add_argument("--max-tracks", type=int, default=None, help="Limitar N tracks (smoke test)")
     parser.add_argument("--config", default=None)
+    parser.add_argument("--percussion", default="demucs", choices=["demucs", "hpss"],
+                        help="Fuente de mert_perc: stems 'drums' de Demucs (GPU) o HPSS (CPU, barato).")
     parser.add_argument("--essentia-only", action="store_true",
                         help="Solo Essentia (BPM/key) en CPU; omite Demucs y MERT.")
     args = parser.parse_args()
@@ -167,6 +171,7 @@ def main() -> int:
         "shard_id": args.shard_id,
         "num_shards": args.num_shards,
         "device": args.device,
+        "percussion": args.percussion,
     })
 
     # Cargar catálogo y seleccionar shard
@@ -196,8 +201,12 @@ def main() -> int:
         print("[INFO] --essentia-only: skipping Demucs and MERT")
         demucs_model = demucs_sr = embedder = None
     else:
-        print("[INFO] Loading Demucs model...")
-        demucs_model, demucs_sr = load_demucs_model(device=args.device)
+        if args.percussion == "demucs":
+            print("[INFO] Loading Demucs model...")
+            demucs_model, demucs_sr = load_demucs_model(device=args.device)
+        else:
+            print("[INFO] --percussion hpss: Demucs not loaded; mert_perc from HPSS percussive component")
+            demucs_model = demucs_sr = None
 
         hf_cache_str = os.environ.get("HF_HOME")
         print("[INFO] Loading MERT model...")
@@ -248,10 +257,15 @@ def main() -> int:
             feats = extract_essentia_features(audio_44k)
 
             if not args.essentia_only:
-                # 3. Demucs: separar drums → resample a 24kHz
-                drums_24k, full_24k = process_track_stems(
-                    audio_path, demucs_model, demucs_sr, device=args.device, target_sr=MERT_SAMPLE_RATE
-                )
+                # 3. Percusión: Demucs (drums stem) o HPSS sobre el full mix a 24kHz
+                if args.percussion == "demucs":
+                    drums_24k, full_24k = process_track_stems(
+                        audio_path, demucs_model, demucs_sr, device=args.device, target_sr=MERT_SAMPLE_RATE
+                    )
+                else:
+                    import torchaudio.functional as AF
+                    full_24k = AF.resample(waveform_44k, ESSENTIA_SAMPLE_RATE, MERT_SAMPLE_RATE).squeeze(0).numpy()
+                    drums_24k = hpss_percussive(full_24k)
 
                 # 4. Segmentos DJ
                 # mode "seconds": posiciones porcentuales (35-65% para mid); "auto"/"bars": beat-aware

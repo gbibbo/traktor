@@ -5,6 +5,8 @@ PURPOSE: Audio loading, validation and DJ-oriented segmentation for TRAKTOR ML V
          via torchaudio (soundfile fallback), añadida get_dj_segments con modo
          beat-aware + fallback porcentual.
 CHANGELOG:
+  - 2026-09-11: Añadido hpss_percussive (separación armónico/percusivo por filtrado de mediana
+                sobre STFT, CPU) como alternativa barata a los stems de Demucs.
   - 2026-02-28: Adaptado de V2. Eliminado Essentia 16kHz. Añadido get_dj_segments.
 """
 from pathlib import Path
@@ -192,3 +194,32 @@ def get_dj_segments(
     # Clamp starts
     all_starts = [max(0, min(s, total_samples - 1)) for s in all_starts]
     return [_extract_at(s) for s in all_starts]
+
+
+def hpss_percussive(
+    audio: np.ndarray,
+    n_fft: int = 2048,
+    hop_length: int = 512,
+    kernel: int = 17,
+    power: float = 2.0,
+) -> np.ndarray:
+    """
+    Componente percusiva de una señal mono por HPSS (Fitzgerald 2010): filtrado de mediana
+    horizontal (armónico) y vertical (percusivo) sobre la magnitud STFT, máscara suave y ISTFT.
+    Barato en CPU (~13 s para 7 min a 24 kHz). Alternativa a los stems 'drums' de Demucs.
+
+    Returns: numpy float32 array del mismo largo que `audio`.
+    """
+    import torch
+    from scipy.ndimage import median_filter
+
+    x = torch.from_numpy(np.ascontiguousarray(audio, dtype=np.float32))
+    window = torch.hann_window(n_fft)
+    spec = torch.stft(x, n_fft=n_fft, hop_length=hop_length, window=window, return_complex=True)
+    mag = spec.abs().numpy()
+    harm = median_filter(mag, size=(1, kernel))
+    perc = median_filter(mag, size=(kernel, 1))
+    mask = perc ** power / (harm ** power + perc ** power + 1e-8)
+    y = torch.istft(spec * torch.from_numpy(mask.astype(np.float32)), n_fft=n_fft,
+                    hop_length=hop_length, window=window, length=len(audio))
+    return y.numpy().astype(np.float32)
