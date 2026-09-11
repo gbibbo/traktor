@@ -16,13 +16,15 @@ hashing:
   fast_bytes_to_read: 1048576 # 1MB (solo aplica si mode="fast")
 
 segmentation:
-  mode: "auto"                # "auto" | "bars" | "seconds"
-  beat_conf_threshold: 0.5    # si beat_confidence < threshold => fallback a seconds
-  segment_duration_s: 5.0
+  # 2026-09-11: 3 segmentos de 30 s del tramo central (35%-65%), sin intro ni outro (pedido de Gabriel).
+  # Antes: auto, 1+2+1 segmentos de 5 s (solo 20 s de audio por tema).
+  mode: "seconds"             # "auto" | "bars" | "seconds"  (seconds = posiciones porcentuales, sin beat tracking)
+  beat_conf_threshold: 0.5    # si beat_confidence < threshold => fallback a seconds (solo en modo auto/bars)
+  segment_duration_s: 30.0
   segment_duration_bars: 16
-  n_intro_segments: 1
-  n_mid_segments: 2
-  n_outro_segments: 1
+  n_intro_segments: 0
+  n_mid_segments: 3
+  n_outro_segments: 0
 
 datasets:
   test_20:

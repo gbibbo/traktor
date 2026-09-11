@@ -3,6 +3,9 @@ PURPOSE: Phase 1 — Extracción de features: Essentia (BPM/key/beats), Demucs (
          MERT embeddings (full mix + drums percusivo). Reentrante via progress_shard_XX.json.
          EJECUTAR SOLO VIA SLURM (partición a100, GPU). Nunca en el nodo de login.
 CHANGELOG:
+  - 2026-09-11: La segmentación lee config segmentation.* (mode, segment_duration_s, n_*_segments);
+                antes solo usaba beat_conf_threshold y los defaults de config.py. Bug corregido: los beat
+                ticks (segundos) se escalaban con la SR de Essentia aunque el audio segmentado está a 24k.
   - 2026-09-11: Añadido --essentia-only (CPU): solo BPM/key/beats, sin Demucs ni MERT. Usa un
                 checkpoint propio (features/shards/progress_essentia_*.json) para no contaminar
                 el checkpoint de embeddings, y escribe features/bpm_key.parquet al terminar.
@@ -218,6 +221,16 @@ def main() -> int:
 
     seg_cfg = config.get("segmentation", {})
     beat_conf_threshold = float(seg_cfg.get("beat_conf_threshold", 0.5))
+    seg_mode = str(seg_cfg.get("mode", "auto"))
+    seg_kwargs = {
+        "segment_duration_s": float(seg_cfg.get("segment_duration_s", SEGMENT_DURATION_S)),
+        "n_intro": int(seg_cfg.get("n_intro_segments", N_INTRO_SEGMENTS)),
+        "n_mid": int(seg_cfg.get("n_mid_segments", N_MID_SEGMENTS)),
+        "n_outro": int(seg_cfg.get("n_outro_segments", N_OUTRO_SEGMENTS)),
+        "beat_conf_threshold": beat_conf_threshold,
+    }
+    print(f"[INFO] Segmentation: mode={seg_mode}, {seg_kwargs['n_intro']}+{seg_kwargs['n_mid']}+{seg_kwargs['n_outro']} "
+          f"segments x {seg_kwargs['segment_duration_s']:.0f}s (intro+mid+outro)")
 
     t0 = time.time()
     for idx, uid in enumerate(remaining):
@@ -241,20 +254,26 @@ def main() -> int:
                 )
 
                 # 4. Segmentos DJ
-                beat_ticks = np.array(feats["beat_ticks"]) * ESSENTIA_SAMPLE_RATE if feats["beat_ticks"] else None
+                # mode "seconds": posiciones porcentuales (35-65% para mid); "auto"/"bars": beat-aware
+                # si la confianza de beats supera el umbral. Los beat ticks de Essentia están en
+                # segundos a 44.1k; se convierten a muestras a 24k (la SR del audio segmentado).
+                if seg_mode == "seconds" or not feats["beat_ticks"]:
+                    beat_ticks = None
+                else:
+                    beat_ticks = np.array(feats["beat_ticks"]) * MERT_SAMPLE_RATE
                 segs_perc = get_dj_segments(
                     drums_24k, MERT_SAMPLE_RATE,
                     beat_ticks=beat_ticks,
                     bpm=feats["bpm"],
                     beat_confidence=feats["beat_confidence"],
-                    beat_conf_threshold=beat_conf_threshold,
+                    **seg_kwargs,
                 )
                 segs_full = get_dj_segments(
                     full_24k, MERT_SAMPLE_RATE,
                     beat_ticks=beat_ticks,
                     bpm=feats["bpm"],
                     beat_confidence=feats["beat_confidence"],
-                    beat_conf_threshold=beat_conf_threshold,
+                    **seg_kwargs,
                 )
 
                 # 5. MERT embeddings → agregar

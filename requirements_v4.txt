@@ -12,3 +12,4 @@ streamlit
 umap-learn
 pyyaml
 essentia
+nnAudio
