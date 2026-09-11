@@ -16,6 +16,10 @@ LOG="$REPO/artifacts/gpu_autorun.log"
 PY="$REPO/.venv/bin/python"
 SYSPY=/home/zeus/miniconda3/envs/cloudspace/bin/python
 DATASET=test_20
+# Presupuesto duro de GPU (créditos ~ costo_hora * MAX_GPU_MINUTES/60). Se puede sobreescribir
+# escribiendo un número de minutos en artifacts/gpu_autorun.max_minutes.
+MAX_GPU_MINUTES=45
+[ -f "$REPO/artifacts/gpu_autorun.max_minutes" ] && MAX_GPU_MINUTES=$(cat "$REPO/artifacts/gpu_autorun.max_minutes")
 
 cd "$REPO" || exit 0
 [ -f "$FLAG" ] || exit 0
@@ -27,7 +31,7 @@ command -v nvidia-smi >/dev/null 2>&1 || { echo "$(date -Is) no GPU, flag kept" 
 }
 
 {
-  echo "$(date -Is) === GPU autorun start: $(nvidia-smi -L)"
+  echo "$(date -Is) === GPU autorun start: $(nvidia-smi -L) | budget ${MAX_GPU_MINUTES} min"
   rm -f artifacts/v4/datasets/$DATASET/embeddings/shards/*
   echo "--- smoke (3 tracks)"
   "$PY" src/v4/pipeline/phase1_extract.py --dataset-name $DATASET --device cuda --max-tracks 3 --checkpoint-every 1
@@ -37,8 +41,11 @@ command -v nvidia-smi >/dev/null 2>&1 || { echo "$(date -Is) no GPU, flag kept" 
   else
     rm -f artifacts/v4/datasets/$DATASET/embeddings/shards/*
     echo "--- full extraction"
-    "$PY" src/v4/pipeline/phase1_extract.py --dataset-name $DATASET --device cuda --checkpoint-every 20
+    # timeout: al agotar el presupuesto mata la extracción; los shards checkpointeados se conservan
+    timeout --signal=INT --kill-after=60 $((MAX_GPU_MINUTES * 60)) \
+      "$PY" src/v4/pipeline/phase1_extract.py --dataset-name $DATASET --device cuda --checkpoint-every 10
     FULL=$?
+    [ $FULL -eq 124 ] && echo "$(date -Is) BUDGET HIT: extraction stopped after $MAX_GPU_MINUTES min; partial shards kept"
     echo "--- merge (exit full=$FULL)"
     "$PY" src/v4/pipeline/phase1_merge_shards.py --dataset-name $DATASET
     echo "$(date -Is) merge exit $?"
