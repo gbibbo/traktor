@@ -115,6 +115,7 @@ playlists/V4_<N>/
 | `tools/dj_feedback/answers/*.csv` | Respuestas de tripletas exportadas por Gabriel (evidencia humana, una fecha por archivo) |
 | `docs/DJ_FEEDBACK_TOOL.md` | Uso, esquemas CSV y requisito de agrupación con semillas |
 | `tools/lightning/switch_machine.py` | Cambiar la máquina del Studio (CPU/GPU) vía lightning_sdk; reinicia el Studio y gasta créditos |
+| `tools/lightning/gpu_autorun.sh` | Hook de arranque: con GPU + `artifacts/gpu_autorun.flag` corre fase 1 completa y vuelve a CPU solo |
 
 ## Documentación (`docs/`)
 
