@@ -17,9 +17,13 @@ def main() -> int:
     parser.add_argument("machine", nargs="?", help="Machine name from lightning_sdk.Machine (e.g. L4, T4, L40S, A100, CPU)")
     parser.add_argument("--status", action="store_true", help="Print current machine and exit")
     parser.add_argument("--interruptible", action="store_true", help="Use an interruptible (spot) instance")
+    parser.add_argument("--cloud-provider", default=None,
+                        help="Cloud provider from lightning_sdk.machine.CloudProvider (e.g. AWS, LIGHTNING); "
+                             "needed when the target machine only exists on another cloud account")
     args = parser.parse_args()
 
     from lightning_sdk import Machine, Studio
+    from lightning_sdk.machine import CloudProvider
 
     studio = Studio()
     print(f"[INFO] Studio: {studio.name} | status: {studio.status} | machine: {studio.machine}")
@@ -35,9 +39,18 @@ def main() -> int:
         print(f"[INFO] Already on {name}; nothing to do.")
         return 0
 
-    print(f"[INFO] Switching to {name}{' (interruptible)' if args.interruptible else ''} ... "
-          "the Studio will restart and this session will end.")
-    studio.switch_machine(target, interruptible=args.interruptible)
+    provider = None
+    if args.cloud_provider:
+        pname = args.cloud_provider.upper()
+        if not hasattr(CloudProvider, pname):
+            print(f"[ERROR] Unknown cloud provider {pname!r}. Options: "
+                  f"{[c for c in dir(CloudProvider) if not c.startswith('_')]}")
+            return 2
+        provider = getattr(CloudProvider, pname)
+
+    print(f"[INFO] Switching to {name}{' (interruptible)' if args.interruptible else ''}"
+          f"{' on ' + provider.name if provider else ''} ... the Studio will restart and this session will end.")
+    studio.switch_machine(target, interruptible=args.interruptible, cloud_provider=provider)
     print(f"[INFO] Switched. Now on: {studio.machine}")
     return 0
 

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/home/zeus/miniconda3/envs/cloudspace/bin/python tools/lightning/switch_machine.py *)"
+    ]
+  },
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "Switching the Lightning Studio machine with tools/lightning/switch_machine.py (CPU, T4, L4, L40S, A100, H100) is pre-approved by Gabriel: it spends Lightning credits knowingly."
+    ]
+  }
+}
