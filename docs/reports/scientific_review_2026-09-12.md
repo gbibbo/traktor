@@ -40,7 +40,7 @@ MERT, evaluados todos contra las mismas 57 tripletas con un test pareado contra 
 | Fuente | Ítems | Diseño | Estado |
 | :--- | ---: | :--- | :--- |
 | `tools/dj_feedback/answers/tripletas_respuestas_2026-09-11.csv` | 60 (57 útiles, 3 saltadas) | Muestreo uniforme de la colección, semilla 42, sin dependencia de ningún modelo | Limpia. 28 B / 29 C: sin sesgo de posición |
-| Rama DJ, `manual_triplets.csv` (en el archivo de salida de Surrey) | 40 (37 útiles) | 20 por kNN de `mert_full` + 20 por fronteras de V4_5, con B siempre el vecino intra-cluster y C el cross-cluster | Sesgada: 12 B / 25 C; circular respecto al sistema evaluado |
+| Rama DJ, recuperadas del archivo de Surrey a `tools/dj_feedback/answers/tripletas_rama_dj_2026-05-28.csv` | 40 (37 útiles) | 20 por kNN de `mert_full` + 20 por fronteras de V4_5, con B siempre el vecino intra-cluster y C el cross-cluster | Sesgada: 12 B / 25 C; circular respecto al sistema evaluado. Son casos "difíciles" (ambos candidatos cercanos al ancla): sobre ellas el espacio v1 cae a 0.51 y las carpetas V4_5 aciertan solo 0.38 de las decisivas |
 | Rama DJ, 85 preguntas activas Q041-Q125 | 0 respondidas | Seleccionadas por desacuerdo entre los 3 mejores configs del propio sweep | Sin responder; si se respondieran, cada config acertaría ~50 % por construcción |
 | `legacy/v2/results/full_collection/clusters_by_group.txt` | 16 clusters, 243 temas | Nombres de estilo escritos a mano por Gabriel tras escuchar cada cluster de v1 (feb 2025) | Gold parcial olvidado. 15/16 clusters resultaron nombrables |
 

@@ -44,6 +44,15 @@ Semántica real de la respuesta (Gabriel, 2026-09-11): "cuál de los dos tocarí
 ancla sin salto de estilo", es decir mezclabilidad. La compatibilidad armónica influye aunque se
 intente evitar; por eso las carpetas no deben depender de la clave, pero el recomendador sí.
 
+Archivos de respuestas existentes:
+
+| Archivo | Tripletas | Origen y sesgo |
+| :--- | ---: | :--- |
+| `tripletas_respuestas_2026-09-11.csv` | 60 (57 útiles) | Anotador DJ, cola uniforme semilla 42. Sin sesgo de selección ni de posición (28 B / 29 C) |
+| `tripletas_rama_dj_2026-05-28.csv` | 40 (37 útiles) | Recuperadas del archivo de salida de Surrey (rama `feature/dj-clustering-v1`, ids `DJB-Qnnn`). 20 elegidas por vecinos kNN de MERT y 20 por fronteras de las playlists V4_5; en las de frontera B es siempre el vecino del mismo cluster y C el de otro cluster, por eso salen 12 B / 25 C. Sirven como evidencia, pero al evaluar MERT o V4_5 sobre ellas hay circularidad; la columna `selection_source` permite separarlas |
+
+Las 85 preguntas activas de la rama (Q041-Q125) nunca se respondieron: la plantilla en Descargas y la del archivo de Surrey están vacías.
+
 Procesar la evidencia y medir los baselines de clave y BPM:
 
 ```bash
