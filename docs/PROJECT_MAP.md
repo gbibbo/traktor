@@ -41,6 +41,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `metrics.py` | ARI, NMI, Recall@k, MRR, NDCG, pairwise_auc, transition_score, noise_rate |
 | `eval_runner.py` | Loop de evaluación: carga artifacts, calcula métricas, guarda JSON |
 | `triplet_evidence.py` | Carga respuestas de tripletas del DJ, resuelve a track_uid, baselines clave/BPM |
+| `legacy_crosscheck.py` | Cruza las tripletas del DJ con los clusters versionados de legacy v1/v2, genre_discogs400 y playlists V4_5 (sin re-extraer audio) |
 
 ## Slurm Jobs (`slurm/jobs/v4/`)
 
@@ -128,6 +129,6 @@ playlists/V4_<N>/
 | `docs/v4/JOBS_STATUS.md` | Estado de jobs Slurm + comandos de monitoreo |
 | `docs/LESSONS_LEARNED.md` | Base de conocimiento de lecciones aprendidas |
 | `docs/HARMONIC_COMPATIBILITY.md` | Regla de compatibilidad armónica aprobada (relaciones, transposición, ejemplo 12A) |
-| `docs/reports/` | Informes fechados de resultados (p. ej. baselines de tripletas) |
+| `docs/reports/` | Informes fechados de resultados (baselines de tripletas; `scientific_review_2026-09-12.md` compara todas las versiones y fija el plan) |
 | `v4_implementation_plan.md` | Plan de implementación completo (rev.5) |
 | `docs/DJ_FEEDBACK_TOOL.md` | Herramienta de escucha y anotación del DJ (tripletas con cola fija) |
