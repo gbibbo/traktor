@@ -32,6 +32,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `phase2_cluster.py` | CPU: HDBSCAN L1/L2 + UMAP 2D → clustering/results_<hash>.parquet |
 | `phase3_name.py` | CPU: Naming semántico de clusters (genre voting + fallback genérico) |
 | `phase4_order.py` | CPU: Ordering greedy NN (cosine + BPM + Camelot key) → ordered_<hash>.parquet |
+| `extract_representations.py` | CPU: representaciones congeladas (EffNet, MAEST, MERT por capas, CLAP; full y HPSS) con segmentación V4 → representations/<variante>/ (fase 2 del plan) |
 | `phase5_export.py` | CPU: Export M3U Traktor (UTF-8, rutas Windows) → playlists/V4_<N>/ |
 
 ## Evaluation (`src/v4/evaluation/`)
@@ -41,6 +42,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `metrics.py` | ARI, NMI, Recall@k, MRR, NDCG, pairwise_auc, transition_score, noise_rate |
 | `eval_runner.py` | Loop de evaluación: carga artifacts, calcula métricas, guarda JSON |
 | `triplet_evidence.py` | Carga respuestas de tripletas del DJ, resuelve a track_uid, baselines clave/BPM |
+| `representation_eval.py` | Instrumento de evaluación de representaciones: accuracy de tripletas por fuente con bootstrap pareado vs BPM, coherencia vs carpetas de v1 (fase 1 del plan) |
 | `legacy_crosscheck.py` | Cruza las tripletas del DJ con los clusters versionados de legacy v1/v2, genre_discogs400 y playlists V4_5 (sin re-extraer audio) |
 
 ## Slurm Jobs (`slurm/jobs/v4/`)
@@ -71,6 +73,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_block3_clustering.py` | Unit tests métricas (Parte A) + clustering real (Parte B, skip-safe) |
 | `test_block4_export.py` | Tests export pipeline: Phase 3+4+5, N canónico, transition score, quality report |
 | `test_block5_system.py` | Verificación final: todos los módulos importan, catalog_success, ProjectionHead |
+| `test_representation_eval.py` | Unit tests de representation_eval (tripletas, bootstrap pareado, coherencia kNN/MAP) |
 | `test_triplet_evidence.py` | Unit tests de triplet_evidence (dedup, resolución, baselines) |
 
 ## Artifacts (generados, no en git)
@@ -94,8 +97,10 @@ artifacts/v4/datasets/<dataset_name>/
 │   ├── config_<hash>.json         # Phase 2: parámetros + label_semantics
 │   ├── names_<hash>.json          # Phase 3: nombres de clusters
 │   └── ordered_<hash>.parquet     # Phase 4: results + columna 'position'
+├── representations/<variante>/    # extract_representations: embeddings.npy + track_uids.json + manifest.json (+ cache/)
 ├── evaluation/
-│   └── <hash>_scores.json         # eval_runner: métricas calculadas
+│   ├── <hash>_scores.json         # eval_runner: métricas calculadas
+│   └── representations_<fecha>.json  # representation_eval: tabla de tripletas y coherencia
 └── logs/
     └── *.jsonl                    # Logs estructurados por phase
 
@@ -129,6 +134,7 @@ playlists/V4_<N>/
 | `docs/v4/JOBS_STATUS.md` | Estado de jobs Slurm + comandos de monitoreo |
 | `docs/LESSONS_LEARNED.md` | Base de conocimiento de lecciones aprendidas |
 | `docs/HARMONIC_COMPATIBILITY.md` | Regla de compatibilidad armónica aprobada (relaciones, transposición, ejemplo 12A) |
+| `docs/plans/representation_model_plan.md` | Plan operativo vigente: evaluación, tabla de representaciones, 1001Tracklists, entrenamiento en Kaggle, MVP |
 | `docs/DECISIONS.md` | Registro fechado de decisiones de Gabriel que condicionan el trabajo (prevalecen sobre planes anteriores) |
 | `docs/reports/` | Informes fechados de resultados (baselines de tripletas; `scientific_review_2026-09-12.md` compara todas las versiones y fija el plan) |
 | `v4_implementation_plan.md` | Plan de implementación completo (rev.5) |
