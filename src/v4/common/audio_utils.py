@@ -210,12 +210,27 @@ def hpss_percussive(
 
     Returns: numpy float32 array del mismo largo que `audio`.
     """
-    import torch
     from scipy.ndimage import median_filter
 
-    x = torch.from_numpy(np.ascontiguousarray(audio, dtype=np.float32))
+    x = np.ascontiguousarray(audio, dtype=np.float32)
+    try:
+        import torch
+    except ImportError:  # entornos sin torch (p. ej. venv de Essentia-TensorFlow): scipy
+        from scipy.signal import istft, stft
+        _, _, spec = stft(x, nperseg=n_fft, noverlap=n_fft - hop_length, window="hann", boundary="zeros", padded=True)
+        mag = np.abs(spec)
+        harm = median_filter(mag, size=(1, kernel))
+        perc = median_filter(mag, size=(kernel, 1))
+        mask = perc ** power / (harm ** power + perc ** power + 1e-8)
+        _, y = istft(spec * mask, nperseg=n_fft, noverlap=n_fft - hop_length, window="hann", boundary=True)
+        y = y[:len(x)]
+        if len(y) < len(x):
+            y = np.pad(y, (0, len(x) - len(y)))
+        return y.astype(np.float32)
+
+    xt = torch.from_numpy(x)
     window = torch.hann_window(n_fft)
-    spec = torch.stft(x, n_fft=n_fft, hop_length=hop_length, window=window, return_complex=True)
+    spec = torch.stft(xt, n_fft=n_fft, hop_length=hop_length, window=window, return_complex=True)
     mag = spec.abs().numpy()
     harm = median_filter(mag, size=(1, kernel))
     perc = median_filter(mag, size=(kernel, 1))
