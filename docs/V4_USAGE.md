@@ -4,7 +4,49 @@ Pipeline completo para clustering y organización de colección de música elect
 
 ---
 
-## 1. Requisitos
+## 0. Workflow actual: local, CPU-first (por defecto)
+
+El desarrollo por defecto es local y en CPU. Surrey HPC/Slurm y Lightning AI Studio
+son infraestructura opcional/legacy y nunca se arrancan ni se facturan automáticamente
+(ver `AGENTS.md`). Las secciones con `sbatch`/`on_submit.sh` de abajo son de referencia
+histórica para HPC; no son el flujo actual.
+
+**Requisitos locales (CPU):**
+- Python 3.11.
+- Dependencias: `pip install -r requirements_v4.txt`.
+- Nota Windows: Essentia no tiene build nativo para Windows. En Windows nativo corren
+  Phase 0, Phases 2-5, tests y la UI (torch/torchaudio/sklearn/umap/hdbscan ya sirven en CPU);
+  la extracción CPU de Phase 1 (`--essentia-only`) se ejecuta bajo WSL/Linux con Python 3.11.
+
+**Dataset local:** `data/raw_audio/test_20/` (243 tracks). `data/` está ignorado por Git;
+en local esta ruta suele ser un enlace de filesystem (symlink en Linux/WSL, junction en Windows)
+a la carpeta de música real. Nunca se commitea.
+
+```bash
+# Phase 0 — ingesta y catálogo (CPU, ~30 s)
+python src/v4/pipeline/phase0_ingest.py --dataset-name test_20
+
+# Phase 1 — extracción CPU sin GPU:
+#   solo BPM/key (Essentia, WSL/Linux):
+python src/v4/pipeline/phase1_extract.py --dataset-name test_20 --device cpu --essentia-only
+#   percusión sin Demucs (HPSS, CPU):
+python src/v4/pipeline/phase1_extract.py --dataset-name test_20 --device cpu --percussion hpss
+python src/v4/pipeline/phase1_merge_shards.py --dataset-name test_20
+
+# Phases 2-5 — clustering, naming, ordering, export (CPU)
+python src/v4/pipeline/phase2_cluster.py --dataset-name test_20 --skip-umap --config-tag baseline
+python src/v4/pipeline/phase3_name.py --dataset-name test_20
+python src/v4/pipeline/phase4_order.py --dataset-name test_20
+python src/v4/pipeline/phase5_export.py --dataset-name test_20 --windows-audio-dir "C:\\Música\\2020 new - copia"
+```
+
+Demucs + MERT en GPU siguen siendo opcionales y solo con aprobación explícita (ver `AGENTS.md`).
+
+---
+
+## 1. Requisitos (referencia histórica HPC / entornos remotos)
+
+> Legacy/opcional. No es el flujo actual (ver sección 0).
 
 **HPC (Surrey):**
 - Slurm con particiones `a100` (GPU) y `debug` (CPU)

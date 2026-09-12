@@ -114,8 +114,9 @@ playlists/V4_<N>/
 | `tools/dj_feedback/dj_feedback.html` | Página generada para `test_20` (243 temas); se copia a la carpeta de música en Windows |
 | `tools/dj_feedback/answers/*.csv` | Respuestas de tripletas exportadas por Gabriel (evidencia humana, una fecha por archivo) |
 | `docs/DJ_FEEDBACK_TOOL.md` | Uso, esquemas CSV y requisito de agrupación con semillas |
-| `tools/lightning/switch_machine.py` | Cambiar la máquina del Studio (CPU/GPU) vía lightning_sdk; reinicia el Studio y gasta créditos |
-| `tools/lightning/gpu_autorun.sh` | Hook de arranque: con GPU + `artifacts/gpu_autorun.flag` corre fase 1 completa y vuelve a CPU solo |
+| `tools/lightning/README.md` | Marca `tools/lightning/` como opcional/legacy e inerte por defecto (ver también `AGENTS.md`) |
+| `tools/lightning/switch_machine.py` | OPCIONAL/LEGACY. Cambiar la máquina del Studio (CPU/GPU) vía lightning_sdk; reinicia el Studio y gasta créditos. Nunca automático; solo con aprobación explícita |
+| `tools/lightning/gpu_autorun.sh` | OPCIONAL/LEGACY. Hook de arranque del Studio (`~/.lightning_studio/on_start.sh`): con GPU + `artifacts/gpu_autorun.flag` corre fase 1 y vuelve a CPU. No-op fuera de Lightning |
 
 ## Documentación (`docs/`)
 

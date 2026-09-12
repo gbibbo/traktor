@@ -13,9 +13,9 @@ Canonical instructions for coding agents in this repository.
 
 This is the independent TRAKTOR ML project for organizing a private Techno and Tech House collection into Traktor ready playlists through audio feature extraction, clustering, ordering, export, and visual inspection.
 
-The current development environment is Lightning AI Studio. The repository lives at `/teamspace/studios/this_studio/traktor`.
+The current development environment is a local, CPU-first workstation. Local CPU development is the default: repository inspection, code editing, tests, Phase 0 ingestion, Phase 1 CPU extraction (`--essentia-only`, or `--percussion hpss --device cpu`), Phases 2-5, the Streamlit app, and Git operations all run locally without any cloud machine.
 
-Historical Surrey HPC and Slurm files remain in the repository for provenance and reference. Do not assume Surrey infrastructure is available. Do not submit Slurm jobs unless Gabriel explicitly asks to use that infrastructure.
+Lightning AI Studio, Surrey HPC, and Slurm are optional legacy/remote infrastructure. They must never be started, switched, or billed automatically. Do not assume any of them is available, do not submit Slurm jobs, and do not launch, switch, or resume a Lightning machine unless Gabriel explicitly asks for that infrastructure in the current conversation. The helper scripts under `tools/lightning/` and the jobs under `slurm/` are retained for provenance only and are inert by default.
 
 The private audio collection, generated audio features, embeddings, model caches, and large artifacts must remain outside Git. Never commit source music, generated stems, `.npy`, `.parquet`, checkpoints, caches, credentials, `.env` files, API keys, or other secrets.
 
@@ -23,8 +23,8 @@ The private audio collection, generated audio features, embeddings, model caches
 
 * Primary working dataset: `test_20`.
 * Expected source audio count: 243 tracks.
-* Default audio location in Lightning: `data/raw_audio/test_20/`.
-* Python environment: repository local `.venv`, Python 3.11.
+* Default audio location: `data/raw_audio/test_20/` (resolved relative to the repo root). `data/` is ignored by Git; on a local machine this path is normally a filesystem link (symlink or Windows directory junction) to the real music folder, never a committed copy. It must never be committed.
+* Python environment: Python 3.11. On Windows the CPU pipeline (Phases 0, 2-5, tests, UI) runs on a local Python 3.11 interpreter or `.venv`. Essentia (Phase 1 CPU BPM/key) has no native-Windows build, so Phase 1 CPU extraction runs under WSL/Linux with Python 3.11.
 * Dependency source: `requirements_v4.txt`.
 * Main config: `config/v4.yaml`.
 
@@ -74,7 +74,7 @@ Before stopping after substantive project work, report the final Git state with 
 
 Default to CPU. Use CPU for repository inspection, code editing, tests, ingestion, clustering, ordering, export, Streamlit work, metadata processing, manifests, hashing, plotting, documentation, and Git operations whenever reasonable.
 
-GPU is an exception. For the current V4 pipeline, Phase 1 feature extraction is the main GPU justified stage because it runs Demucs and MERT over the collection. Do not keep a GPU active for downstream CPU work.
+GPU is an exception, and remote/paid GPU (Lightning, cloud) is never invoked automatically. For the current V4 pipeline, Phase 1 feature extraction is the only GPU justified stage because it runs Demucs and MERT over the collection, and it also has CPU fallbacks (`--essentia-only` for BPM/key, `--percussion hpss --device cpu`). Do not keep a GPU active for downstream CPU work. Do not start, switch, or resume a Lightning Studio machine, call the Lightning SDK/API, submit a Slurm job, or spend any cloud credits without Gabriel's explicit approval in the current conversation.
 
 Before any paid GPU use:
 
@@ -90,7 +90,7 @@ If a GPU failure can be reproduced on CPU, return to CPU for debugging. Do not u
 
 For nontrivial changes, inspect existing code before creating new scripts or parallel implementations. Extend or refactor the existing V4 path when practical.
 
-New or materially edited Python files should begin with a concise module docstring describing `PURPOSE` and `CHANGELOG`, matching the existing repository convention. Use `pathlib` for filesystem paths. Keep path resolution centralized and compatible with Lightning and local Windows export requirements.
+New or materially edited Python files should begin with a concise module docstring describing `PURPOSE` and `CHANGELOG`, matching the existing repository convention. Use `pathlib` for filesystem paths. Keep path resolution centralized and portable across local Windows, WSL/Linux, and any optional remote environment; do not hardcode machine-specific absolute paths in tracked code. Console output must stay portable: `src/v4/common/__init__.py` forces UTF-8 stdout/stderr so non-ASCII output does not crash on Windows cp1252 consoles.
 
 Update `docs/PROJECT_MAP.md` when adding or removing important files or changing repository architecture. Add durable operational lessons to `docs/LESSONS_LEARNED.md` only when they are genuinely reusable and not duplicates of existing entries.
 
