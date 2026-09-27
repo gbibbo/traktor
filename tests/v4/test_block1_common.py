@@ -110,7 +110,10 @@ def test_demucs_import():
     import src.v4.common.demucs_utils as du
 
     source = inspect.getsource(du)
-    assert "16000" not in source, "Found hardcoded 16000 in demucs_utils.py!"
+    # 2026-09-27: buscar el literal numérico en el código, no el texto (los docstrings dicen "NO 16000")
+    import ast
+    hardcoded = [n for n in ast.walk(ast.parse(source)) if isinstance(n, ast.Constant) and n.value == 16000]
+    assert not hardcoded, "Found hardcoded 16000 in demucs_utils.py!"
 
     assert hasattr(du, "load_demucs_model")
     assert hasattr(du, "separate_stems")

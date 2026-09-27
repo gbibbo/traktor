@@ -12,6 +12,7 @@ import subprocess
 import sys
 import os
 import tempfile
+from pathlib import Path
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, REPO_ROOT)
@@ -85,19 +86,30 @@ def test_phase0_runs():
 
 
 def test_merge_shards_dummy():
-    """phase1_merge_shards funciona con shards dummy (np.random)."""
+    """phase1_merge_shards funciona con shards dummy (np.random).
+
+    2026-09-27: corre sobre una COPIA del catálogo en un artifacts root temporal
+    (TRAKTOR_ARTIFACTS_ROOT); antes escribía embeddings aleatorios, bpm_key.parquet y columnas
+    del catálogo dentro de los artefactos reales de test_20.
+    """
+    import shutil
     import numpy as np
     import pandas as pd
-    from src.v4.common.catalog import build_catalog, load_catalog
+    from src.v4.common.catalog import load_catalog
     from src.v4.common.config_loader import load_config
-    from src.v4.common.path_resolver import resolve_dataset_artifacts, resolve_dataset_audio_root
+    from src.v4.common.path_resolver import resolve_dataset_artifacts
 
     config = load_config()
-    artifacts_dir = resolve_dataset_artifacts("test_20", config)
+    real_artifacts = resolve_dataset_artifacts("test_20", config)
 
     # Necesita catálogo existente
     catalog = load_catalog("test_20", config)
     uids = catalog["track_uid"].tolist()[:6]  # usar primeros 6 como dummy
+
+    tmp_root = tempfile.mkdtemp(prefix="traktor_merge_test_")
+    artifacts_dir = Path(tmp_root) / "test_20"
+    artifacts_dir.mkdir(parents=True)
+    shutil.copy(real_artifacts / "catalog.parquet", artifacts_dir / "catalog.parquet")
 
     shards_dir = artifacts_dir / "embeddings" / "shards"
     features_shards_dir = artifacts_dir / "features" / "shards"
@@ -126,6 +138,7 @@ def test_merge_shards_dummy():
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
+        env={**os.environ, "TRAKTOR_ARTIFACTS_ROOT": tmp_root},
     )
     if result.returncode != 0:
         raise AssertionError(f"Merge failed:\n{result.stdout}\n{result.stderr}")
@@ -147,16 +160,8 @@ def test_merge_shards_dummy():
         manifest = json.load(f)
     assert manifest["n_tracks_merged"] == 6
 
-    # Limpiar shards dummy
-    for shard_tag in ["shard_98", "shard_99"]:
-        for f in [
-            shards_dir / f"mert_perc_{shard_tag}.npy",
-            shards_dir / f"mert_full_{shard_tag}.npy",
-            shards_dir / f"track_uids_{shard_tag}.json",
-            features_shards_dir / f"bpm_key_{shard_tag}.parquet",
-        ]:
-            if f.exists():
-                f.unlink()
+    # Limpiar el artifacts root temporal (los artefactos reales de test_20 no se tocan)
+    shutil.rmtree(tmp_root, ignore_errors=True)
 
     print(f"  OK: merge_shards dummy test passed, shapes {perc.shape}, manifest OK")
 
