@@ -125,6 +125,12 @@ Se incluye en git (sin audio; ver `AGENTS.md`). Lectura de playlists de Spotify
 por loopback (`playlist_loopback_recorder.py`) y los reportes JSON/TXT de una prueba
 (`soulseek_prueba_descarga/`).
 
+`spotify_soulseek_orchestrator.py` es el punto de entrada único: recibe una URL,
+coordina el preflight y la descarga de Soulseek, espera el JSON/playlist de faltantes,
+sincroniza el inicio del grabador con Spotify y reúne los resultados bajo
+`download_JIJIJI/runs/` (git-ignorado). `download_JIJIJI/README.md` documenta la
+configuración inicial y el uso.
+
 ## Herramienta de feedback del DJ (`tools/dj_feedback/`)
 
 | Archivo | Descripción |

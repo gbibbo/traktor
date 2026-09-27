@@ -1,0 +1,6 @@
+requests
+mutagen
+spotipy
+python-dotenv
+numpy
+PyAudioWPatch

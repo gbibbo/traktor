@@ -216,7 +216,7 @@
         "duration_hms": "2:24"
       },
       "status": "available_quality_unknown",
-      "result_count": 150,
+      "result_count": 147,
       "quality_unknown": true,
       "top_candidates": [
         {
@@ -328,16 +328,16 @@
           "size_bytes": 31422689
         },
         {
-          "username": "miredswamp",
-          "upload_speed_mib_s": 2.6907616,
+          "username": "Bluestar",
+          "upload_speed_mib_s": 2.6023636,
           "has_free_upload_slot": true,
-          "filename": "EDM Klepto Blitz\\Dance & Electronic\\Beatport - New Top 100 Dance - Pop  [21 February 2025]\\Another World - Nico De Andrea Remix - Meduza,Hayla,Nico De Andrea 125.mp3",
-          "format": "mp3",
-          "length_s": 193,
-          "bitrate_kbps": 320,
-          "sample_rate": null,
-          "bit_depth": null,
-          "size_bytes": 8080609
+          "filename": "@@kkmkm\\Muziek_Singles_Flac\\2024\\Week 37\\MEDUZA - Another World.flac",
+          "format": "flac",
+          "length_s": 144,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 19252532
         }
       ],
       "error": null
@@ -520,9 +520,21 @@
         "duration_hms": "2:51"
       },
       "status": "available_quality_unknown",
-      "result_count": 10,
+      "result_count": 11,
       "quality_unknown": true,
       "top_candidates": [
+        {
+          "username": "ZAPhaviK",
+          "upload_speed_mib_s": 2.943533,
+          "has_free_upload_slot": true,
+          "filename": "Music\\SoulseekDownloads\\liked\\tmp\\Supermode,MEDUZA - Tell Me Why - MEDUZA Remix - www.djsoundtop.com.mp3",
+          "format": "mp3",
+          "length_s": 171,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 6884392
+        },
         {
           "username": "panik13",
           "upload_speed_mib_s": 2.1833382,
@@ -534,6 +546,18 @@
           "sample_rate": 44100,
           "bit_depth": 16,
           "size_bytes": 25322974
+        },
+        {
+          "username": "kbkoll911-za",
+          "upload_speed_mib_s": 0.7349558,
+          "has_free_upload_slot": true,
+          "filename": "Music\\Downloaded Music - Sorted Lexicon\\0000000000000\\Tell Me Why - MEDUZA Remix - Supermode, MEDUZA.mp3",
+          "format": "mp3",
+          "length_s": 171,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 7006134
         },
         {
           "username": "fraiklers33king",
@@ -584,18 +608,6 @@
           "size_bytes": 20971207
         },
         {
-          "username": "kbkoll911-za",
-          "upload_speed_mib_s": 0.7349558,
-          "has_free_upload_slot": false,
-          "filename": "Music\\Downloaded Music - Sorted Lexicon\\0000000000000\\Tell Me Why - MEDUZA Remix - Supermode, MEDUZA.mp3",
-          "format": "mp3",
-          "length_s": 171,
-          "bitrate_kbps": 320,
-          "sample_rate": null,
-          "bit_depth": null,
-          "size_bytes": 7006134
-        },
-        {
           "username": "musicmasterrdjpool",
           "upload_speed_mib_s": 0.00578022,
           "has_free_upload_slot": false,
@@ -624,18 +636,6 @@
           "upload_speed_mib_s": 0.5280733,
           "has_free_upload_slot": true,
           "filename": "@@bkxan\\Muzica\\Spotify\\Supermode\\[2022] Tell Me Why (MEDUZA Remix)\\Supermode - Tell Me Why (MEDUZA Remix) - Tell Me Why - MEDUZA Remix.mp3",
-          "format": "mp3",
-          "length_s": 171,
-          "bitrate_kbps": 320,
-          "sample_rate": null,
-          "bit_depth": null,
-          "size_bytes": 7366131
-        },
-        {
-          "username": "Bucifer6",
-          "upload_speed_mib_s": 0.5280733,
-          "has_free_upload_slot": true,
-          "filename": "@@pwmbf\\Muzica\\Spotify\\Supermode\\[2022] Tell Me Why (MEDUZA Remix)\\Supermode - Tell Me Why (MEDUZA Remix) - Tell Me Why - MEDUZA Remix.mp3",
           "format": "mp3",
           "length_s": 171,
           "bitrate_kbps": 320,
@@ -724,7 +724,7 @@
         "duration_hms": "8:08"
       },
       "status": "available_quality_unknown",
-      "result_count": 30,
+      "result_count": 46,
       "quality_unknown": true,
       "top_candidates": [
         {
@@ -812,40 +812,40 @@
           "size_bytes": 47355810
         },
         {
-          "username": "overgrow",
-          "upload_speed_mib_s": 0.4897108,
+          "username": "www.electronicfresh.com",
+          "upload_speed_mib_s": 0.81749344,
           "has_free_upload_slot": true,
-          "filename": "@@hxxal\\Torrent-Save5-House\\VA - Tale Of Us - Unity [Afterlife] FLAC\\Unity Pt 2-2021\\14-ARTBAT & Dino Lenny - Fading.flac",
-          "format": "flac",
+          "filename": "@@wiiox\\New Music 2020-2021-2022\\Beatport 2021 new\\Beatport Top 100 Melodic House & Techno Tracks (01-2021)\\Artbat, Dino Lenny - Fading - www.djsoundtop.com.mp3",
+          "format": "mp3",
           "length_s": 487,
-          "bitrate_kbps": null,
-          "sample_rate": 44100,
-          "bit_depth": 16,
-          "size_bytes": 47355810
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 20284377
         },
         {
-          "username": "sweet'n'slow",
-          "upload_speed_mib_s": 0.6041794,
+          "username": "various",
+          "upload_speed_mib_s": 0.9120388,
           "has_free_upload_slot": true,
-          "filename": "@@etiya\\Soulseek Downloads\\complete\\New Exclusive Music – 113 Tracks Сollection January 2023 (Djsoundtop.Com)\\ARTBAT, Dino Lenny - Fading.mp3",
+          "filename": "@@tgaay\\Downloads\\-= Various Artists =-\\VA-Beatport.Top.100.Global.05-March-2021\\065. Artbat - Fading.mp3",
+          "format": "mp3",
+          "length_s": 487,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 19594995
+        },
+        {
+          "username": "www.electronicfresh.com",
+          "upload_speed_mib_s": 0.81749344,
+          "has_free_upload_slot": true,
+          "filename": "@@gxpxu\\Music\\Music - www.electronicfresh.com\\Music - 2019\\ARTBAT @ Bondinho Pão de Açúcar for Cercle\\ARTBAT & Dino Lenny - Fading.mp3",
           "format": "mp3",
           "length_s": null,
           "bitrate_kbps": null,
           "sample_rate": null,
           "bit_depth": null,
-          "size_bytes": 20284678
-        },
-        {
-          "username": "ultrabell",
-          "upload_speed_mib_s": 0.79599476,
-          "has_free_upload_slot": false,
-          "filename": "@@vltco\\Music Torrents\\Unity Pt 2-2021\\14-ARTBAT & Dino Lenny - Fading.flac",
-          "format": "flac",
-          "length_s": 487,
-          "bitrate_kbps": null,
-          "sample_rate": 44100,
-          "bit_depth": 16,
-          "size_bytes": 47355810
+          "size_bytes": 14558109
         }
       ],
       "error": null
@@ -1044,9 +1044,9 @@
         "duration_seconds": 212.139,
         "duration_hms": "3:32"
       },
-      "status": "available",
-      "result_count": 36,
-      "quality_unknown": false,
+      "status": "available_quality_unknown",
+      "result_count": 40,
+      "quality_unknown": true,
       "top_candidates": [
         {
           "username": "Bluestar",
@@ -1071,18 +1071,6 @@
           "sample_rate": 44100,
           "bit_depth": 16,
           "size_bytes": 26257274
-        },
-        {
-          "username": "esoess",
-          "upload_speed_mib_s": 1.2150126,
-          "has_free_upload_slot": true,
-          "filename": "@@pywrl\\Music\\Unsorted\\KREAM - So Hï.mp3",
-          "format": "mp3",
-          "length_s": 212,
-          "bitrate_kbps": 320,
-          "sample_rate": null,
-          "bit_depth": null,
-          "size_bytes": 8544180
         },
         {
           "username": "SAMSA",
@@ -1134,7 +1122,7 @@
         },
         {
           "username": "xyz_soulseek",
-          "upload_speed_mib_s": 0.22056007,
+          "upload_speed_mib_s": 0.19286633,
           "has_free_upload_slot": true,
           "filename": "Music 1 (FLAC)\\KREAM\\So Hï\\01 - So Hï.flac",
           "format": "flac",
@@ -1167,6 +1155,18 @@
           "sample_rate": null,
           "bit_depth": null,
           "size_bytes": 8591884
+        },
+        {
+          "username": "esoess",
+          "upload_speed_mib_s": 1.2150126,
+          "has_free_upload_slot": false,
+          "filename": "@@pywrl\\Music\\Unsorted\\KREAM - So Hï.mp3",
+          "format": "mp3",
+          "length_s": 212,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 8544180
         }
       ],
       "error": null
@@ -1205,9 +1205,9 @@
         "duration_seconds": 209.523,
         "duration_hms": "3:30"
       },
-      "status": "available",
-      "result_count": 22,
-      "quality_unknown": false,
+      "status": "available_quality_unknown",
+      "result_count": 47,
+      "quality_unknown": true,
       "top_candidates": [
         {
           "username": "recovery8655",
@@ -1413,9 +1413,21 @@
         "duration_hms": "3:14"
       },
       "status": "available_quality_unknown",
-      "result_count": 219,
+      "result_count": 233,
       "quality_unknown": true,
       "top_candidates": [
+        {
+          "username": "mayamaya",
+          "upload_speed_mib_s": 18.837345,
+          "has_free_upload_slot": true,
+          "filename": "✦ music\\Skrillex\\Skrillex - Fine Day Anthem.flac",
+          "format": "flac",
+          "length_s": 193,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 22446156
+        },
         {
           "username": "ggrrmmll",
           "upload_speed_mib_s": 14.722992,
@@ -1427,18 +1439,6 @@
           "sample_rate": 48000,
           "bit_depth": 24,
           "size_bytes": 42216155
-        },
-        {
-          "username": "94lnt3r3xt3n5l0n",
-          "upload_speed_mib_s": 14.145998,
-          "has_free_upload_slot": true,
-          "filename": "music\\Skrillex\\01 - Fine Day Anthem.flac",
-          "format": "flac",
-          "length_s": 193,
-          "bitrate_kbps": null,
-          "sample_rate": 44100,
-          "bit_depth": 16,
-          "size_bytes": 22667510
         },
         {
           "username": "valosss",
@@ -1692,6 +1692,30 @@
           "size_bytes": 32401810
         },
         {
+          "username": "miredswamp",
+          "upload_speed_mib_s": 2.6907616,
+          "has_free_upload_slot": true,
+          "filename": "EDM Klepto Blitz\\~ Singles etc\\2025\\Release Week of 2025\\VA - New Music Releases Week 09 of 2025 (Mp3 320kbps Songs) [PMEDIA] ⭐️\\ARTBAT - Afterparty.mp3",
+          "format": "mp3",
+          "length_s": 301,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 12141955
+        },
+        {
+          "username": "miredswamp",
+          "upload_speed_mib_s": 2.6907616,
+          "has_free_upload_slot": true,
+          "filename": "EDM Klepto Blitz\\~ Singles etc\\EDM Singles - VA\\VA - EDM Singles (27.02.25)\\RUST\\ARTBAT - Afterparty.mp3",
+          "format": "mp3",
+          "length_s": 298,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 11986420
+        },
+        {
           "username": "Bluestar",
           "upload_speed_mib_s": 2.6023636,
           "has_free_upload_slot": true,
@@ -1762,30 +1786,6 @@
           "sample_rate": null,
           "bit_depth": null,
           "size_bytes": 12389204
-        },
-        {
-          "username": "r0b07",
-          "upload_speed_mib_s": 1.0004091,
-          "has_free_upload_slot": true,
-          "filename": "shared\\ARTBAT\\ARTBAT - 2025 - Afterparty\\01 - Afterparty.flac",
-          "format": "flac",
-          "length_s": 298,
-          "bitrate_kbps": null,
-          "sample_rate": 44100,
-          "bit_depth": 16,
-          "size_bytes": 32544268
-        },
-        {
-          "username": "Bucifer6",
-          "upload_speed_mib_s": 0.5280733,
-          "has_free_upload_slot": true,
-          "filename": "@@pwmbf\\Muzica\\Spotify\\Tracks\\ARTBAT\\[2025] Afterparty\\1. Afterparty.mp3",
-          "format": "mp3",
-          "length_s": 298,
-          "bitrate_kbps": 320,
-          "sample_rate": null,
-          "bit_depth": null,
-          "size_bytes": 12401284
         }
       ],
       "error": null
@@ -2092,7 +2092,7 @@
         "duration_hms": "3:00"
       },
       "status": "available_quality_unknown",
-      "result_count": 87,
+      "result_count": 86,
       "quality_unknown": true,
       "top_candidates": [
         {
@@ -2156,18 +2156,6 @@
           "size_bytes": 20771091
         },
         {
-          "username": "Snorth8554",
-          "upload_speed_mib_s": 0.7757225,
-          "has_free_upload_slot": true,
-          "filename": "@@dubqn\\2025 - New Music Releases (320)\\GENESI - Freak.mp3",
-          "format": "mp3",
-          "length_s": 180,
-          "bitrate_kbps": 320,
-          "sample_rate": null,
-          "bit_depth": null,
-          "size_bytes": 7423289
-        },
-        {
           "username": "kbkoll911-za",
           "upload_speed_mib_s": 0.7349558,
           "has_free_upload_slot": true,
@@ -2214,6 +2202,18 @@
           "sample_rate": null,
           "bit_depth": null,
           "size_bytes": 7423289
+        },
+        {
+          "username": "miredswamp",
+          "upload_speed_mib_s": 2.6907616,
+          "has_free_upload_slot": false,
+          "filename": "EDM Klepto Blitz\\~ Singles etc\\EDM Singles - VA\\VA - EDM Bangers - 2025-03-01\\50 - Genesi & Meduza feat. Aya Anne -  Freak.flac",
+          "format": "flac",
+          "length_s": 180,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 20716507
         }
       ],
       "error": null

@@ -3,6 +3,11 @@
 spotify_soulseek_download.py
 ============================
 
+PURPOSE: Reconcile a Spotify playlist against Soulseek and download matches.
+
+CHANGELOG:
+- 2026-09-27: Add an optional pre-download gate for external orchestration.
+
 Primero verifica en Soulseek la disponibilidad de TODA una playlist de Spotify
 en un único batch Sockseek,
 genera una lista y una playlist Spotify privada con los faltantes, y sólo entonces
@@ -53,6 +58,13 @@ from dataclasses import asdict, dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
+
+
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        pass
 
 try:
     import mutagen
@@ -1567,6 +1579,22 @@ def write_report(path: Path, payload: dict[str, Any]) -> None:
     )
 
 
+def wait_for_download_gate(path: Path, timeout: float) -> bool:
+    """Wait until an orchestrator releases downloads by creating ``path``."""
+    print(f"\nDescarga en espera de la señal del orquestador: {path}")
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if path.is_file():
+            print("Señal recibida. Comenzando las descargas de Soulseek.")
+            return True
+        time.sleep(0.25)
+    print(
+        f"Timeout esperando la señal para iniciar descargas: {path}",
+        file=sys.stderr,
+    )
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -1679,6 +1707,20 @@ def main() -> int:
         "--allow-missing-cover",
         action="store_true",
         help="No fallar si Spotify no entrega/descarga el cover",
+    )
+    ap.add_argument(
+        "--download-gate",
+        default=None,
+        help=(
+            "Esperar a que exista este archivo después del preflight y antes "
+            "de comenzar las descargas"
+        ),
+    )
+    ap.add_argument(
+        "--download-gate-timeout",
+        type=float,
+        default=900.0,
+        help="Timeout de --download-gate en segundos (default 900)",
     )
     args = ap.parse_args()
 
@@ -1892,6 +1934,11 @@ def main() -> int:
             "\nHay consultas de disponibilidad con ERROR. No las trato como MISSING. "
             "La descarga continuará sólo con los temas confirmados como disponibles."
         )
+
+    if args.download_gate:
+        download_gate = Path(args.download_gate).expanduser().resolve()
+        if not wait_for_download_gate(download_gate, args.download_gate_timeout):
+            return 5
 
     if not shutil.which("ffmpeg"):
         print("ffmpeg no está en el PATH", file=sys.stderr)

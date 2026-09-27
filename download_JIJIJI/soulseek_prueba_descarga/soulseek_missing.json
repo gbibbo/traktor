@@ -3,7 +3,11 @@
     "name": "Viajeros",
     "source": "https://open.spotify.com/playlist/0ULQLa8MxdMEH8NjTUMDXG?si=eb5f4cadf5c74909"
   },
-  "generated_missing_playlist": null,
+  "generated_missing_playlist": {
+    "id": "31xPzrgElxRxrMErJ1WBhD",
+    "name": "No disponibles en Soulseek - Viajeros - 2026-09-27 0347",
+    "url": "https://open.spotify.com/playlist/31xPzrgElxRxrMErJ1WBhD"
+  },
   "missing_count": 4,
   "order": "source_playlist_order",
   "tracks": [

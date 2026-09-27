@@ -1,6 +1,14 @@
+"""
+PURPOSE: Open a Spotify playlist in the Windows desktop client and start playback.
+
+CHANGELOG:
+- 2026-09-27: Add ``--start-only`` for non-blocking orchestration.
+"""
+
 import argparse
 import os
 import re
+import sys
 import time
 
 import spotipy
@@ -8,6 +16,13 @@ from spotipy.oauth2 import SpotifyOAuth
 
 from dotenv import load_dotenv
 load_dotenv()
+
+
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        pass
 
 
 SCOPES = " ".join([
@@ -99,12 +114,17 @@ def monitor_tracks(sp):
         time.sleep(0.2)
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
         "playlist_url",
         help="Spotify playlist URL"
+    )
+    parser.add_argument(
+        "--start-only",
+        action="store_true",
+        help="Start playback and exit instead of monitoring track changes",
     )
 
     args = parser.parse_args()
@@ -161,10 +181,14 @@ def main():
         position_ms=0,
     )
 
-    print("Playback started.")
+    print("Playback started.", flush=True)
+
+    if args.start_only:
+        return 0
 
     monitor_tracks(sp)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

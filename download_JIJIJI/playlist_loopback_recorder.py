@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """
-Record the Windows default output through WASAPI loopback, detect playlist
-track boundaries using JSON durations plus silence around each expected
-boundary, and export each track as stereo MP3 CBR 320 kbps with ID3 metadata.
+PURPOSE: Record a Spotify playlist through Windows WASAPI loopback and split it.
+
+CHANGELOG:
+- 2026-09-27: Add an optional ready-file handshake for process orchestration.
+
+Detect playlist track boundaries using JSON durations plus silence around each
+expected boundary, and export each track as stereo MP3 CBR 320 kbps with ID3
+metadata.
 
 Usage:
     python playlist_loopback_recorder.py playlist.json
@@ -29,6 +34,13 @@ from collections import deque
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
+
+
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        pass
 
 import numpy as np
 import pyaudiowpatch as pyaudio
@@ -494,6 +506,15 @@ def main() -> int:
         action="store_true",
         help="Keep the temporary full-session WAV after successful export",
     )
+    parser.add_argument(
+        "--ready-file",
+        type=Path,
+        default=None,
+        help=(
+            "Write a JSON readiness signal after the loopback stream is open; "
+            "used by the workflow orchestrator"
+        ),
+    )
     args = parser.parse_args()
 
     if args.search_before <= 0 or args.search_after <= 0:
@@ -560,8 +581,27 @@ def main() -> int:
         print(f"Tracks   : {len(tracks)}")
         print(f"Output   : {args.output_dir.resolve()}")
         print()
-        print("Waiting for the first track to start...")
-        print("Start playlist playback now. Keep other system sounds off while recording.")
+        if args.ready_file is not None:
+            ready_file = args.ready_file.expanduser().resolve()
+            ready_file.parent.mkdir(parents=True, exist_ok=True)
+            ready_file.write_text(
+                json.dumps(
+                    {
+                        "status": "ready",
+                        "device": str(device["name"]),
+                        "sample_rate": rate,
+                        "tracks": len(tracks),
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+        print("Waiting for the first track to start...", flush=True)
+        print(
+            "Start playlist playback now. Keep other system sounds off while recording.",
+            flush=True,
+        )
 
         start_confirm_blocks = 0
         blocks_needed = max(1, math.ceil((START_CONFIRM_MS / 1000.0) * rate / CHUNK))
