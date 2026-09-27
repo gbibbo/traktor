@@ -385,11 +385,13 @@ $("#helpBtn").onclick = () => { const h = $("#help"); h.hidden = !h.hidden; $("#
 // ---------- init ----------
 const orgSel = $("#orgSel");
 DATA.orgs.forEach((o, i) => orgSel.append(el("option", { value: String(i), text: o.label })));
-orgSel.onchange = () => { org = DATA.orgs[+orgSel.value]; folder = null; playlist = null; stopSeq(); renderSide(); renderPlaylist(); drawMap(); };
-if (DATA.orgs.length < 2) orgSel.disabled = true;
-(() => { // arrancar con la primera playlist sugerida
+function selectFirstSuggested() {
+  folder = null; playlist = null;
   for (const f of org.folders) { const pl = f.playlists.find(p => p.suggested); if (pl) { folder = f; playlist = pl; return; } }
-})();
+}
+orgSel.onchange = () => { org = DATA.orgs[+orgSel.value]; selectFirstSuggested(); stopSeq(); renderSide(); renderPlaylist(); drawMap(); };
+if (DATA.orgs.length < 2) orgSel.disabled = true;
+selectFirstSuggested(); // arrancar con la primera playlist sugerida
 renderSide(); renderPlaylist(); drawMap();
 if (firstVisit) { $("#help").hidden = false; $("#helpBtn").setAttribute("aria-expanded", "true"); }
 // sondear que el audio esté accesible desde esta carpeta
