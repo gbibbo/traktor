@@ -272,7 +272,13 @@ def main() -> int:
     cols = ["group", "representation", "n", "accuracy", "ci_low", "ci_high", "ties", "majority_class",
             "vs_bpm_diff", "vs_bpm_ci_low", "vs_bpm_ci_high", "vs_bpm_p_gain"]
     cols = [c for c in cols if c in table.columns]
-    print(table[cols].to_string(index=False, float_format=lambda v: f"{v:.3f}"))
+    shown = table
+    if "n" in table.columns:
+        shown = table[table["n"] > 0]
+        skipped = sorted(set(table.loc[table["n"] == 0, "representation"]))
+        if skipped:
+            print(f"[WARN] Sin tripletas evaluables (¿extracción incompleta?): {skipped}")
+    print(shown[cols].to_string(index=False, float_format=lambda v: f"{v:.3f}"))
     print(f"\n[RESULT] Coherencia contra {len(v1)} temas en carpetas de v1 (k={KNN_K})")
     print(pd.DataFrame(coherence).T.to_string(float_format=lambda v: f"{v:.3f}"))
 
