@@ -3,13 +3,17 @@ PURPOSE: Open a Spotify playlist in the Windows desktop client and start playbac
 
 CHANGELOG:
 - 2026-09-27: Add ``--start-only`` for non-blocking orchestration.
+- 2026-09-27: Add a zero-based playlist offset for resumable recording.
+- 2026-09-27: Add a playback watchdog handshake for resumable capture.
 """
 
 import argparse
+import json
 import os
 import re
 import sys
 import time
+from pathlib import Path
 
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
@@ -114,6 +118,67 @@ def monitor_tracks(sp):
         time.sleep(0.2)
 
 
+def write_status(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    temporary.replace(path)
+
+
+def monitor_playback_health(sp, status_file: Path, grace_seconds: float) -> int:
+    """Return 75 if Spotify remains paused away from a natural track ending."""
+    stopped_since: float | None = None
+    while True:
+        state = sp.current_playback()
+        now = time.monotonic()
+        if state and state.get("is_playing"):
+            stopped_since = None
+            time.sleep(0.4)
+            continue
+
+        if stopped_since is None:
+            stopped_since = now
+        if now - stopped_since < grace_seconds:
+            time.sleep(0.2)
+            continue
+
+        item = (state or {}).get("item") or {}
+        duration_ms = int(item.get("duration_ms") or 0)
+        progress_ms = int((state or {}).get("progress_ms") or 0)
+        remaining_ms = duration_ms - progress_ms if duration_ms else None
+        if remaining_ms is not None and remaining_ms <= 1000:
+            write_status(
+                status_file,
+                {
+                    "status": "natural_end",
+                    "track_id": item.get("id"),
+                    "progress_ms": progress_ms,
+                    "duration_ms": duration_ms,
+                },
+            )
+            return 0
+
+        write_status(
+            status_file,
+            {
+                "status": "stalled",
+                "track_id": item.get("id"),
+                "track_name": item.get("name"),
+                "progress_ms": progress_ms,
+                "duration_ms": duration_ms,
+            },
+        )
+        print(
+            "Spotify playback stopped before the current track completed.",
+            file=sys.stderr,
+            flush=True,
+        )
+        return 75
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
 
@@ -126,8 +191,36 @@ def main() -> int:
         action="store_true",
         help="Start playback and exit instead of monitoring track changes",
     )
+    parser.add_argument(
+        "--offset-position",
+        type=int,
+        default=0,
+        help="Zero-based playlist position at which playback should start",
+    )
+    parser.add_argument(
+        "--ready-file",
+        type=Path,
+        default=None,
+        help="Write a readiness signal immediately after playback starts",
+    )
+    parser.add_argument(
+        "--watchdog-file",
+        type=Path,
+        default=None,
+        help="Write playback health status and keep monitoring until completion",
+    )
+    parser.add_argument(
+        "--watchdog-grace",
+        type=float,
+        default=1.5,
+        help="Seconds Spotify may remain paused before it is considered stalled",
+    )
 
     args = parser.parse_args()
+    if args.offset_position < 0:
+        parser.error("--offset-position must be >= 0")
+    if args.watchdog_grace <= 0:
+        parser.error("--watchdog-grace must be > 0")
 
     playlist_uri = playlist_url_to_uri(args.playlist_url)
 
@@ -177,11 +270,28 @@ def main() -> int:
     sp.start_playback(
         device_id=device_id,
         context_uri=playlist_uri,
-        offset={"position": 0},
+        offset={"position": args.offset_position},
         position_ms=0,
     )
 
-    print("Playback started.", flush=True)
+    print(f"Playback started at playlist position {args.offset_position}.", flush=True)
+
+    if args.ready_file is not None:
+        write_status(
+            args.ready_file.expanduser().resolve(),
+            {
+                "status": "ready",
+                "offset_position": args.offset_position,
+                "device_id": device_id,
+            },
+        )
+
+    if args.watchdog_file is not None:
+        return monitor_playback_health(
+            sp,
+            args.watchdog_file.expanduser().resolve(),
+            args.watchdog_grace,
+        )
 
     if args.start_only:
         return 0

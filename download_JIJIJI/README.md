@@ -16,6 +16,27 @@ El orquestador:
 5. cuando el grabador confirma que está listo, inicia esa playlist en Spotify;
 6. libera la descarga de Soulseek y espera a que terminen ambas ramas.
 
+## Reanudación después de una interrupción
+
+El grabador codifica y registra cada MP3 apenas termina el tema, sin esperar al
+final de toda la playlist. El estado durable queda en
+`recorded_missing/recording_progress.json`.
+
+Un watchdog consulta el estado real de Spotify y detecta una pausa sostenida;
+como respaldo, el loopback también detecta 10 segundos de silencio digital. En
+ese caso el tema actual se considera incompleto y el proceso termina con un
+mensaje de sesión reanudable.
+Al ejecutar nuevamente exactamente el mismo comando, el orquestador:
+
+1. encuentra la sesión incompleta más reciente para esa playlist fuente;
+2. valida los MP3 ya terminados y no los sobrescribe;
+3. abre la playlist de faltantes anterior;
+4. inicia Spotify desde la primera pista pendiente y desde el segundo cero.
+
+El fragmento del tema interrumpido no se reutiliza: solo se conservan temas
+completos. Para ignorar deliberadamente un checkpoint anterior y crear otra
+sesión puede usarse `--fresh`.
+
 Cada ejecución queda aislada en `download_JIJIJI/runs/<fecha>_<playlist-id>/`,
 con los MP3, JSON de auditoría y reporte final. Puede cambiarse la raíz mediante
 `SPOTIFY_DOWNLOAD_ROOT`.

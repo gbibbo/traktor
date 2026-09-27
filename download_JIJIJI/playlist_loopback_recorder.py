@@ -4,6 +4,7 @@ PURPOSE: Record a Spotify playlist through Windows WASAPI loopback and split it.
 
 CHANGELOG:
 - 2026-09-27: Add an optional ready-file handshake for process orchestration.
+- 2026-09-27: Checkpoint every completed MP3 and resume at the first pending track.
 
 Detect playlist track boundaries using JSON durations plus silence around each
 expected boundary, and export each track as stereo MP3 CBR 320 kbps with ID3
@@ -21,6 +22,7 @@ Requirements:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -31,7 +33,9 @@ import sys
 import tempfile
 import wave
 from collections import deque
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import asdict, dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -65,6 +69,11 @@ START_HISTORY_SEC = 1.0
 START_CONFIRM_MS = 60.0
 START_THRESHOLD_DBFS = -72.0
 START_ONSET_THRESHOLD_DBFS = -82.0
+STALL_THRESHOLD_DBFS = -90.0
+DEFAULT_STALL_TIMEOUT = 10.0
+DEFAULT_START_TIMEOUT = 180.0
+STALL_EXIT_CODE = 75
+PROGRESS_FILENAME = "recording_progress.json"
 
 
 @dataclass
@@ -78,6 +87,10 @@ class BoundaryResult:
     silence_start_sec: float | None = None
     silence_end_sec: float | None = None
     level_dbfs: float | None = None
+
+
+class PlaybackStalled(RuntimeError):
+    """Spotify stopped producing audio before the current track completed."""
 
 
 class RollingAudio:
@@ -462,6 +475,179 @@ def load_manifest(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     return manifest, tracks
 
 
+def track_identity(track: dict[str, Any]) -> str:
+    spotify = track.get("spotify") or {}
+    spotify_id = spotify.get("spotify_id") or spotify.get("id")
+    if spotify_id:
+        return str(spotify_id)
+    uri = spotify.get("uri")
+    if uri:
+        return str(uri)
+    return json.dumps(
+        {
+            "playlist_position": track.get("playlist_position"),
+            "title": spotify.get("title"),
+            "artists": spotify.get("artists"),
+            "duration_ms": track.get("duration_ms"),
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+
+
+def manifest_signature(tracks: list[dict[str, Any]]) -> str:
+    payload = [
+        {
+            "identity": track_identity(track),
+            "duration_seconds": duration_seconds(track),
+        }
+        for track in tracks
+    ]
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False),
+        encoding="utf-8",
+    )
+    temporary.replace(path)
+
+
+def playback_watchdog_stalled(path: Path | None) -> bool:
+    if path is None or not path.is_file():
+        return False
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return isinstance(payload, dict) and payload.get("status") == "stalled"
+
+
+def new_progress(
+    json_file: Path,
+    tracks: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "version": 1,
+        "source_json": str(json_file.resolve()),
+        "manifest_signature": manifest_signature(tracks),
+        "total_tracks": len(tracks),
+        "completed_count": 0,
+        "completed_track_ids": [],
+        "status": "recording",
+        "attempt": 1,
+        "tracks": [],
+    }
+
+
+def load_resume_progress(
+    path: Path,
+    json_file: Path,
+    tracks: list[dict[str, Any]],
+) -> dict[str, Any]:
+    expected_signature = manifest_signature(tracks)
+    if not path.is_file():
+        return new_progress(json_file, tracks)
+
+    try:
+        progress = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"No se pudo leer el checkpoint de grabación: {path}") from exc
+
+    if not isinstance(progress, dict):
+        raise RuntimeError(f"Checkpoint de grabación inválido: {path}")
+    if progress.get("manifest_signature") != expected_signature:
+        raise RuntimeError(
+            "El JSON de faltantes cambió desde la grabación anterior; "
+            "usa otro directorio de salida o elimina el checkpoint para empezar de cero."
+        )
+    if progress.get("total_tracks") != len(tracks):
+        raise RuntimeError("El total de pistas no coincide con el checkpoint existente.")
+
+    completed = progress.get("completed_count")
+    rows = progress.get("tracks")
+    identities = progress.get("completed_track_ids")
+    if not isinstance(completed, int) or not 0 <= completed <= len(tracks):
+        raise RuntimeError("completed_count inválido en el checkpoint de grabación.")
+    if not isinstance(rows, list) or not isinstance(identities, list):
+        raise RuntimeError("Listas inválidas en el checkpoint de grabación.")
+    if len(rows) != completed or len(identities) != completed:
+        raise RuntimeError("Checkpoint inconsistente: cantidad de pistas completadas.")
+
+    expected_ids = [track_identity(track) for track in tracks[:completed]]
+    if identities != expected_ids:
+        raise RuntimeError("Checkpoint inconsistente: cambió el orden de las pistas.")
+    for row in rows:
+        output = Path(str(row.get("output") or ""))
+        if not output.is_file() or output.stat().st_size <= 0:
+            raise RuntimeError(
+                f"Falta un MP3 marcado como completado en el checkpoint: {output}"
+            )
+
+    progress["attempt"] = int(progress.get("attempt") or 1) + 1
+    progress["status"] = "recording"
+    return progress
+
+
+def flush_wave_for_reader(wav_file: wave.Wave_write) -> None:
+    """Patch and flush the WAV header so ffmpeg can read a completed prefix."""
+    wav_file.writeframes(b"")
+    underlying = getattr(wav_file, "_file", None)
+    if underlying is not None and hasattr(underlying, "flush"):
+        underlying.flush()
+
+
+def encode_and_checkpoint(
+    *,
+    ffmpeg: str,
+    temp_wav: Path,
+    output_path: Path,
+    start_sec: float,
+    end_sec: float,
+    track: dict[str, Any],
+    manifest: dict[str, Any],
+    global_index: int,
+    total_tracks: int,
+    boundary: BoundaryResult,
+    progress: dict[str, Any],
+    progress_path: Path,
+) -> None:
+    encode_segment(ffmpeg, temp_wav, output_path, start_sec, end_sec)
+    write_metadata(output_path, track, manifest)
+
+    declared = duration_seconds(track)
+    progress["tracks"].append(
+        {
+            "index": global_index + 1,
+            "playlist_position": track.get("playlist_position"),
+            "start_sec": start_sec,
+            "end_sec": end_sec,
+            "segment_duration_sec": end_sec - start_sec,
+            "declared_duration_sec": declared,
+            "duration_difference_sec": (end_sec - start_sec) - declared,
+            "output": str(output_path),
+            "attempt": progress["attempt"],
+            "boundary": asdict(boundary),
+        }
+    )
+    progress["completed_count"] = global_index + 1
+    progress["completed_track_ids"].append(track_identity(track))
+    progress["status"] = "recording"
+    write_json_atomic(progress_path, progress)
+    print(
+        f"[{global_index + 1:03d}/{total_tracks:03d}] Guardado: {output_path.name}",
+        flush=True,
+    )
+
+
 def make_output_filename(track: dict[str, Any], fallback_index: int) -> str:
     spotify = track.get("spotify") or {}
     title = str(spotify.get("title") or f"Track {fallback_index}")
@@ -515,15 +701,63 @@ def main() -> int:
             "used by the workflow orchestrator"
         ),
     )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume from recording_progress.json and keep completed MP3 files",
+    )
+    parser.add_argument(
+        "--stall-timeout",
+        type=float,
+        default=DEFAULT_STALL_TIMEOUT,
+        help=(
+            "Seconds of near-digital silence that indicate stopped playback "
+            f"(default {DEFAULT_STALL_TIMEOUT:g})"
+        ),
+    )
+    parser.add_argument(
+        "--start-timeout",
+        type=float,
+        default=DEFAULT_START_TIMEOUT,
+        help=(
+            "Seconds to wait for the first pending track to start "
+            f"(default {DEFAULT_START_TIMEOUT:g})"
+        ),
+    )
+    parser.add_argument(
+        "--watchdog-file",
+        type=Path,
+        default=None,
+        help="Stop the current track cleanly when Spotify writes a stalled status",
+    )
     args = parser.parse_args()
 
     if args.search_before <= 0 or args.search_after <= 0:
         parser.error("--search-before and --search-after must be > 0")
+    if args.stall_timeout <= 0 or args.start_timeout <= 0:
+        parser.error("--stall-timeout and --start-timeout must be > 0")
 
     manifest, tracks = load_manifest(args.json_file)
     ffmpeg = check_ffmpeg()
 
+    args.output_dir = args.output_dir.expanduser().resolve()
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    progress_path = args.output_dir / PROGRESS_FILENAME
+    if progress_path.exists() and not args.resume:
+        raise RuntimeError(
+            f"Ya existe {progress_path}. Usa --resume para conservar lo completado."
+        )
+    progress = load_resume_progress(progress_path, args.json_file, tracks)
+    completed_before = int(progress["completed_count"])
+    total_tracks = len(tracks)
+
+    if completed_before >= total_tracks:
+        progress["status"] = "completed"
+        write_json_atomic(progress_path, progress)
+        print(f"Todas las pistas ya estaban grabadas: {completed_before}/{total_tracks}")
+        return 0
+
+    write_json_atomic(progress_path, progress)
 
     fd, temp_name = tempfile.mkstemp(
         prefix="playlist_capture_", suffix=".wav", dir=str(args.output_dir)
@@ -534,13 +768,19 @@ def main() -> int:
     boundaries: list[BoundaryResult] = []
     playlist_start: float | None = None
     current_track_start: float | None = None
-    next_track_index = 0
+    next_track_index = completed_before
     expected_boundary: float | None = None
     capture_finished = False
+    silent_frames = 0
 
     p: pyaudio.PyAudio | None = None
     stream = None
     wav_file = None
+    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="mp3-checkpoint")
+    futures: list[Future[None]] = []
+    exit_code = 0
+    capture_error: BaseException | None = None
+    stopped_reason: str | None = None
 
     try:
         p = pyaudio.PyAudio()
@@ -578,7 +818,9 @@ def main() -> int:
 
         print(f"Loopback : {device['name']}")
         print(f"Format   : {rate} Hz, stereo, PCM 16 bit")
-        print(f"Tracks   : {len(tracks)}")
+        print(f"Tracks   : {total_tracks}")
+        print(f"Completed: {completed_before}")
+        print(f"Pending  : {total_tracks - completed_before}")
         print(f"Output   : {args.output_dir.resolve()}")
         print()
         if args.ready_file is not None:
@@ -590,7 +832,10 @@ def main() -> int:
                         "status": "ready",
                         "device": str(device["name"]),
                         "sample_rate": rate,
-                        "tracks": len(tracks),
+                        "tracks": total_tracks,
+                        "completed_count": completed_before,
+                        "start_position": completed_before,
+                        "remaining_tracks": total_tracks - completed_before,
                     },
                     ensure_ascii=False,
                     indent=2,
@@ -607,6 +852,12 @@ def main() -> int:
         blocks_needed = max(1, math.ceil((START_CONFIRM_MS / 1000.0) * rate / CHUNK))
 
         while not capture_finished:
+            if playback_watchdog_stalled(args.watchdog_file):
+                raise PlaybackStalled("El watchdog confirmó que Spotify se detuvo.")
+            for future in futures:
+                if future.done():
+                    future.result()
+
             raw = stream.read(CHUNK, exception_on_overflow=False)
             wav_file.writeframesraw(raw)
 
@@ -618,6 +869,10 @@ def main() -> int:
             now_sec = rolling.total_frames / rate
 
             if playlist_start is None:
+                if now_sec >= args.start_timeout:
+                    raise PlaybackStalled(
+                        "Spotify no inició la primera pista pendiente dentro del timeout."
+                    )
                 if block_dbfs(arr) >= START_THRESHOLD_DBFS:
                     start_confirm_blocks += 1
                 else:
@@ -634,18 +889,30 @@ def main() -> int:
 
                     playlist_start = onset
                     current_track_start = onset
-                    next_track_index = 0
-                    expected_boundary = current_track_start + duration_seconds(tracks[0])
+                    expected_boundary = current_track_start + duration_seconds(
+                        tracks[next_track_index]
+                    )
 
-                    spotify = tracks[0].get("spotify") or {}
-                    title = spotify.get("title") or "Track 1"
+                    spotify = tracks[next_track_index].get("spotify") or {}
+                    title = spotify.get("title") or f"Track {next_track_index + 1}"
                     print(f"\nStarted   : {playlist_start:.3f} s")
-                    print(f"Track 1   : {title}")
+                    print(f"Track {next_track_index + 1}: {title}")
                     print(f"Expected end: {expected_boundary:.3f} s")
                 continue
 
             assert current_track_start is not None
             assert expected_boundary is not None
+
+            if block_dbfs(arr) <= STALL_THRESHOLD_DBFS:
+                silent_frames += len(arr)
+            else:
+                silent_frames = 0
+            if silent_frames / rate >= args.stall_timeout:
+                spotify = tracks[next_track_index].get("spotify") or {}
+                title = spotify.get("title") or f"Track {next_track_index + 1}"
+                raise PlaybackStalled(
+                    f"Spotify dejó de producir audio durante «{title}»."
+                )
 
             if now_sec < expected_boundary + args.search_after:
                 continue
@@ -674,88 +941,49 @@ def main() -> int:
                 f"delta={result.correction_sec:+.3f} s  {result.method}  {title}"
             )
 
+            flush_wave_for_reader(wav_file)
+            filename = make_output_filename(track, next_track_index + 1)
+            output_path = args.output_dir / filename
+            futures.append(
+                executor.submit(
+                    encode_and_checkpoint,
+                    ffmpeg=ffmpeg,
+                    temp_wav=temp_wav,
+                    output_path=output_path,
+                    start_sec=current_track_start,
+                    end_sec=result.detected_sec,
+                    track=track,
+                    manifest=manifest,
+                    global_index=next_track_index,
+                    total_tracks=total_tracks,
+                    boundary=result,
+                    progress=progress,
+                    progress_path=progress_path,
+                )
+            )
+
             next_track_index += 1
-            if next_track_index >= len(tracks):
+            if next_track_index >= total_tracks:
                 capture_finished = True
                 break
 
             current_track_start = result.detected_sec
             expected_boundary = current_track_start + duration_seconds(tracks[next_track_index])
+            silent_frames = 0
 
             spotify_next = tracks[next_track_index].get("spotify") or {}
             next_title = spotify_next.get("title") or f"Track {next_track_index + 1}"
             print(f"Track {next_track_index + 1}: {next_title}")
             print(f"Expected end: {expected_boundary:.3f} s")
 
-        stream.stop_stream()
-        stream.close()
-        stream = None
-
-        wav_file.close()
-        wav_file = None
-
-        if playlist_start is None or len(boundaries) != len(tracks):
-            raise RuntimeError("Capture ended before all track boundaries were determined.")
-
-        print("\nCapture complete. Encoding MP3 files...")
-
-        starts = [playlist_start] + [b.detected_sec for b in boundaries[:-1]]
-        ends = [b.detected_sec for b in boundaries]
-
-        report_tracks: list[dict[str, Any]] = []
-        created_files: list[Path] = []
-
-        for i, (track, start_sec, end_sec) in enumerate(zip(tracks, starts, ends), start=1):
-            filename = make_output_filename(track, i)
-            output_path = args.output_dir / filename
-
-            encode_segment(ffmpeg, temp_wav, output_path, start_sec, end_sec)
-            write_metadata(output_path, track, manifest)
-            created_files.append(output_path)
-
-            declared = duration_seconds(track)
-            report_tracks.append(
-                {
-                    "index": i,
-                    "playlist_position": track.get("playlist_position"),
-                    "start_sec": start_sec,
-                    "end_sec": end_sec,
-                    "segment_duration_sec": end_sec - start_sec,
-                    "declared_duration_sec": declared,
-                    "duration_difference_sec": (end_sec - start_sec) - declared,
-                    "output": str(output_path),
-                }
-            )
-            print(f"[{i:03d}/{len(tracks):03d}] {filename}")
-
-        report = {
-            "source_json": str(args.json_file),
-            "sample_rate": rate,
-            "channels": CHANNELS,
-            "playlist_start_sec": playlist_start,
-            "search_before_sec": args.search_before,
-            "search_after_sec": args.search_after,
-            "boundaries": [asdict(b) for b in boundaries],
-            "tracks": report_tracks,
-        }
-
-        report_path = args.output_dir / "segmentation_report.json"
-        with report_path.open("w", encoding="utf-8") as f:
-            json.dump(report, f, ensure_ascii=False, indent=2, allow_nan=False)
-
-        if not args.keep_wav:
-            temp_wav.unlink(missing_ok=True)
-        else:
-            print(f"Temporary WAV kept: {temp_wav}")
-
-        print(f"\nDone. {len(created_files)} MP3 files written.")
-        print(f"Report: {report_path}")
-        return 0
-
     except KeyboardInterrupt:
-        print("\nInterrupted by user.", file=sys.stderr)
-        print(f"Partial capture kept at: {temp_wav}", file=sys.stderr)
-        return 130
+        exit_code = 130
+        stopped_reason = "Interrumpido por el usuario."
+    except PlaybackStalled as exc:
+        exit_code = STALL_EXIT_CODE
+        stopped_reason = str(exc)
+    except BaseException as exc:
+        capture_error = exc
 
     finally:
         if stream is not None:
@@ -779,6 +1007,68 @@ def main() -> int:
                 p.terminate()
             except Exception:
                 pass
+
+        executor.shutdown(wait=True)
+        if capture_error is None:
+            try:
+                for future in futures:
+                    future.result()
+            except BaseException as exc:
+                capture_error = exc
+
+    if capture_error is not None:
+        progress["status"] = "failed"
+        progress["last_error"] = str(capture_error)
+        progress["last_partial_capture"] = str(temp_wav)
+        write_json_atomic(progress_path, progress)
+        raise capture_error
+
+    if exit_code:
+        progress["status"] = "stalled" if exit_code == STALL_EXIT_CODE else "interrupted"
+        progress["last_error"] = stopped_reason
+        progress["last_partial_capture"] = str(temp_wav)
+        write_json_atomic(progress_path, progress)
+        print(f"\n{stopped_reason}", file=sys.stderr)
+        print(
+            f"Conservadas: {progress['completed_count']}/{total_tracks} pistas completas.",
+            file=sys.stderr,
+        )
+        print(
+            "Relanza el orquestador: Spotify comenzará en la primera pista pendiente.",
+            file=sys.stderr,
+        )
+        print(f"Captura parcial conservada: {temp_wav}", file=sys.stderr)
+        return exit_code
+
+    if playlist_start is None or int(progress["completed_count"]) != total_tracks:
+        raise RuntimeError("La captura terminó sin completar todos los checkpoints.")
+
+    progress["status"] = "completed"
+    progress["completed_at"] = datetime.now().isoformat(timespec="seconds")
+    progress.pop("last_error", None)
+    write_json_atomic(progress_path, progress)
+
+    report = {
+        "source_json": str(args.json_file),
+        "sample_rate": rate,
+        "channels": CHANNELS,
+        "search_before_sec": args.search_before,
+        "search_after_sec": args.search_after,
+        "attempts": progress["attempt"],
+        "completed_count": progress["completed_count"],
+        "tracks": progress["tracks"],
+    }
+    report_path = args.output_dir / "segmentation_report.json"
+    write_json_atomic(report_path, report)
+
+    if not args.keep_wav:
+        temp_wav.unlink(missing_ok=True)
+    else:
+        print(f"Temporary WAV kept: {temp_wav}")
+
+    print(f"\nDone. {progress['completed_count']} MP3 files available.")
+    print(f"Report: {report_path}")
+    return 0
 
 
 if __name__ == "__main__":

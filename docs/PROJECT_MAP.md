@@ -130,7 +130,9 @@ por loopback (`playlist_loopback_recorder.py`) y los reportes JSON/TXT de una pr
 coordina el preflight y la descarga de Soulseek, espera el JSON/playlist de faltantes,
 sincroniza el inicio del grabador con Spotify y reúne los resultados bajo
 `download_JIJIJI/runs/` (git-ignorado). `download_JIJIJI/README.md` documenta la
-configuración inicial y el uso.
+configuración inicial y el uso. La grabación crea checkpoints por tema en
+`recording_progress.json`; una ejecución posterior conserva los MP3 terminados y
+reanuda Spotify desde la primera pista pendiente.
 
 ## Revisión de playlists (`tools/playlist_review/`)
 
