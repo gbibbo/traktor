@@ -14,6 +14,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest import mock
 
+from mutagen.id3 import ID3
+
 
 MODULE_PATH = (
     Path(__file__).resolve().parents[1]
@@ -37,6 +39,7 @@ assert RECORDER_SPEC is not None and RECORDER_SPEC.loader is not None
 RECORDER = importlib.util.module_from_spec(RECORDER_SPEC)
 sys.modules[RECORDER_SPEC.name] = RECORDER
 RECORDER_SPEC.loader.exec_module(RECORDER)
+DOWNLOADER = sys.modules["spotify_soulseek_download"]
 
 PLAYER_PATH = (
     Path(__file__).resolve().parents[1]
@@ -116,6 +119,94 @@ class ManifestHandshakeTests(unittest.TestCase):
             }
         )
         self.assertIsNotNone(ORCHESTRATOR.final_missing_manifest(path))
+
+
+class RecordedMetadataTests(unittest.TestCase):
+    @staticmethod
+    def spotify_report() -> dict[str, object]:
+        return {
+            "spotify_id": "spotify-track-1",
+            "uri": "spotify:track:spotify-track-1",
+            "url": "https://open.spotify.com/track/spotify-track-1",
+            "title": 'Title: One?*',
+            "artists": ["Primary Artist", "Guest Artist"],
+            "album": "Official Album",
+            "album_id": "album-1",
+            "album_artists": ["Album Artist"],
+            "release_date": "2026-09-27",
+            "track_number": 3,
+            "total_tracks": 10,
+            "disc_number": 1,
+            "duration_ms": 123456,
+            "isrc": "UYABC2600001",
+            "cover_url": "https://example.test/cover.jpg",
+            "explicit": True,
+            "label": "Example Label",
+            "copyrights": ["(C) Example", "(P) Example"],
+            "playlist_id": "playlist-1",
+            "playlist_name": "Source Playlist",
+            "added_at": "2026-09-27T00:00:00Z",
+            "duration_seconds": 123.456,
+        }
+
+    def test_recorded_filename_uses_soulseek_criterion(self) -> None:
+        track = {"spotify": self.spotify_report()}
+
+        filename = RECORDER.make_output_filename(track, fallback_index=7)
+
+        self.assertEqual(filename, "Primary Artist - Title One.mp3")
+
+    def test_filename_collision_uses_spotify_id_suffix(self) -> None:
+        first_report = self.spotify_report()
+        second_report = {**first_report, "spotify_id": "spotify-track-2"}
+        filenames = DOWNLOADER.spotify_output_filenames(
+            [
+                DOWNLOADER.track_from_report(first_report),
+                DOWNLOADER.track_from_report(second_report),
+            ]
+        )
+
+        self.assertEqual(filenames[0], "Primary Artist - Title One.mp3")
+        self.assertEqual(
+            filenames[1],
+            "Primary Artist - Title One [spotify-track-2].mp3",
+        )
+
+    def test_recorded_mp3_gets_canonical_tags_and_cover(self) -> None:
+        report = self.spotify_report()
+        track = DOWNLOADER.track_from_report(report)
+        cover = (b"fake-jpeg-data", "image/jpeg")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            mp3_path = Path(temp_dir) / "recorded.mp3"
+            mp3_path.write_bytes(b"")
+            source = DOWNLOADER.LocalFile(
+                path=mp3_path,
+                length_s=123.4,
+                bitrate_kbps=320.0,
+                format="mp3",
+            )
+            with (
+                mock.patch.object(DOWNLOADER, "inspect", return_value=source),
+                mock.patch.object(DOWNLOADER, "download_cover", return_value=cover),
+            ):
+                DOWNLOADER.apply_spotify_metadata(mp3_path, track)
+
+            tags = ID3(mp3_path)
+            self.assertEqual(str(tags["TIT2"]), report["title"])
+            self.assertEqual(str(tags["TALB"]), report["album"])
+            self.assertEqual(str(tags["TRCK"]), "3/10")
+            self.assertEqual(str(tags["TPOS"]), "1")
+            self.assertEqual(str(tags["TSRC"]), report["isrc"])
+            self.assertEqual(str(tags["TPUB"]), report["label"])
+            self.assertTrue(tags.getall("APIC"))
+            custom = {
+                frame.desc: str(frame)
+                for frame in tags.getall("TXXX")
+            }
+            self.assertEqual(custom["Spotify Track ID"], report["spotify_id"])
+            self.assertEqual(custom["Spotify Playlist Name"], report["playlist_name"])
+            self.assertEqual(custom["Version"], "Spotify-length")
 
 
 class ResumeTests(unittest.TestCase):

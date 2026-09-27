@@ -132,7 +132,9 @@ sincroniza el inicio del grabador con Spotify y reúne los resultados bajo
 `download_JIJIJI/runs/` (git-ignorado). `download_JIJIJI/README.md` documenta la
 configuración inicial y el uso. La grabación crea checkpoints por tema en
 `recording_progress.json`; una ejecución posterior conserva los MP3 terminados y
-reanuda Spotify desde la primera pista pendiente.
+reanuda Spotify desde la primera pista pendiente. El grabador reutiliza el
+escritor canónico de metadata y cover de `spotify_soulseek_download.py`, por lo
+que ambos orígenes producen MP3 con el mismo criterio de nombres y etiquetas.
 
 ## Revisión de playlists (`tools/playlist_review/`)
 

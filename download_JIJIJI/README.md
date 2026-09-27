@@ -16,6 +16,11 @@ El orquestador:
 5. cuando el grabador confirma que está listo, inicia esa playlist en Spotify;
 6. libera la descarga de Soulseek y espera a que terminen ambas ramas.
 
+Los MP3 grabados y los descargados por Soulseek pasan por el mismo finalizador:
+usan el nombre `Artista principal - Título.mp3`, las etiquetas oficiales de
+Spotify (álbum, artistas, fecha, número de pista/disco, ISRC, sello y campos de
+auditoría) y el cover oficial embebido.
+
 ## Reanudación después de una interrupción
 
 El grabador codifica y registra cada MP3 apenas termina el tema, sin esperar al

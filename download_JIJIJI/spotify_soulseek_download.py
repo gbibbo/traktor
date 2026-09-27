@@ -6,6 +6,7 @@ spotify_soulseek_download.py
 PURPOSE: Reconcile a Spotify playlist against Soulseek and download matches.
 
 CHANGELOG:
+- 2026-09-27: Expose the canonical Spotify metadata/cover writer for recordings.
 - 2026-09-27: Add an optional pre-download gate for external orchestration.
 
 Primero verifica en Soulseek la disponibilidad de TODA una playlist de Spotify
@@ -54,7 +55,7 @@ import time
 import unicodedata
 import urllib.parse
 import urllib.request
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
@@ -1259,6 +1260,48 @@ def safe_name(s: str) -> str:
     return s or "Unknown"
 
 
+def track_from_report(report: dict[str, Any]) -> Track:
+    """Rebuild a Track from the Spotify object stored in soulseek_missing.json."""
+    if not isinstance(report, dict):
+        raise TypeError("la metadata Spotify de la pista no es un objeto JSON")
+    allowed = {field.name for field in fields(Track)}
+    values = {key: value for key, value in report.items() if key in allowed}
+    try:
+        return Track(**values)
+    except TypeError as exc:
+        raise ValueError(f"metadata Spotify incompleta en el manifest: {exc}") from exc
+
+
+def spotify_output_filename(track: Track, extended: bool = False) -> str:
+    """Return the same canonical filename used for finalized Soulseek files."""
+    title = safe_name(track.title)
+    if extended and "extended" not in track.title.casefold():
+        title += " [Extended]"
+    return f"{safe_name(track.primary_artist)} - {title}.mp3"
+
+
+def spotify_output_filenames(tracks: list[Track]) -> list[str]:
+    """Plan canonical filenames, including Soulseek-style Spotify ID collisions."""
+    owners: dict[str, str] = {}
+    filenames: list[str] = []
+    for track in tracks:
+        filename = spotify_output_filename(track)
+        key = filename.casefold()
+        owner = owners.get(key)
+        if owner is None:
+            owners[key] = track.spotify_id
+        elif owner != track.spotify_id:
+            stem = Path(filename).stem
+            filename = f"{stem} [{track.spotify_id}].mp3"
+            key = filename.casefold()
+            alternate_owner = owners.get(key)
+            if alternate_owner not in (None, track.spotify_id):
+                raise RuntimeError(f"colisión de salida no resoluble: {filename}")
+            owners[key] = track.spotify_id
+        filenames.append(filename)
+    return filenames
+
+
 def download_cover(
     url: str | None,
     *,
@@ -1345,10 +1388,7 @@ def _unique_destination(
     extended: bool,
     overwrite: bool,
 ) -> tuple[Path, bool]:
-    title = safe_name(track.title)
-    if extended and "extended" not in track.title.casefold():
-        title += " [Extended]"
-    base = out_dir / f"{safe_name(track.primary_artist)} - {title}.mp3"
+    base = out_dir / spotify_output_filename(track, extended)
 
     if not base.exists():
         return base, False
@@ -1369,6 +1409,17 @@ def _unique_destination(
             return alt, True
         raise RuntimeError(f"colisión de salida no resoluble: {alt}")
     return alt, False
+
+
+def spotify_output_destination(
+    out_dir: Path,
+    track: Track,
+    *,
+    extended: bool = False,
+    overwrite: bool = False,
+) -> tuple[Path, bool]:
+    """Resolve filename collisions using the canonical Soulseek output policy."""
+    return _unique_destination(out_dir, track, extended, overwrite)
 
 
 def write_tags(
@@ -1433,6 +1484,30 @@ def write_tags(
         tags.add(APIC(encoding=3, mime=mime, type=3, desc="Cover", data=data))
 
     tags.save(mp3_path, v2_version=3)
+
+
+def apply_spotify_metadata(
+    mp3_path: Path,
+    track: Track,
+    *,
+    require_cover: bool = True,
+) -> None:
+    """Apply the canonical Spotify tags and official cover to an existing MP3."""
+    if not mp3_path.is_file():
+        raise RuntimeError(f"el MP3 a etiquetar no existe: {mp3_path}")
+
+    source = inspect(mp3_path)
+    if source is None or source.format != "mp3":
+        raise RuntimeError(f"no se pudo inspeccionar el MP3 grabado: {mp3_path}")
+    if (source.bitrate_kbps or 0) < 315:
+        raise RuntimeError(
+            f"MP3 grabado por debajo de 320 kbps: {source.bitrate_kbps or 0:.1f}"
+        )
+
+    cover = download_cover(track.cover_url)
+    if require_cover and cover is None:
+        raise RuntimeError("Spotify no proporcionó cover utilizable")
+    write_tags(mp3_path, track, source, extended=False, cover=cover)
 
 
 def finalize(

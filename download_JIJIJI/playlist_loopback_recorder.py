@@ -3,6 +3,7 @@
 PURPOSE: Record a Spotify playlist through Windows WASAPI loopback and split it.
 
 CHANGELOG:
+- 2026-09-27: Reuse the Soulseek finalizer's Spotify tags, cover, and filenames.
 - 2026-09-27: Add an optional ready-file handshake for process orchestration.
 - 2026-09-27: Checkpoint every completed MP3 and resume at the first pending track.
 
@@ -26,7 +27,6 @@ import hashlib
 import json
 import math
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -48,7 +48,17 @@ for _stream in (sys.stdout, sys.stderr):
 
 import numpy as np
 import pyaudiowpatch as pyaudio
-from mutagen.id3 import COMM, ID3, ID3NoHeaderError, TALB, TIT2, TPE1, TRCK, TXXX
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from spotify_soulseek_download import (  # noqa: E402
+    apply_spotify_metadata,
+    spotify_output_filename,
+    spotify_output_filenames,
+    track_from_report,
+)
 
 
 FORMAT = pyaudio.paInt16
@@ -336,88 +346,15 @@ def duration_seconds(track: dict[str, Any]) -> float:
     raise ValueError(f"Track has no duration_seconds or duration_ms: {track!r}")
 
 
-def sanitize_filename(text: str) -> str:
-    text = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", text)
-    text = re.sub(r"\s+", " ", text).strip().rstrip(".")
-    return text or "untitled"
-
-
-def flatten_for_tags(prefix: str, value: Any) -> dict[str, str]:
-    result: dict[str, str] = {}
-    if isinstance(value, dict):
-        for key, item in value.items():
-            child = f"{prefix}.{key}" if prefix else str(key)
-            result.update(flatten_for_tags(child, item))
-    elif isinstance(value, list):
-        result[prefix] = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
-    elif value is None:
-        result[prefix] = "null"
-    else:
-        result[prefix] = str(value)
-    return result
-
-
-def set_txxx(tags: ID3, desc: str, value: str) -> None:
-    tags.delall(f"TXXX:{desc}")
-    tags.add(TXXX(encoding=3, desc=desc, text=[value]))
-
-
 def write_metadata(
     mp3_path: Path,
     track: dict[str, Any],
-    manifest: dict[str, Any],
 ) -> None:
-    spotify = track.get("spotify") or {}
-    title = str(spotify.get("title") or mp3_path.stem)
-    artists = spotify.get("artists") or []
-    if isinstance(artists, str):
-        artists = [artists]
-    artist_text = ", ".join(str(x) for x in artists)
-
-    source_playlist = manifest.get("source_playlist") or {}
-    playlist_name = source_playlist.get("name")
-    playlist_url = source_playlist.get("source")
-    playlist_position = track.get("playlist_position")
-
-    try:
-        tags = ID3(str(mp3_path))
-    except ID3NoHeaderError:
-        tags = ID3()
-
-    for frame in ("TIT2", "TPE1", "TALB", "TRCK", "COMM"):
-        tags.delall(frame)
-
-    tags.add(TIT2(encoding=3, text=[title]))
-    if artist_text:
-        tags.add(TPE1(encoding=3, text=[artist_text]))
-    if playlist_name:
-        tags.add(TALB(encoding=3, text=[str(playlist_name)]))
-    if playlist_position is not None:
-        tags.add(TRCK(encoding=3, text=[str(playlist_position)]))
-    if playlist_url:
-        tags.add(
-            COMM(
-                encoding=3,
-                lang="eng",
-                desc="source_playlist",
-                text=[str(playlist_url)],
-            )
-        )
-
-    for key, value in flatten_for_tags("track", track).items():
-        set_txxx(tags, key, value)
-
-    global_manifest = {k: v for k, v in manifest.items() if k != "tracks"}
-    for key, value in flatten_for_tags("manifest", global_manifest).items():
-        set_txxx(tags, key, value)
-
-    set_txxx(
-        tags,
-        "track.raw_json",
-        json.dumps(track, ensure_ascii=False, separators=(",", ":")),
-    )
-
-    tags.save(str(mp3_path), v2_version=3)
+    """Use exactly the same Spotify metadata and cover policy as Soulseek files."""
+    spotify = track.get("spotify")
+    if not isinstance(spotify, dict):
+        raise ValueError("la pista del manifest no contiene metadata Spotify")
+    apply_spotify_metadata(mp3_path, track_from_report(spotify))
 
 
 def encode_segment(
@@ -621,7 +558,7 @@ def encode_and_checkpoint(
     progress_path: Path,
 ) -> None:
     encode_segment(ffmpeg, temp_wav, output_path, start_sec, end_sec)
-    write_metadata(output_path, track, manifest)
+    write_metadata(output_path, track)
 
     declared = duration_seconds(track)
     progress["tracks"].append(
@@ -649,15 +586,10 @@ def encode_and_checkpoint(
 
 
 def make_output_filename(track: dict[str, Any], fallback_index: int) -> str:
-    spotify = track.get("spotify") or {}
-    title = str(spotify.get("title") or f"Track {fallback_index}")
-    artists = spotify.get("artists") or []
-    if isinstance(artists, str):
-        artists = [artists]
-    artist_text = ", ".join(str(x) for x in artists) or "Unknown artist"
-    pos = track.get("playlist_position")
-    prefix = f"{int(pos):03d}" if isinstance(pos, (int, float)) else f"{fallback_index:03d}"
-    return sanitize_filename(f"{prefix} - {artist_text} - {title}.mp3")
+    spotify = track.get("spotify")
+    if not isinstance(spotify, dict):
+        raise ValueError(f"la pista {fallback_index} no contiene metadata Spotify")
+    return spotify_output_filename(track_from_report(spotify))
 
 
 def check_ffmpeg() -> str:
@@ -750,6 +682,11 @@ def main() -> int:
     progress = load_resume_progress(progress_path, args.json_file, tracks)
     completed_before = int(progress["completed_count"])
     total_tracks = len(tracks)
+    spotify_tracks = [
+        track_from_report(track.get("spotify"))
+        for track in tracks
+    ]
+    output_filenames = spotify_output_filenames(spotify_tracks)
 
     if completed_before >= total_tracks:
         progress["status"] = "completed"
@@ -942,8 +879,7 @@ def main() -> int:
             )
 
             flush_wave_for_reader(wav_file)
-            filename = make_output_filename(track, next_track_index + 1)
-            output_path = args.output_dir / filename
+            output_path = args.output_dir / output_filenames[next_track_index]
             futures.append(
                 executor.submit(
                     encode_and_checkpoint,
