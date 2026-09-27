@@ -80,6 +80,20 @@ Pedidos de Gabriel aplicados y re-exportado:
 - MAEST-HF verificado en "2022 sin clasificar" (9 temas, 6.1 s por tema, determinista, estilos
   coherentes con los tags); corrida completa lanzada con prioridad baja.
 
+## MAEST frente a CLAP (04:10, test_20)
+
+Mismo evaluador y mismas 57 tripletas uniformes; MAEST-HF capa 7, media de tokens y de 3 segmentos.
+
+| Representación | Tripletas uniformes | Pureza kNN carpetas propias | Pureza kNN carpetas v1 |
+| :--- | ---: | ---: | ---: |
+| BPM | 0.632 | 0.204 | 0.202 |
+| CLAP | 0.579 | 0.287 | 0.170 |
+| MAEST capa 7 | 0.684 | 0.303 | 0.222 |
+| MAEST estilos (400) | 0.684 | 0.229 | 0.258 |
+
+MAEST queda a la par o algo por encima de CLAP; frente al BPM en tripletas la diferencia es +0.053
+con IC pareado −0.105 a 0.219: no concluyente con n = 57. Corrida sobre la biblioteca en curso.
+
 ## Pendiente
 
 - Gabriel importa y valida en Rekordbox (pendrive) y Traktor.
