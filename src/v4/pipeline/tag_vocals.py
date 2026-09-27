@@ -6,14 +6,16 @@ PURPOSE: Etiqueta "Vocal" por tema con modelos preentrenados, a partir de las ve
            - método 'ast': probabilidad máxima de clases de canto/habla de AudioSet (AST) sobre
              '_winprob' de representations/ast_full/cache.
          Regla: con --mean-threshold, Vocal si la P(voz) media de las ventanas >= umbral (default de
-         CLAP 0.15, calibrado el 2026-09-27 contra la carpeta "2020 new/Vocal" de Gabriel: AUC 0.906,
-         exploratorio); sin él, Vocal si la fracción de ventanas con voz >= --min-coverage. Escribe
+         CLAP 0.145: calibrado el 2026-09-27 contra la carpeta "2020 new/Vocal" de Gabriel, AUC 0.906,
+         exploratorio, y bajado de 0.15 a pedido de Gabriel para incluir "I Don't Feel Like Dancing"
+         de Scissor Sisters, que quedaba justo debajo); sin él, Vocal si la fracción de ventanas con voz >= --min-coverage. Escribe
          features/vocals.parquet y, con --write-tags, agrega " - Vocal" al comentario del archivo
          (MP3/AIFF/FLAC) guardando un CSV de respaldo; --revert <csv> restaura los comentarios.
          --check-list N escribe features/vocal_check.m3u8: los N temas más cerca del umbral (mitad
          arriba, mitad abajo) para verificar la etiqueta escuchando.
 CHANGELOG:
-  - 2026-09-27: Creación inicial (pedido de Gabriel: etiqueta Vocal en la metadata).
+  - 2026-09-27: Creación inicial (pedido de Gabriel: etiqueta Vocal en la metadata). Umbral 0.145.
+                Solo se cuentan y etiquetan temas del catálogo actual (la caché puede tener otros).
 """
 import argparse
 import datetime as dt
@@ -45,6 +47,7 @@ AST_SINGING = ("Singing", "Male singing", "Female singing", "Child singing", "Sy
                "Vocal music", "Rapping", "Choir", "Chant")
 AST_SPEECH = ("Speech", "Male speech, man speaking", "Female speech, woman speaking", "Narration, monologue")
 TOKEN = "Vocal"
+DEFAULT_CLAP_THRESHOLD = 0.145
 
 
 def clap_window_probs(win_embs: Dict[str, np.ndarray], hf_cache=None) -> Dict[str, np.ndarray]:
@@ -98,7 +101,7 @@ def summarize(window_probs: Dict[str, np.ndarray], threshold: float, min_coverag
 
 
 def check_list(vocals: pd.DataFrame, catalog: pd.DataFrame, n: int, out_path: Path,
-               score: str = "vocal_mean", threshold: float = 0.15) -> pd.DataFrame:
+               score: str = "vocal_mean", threshold: float = DEFAULT_CLAP_THRESHOLD) -> pd.DataFrame:
     """M3U8 con n//2 temas justo arriba y n//2 justo abajo del umbral (orden: arriba primero)."""
     from src.v4.common.dj_export import write_m3u8
     v = vocals.merge(catalog[["track_uid", "source_path", "artist", "title", "duration_s"]], on="track_uid")
@@ -163,7 +166,7 @@ def main() -> int:
     parser.add_argument("--threshold", type=float, default=0.5, help="P(voz) mínima para contar una ventana")
     parser.add_argument("--min-coverage", type=float, default=0.34, help="Fracción mínima de ventanas con voz")
     parser.add_argument("--mean-threshold", type=float, default=None,
-                        help="Vocal si P(voz) media >= umbral (default 0.15 con --method clap)")
+                        help="Vocal si P(voz) media >= umbral (default 0.145 con --method clap)")
     parser.add_argument("--ast-include-speech", action="store_true", help="Contar habla (spoken word) como voz")
     parser.add_argument("--write-tags", action="store_true", help="Escribir ' - Vocal' en el comentario")
     parser.add_argument("--revert", default=None, help="CSV de respaldo: restaurar comentarios")
@@ -187,11 +190,13 @@ def main() -> int:
         labels = [cfg.id2label[i] for i in range(len(cfg.id2label))]
         probs = ast_window_probs(_load_windows(rep_root / "ast_full" / "cache", "_winprob"), labels,
                                  args.ast_include_speech)
+    catalog = load_catalog(args.dataset_name, config)
+    probs = {uid: p for uid, p in probs.items() if uid in set(catalog["track_uid"])}
     if not probs:
         print(f"[ERROR] No hay ventanas en caché para el método {args.method}; correr extract_representations")
         return 1
 
-    mean_thr = args.mean_threshold if args.mean_threshold is not None else (0.15 if args.method == "clap" else None)
+    mean_thr = args.mean_threshold if args.mean_threshold is not None else (DEFAULT_CLAP_THRESHOLD if args.method == "clap" else None)
     vocals = summarize(probs, args.threshold, args.min_coverage, mean_thr)
     vocals["method"] = args.method
     features = artifacts / "features"
@@ -201,7 +206,6 @@ def main() -> int:
     rule = f"media >= {mean_thr}" if mean_thr is not None else f"cobertura >= {args.min_coverage} (umbral {args.threshold})"
     print(f"[INFO] {vocals['is_vocal'].sum()}/{len(vocals)} temas Vocal ({args.method}, {rule}) → {out}")
 
-    catalog = load_catalog(args.dataset_name, config)
     if args.check_list and mean_thr is not None:
         picked = check_list(vocals, catalog, args.check_list, features / "vocal_check.m3u8", threshold=mean_thr)
         print(f"[INFO] Lista de chequeo ({len(picked)} temas) → {features / 'vocal_check.m3u8'}")

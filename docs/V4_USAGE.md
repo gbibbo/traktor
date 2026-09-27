@@ -57,12 +57,14 @@ Todo corre en CPU en Windows; ffmpeg en PATH cubre los MP3 que libsndfile no abr
 python src/v4/pipeline/phase0_ingest.py --dataset-name musica
 # 1. BPM / tonalidad / energía desde tags (+ BPM estimado del audio donde falte)
 python src/v4/pipeline/phase1_tags.py --dataset-name musica --estimate-missing
-# 1b. CLAP en 2 procesos (fuera < 90 s y > 15 min: muestras, FX, mixes enteros) y ensamblado
-python src/v4/pipeline/extract_representations.py --dataset-name musica --models clap --threads 8 --min-duration 90 --max-duration 900 --shard 2:0
-python src/v4/pipeline/extract_representations.py --dataset-name musica --models clap --threads 8 --min-duration 90 --max-duration 900 --shard 2:1
+# 1b. CLAP. Primero una carpeta chica para verificar (misma caché), luego 2 procesos con prioridad
+#     baja (fuera < 90 s y > 15 min: muestras, FX, mixes enteros) y ensamblado
+python src/v4/pipeline/extract_representations.py --dataset-name musica --models clap --min-duration 90 --max-duration 900 --folder "2022 sin clasificar"
+python src/v4/pipeline/extract_representations.py --dataset-name musica --models clap --threads 8 --min-duration 90 --max-duration 900 --shard 2:0 --low-priority
+python src/v4/pipeline/extract_representations.py --dataset-name musica --models clap --threads 8 --min-duration 90 --max-duration 900 --shard 2:1 --low-priority
 python src/v4/pipeline/extract_representations.py --dataset-name musica --models clap --min-duration 90 --max-duration 900 --assemble-only
-# 1c. Etiqueta Vocal (CLAP zero-shot). Primero sin escribir; --write-tags agrega " - Vocal" al
-#     comentario (respaldo CSV en features/; --revert <csv> lo deshace)
+# 1c. Etiqueta Vocal (CLAP zero-shot, umbral 0.145). Primero sin escribir; --write-tags agrega
+#     " - Vocal" al comentario (respaldo CSV en features/; --revert <csv> lo deshace)
 python src/v4/pipeline/tag_vocals.py --dataset-name musica --method clap --check-list 12
 python src/v4/pipeline/tag_vocals.py --dataset-name musica --method clap --write-tags
 # 2-5. Grupos (Ward sobre CLAP + BPM), nombres (género de los tags), orden (embedding + BPM +

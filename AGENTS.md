@@ -65,6 +65,7 @@ Rules:
 * Push normal commits to the current branch without asking each time when a valid upstream exists.
 * Do not force push, rewrite shared history, merge branches, delete remote branches, or open or merge pull requests unless Gabriel asks.
 * Never commit datasets, music files, generated stems, embeddings, large artifacts, credentials, `.env` files, API keys, or secrets.
+* Gabriel's parallel work lives in `download_JIJIJI/`: include it in commits and pushes, never its audio files (`.gitignore` covers the audio extensions). Scan it for credentials before staging.
 * Do not add AI attribution, generated with trailers, or session links to commits or pull request text.
 * If tests are failing or evidence is incomplete, record that state instead of disguising it as completed work.
 
@@ -85,6 +86,8 @@ Before any paid GPU use:
 5. Obtain Gabriel's explicit approval before launching a paid GPU run.
 
 If a GPU failure can be reproduced on CPU, return to CPU for debugging. Do not use paid GPU time as a debugger.
+
+Before any long run (anything that would keep the machine busy for more than a few minutes, CPU or GPU), first run the same command on a small folder of tracks (for extraction: `extract_representations.py --folder "<subfolder>"`, which shares the cache) and check the output: no failures, finite values, plausible results, time per track. Only then launch the full run, with `--low-priority` so Gabriel can keep using Rekordbox/Traktor on the same machine.
 
 ## Coding standards
 

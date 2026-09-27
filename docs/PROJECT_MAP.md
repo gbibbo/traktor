@@ -36,7 +36,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `phase2_cluster.py` | CPU: HDBSCAN L1/L2 + UMAP 2D → clustering/results_<hash>.parquet |
 | `phase3_name.py` | CPU: Naming semántico de clusters (genre voting + fallback genérico) |
 | `phase4_order.py` | CPU: Ordering greedy NN (cosine + BPM + Camelot key) → ordered_<hash>.parquet |
-| `extract_representations.py` | CPU: representaciones congeladas (EffNet, MAEST, MERT por capas, CLAP, MAEST-HF, AST; full y HPSS) con segmentación V4 → representations/<variante>/ (fase 2 del plan); `--shard`, `--assemble-only`, filtros de duración |
+| `extract_representations.py` | CPU: representaciones congeladas (EffNet, MAEST, MERT por capas, CLAP, MAEST-HF, AST; full y HPSS) con segmentación V4 → representations/<variante>/ (fase 2 del plan); `--shard`, `--assemble-only`, `--folder`, `--low-priority`, filtros de duración |
 | `tag_vocals.py` | CPU: etiqueta Vocal (CLAP zero-shot o AST AudioSet) → features/vocals_<método>.parquet; `--write-tags` agrega " - Vocal" al comentario con respaldo CSV y `--revert` |
 | `phase5_export.py` | CPU: Export M3U Traktor (UTF-8, rutas Windows) → playlists/V4_<N>/; `--formats m3u8,rekordbox,traktor`, `--rep`, `--out-root` |
 
@@ -117,6 +117,13 @@ playlists/V4_<N>/
 ├── All_Noise.m3u                  # Phase 5: tracks en ruido L1
 └── _summary.txt                   # Phase 5: tabla resumen de clusters y tracks
 ```
+
+## Trabajo paralelo de Gabriel (`download_JIJIJI/`)
+
+Se incluye en git (sin audio; ver `AGENTS.md`). Lectura de playlists de Spotify
+(`spotify_playlist.py`), búsqueda/descarga por Soulseek (`spotify_soulseek_download.py`), grabador
+por loopback (`playlist_loopback_recorder.py`) y los reportes JSON/TXT de una prueba
+(`soulseek_prueba_descarga/`).
 
 ## Herramienta de feedback del DJ (`tools/dj_feedback/`)
 

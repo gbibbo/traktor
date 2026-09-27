@@ -67,6 +67,19 @@ dos sentidos (p. ej. "Scissor Sisters - I Don't Feel Like Dancing" quedó justo 
 disco. Rekordbox y Traktor no están instalados en esta laptop: la importación real queda por
 validar (docs/v4/TODO.md 6.7).
 
+## Actualización (03:45, mismo día)
+
+Pedidos de Gabriel aplicados y re-exportado:
+- Se borró `Música/Fede` (no es suya): 480 temas que no existían en otras carpetas. Quedan 1823 temas
+  únicos, 1786 entre 90 s y 15 min; BPM estimado del audio solo en 37 (casi todos los temas sin BPM
+  eran de Fede).
+- Umbral Vocal 0.145: 548 de 1786 temas (30.7 %); 542 con la etiqueta escrita (6 WAV sin escribir).
+  Se quitó el solo lectura a los 50 archivos del compilado "Best Of Toolroom 2015" (28 eran Vocal).
+- Export: 1786 temas, 51 playlists (mediana 34), todas las rutas existen en los tres formatos;
+  |ΔBPM| ≤ 3 en el 97 % de las transiciones ordenadas frente al 72 % en orden aleatorio.
+- MAEST-HF verificado en "2022 sin clasificar" (9 temas, 6.1 s por tema, determinista, estilos
+  coherentes con los tags); corrida completa lanzada con prioridad baja.
+
 ## Pendiente
 
 - Gabriel importa y valida en Rekordbox (pendrive) y Traktor.

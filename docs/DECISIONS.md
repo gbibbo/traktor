@@ -21,6 +21,16 @@ anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_impl
    preentrenado.
 7. La biblioteca se copia a `Música/` en la raíz del repo (git-ignorada). Las carpetas "old N" no
    tienen un significado fijo (a veces son copias de respaldo desordenadas): no se usan como señal.
+8. **La carpeta `Música/Fede` no es de Gabriel**: se borró de la copia local y sale de catálogo,
+   playlists y exports.
+9. **Umbral de la etiqueta Vocal: 0.145** (antes 0.15), para que "I Don't Feel Like Dancing" de
+   Scissor Sisters quede dentro. Se quitó el atributo de solo lectura a los archivos que no se
+   podían etiquetar (compilado "Best Of Toolroom 2015").
+10. **El trabajo paralelo de Gabriel vive en `download_JIJIJI/`** y se incluye en los commits y
+    pushes al repo, nunca los archivos de audio.
+11. **Antes de cualquier corrida larga, una pasada por una carpeta chica** para verificar la salida
+    (p. ej. `extract_representations.py --folder`); recién después la corrida completa.
+12. Los pushes desde la laptop van con la cuenta `gbibbo` (credencial local del repo).
 
 ## 2026-09-12
 

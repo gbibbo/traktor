@@ -18,7 +18,9 @@ CHANGELOG:
                 clasificación zero-shot. Nuevos backends 'maesthf' y 'ast'. Filtros --min-duration /
                 --max-duration (fuera muestras, FX y mixes enteros). Lee solo los segmentos del archivo
                 (read_dj_segments, mismos segmentos que antes). --shard K:i para repartir en K procesos
-                y --assemble-only para ensamblar al final.
+                y --assemble-only para ensamblar al final. --folder: solo una subcarpeta (pasada de
+                verificación chica antes de una corrida larga; comparte la caché). --low-priority:
+                prioridad baja del proceso (corridas largas sin frenar Rekordbox/Traktor).
   - 2026-09-12: Creación inicial.
 """
 from __future__ import annotations
@@ -284,7 +286,7 @@ def variant_dir(rep_root: Path, backend: str, source: str, suffix: str) -> Path:
 def run(dataset_name: str, config: dict, backends: List[str], sources: List[str], audio_root: Optional[Path],
         max_tracks: Optional[int], models_dir: Path, hf_cache: Optional[str], maest_layers=MAEST_LAYERS,
         min_duration: Optional[float] = None, max_duration: Optional[float] = None,
-        shard: Optional[tuple] = None, assemble_only: bool = False) -> None:
+        shard: Optional[tuple] = None, assemble_only: bool = False, folder: Optional[str] = None) -> None:
     artifacts = resolve_dataset_artifacts(dataset_name, config)
     catalog = pd.read_parquet(artifacts / "catalog.parquet")
     if min_duration is not None or max_duration is not None:
@@ -293,6 +295,11 @@ def run(dataset_name: str, config: dict, backends: List[str], sources: List[str]
         hi = max_duration if max_duration is not None else np.inf
         catalog = catalog[catalog["duration_s"].between(lo, hi)]
         print(f"[INFO] Filtro de duración [{lo}, {hi}] s: {len(catalog)}/{n0} temas")
+    if folder:
+        key = catalog["rel_path"] if "rel_path" in catalog.columns else catalog["filename"]
+        prefix = folder.replace("\\", "/").rstrip("/") + "/"
+        catalog = catalog[key.str.startswith(prefix)]
+        print(f"[INFO] Carpeta '{folder}': {len(catalog)} temas")
     if max_tracks:
         catalog = catalog.head(max_tracks)
     rep_root = artifacts / "representations"
@@ -376,6 +383,22 @@ def run(dataset_name: str, config: dict, backends: List[str], sources: List[str]
         print(f"[WARN] {len(failed)} temas fallidos")
 
 
+def lower_priority() -> None:
+    """Baja la prioridad del proceso: BELOW_NORMAL en Windows, nice +10 en POSIX."""
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+        k32 = ctypes.windll.kernel32
+        k32.GetCurrentProcess.restype = wintypes.HANDLE  # sin esto el pseudo-handle se trunca a 32 bits
+        k32.SetPriorityClass.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        k32.SetPriorityClass.restype = wintypes.BOOL
+        BELOW_NORMAL_PRIORITY_CLASS = 0x4000
+        if not k32.SetPriorityClass(k32.GetCurrentProcess(), BELOW_NORMAL_PRIORITY_CLASS):
+            print("[WARN] No se pudo bajar la prioridad del proceso")
+    else:
+        os.nice(10)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Extrae representaciones congeladas (CPU) con la segmentación DJ de V4.")
     parser.add_argument("--dataset-name", default="test_20")
@@ -392,8 +415,12 @@ def main() -> int:
     parser.add_argument("--max-duration", type=float, default=None, help="Omitir temas más largos (s): mixes enteros")
     parser.add_argument("--shard", default=None, help="K:i — procesar solo las filas i, i+K, ... (sin ensamblar)")
     parser.add_argument("--assemble-only", action="store_true", help="Solo ensamblar variantes desde la caché")
+    parser.add_argument("--low-priority", action="store_true", help="Prioridad baja del proceso (corridas largas)")
+    parser.add_argument("--folder", default=None, help="Solo temas de esta subcarpeta (rel_path); p. ej. '2022 sin clasificar'")
     args = parser.parse_args()
 
+    if args.low_priority:
+        lower_priority()
     if args.threads:
         try:
             import torch
@@ -404,7 +431,7 @@ def main() -> int:
     run(args.dataset_name, config, args.models.split(","), args.sources.split(","),
         Path(args.audio_root) if args.audio_root else None, args.max_tracks, Path(args.models_dir), args.hf_cache,
         tuple(int(x) for x in args.maest_layers.split(",")), args.min_duration, args.max_duration,
-        tuple(int(x) for x in args.shard.split(":")) if args.shard else None, args.assemble_only)
+        tuple(int(x) for x in args.shard.split(":")) if args.shard else None, args.assemble_only, args.folder)
     return 0
 
 
