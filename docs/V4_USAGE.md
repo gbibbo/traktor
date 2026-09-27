@@ -69,11 +69,16 @@ python src/v4/pipeline/tag_vocals.py --dataset-name musica --method clap --check
 python src/v4/pipeline/tag_vocals.py --dataset-name musica --method clap --write-tags
 # 2-5. Grupos (Ward sobre CLAP + BPM), nombres (género de los tags), orden (embedding + BPM +
 #      tonalidad + energía), export
-python src/v4/pipeline/phase2_cluster.py --dataset-name musica --rep clap_full --bpm-weight 0.3 --method ward --n-l1 15 --l2-target-size 35 --pca-dim 50 --skip-umap
+python src/v4/pipeline/phase2_cluster.py --dataset-name musica --rep clap_full --bpm-weight 0.3 --method ward --n-l1 15 --l2-target-size 35 --pca-dim 50
 python src/v4/pipeline/phase3_name.py --dataset-name musica
 python src/v4/pipeline/phase4_order.py --dataset-name musica --rep clap_full
 python src/v4/pipeline/phase5_export.py --dataset-name musica --rep clap_full --formats m3u8,rekordbox,traktor --out-root artifacts/v4/datasets/musica/exports
 ```
+
+**Antes de importar, revisar escuchando:** `python tools/playlist_review/build_review_page.py
+--dataset-name musica` escribe `Música/_revision_playlists.html` (necesita Phase 2 sin `--skip-umap`).
+Se abre con doble clic; los veredictos se exportan a CSV. Para comparar dos organizaciones a ciegas:
+`--org <hash1> --org <hash2> --blind` (la correspondencia queda en `evaluation/review_key_*.json`).
 
 **Rekordbox (pendrive):** Preferencias > Avanzado > Base de datos > rekordbox xml: elegir
 `rekordbox.xml`. Preferencias > Vista > Diseño: activar "rekordbox xml". En el árbol,

@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revisión de playlists</title>
+<style>
+:root {
+  color-scheme: light;
+  --surface-1: #fcfcfb; --page: #f9f9f7; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --baseline: #c3c2b7; --border: rgba(11,11,11,0.10); --wash: rgba(11,11,11,0.05);
+  --series-1: #2a78d6; --series-2: #eb6834;
+  --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+  --context-dot: #c3c2b7;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --surface-1: #1a1a19; --page: #0d0d0d; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10); --wash: rgba(255,255,255,0.06);
+    --series-1: #3987e5; --series-2: #d95926; --context-dot: #4a4a46;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-1: #1a1a19; --page: #0d0d0d; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10); --wash: rgba(255,255,255,0.06);
+  --series-1: #3987e5; --series-2: #d95926; --context-dot: #4a4a46;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+button, select, textarea, input { font: inherit; color: inherit; }
+button { cursor: pointer; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; }
+button:hover { background: var(--wash); }
+button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible, .pl:focus-visible { outline: 2px solid var(--series-1); outline-offset: 1px; }
+.app { display: grid; grid-template-columns: 320px 1fr; grid-template-rows: auto 1fr auto; height: 100vh; }
+header { grid-column: 1 / -1; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; padding: 10px 16px; background: var(--surface-1); border-bottom: 1px solid var(--border); }
+header h1 { font-size: 16px; margin: 0 8px 0 0; }
+.muted { color: var(--muted); }
+.ink2 { color: var(--ink-2); }
+.spacer { flex: 1; }
+aside { overflow: auto; border-right: 1px solid var(--border); background: var(--surface-1); padding: 8px 0; }
+.folder > summary { list-style: none; cursor: pointer; padding: 6px 14px; font-weight: 600; display: flex; gap: 8px; align-items: baseline; }
+.folder > summary::-webkit-details-marker { display: none; }
+.folder > summary .n { font-weight: 400; margin-left: auto; font-variant-numeric: tabular-nums; }
+.pl { display: flex; gap: 8px; align-items: baseline; padding: 4px 14px 4px 28px; cursor: pointer; }
+.pl:hover { background: var(--wash); }
+.pl.sel { background: var(--wash); box-shadow: inset 3px 0 0 var(--series-2); }
+.pl .n { margin-left: auto; font-variant-numeric: tabular-nums; }
+.star { color: var(--ink-2); font-size: 12px; }
+.badge { font-size: 12px; white-space: nowrap; }
+.badge i { font-style: normal; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: 0; }
+main { overflow: auto; padding: 12px 16px 16px; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
+.maphead { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); }
+.legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; background: var(--c); }
+#mapWrap { position: relative; }
+#map { width: 100%; height: 380px; display: block; touch-action: none; }
+#tip { position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12); display: none; max-width: 340px; z-index: 5; }
+#tip b { display: block; font-weight: 600; }
+h2 { font-size: 16px; margin: 0; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.chip { background: var(--wash); border-radius: 999px; padding: 2px 10px; font-size: 12px; color: var(--ink-2); }
+.verdict { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+.verdict button[aria-pressed="true"] { border-color: var(--c); box-shadow: inset 0 0 0 1px var(--c); font-weight: 600; }
+.verdict button i { font-style: normal; color: var(--c); margin-right: 4px; font-weight: 700; }
+textarea { width: 100%; min-height: 44px; margin-top: 8px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; resize: vertical; }
+.seq { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--grid); vertical-align: middle; }
+th { color: var(--muted); font-weight: 500; font-size: 12px; position: sticky; top: 0; background: var(--surface-1); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr.playing td { background: var(--wash); }
+tr.flagged td.title { text-decoration: line-through; color: var(--muted); }
+td .play { padding: 2px 8px; border-radius: 6px; }
+.title small { display: block; color: var(--muted); font-size: 11px; }
+footer { grid-column: 1 / -1; display: flex; gap: 12px; align-items: center; padding: 8px 16px; background: var(--surface-1); border-top: 1px solid var(--border); }
+#now { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+progress { width: 180px; height: 6px; }
+.warn { border-left: 3px solid var(--warning); padding: 6px 10px; background: var(--wash); border-radius: 6px; margin-bottom: 12px; display: none; }
+.help { font-size: 13px; color: var(--ink-2); }
+.help li { margin: 2px 0; }
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: auto 240px 1fr auto; }
+  aside { border-right: 0; border-bottom: 1px solid var(--border); }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Revisión de playlists</h1>
+    <label class="ink2">Organización <select id="orgSel"></select></label>
+    <span id="progress" class="ink2"></span>
+    <span class="spacer"></span>
+    <button id="helpBtn" aria-expanded="false">Cómo usar</button>
+    <button id="exportBtn">Exportar CSV</button>
+  </header>
+  <aside id="side" aria-label="Carpetas y playlists"></aside>
+  <main>
+    <div id="audioWarn" class="warn">No encuentro los archivos de audio. Esta página tiene que estar dentro de la carpeta <b>Música</b> (junto a las carpetas de temas) y abrirse desde ahí con doble clic.</div>
+    <div id="help" class="card help" hidden>
+      <ul>
+        <li><b>Objetivo:</b> decidir si la organización tiene sentido antes de importarla. Con las playlists marcadas con ★ (una por carpeta grande) alcanza.</li>
+        <li><b>Mapa:</b> cada punto es un tema; los cercanos suenan parecido para el modelo. Azul = la carpeta elegida, naranja = la playlist elegida con su orden. Clic en un punto lo reproduce.</li>
+        <li><b>Escuchar la secuencia:</b> reproduce un fragmento de cada tema en el orden de la playlist, desde la mitad del tema.</li>
+        <li><b>Veredicto:</b> "Tiene sentido", "A medias" o "No", una nota opcional, y "No va acá" en los temas que sobran. Se guarda solo en este navegador; <b>Exportar CSV</b> lo baja para pasármelo.</li>
+        <li>Teclado: espacio = pausa, → = siguiente en la secuencia.</li>
+      </ul>
+    </div>
+    <section class="card" aria-label="Mapa de temas">
+      <div class="maphead">
+        <strong>Mapa</strong>
+        <div class="legend">
+          <span style="--c: var(--context-dot)">otros temas</span>
+          <span style="--c: var(--series-1)">carpeta elegida</span>
+          <span style="--c: var(--series-2)">playlist elegida (en orden)</span>
+        </div>
+      </div>
+      <div id="mapWrap"><canvas id="map" aria-label="Mapa 2D de los temas; la tabla de abajo tiene los mismos datos"></canvas><div id="tip" role="status"></div></div>
+    </section>
+    <section class="card" id="plCard" aria-live="polite"></section>
+  </main>
+  <footer>
+    <button id="pauseBtn" aria-label="Pausa">Pausa</button>
+    <button id="nextBtn" aria-label="Siguiente">Siguiente →</button>
+    <span id="now" class="ink2">Nada sonando.</span>
+    <progress id="prog" max="1" value="0"></progress>
+  </footer>
+</div>
+<audio id="audio" preload="none"></audio>
+<script>
+const DATA = /*__DATA__*/null;
+const STORE_KEY = "traktor_playlist_review_v1_" + DATA.run_id;
+const $ = s => document.querySelector(s);
+const el = (tag, attrs = {}, ...kids) => {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") n.className = v; else if (k === "text") n.textContent = v;
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v);
+  }
+  for (const c of kids) if (c != null) n.append(c);
+  return n;
+};
+const T = DATA.tracks;
+let state = {};
+try { state = JSON.parse(localStorage.getItem(STORE_KEY) || "{}"); } catch (e) { state = {}; }
+const firstVisit = !Object.keys(state).length;
+const save = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} };
+const judg = (orgId, plId) => ((state[orgId] ||= {})[plId] ||= { verdict: "", note: "", notHere: [] });
+
+let org = DATA.orgs[0], folder = null, playlist = null;
+const VERDICTS = [
+  { v: "si", label: "Tiene sentido", icon: "✓", c: "var(--good)" },
+  { v: "medias", label: "A medias", icon: "~", c: "var(--warning)" },
+  { v: "no", label: "No", icon: "✗", c: "var(--critical)" },
+];
+const vInfo = v => VERDICTS.find(x => x.v === v);
+
+// ---------- audio ----------
+const audio = $("#audio");
+const srcOf = t => t.p.split("/").map(encodeURIComponent).join("/");
+let nowIdx = null, seq = null, seqTimer = null;
+function play(idx, startFrac = 0.4) {
+  const t = T[idx]; nowIdx = idx;
+  audio.src = srcOf(t);
+  audio.addEventListener("loadedmetadata", () => {
+    if (isFinite(audio.duration)) audio.currentTime = startFrac * audio.duration;
+    audio.play().catch(() => {});
+  }, { once: true });
+  audio.load();
+  $("#now").textContent = `${t.a ? t.a + " – " : ""}${t.t}`;
+  markPlaying();
+}
+audio.addEventListener("error", () => { if (audio.src) $("#audioWarn").style.display = "block"; });
+audio.addEventListener("playing", () => { $("#audioWarn").style.display = "none"; $("#pauseBtn").textContent = "Pausa"; });
+audio.addEventListener("pause", () => { $("#pauseBtn").textContent = "Reproducir"; });
+audio.addEventListener("timeupdate", () => {
+  if (seq) $("#prog").value = Math.min(1, (performance.now() - seq.t0) / (seq.secs * 1000));
+  else if (audio.duration) $("#prog").value = audio.currentTime / audio.duration;
+});
+function stopSeq() { seq = null; clearTimeout(seqTimer); $("#seqBtn") && ($("#seqBtn").textContent = "▶ Escuchar la secuencia"); }
+function seqStep() {
+  if (!seq) return;
+  if (seq.i >= seq.items.length) { stopSeq(); audio.pause(); return; }
+  play(seq.items[seq.i]); seq.t0 = performance.now();
+  clearTimeout(seqTimer);
+  seqTimer = setTimeout(() => { if (seq) { seq.i += 1; seqStep(); } }, seq.secs * 1000);
+}
+function startSeq(items, fromPos = 0) {
+  const secs = +($("#seqSecs")?.value || 20);
+  seq = { items, i: fromPos, secs, t0: performance.now() };
+  $("#seqBtn").textContent = "■ Detener secuencia";
+  seqStep();
+}
+$("#pauseBtn").onclick = () => { if (audio.paused) audio.play().catch(() => {}); else { audio.pause(); stopSeq(); } };
+$("#nextBtn").onclick = () => { if (seq) { seq.i += 1; seqStep(); } else if (playlist && nowIdx != null) {
+  const i = playlist.tracks.indexOf(nowIdx); if (i >= 0 && i + 1 < playlist.tracks.length) play(playlist.tracks[i + 1]); } };
+document.addEventListener("keydown", e => {
+  if (["TEXTAREA", "INPUT", "SELECT"].includes(e.target.tagName)) return;
+  if (e.code === "Space") { e.preventDefault(); $("#pauseBtn").click(); }
+  if (e.code === "ArrowRight") { e.preventDefault(); $("#nextBtn").click(); }
+});
+
+// ---------- sidebar ----------
+function plStats(pl) {
+  const ts = pl.tracks.map(i => T[i]);
+  const bpms = ts.map(t => t.b).filter(b => b != null);
+  const count = key => { const m = new Map(); ts.forEach(t => { const k = t[key]; if (k) m.set(k, (m.get(k) || 0) + 1); });
+    return [...m.entries()].sort((a, b) => b[1] - a[1]); };
+  return {
+    n: ts.length,
+    bpm: bpms.length ? [Math.round(Math.min(...bpms)), Math.round(Math.max(...bpms))] : null,
+    genres: count("g").slice(0, 3), folders: count("fs").slice(0, 3),
+    vocal: ts.filter(t => t.v).length,
+  };
+}
+function badge(orgId, plId) {
+  const j = state[orgId]?.[plId]; const v = j && vInfo(j.verdict);
+  if (!v) return null;
+  return el("span", { class: "badge" }, el("i", { style: `background:${v.c}` }), v.label);
+}
+function renderSide() {
+  const side = $("#side"); side.replaceChildren();
+  org.folders.forEach(f => {
+    const det = el("details", { class: "folder" });
+    if (folder && f.id === folder.id) det.open = true;
+    const nTracks = f.playlists.reduce((s, p) => s + p.tracks.length, 0);
+    det.append(el("summary", {}, f.name, el("span", { class: "n muted", text: String(nTracks) })));
+    f.playlists.forEach(pl => {
+      const row = el("div", { class: "pl" + (playlist && pl.id === playlist.id ? " sel" : ""), tabindex: "0", role: "button" },
+        pl.suggested ? el("span", { class: "star", title: "sugerida", text: "★" }) : null,
+        el("span", { text: pl.name }), badge(org.id, pl.id), el("span", { class: "n muted", text: String(pl.tracks.length) }));
+      row.addEventListener("click", () => select(f, pl));
+      row.addEventListener("keydown", e => { if (e.key === "Enter") select(f, pl); });
+      det.append(row);
+    });
+    side.append(det);
+  });
+  const all = org.folders.flatMap(f => f.playlists);
+  const done = all.filter(p => state[org.id]?.[p.id]?.verdict).length;
+  const sug = all.filter(p => p.suggested); const sugDone = sug.filter(p => state[org.id]?.[p.id]?.verdict).length;
+  $("#progress").textContent = `Revisadas ${done} de ${all.length} · sugeridas ★ ${sugDone} de ${sug.length}`;
+}
+
+// ---------- playlist panel ----------
+function renderPlaylist() {
+  const card = $("#plCard"); card.replaceChildren();
+  if (!playlist) { card.append(el("p", { class: "muted", text: "Elegí una playlist a la izquierda (★ = sugeridas) o un punto del mapa." })); return; }
+  const s = plStats(playlist), j = judg(org.id, playlist.id);
+  card.append(el("h2", {}, `${folder.name} › ${playlist.name}`));
+  const chips = el("div", { class: "chips" },
+    el("span", { class: "chip", text: `${s.n} temas` }),
+    s.bpm ? el("span", { class: "chip", text: `BPM ${s.bpm[0]}–${s.bpm[1]}` }) : null,
+    el("span", { class: "chip", text: `Vocal ${s.vocal} de ${s.n}` }),
+    s.genres.length ? el("span", { class: "chip", text: "Géneros: " + s.genres.map(([g, n]) => `${g} (${n})`).join(", ") }) : null,
+    s.folders.length ? el("span", { class: "chip", text: "Tus carpetas: " + s.folders.map(([g, n]) => `${g} (${n})`).join(", ") }) : null);
+  card.append(chips);
+  const vbox = el("div", { class: "verdict", role: "group", "aria-label": "Veredicto" }, el("span", { class: "ink2", text: "¿Tiene sentido esta playlist?" }));
+  VERDICTS.forEach(v => {
+    const b = el("button", { "aria-pressed": String(j.verdict === v.v), style: `--c:${v.c}` }, el("i", { text: v.icon }), v.label);
+    b.onclick = () => { j.verdict = j.verdict === v.v ? "" : v.v; save(); renderPlaylist(); renderSide(); };
+    vbox.append(b);
+  });
+  card.append(vbox);
+  const ta = el("textarea", { placeholder: "Nota (opcional): qué sobra, qué falta, cómo la usarías…" });
+  ta.value = j.note || ""; ta.addEventListener("input", () => { j.note = ta.value; save(); });
+  card.append(ta);
+  const seqRow = el("div", { class: "seq" },
+    el("button", { id: "seqBtn", onclick: () => seq ? (stopSeq(), audio.pause()) : startSeq(playlist.tracks) }, "▶ Escuchar la secuencia"),
+    el("label", { class: "ink2" }, "segundos por tema ",
+      (() => { const sel = el("select", { id: "seqSecs" }); [10, 20, 30, 45].forEach(x => sel.append(el("option", { value: String(x), text: String(x) }))); sel.value = "20"; return sel; })()));
+  card.append(seqRow);
+  const table = el("table", { style: "margin-top:10px" });
+  table.append(el("thead", {}, el("tr", {},
+    el("th", { class: "num", text: "#" }), el("th", { text: "" }), el("th", { text: "Tema" }),
+    el("th", { class: "num", text: "BPM" }), el("th", { text: "Tono" }), el("th", { class: "num", text: "Energía" }),
+    el("th", { text: "Vocal" }), el("th", { text: "Género (tag)" }), el("th", { text: "Tu carpeta" }), el("th", { text: "No va acá" }))));
+  const tb = el("tbody");
+  playlist.tracks.forEach((idx, pos) => {
+    const t = T[idx];
+    const flagged = j.notHere.includes(t.u);
+    const cb = el("input", { type: "checkbox", "aria-label": "No va acá" }); cb.checked = flagged;
+    cb.onchange = () => { j.notHere = cb.checked ? [...new Set([...j.notHere, t.u])] : j.notHere.filter(u => u !== t.u); save(); renderPlaylist(); };
+    tb.append(el("tr", { "data-idx": String(idx), class: (flagged ? "flagged" : "") + (idx === nowIdx ? " playing" : "") },
+      el("td", { class: "num muted", text: String(pos + 1) }),
+      el("td", {}, el("button", { class: "play", "aria-label": "Reproducir", onclick: () => { stopSeq(); play(idx); } }, "▶")),
+      el("td", { class: "title" }, t.t, t.a ? el("small", { text: t.a }) : null),
+      el("td", { class: "num", text: t.b != null ? String(Math.round(t.b)) : "" }),
+      el("td", { text: t.k || "" }),
+      el("td", { class: "num", text: t.e != null ? String(t.e) : "" }),
+      el("td", { text: t.v ? "Vocal" : "" }),
+      el("td", { class: "ink2", text: t.g || "" }),
+      el("td", { class: "ink2", text: t.fs || "" }),
+      el("td", {}, cb)));
+  });
+  table.append(tb); card.append(table);
+}
+function markPlaying() {
+  document.querySelectorAll("tr.playing").forEach(r => r.classList.remove("playing"));
+  const r = document.querySelector(`tr[data-idx="${nowIdx}"]`); if (r) r.classList.add("playing");
+}
+function select(f, pl) { folder = f; playlist = pl; stopSeq(); renderSide(); renderPlaylist(); drawMap(); }
+
+// ---------- map ----------
+const canvas = $("#map"), ctx = canvas.getContext("2d"), tip = $("#tip");
+let pts = [];
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function drawMap() {
+  const dpr = window.devicePixelRatio || 1, W = canvas.clientWidth, H = canvas.clientHeight;
+  canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = css("--surface-1"); ctx.fillRect(0, 0, W, H);
+  const xy = org.xy, pad = 14;
+  const xs = xy.map(p => p[0]), ys = xy.map(p => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const sx = x => pad + (x - x0) / (x1 - x0 || 1) * (W - 2 * pad), sy = y => H - pad - (y - y0) / (y1 - y0 || 1) * (H - 2 * pad);
+  pts = xy.map((p, i) => ({ i, x: sx(p[0]), y: sy(p[1]) }));
+  const inFolder = new Set(folder ? folder.playlists.flatMap(p => p.tracks) : []);
+  const inPl = new Set(playlist ? playlist.tracks : []);
+  ctx.fillStyle = css("--context-dot");
+  pts.forEach(p => { if (!inFolder.has(org.trackIdx[p.i])) { ctx.beginPath(); ctx.arc(p.x, p.y, 2.2, 0, 7); ctx.fill(); } });
+  const ring = css("--surface-1");
+  const dot = (p, r, c) => { ctx.beginPath(); ctx.arc(p.x, p.y, r + 2, 0, 7); ctx.fillStyle = ring; ctx.fill(); ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 7); ctx.fillStyle = c; ctx.fill(); };
+  const byTrack = new Map(pts.map(p => [org.trackIdx[p.i], p]));
+  inFolder.forEach(ti => { if (!inPl.has(ti)) dot(byTrack.get(ti), 3, css("--series-1")); });
+  if (playlist) {
+    ctx.strokeStyle = css("--series-2"); ctx.lineWidth = 2; ctx.globalAlpha = 0.55; ctx.beginPath();
+    playlist.tracks.forEach((ti, k) => { const p = byTrack.get(ti); if (k) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); });
+    ctx.stroke(); ctx.globalAlpha = 1;
+    playlist.tracks.forEach(ti => dot(byTrack.get(ti), 4.5, css("--series-2")));
+    const first = byTrack.get(playlist.tracks[0]);
+    ctx.fillStyle = css("--ink"); ctx.font = "600 12px system-ui, sans-serif"; ctx.fillText("inicio", first.x + 8, first.y - 8);
+  }
+}
+function nearest(mx, my) {
+  let best = null, bd = 144; // radio 12 px
+  pts.forEach(p => { const d = (p.x - mx) ** 2 + (p.y - my) ** 2; if (d < bd) { bd = d; best = p; } });
+  return best;
+}
+function findPlaylist(ti) {
+  for (const f of org.folders) for (const pl of f.playlists) if (pl.tracks.includes(ti)) return [f, pl];
+  return [null, null];
+}
+canvas.addEventListener("pointermove", e => {
+  const r = canvas.getBoundingClientRect(), p = nearest(e.clientX - r.left, e.clientY - r.top);
+  if (!p) { tip.style.display = "none"; canvas.style.cursor = "default"; return; }
+  const ti = org.trackIdx[p.i], t = T[ti], [f, pl] = findPlaylist(ti);
+  tip.replaceChildren(el("b", { text: `${t.a ? t.a + " – " : ""}${t.t}` }),
+    el("div", { class: "ink2", text: [t.b != null ? `${Math.round(t.b)} BPM` : null, t.k, t.g, t.v ? "Vocal" : null].filter(Boolean).join(" · ") }),
+    el("div", { class: "muted", text: `${pl ? pl.name : ""}${t.fs ? " · tu carpeta: " + t.fs : ""}` }));
+  tip.style.display = "block";
+  const tx = Math.min(p.x + 14, r.width - tip.offsetWidth - 4);
+  tip.style.left = tx + "px"; tip.style.top = Math.max(0, p.y - tip.offsetHeight - 10) + "px";
+  canvas.style.cursor = "pointer";
+});
+canvas.addEventListener("pointerleave", () => { tip.style.display = "none"; });
+canvas.addEventListener("click", e => {
+  const r = canvas.getBoundingClientRect(), p = nearest(e.clientX - r.left, e.clientY - r.top);
+  if (!p) return;
+  const ti = org.trackIdx[p.i], [f, pl] = findPlaylist(ti);
+  if (pl && pl !== playlist) select(f, pl);
+  stopSeq(); play(ti);
+});
+window.addEventListener("resize", drawMap);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawMap);
+
+// ---------- export ----------
+function csvCell(v) { const s = v == null ? "" : String(v); return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }
+$("#exportBtn").onclick = () => {
+  const rows = [["organizacion", "tipo", "carpeta", "playlist", "veredicto", "nota", "n_temas", "track_uid", "tema", "ruta"]];
+  DATA.orgs.forEach(o => o.folders.forEach(f => f.playlists.forEach(pl => {
+    const j = state[o.id]?.[pl.id]; if (!j || (!j.verdict && !j.note && !j.notHere.length)) return;
+    rows.push([o.label, "playlist", f.name, pl.name, j.verdict, j.note, pl.tracks.length, "", "", ""]);
+    j.notHere.forEach(u => { const t = T.find(x => x.u === u); rows.push([o.label, "no_va_aca", f.name, pl.name, "", "", "", u, t ? `${t.a} - ${t.t}` : "", t ? t.p : ""]); });
+  })));
+  const blob = new Blob(["﻿" + rows.map(r => r.map(csvCell).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const a = el("a", { href: URL.createObjectURL(blob), download: `revision_playlists_${DATA.run_id}.csv` });
+  document.body.append(a); a.click(); a.remove();
+};
+$("#helpBtn").onclick = () => { const h = $("#help"); h.hidden = !h.hidden; $("#helpBtn").setAttribute("aria-expanded", String(!h.hidden)); };
+
+// ---------- init ----------
+const orgSel = $("#orgSel");
+DATA.orgs.forEach((o, i) => orgSel.append(el("option", { value: String(i), text: o.label })));
+orgSel.onchange = () => { org = DATA.orgs[+orgSel.value]; folder = null; playlist = null; stopSeq(); renderSide(); renderPlaylist(); drawMap(); };
+if (DATA.orgs.length < 2) orgSel.disabled = true;
+(() => { // arrancar con la primera playlist sugerida
+  for (const f of org.folders) { const pl = f.playlists.find(p => p.suggested); if (pl) { folder = f; playlist = pl; return; } }
+})();
+renderSide(); renderPlaylist(); drawMap();
+if (firstVisit) { $("#help").hidden = false; $("#helpBtn").setAttribute("aria-expanded", "true"); }
+// sondear que el audio esté accesible desde esta carpeta
+(() => { const probe = new Audio(); probe.preload = "metadata";
+  probe.onerror = () => { $("#audioWarn").style.display = "block"; };
+  probe.src = srcOf(T[0]); })();
+</script>
+</body>
+</html>

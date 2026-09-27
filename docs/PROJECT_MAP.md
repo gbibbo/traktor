@@ -81,6 +81,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_representation_eval.py` | Unit tests de representation_eval (tripletas, bootstrap pareado, coherencia kNN/MAP) |
 | `test_triplet_evidence.py` | Unit tests de triplet_evidence (dedup, resolución, baselines) |
 | `test_tags_catalog.py` | Unit tests de tags.py y del catálogo recursivo (hash estable al escribir tags, dedup) |
+| `test_playlist_review.py` | Unit tests del generador de la página de revisión |
 | `test_dj_export.py` | Unit tests de rekordbox.xml / NML / M3U8, bpm_key desde tags, orden por energía, ventanas |
 
 ## Artifacts (generados, no en git)
@@ -130,6 +131,13 @@ coordina el preflight y la descarga de Soulseek, espera el JSON/playlist de falt
 sincroniza el inicio del grabador con Spotify y reúne los resultados bajo
 `download_JIJIJI/runs/` (git-ignorado). `download_JIJIJI/README.md` documenta la
 configuración inicial y el uso.
+
+## Revisión de playlists (`tools/playlist_review/`)
+
+| Archivo | Descripción |
+| :--- | :--- |
+| `tools/playlist_review/build_review_page.py` | Genera `<carpeta de audio>/_revision_playlists.html`: mapa UMAP, playlists en orden, escucha de la secuencia, veredictos por playlist/tema exportables a CSV; varias organizaciones a ciegas (`--org`, `--blind`) |
+| `tools/playlist_review/template.html` | Plantilla autónoma (sin servidor ni red; audio por rutas relativas) |
 
 ## Herramienta de feedback del DJ (`tools/dj_feedback/`)
 
