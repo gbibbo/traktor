@@ -55,7 +55,8 @@ def test_org_payload_order_and_suggested():
         "position": [1, 0, 0, 1, 0], "umap_x": [0.1, 0.2, 0.3, 0.4, 0.5], "umap_y": [1.0, 2.0, 3.0, 4.0, 5.0]})
     names = {"l1_0": "Techno", "l1_0_l2_0": "A1 Techno", "l1_0_l2_1": "A2", "l1_1": "Group B", "l1_1_l2_0": "B1"}
     idx = {u: i for i, u in enumerate("abcde")}
-    p = org_payload({"ordered": ordered, "names": names}, idx, "Actual", "A", n_suggested=1)
+    p = org_payload({"hash": "h1", "ordered": ordered, "names": names}, idx, "Actual", n_suggested=1)
+    assert p["id"] == "h1" and p["folders"][0]["playlists"][0]["id"] == "h1:0:0"
     f0, f1 = p["folders"]
     assert f0["name"] == "A · Techno" and f1["name"] == "B"
     assert f0["playlists"][0]["tracks"] == [idx["b"], idx["a"]]  # por position

@@ -9,7 +9,7 @@ PURPOSE: Generar la página autónoma "Revisión de playlists" para que Gabriel 
          los archivos locales sin servidor). Admite varias organizaciones (una por config de Phase 2):
          con --blind se muestran como A/B en orden aleatorio y la correspondencia se guarda aparte.
 CHANGELOG:
-  - 2026-09-27: Creación inicial.
+  - 2026-09-27: Creación inicial. Veredictos guardados por dataset + config_hash (no por generación).
 """
 import argparse
 import datetime as dt
@@ -92,7 +92,10 @@ def load_org(artifacts: Path, config_hash: str) -> Dict:
     return {"hash": config_hash, "rep": cfg.get("rep", "mert"), "ordered": ordered, "names": names}
 
 
-def org_payload(org: Dict, uid_index: Dict[str, int], label: str, org_id: str, n_suggested: int = 8) -> Dict:
+def org_payload(org: Dict, uid_index: Dict[str, int], label: str, n_suggested: int = 8) -> Dict:
+    """id = config_hash: los veredictos guardados en el navegador siguen a la organización aunque se
+    regenere la página o cambie la letra A/B."""
+    org_id = org["hash"]
     df = org["ordered"].sort_values(["label_l1", "label_l2", "position"])
     folders = []
     for l1, g1 in df.groupby("label_l1", sort=True):
@@ -160,7 +163,7 @@ def main() -> int:
 
     data = {"run_id": run_id, "dataset": args.dataset_name,
             "tracks": build_tracks(catalog, bpm_key, uids),
-            "orgs": [org_payload(o, uid_index, lab, _letter(i)) for i, (o, lab) in enumerate(zip(orgs, labels))]}
+            "orgs": [org_payload(o, uid_index, lab) for o, lab in zip(orgs, labels)]}
     out = Path(args.out) if args.out else resolve_dataset_audio_root(args.dataset_name, config) / PAGE_NAME
     out.write_text(render(data), encoding="utf-8")
     n_pl = sum(len(f["playlists"]) for o in data["orgs"] for f in o["folders"])

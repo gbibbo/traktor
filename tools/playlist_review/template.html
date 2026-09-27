@@ -133,7 +133,8 @@ progress { width: 180px; height: 6px; }
 <audio id="audio" preload="none"></audio>
 <script>
 const DATA = /*__DATA__*/null;
-const STORE_KEY = "traktor_playlist_review_v1_" + DATA.run_id;
+// Guardado por dataset y organización (config_hash): sobrevive a regenerar la página y al orden a ciegas
+const STORE_KEY = "traktor_playlist_review_v1_" + DATA.dataset;
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
   const n = document.createElement(tag);
@@ -369,11 +370,11 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawMap);
 // ---------- export ----------
 function csvCell(v) { const s = v == null ? "" : String(v); return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }
 $("#exportBtn").onclick = () => {
-  const rows = [["organizacion", "tipo", "carpeta", "playlist", "veredicto", "nota", "n_temas", "track_uid", "tema", "ruta"]];
+  const rows = [["organizacion", "org_id", "tipo", "carpeta", "playlist", "veredicto", "nota", "n_temas", "track_uid", "tema", "ruta"]];
   DATA.orgs.forEach(o => o.folders.forEach(f => f.playlists.forEach(pl => {
     const j = state[o.id]?.[pl.id]; if (!j || (!j.verdict && !j.note && !j.notHere.length)) return;
-    rows.push([o.label, "playlist", f.name, pl.name, j.verdict, j.note, pl.tracks.length, "", "", ""]);
-    j.notHere.forEach(u => { const t = T.find(x => x.u === u); rows.push([o.label, "no_va_aca", f.name, pl.name, "", "", "", u, t ? `${t.a} - ${t.t}` : "", t ? t.p : ""]); });
+    rows.push([o.label, o.id, "playlist", f.name, pl.name, j.verdict, j.note, pl.tracks.length, "", "", ""]);
+    j.notHere.forEach(u => { const t = T.find(x => x.u === u); rows.push([o.label, o.id, "no_va_aca", f.name, pl.name, "", "", "", u, t ? `${t.a} - ${t.t}` : "", t ? t.p : ""]); });
   })));
   const blob = new Blob(["﻿" + rows.map(r => r.map(csvCell).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8" });
   const a = el("a", { href: URL.createObjectURL(blob), download: `revision_playlists_${DATA.run_id}.csv` });
