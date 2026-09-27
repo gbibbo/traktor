@@ -4,6 +4,24 @@ Registro fechado de decisiones de Gabriel que condicionan el trabajo. Cada entra
 decidió y qué implica para el código. Las decisiones más recientes prevalecen sobre planes
 anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_implementation_plan_v6.md`).
 
+## 2026-09-27
+
+1. **La copia fiel es `main` de GitHub.** Lo que quedó en la laptop sin subir (4 commits locales de
+   `feature/dj-clustering-v1`) se aparca: no se construye sobre eso ni se borra.
+2. **MVP primero.** La urgencia es tener el pendrive de Rekordbox y las playlists de Traktor para
+   tocar con la biblioteca que ya existe; la investigación del modelo de representación sigue
+   después, sobre el mismo pipeline.
+3. **Destino: Rekordbox y Traktor**, los dos.
+4. **El humano cura, el modelo ordena y sugiere.** No se depende de historiales de lo tocado: la
+   idea es que el modelo sugiera mejor de lo que Gabriel tocó antes. Hay algunos DJ sets (solo
+   audio) reutilizables más adelante.
+5. **El audio se compra.** "Me gusta" de Spotify tiene unos 2200 temas; quizá se descarguen solo
+   los últimos ~500.
+6. **Etiqueta "Vocal" en la metadata** de cada tema con voces, detectada con un modelo
+   preentrenado.
+7. La biblioteca se copia a `Música/` en la raíz del repo (git-ignorada). Las carpetas "old N" no
+   tienen un significado fijo (a veces son copias de respaldo desordenadas): no se usan como señal.
+
 ## 2026-09-12
 
 1. **El corazón del proyecto es un modelo de representation learning** que permita encontrar

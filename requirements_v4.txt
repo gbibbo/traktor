@@ -13,3 +13,5 @@ umap-learn
 pyyaml
 essentia
 nnAudio
+torch
+mutagen

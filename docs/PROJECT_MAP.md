@@ -6,7 +6,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 
 | Archivo | Descripción |
 | :--- | :--- |
-| `config/v4.yaml` | Config principal: rutas, datasets, clustering, ordering |
+| `config/v4.yaml` | Config principal: rutas, datasets (`test_20`, `musica` = biblioteca completa en `Música/`, git-ignorada), clustering, ordering |
 | `src/v4/config.py` | Constantes centrales (sample rates, model names, defaults) |
 
 ## Common Utilities (`src/v4/common/`)
@@ -15,12 +15,15 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | :--- | :--- |
 | `config_loader.py` | Cargar config con cascada: CLI > env > YAML |
 | `path_resolver.py` | Resolver rutas de artifacts, audio, caches (laptop + HPC) |
-| `catalog.py` | Construir y cargar catálogo de tracks (catalog.parquet) |
-| `audio_utils.py` | Carga de audio, segmentación DJ, get_audio_files |
+| `catalog.py` | Construir y cargar catálogo de tracks (catalog.parquet); recursivo, tags, hash `audio`, deduplicado |
+| `audio_utils.py` | Carga de audio, segmentación DJ (get_dj_segments, read_dj_segments por seek), get_audio_files |
 | `demucs_utils.py` | Separación de stems (Demucs htdemucs) |
-| `embedding_utils.py` | MERTEmbedder: embeddings MERT-v1-330M |
+| `embedding_utils.py` | MERTEmbedder: embeddings MERT-v1-330M; load_track_embeddings (Phase 1 o representations/) |
 | `logging_utils.py` | Logger JSONL + run manifests |
 | `harmonic.py` | Compatibilidad armónica Camelot con transposición ±2 st (regla 2026-09-11) |
+| `tags.py` | Tags con mutagen: BPM, tonalidad, género, sello, energía de Mixed In Key; hash de audio sin tags; comentario idempotente |
+| `tempo.py` | Estimación de BPM (flujo espectral + autocorrelación) para temas sin BPM en tags |
+| `dj_export.py` | Escritores rekordbox.xml, NML de Traktor y M3U8 con rutas absolutas |
 
 ## Pipeline (`src/v4/pipeline/`)
 
@@ -28,12 +31,14 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | :--- | :--- |
 | `phase0_ingest.py` | Escaneo + validación + catálogo + metadata merge |
 | `phase1_extract.py` | GPU: Demucs + MERT + Essentia (con sharding) |
+| `phase1_tags.py` | CPU: BPM/tonalidad/energía desde tags → features/bpm_key.parquet (sin Essentia; Windows); `--estimate-missing` |
 | `phase1_merge_shards.py` | CPU: Consolida shards de Phase 1 → mert_perc.npy, mert_full.npy, track_uids.json |
 | `phase2_cluster.py` | CPU: HDBSCAN L1/L2 + UMAP 2D → clustering/results_<hash>.parquet |
 | `phase3_name.py` | CPU: Naming semántico de clusters (genre voting + fallback genérico) |
 | `phase4_order.py` | CPU: Ordering greedy NN (cosine + BPM + Camelot key) → ordered_<hash>.parquet |
-| `extract_representations.py` | CPU: representaciones congeladas (EffNet, MAEST, MERT por capas, CLAP; full y HPSS) con segmentación V4 → representations/<variante>/ (fase 2 del plan) |
-| `phase5_export.py` | CPU: Export M3U Traktor (UTF-8, rutas Windows) → playlists/V4_<N>/ |
+| `extract_representations.py` | CPU: representaciones congeladas (EffNet, MAEST, MERT por capas, CLAP, MAEST-HF, AST; full y HPSS) con segmentación V4 → representations/<variante>/ (fase 2 del plan); `--shard`, `--assemble-only`, filtros de duración |
+| `tag_vocals.py` | CPU: etiqueta Vocal (CLAP zero-shot o AST AudioSet) → features/vocals_<método>.parquet; `--write-tags` agrega " - Vocal" al comentario con respaldo CSV y `--revert` |
+| `phase5_export.py` | CPU: Export M3U Traktor (UTF-8, rutas Windows) → playlists/V4_<N>/; `--formats m3u8,rekordbox,traktor`, `--rep`, `--out-root` |
 
 ## Evaluation (`src/v4/evaluation/`)
 
@@ -75,6 +80,8 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_block5_system.py` | Verificación final: todos los módulos importan, catalog_success, ProjectionHead |
 | `test_representation_eval.py` | Unit tests de representation_eval (tripletas, bootstrap pareado, coherencia kNN/MAP) |
 | `test_triplet_evidence.py` | Unit tests de triplet_evidence (dedup, resolución, baselines) |
+| `test_tags_catalog.py` | Unit tests de tags.py y del catálogo recursivo (hash estable al escribir tags, dedup) |
+| `test_dj_export.py` | Unit tests de rekordbox.xml / NML / M3U8, bpm_key desde tags, orden por energía, ventanas |
 
 ## Artifacts (generados, no en git)
 

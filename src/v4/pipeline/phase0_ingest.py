@@ -3,6 +3,7 @@ PURPOSE: Phase 0 — Ingesta y catálogo del dataset.
          Escanea audio_root, valida archivos, computa track_uids, merge metadata,
          genera catalog.parquet e ingest_report.json. Idempotente.
 CHANGELOG:
+  - 2026-09-27: Opciones por dataset recursive / read_tags / hashing_mode (biblioteca completa).
   - 2026-02-28: Creación inicial V4.
 """
 import argparse
@@ -61,8 +62,14 @@ def main() -> int:
         "audio_root": str(audio_root),
     })
 
+    # Opciones del dataset (biblioteca con subcarpetas y tags; ver config datasets.<name>)
+    ds_cfg = config.get("datasets", {}).get(args.dataset_name, {}) or {}
+    recursive = bool(ds_cfg.get("recursive", False))
+    with_tags = bool(ds_cfg.get("read_tags", False))
+    hash_mode = ds_cfg.get("hashing_mode")
+
     # Escanear archivos
-    all_files = get_audio_files(audio_root)
+    all_files = get_audio_files(audio_root, recursive=recursive)
     print(f"[INFO] Found {len(all_files)} audio files")
 
     # Verificar expected_n
@@ -98,7 +105,8 @@ def main() -> int:
         print(f"[INFO] Loaded metadata CSV: {meta_path} ({len(metadata_df)} rows)")
 
     # Construir catálogo
-    catalog = build_catalog(audio_root, args.dataset_name, config, metadata_df=metadata_df)
+    catalog = build_catalog(audio_root, args.dataset_name, config, metadata_df=metadata_df,
+                            recursive=recursive, with_tags=with_tags, hash_mode=hash_mode)
 
     # Ingest report
     elapsed = time.time() - t0

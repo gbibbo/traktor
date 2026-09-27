@@ -44,6 +44,44 @@ Demucs + MERT en GPU siguen siendo opcionales y solo con aprobación explícita 
 
 ---
 
+## 0b. MVP: biblioteca completa → Rekordbox + Traktor (Windows, sin Essentia) — 2026-09-27
+
+Dataset `musica`: toda la biblioteca copiada en `Música/` (raíz del repo, git-ignorada), con
+subcarpetas. BPM, tonalidad y energía salen de los tags (Beatport / Mixed In Key; el BPM que falta
+se estima del audio); el parecido sale de CLAP (determinista, 3 segmentos x 3 ventanas de 10 s).
+Los grupos se arman con Ward (número de grupos fijado): en CLAP, HDBSCAN deja casi todo como ruido.
+Todo corre en CPU en Windows; ffmpeg en PATH cubre los MP3 que libsndfile no abre.
+
+```bash
+# 0. Catálogo recursivo con tags; duplicados exactos → duplicates.csv (gana la copia organizada)
+python src/v4/pipeline/phase0_ingest.py --dataset-name musica
+# 1. BPM / tonalidad / energía desde tags (+ BPM estimado del audio donde falte)
+python src/v4/pipeline/phase1_tags.py --dataset-name musica --estimate-missing
+# 1b. CLAP en 2 procesos (fuera < 90 s y > 15 min: muestras, FX, mixes enteros) y ensamblado
+python src/v4/pipeline/extract_representations.py --dataset-name musica --models clap --threads 8 --min-duration 90 --max-duration 900 --shard 2:0
+python src/v4/pipeline/extract_representations.py --dataset-name musica --models clap --threads 8 --min-duration 90 --max-duration 900 --shard 2:1
+python src/v4/pipeline/extract_representations.py --dataset-name musica --models clap --min-duration 90 --max-duration 900 --assemble-only
+# 1c. Etiqueta Vocal (CLAP zero-shot). Primero sin escribir; --write-tags agrega " - Vocal" al
+#     comentario (respaldo CSV en features/; --revert <csv> lo deshace)
+python src/v4/pipeline/tag_vocals.py --dataset-name musica --method clap --check-list 12
+python src/v4/pipeline/tag_vocals.py --dataset-name musica --method clap --write-tags
+# 2-5. Grupos (Ward sobre CLAP + BPM), nombres (género de los tags), orden (embedding + BPM +
+#      tonalidad + energía), export
+python src/v4/pipeline/phase2_cluster.py --dataset-name musica --rep clap_full --bpm-weight 0.3 --method ward --n-l1 15 --l2-target-size 35 --pca-dim 50 --skip-umap
+python src/v4/pipeline/phase3_name.py --dataset-name musica
+python src/v4/pipeline/phase4_order.py --dataset-name musica --rep clap_full
+python src/v4/pipeline/phase5_export.py --dataset-name musica --rep clap_full --formats m3u8,rekordbox,traktor --out-root artifacts/v4/datasets/musica/exports
+```
+
+**Rekordbox (pendrive):** Preferencias > Avanzado > Base de datos > rekordbox xml: elegir
+`rekordbox.xml`. Preferencias > Vista > Diseño: activar "rekordbox xml". En el árbol,
+rekordbox xml > Playlists > clic derecho sobre la carpeta "TRAKTOR ML ..." > Importar playlist.
+Analizar los temas y arrastrar la carpeta al pendrive (modo Export).
+**Traktor:** Browser > clic derecho en Playlists > Import Playlist > `traktor.nml`. Alternativa
+universal: las `.m3u8` de `m3u8/` (una por playlist).
+
+---
+
 ## 1. Requisitos (referencia histórica HPC / entornos remotos)
 
 > Legacy/opcional. No es el flujo actual (ver sección 0).

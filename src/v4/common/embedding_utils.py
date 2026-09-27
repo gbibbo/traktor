@@ -1,14 +1,43 @@
 """
 PURPOSE: Extracción de embeddings musicales con MERT-v1-330M para TRAKTOR ML V4.
          El modelo espera audio a 24kHz. NO cargar en el nodo de login — usar Slurm GPU.
+         load_track_embeddings: carga alineada (track_uids + matriz) desde Phase 1 (embeddings/)
+         o desde una variante de extract_representations (representations/<variante>/).
 CHANGELOG:
+  - 2026-09-27: load_track_embeddings para que Phases 2-5 usen cualquier representación.
   - 2026-02-28: Creación inicial V4.
 """
-from typing import List, Optional
+import json
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 import numpy as np
 
 from src.v4.config import MERT_MODEL_NAME, MERT_SAMPLE_RATE, MERT_EMBEDDING_DIM
+
+
+def load_track_embeddings(artifacts_dir: Path, rep: Optional[str] = None,
+                          name: str = "mert_full") -> Tuple[List[str], np.ndarray]:
+    """
+    rep=None: embeddings/<name>.npy con embeddings/track_uids.json (salida de Phase 1).
+    rep='clap_full' (u otra variante): representations/<rep>/embeddings.npy + su track_uids.json.
+    Verifica que filas y uids coincidan.
+    """
+    artifacts_dir = Path(artifacts_dir)
+    if rep:
+        base = artifacts_dir / "representations" / rep
+        mat_path, uids_path = base / "embeddings.npy", base / "track_uids.json"
+    else:
+        mat_path = artifacts_dir / "embeddings" / f"{name}.npy"
+        uids_path = artifacts_dir / "embeddings" / "track_uids.json"
+    for p in (mat_path, uids_path):
+        if not p.exists():
+            raise FileNotFoundError(f"Embedding artifact not found: {p}")
+    uids = json.loads(uids_path.read_text(encoding="utf-8"))
+    mat = np.load(mat_path)
+    if mat.shape[0] != len(uids):
+        raise ValueError(f"{mat_path}: {mat.shape[0]} filas vs {len(uids)} track_uids")
+    return uids, mat
 
 
 class MERTEmbedder:

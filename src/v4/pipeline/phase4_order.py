@@ -4,12 +4,13 @@ PURPOSE: Phase 4 — Ordenamiento intra-cluster para transiciones suaves entre t
          Normaliza keys de Essentia ('C minor') a Camelot ('5A') antes de calcular compatibilidad.
          Guarda clustering/ordered_<hash>.parquet con columna 'position' por L2 subcluster.
 CHANGELOG:
+  - 2026-09-27: --rep (cualquier representación de representations/) y energía de Mixed In Key
+                (bpm_key.energy): arranque por menor energía y término opcional weights.energy.
   - 2026-09-11: key_compatibility y parsing Camelot movidos a src/v4/common/harmonic.py
                 (nueva regla: relativa, vecinas, diagonales, paralela, transposición ±2 st).
   - 2026-03-01: Creación inicial V4.
 """
 import argparse
-import json
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -21,6 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.v4.common.config_loader import load_config
+from src.v4.common.embedding_utils import load_track_embeddings
 from src.v4.common.path_resolver import resolve_dataset_artifacts
 from src.v4.config import ORDERING_WEIGHTS
 
@@ -52,6 +54,7 @@ def order_cluster_tracks(
     bpm: np.ndarray,
     camelot_keys: List[str],
     weights: Optional[Dict[str, float]] = None,
+    energy: Optional[np.ndarray] = None,
 ) -> List[int]:
     """
     Ordena tracks de un cluster usando greedy nearest-neighbour.
@@ -61,7 +64,8 @@ def order_cluster_tracks(
         embeddings: (N_total, D) embeddings ya L2-normalizados.
         bpm: (N_total,) BPM por track.
         camelot_keys: List[str] de longitud N_total con posiciones Camelot.
-        weights: {'embedding', 'bpm', 'key'} — pesos del score mixto.
+        weights: {'embedding', 'bpm', 'key', 'energy'} — pesos del score mixto ('energy' opcional, 0 por defecto).
+        energy: (N_total,) energía 1-10 (NaN = desconocida). Si hay, se arranca por la menor energía.
 
     Returns:
         Lista de índices en track_indices ordenada óptimamente.
@@ -72,6 +76,7 @@ def order_cluster_tracks(
     w_emb = weights.get("embedding", 0.5)
     w_bpm = weights.get("bpm", 0.3)
     w_key = weights.get("key", 0.2)
+    w_energy = weights.get("energy", 0.0)
 
     if len(track_indices) <= 1:
         return list(track_indices)
@@ -86,9 +91,20 @@ def order_cluster_tracks(
     # BPM range para normalizar
     bpm_range = float(np.ptp(sub_bpm)) if np.ptp(sub_bpm) > 0 else 1.0
 
+    sub_energy = None
+    if energy is not None:
+        sub_energy = np.asarray(energy, dtype=float)[track_indices]
+        if not np.isfinite(sub_energy).any():
+            sub_energy = None
+
     visited = [False] * n
-    # Empezar por el track con BPM más bajo (anclaje musicalemnte coherente)
-    start = int(np.argmin(sub_bpm))
+    # Empezar por el track con BPM más bajo (anclaje musicalemnte coherente);
+    # con energía conocida, por la menor energía y a igualdad el menor BPM (warm-up primero)
+    if sub_energy is not None:
+        e_fill = np.where(np.isfinite(sub_energy), sub_energy, np.nanmax(sub_energy))
+        start = int(np.lexsort((sub_bpm, e_fill))[0])
+    else:
+        start = int(np.argmin(sub_bpm))
     order = [start]
     visited[start] = True
 
@@ -112,6 +128,10 @@ def order_cluster_tracks(
             key_score = key_compatibility(sub_keys[current], sub_keys[j])
 
             score = w_emb * emb_score + w_bpm * bpm_score + w_key * key_score
+            if sub_energy is not None and w_energy > 0:
+                e_a, e_b = sub_energy[current], sub_energy[j]
+                energy_score = 1.0 - abs(e_a - e_b) / 9.0 if np.isfinite(e_a) and np.isfinite(e_b) else 0.5
+                score += w_energy * energy_score
             if score > best_score:
                 best_score = score
                 best_next = j
@@ -136,15 +156,16 @@ def run_ordering(
     config: dict,
     config_hash: Optional[str] = None,
     weights: Optional[Dict[str, float]] = None,
+    rep: Optional[str] = None,
 ) -> Path:
     """
     Aplica ordering greedy a cada L2 subcluster.
+    rep: variante de representations/ usada en Phase 2 (None = mert_full de Phase 1).
 
     Returns: Ruta al ordered_<hash>.parquet generado.
     """
     artifacts_dir = resolve_dataset_artifacts(dataset_name, config)
     clustering_dir = artifacts_dir / "clustering"
-    embeddings_dir = artifacts_dir / "embeddings"
     features_dir = artifacts_dir / "features"
 
     # Resolver config_hash
@@ -162,13 +183,9 @@ def run_ordering(
     df = pd.read_parquet(results_path)
 
     # Cargar embeddings + UIDs (alineación posicional)
-    uids_path = embeddings_dir / "track_uids.json"
-    with open(uids_path) as f:
-        track_uids_ordered = json.load(f)
+    print(f"[INFO] Loading embeddings: {rep or 'mert_full'} ...")
+    track_uids_ordered, mert_full = load_track_embeddings(artifacts_dir, rep=rep)  # (N, D)
     uid_to_idx = {uid: i for i, uid in enumerate(track_uids_ordered)}
-
-    print("[INFO] Loading mert_full embeddings...")
-    mert_full = np.load(embeddings_dir / "mert_full.npy")  # (N, D)
     mert_full = _l2_normalize_rows(mert_full)
 
     # Cargar BPM + key
@@ -180,6 +197,7 @@ def run_ordering(
     N = len(track_uids_ordered)
     bpm_arr = np.full(N, 128.0)  # default BPM si falta
     camelot_arr: List[str] = ["?"] * N
+    energy_arr = np.full(N, np.nan)
 
     for i, uid in enumerate(track_uids_ordered):
         if uid in bpm_df.index:
@@ -188,6 +206,8 @@ def run_ordering(
             bpm_arr[i] = float(bpm_val) if not pd.isna(bpm_val) else 128.0
             key_str = row.get("key", "?")
             camelot_arr[i] = essentia_to_camelot(str(key_str)) if not pd.isna(key_str) else "?"
+            if "energy" in bpm_df.columns and not pd.isna(row.get("energy")):
+                energy_arr[i] = float(row["energy"])
 
     # Ordenar por L1 y L2
     df["_global_idx"] = df["track_uid"].map(uid_to_idx)
@@ -202,6 +222,7 @@ def run_ordering(
             "embedding": float(ord_cfg.get("embedding", ORDERING_WEIGHTS["embedding"])),
             "bpm": float(ord_cfg.get("bpm", ORDERING_WEIGHTS["bpm"])),
             "key": float(ord_cfg.get("key", ORDERING_WEIGHTS["key"])),
+            "energy": float(ord_cfg.get("energy", 0.0)),
         }
 
     for l1 in labels_l1:
@@ -227,7 +248,8 @@ def run_ordering(
                 continue
 
             ordered_idxs = order_cluster_tracks(
-                global_idxs, mert_full, bpm_arr, camelot_arr, weights
+                global_idxs, mert_full, bpm_arr, camelot_arr, weights,
+                energy=energy_arr if np.isfinite(energy_arr).any() else None,
             )
             # Asignar posición 0-based dentro del subcluster
             global_to_pos = {g: pos for pos, g in enumerate(ordered_idxs)}
@@ -265,6 +287,7 @@ def main() -> int:
     parser.add_argument("--weights-bpm", type=float, default=None)
     parser.add_argument("--weights-key", type=float, default=None)
     parser.add_argument("--config", default=None)
+    parser.add_argument("--rep", default=None, help="Variante de representations/ usada en Phase 2")
     args = parser.parse_args()
 
     print("=" * 70)
@@ -287,6 +310,7 @@ def main() -> int:
         config=config,
         config_hash=args.config_hash,
         weights=weights,
+        rep=args.rep,
     )
     return 0
 

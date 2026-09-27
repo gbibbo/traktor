@@ -2,6 +2,7 @@
 PURPOSE: Resolver rutas de audio, artifacts, caches y logs de forma portátil (laptop + HPC).
          Precedencia siempre: env var > YAML > default en REPO_ROOT.
 CHANGELOG:
+  - 2026-09-27: datasets.<name>.audio_root relativo se resuelve contra REPO_ROOT.
   - 2026-02-28: Creación inicial V4.
 """
 import os
@@ -54,6 +55,8 @@ def resolve_dataset_audio_root(
     ds_audio = ds_cfg.get("audio_root")
     if ds_audio:
         p = Path(ds_audio)
+        if not p.is_absolute():
+            p = REPO_ROOT / p  # rutas relativas del YAML = relativas a la raíz del repo
         if p.exists():
             return p
         tried.append(str(p))

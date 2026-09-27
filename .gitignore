@@ -33,6 +33,7 @@ env/
 *.parquet
 
 # Heavy directories
+Música/
 data/
 models/
 logs/

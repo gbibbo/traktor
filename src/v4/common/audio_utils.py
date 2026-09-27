@@ -5,6 +5,9 @@ PURPOSE: Audio loading, validation and DJ-oriented segmentation for TRAKTOR ML V
          via torchaudio (soundfile fallback), añadida get_dj_segments con modo
          beat-aware + fallback porcentual.
 CHANGELOG:
+  - 2026-09-27: get_audio_files con recursive (biblioteca con subcarpetas). dj_segment_starts
+                (inicios del modo porcentual, compartidos) y read_dj_segments (lee solo los tramos;
+                respaldo con ffmpeg si libsndfile no abre el archivo).
   - 2026-09-11: Añadido hpss_percussive (separación armónico/percusivo por filtrado de mediana
                 sobre STFT, CPU) como alternativa barata a los stems de Demucs.
   - 2026-02-28: Adaptado de V2. Eliminado Essentia 16kHz. Añadido get_dj_segments.
@@ -20,18 +23,19 @@ from src.v4.config import ESSENTIA_SAMPLE_RATE, SEGMENT_DURATION_S, N_INTRO_SEGM
 def get_audio_files(
     audio_dir: Path,
     extensions: Tuple[str, ...] = (".mp3", ".wav", ".flac", ".aiff", ".aif", ".m4a"),
+    recursive: bool = False,
 ) -> List[Path]:
     """
-    Listar archivos de audio en un directorio.
+    Listar archivos de audio en un directorio (recursive=True: también en subcarpetas).
+    Ignora los '._*' de macOS.
 
     Returns: Lista ordenada de paths de audio.
     """
     audio_dir = Path(audio_dir)
-    audio_files = []
-    for ext in extensions:
-        audio_files.extend(audio_dir.glob(f"*{ext}"))
-        audio_files.extend(audio_dir.glob(f"*{ext.upper()}"))
-    return sorted(set(audio_files))
+    walker = audio_dir.rglob("*") if recursive else audio_dir.iterdir()
+    exts = {e.lower() for e in extensions}
+    return sorted(p for p in walker
+                  if p.is_file() and p.suffix.lower() in exts and not p.name.startswith("._"))
 
 
 def load_audio_torch(
@@ -107,6 +111,12 @@ def validate_audio_file(audio_path: Path) -> bool:
         sf.info(str(audio_path))
         return True
     except Exception:
+        pass
+    try:  # libsndfile no abre algunos MP3 válidos ("bad map offset"): ffmpeg/mutagen sí
+        import mutagen
+        audio = mutagen.File(str(audio_path))
+        return audio is not None and float(audio.info.length) > 0
+    except Exception:
         return False
 
 
@@ -176,24 +186,71 @@ def get_dj_segments(
 
         all_starts = intro_starts + mid_starts + outro_starts
     else:
-        # Fallback porcentual
-        def _zone_starts(zone_start_pct: float, zone_end_pct: float, n: int) -> List[int]:
-            zone_start = int(zone_start_pct * total_samples)
-            zone_end = int(zone_end_pct * total_samples)
-            zone_len = zone_end - zone_start
-            if n == 1:
-                return [zone_start + zone_len // 2 - seg_len // 2]
-            step = (zone_len - seg_len) // max(1, n - 1)
-            return [zone_start + i * step for i in range(n)]
-
-        intro_starts = _zone_starts(0.0, 0.15, n_intro)
-        mid_starts = _zone_starts(0.35, 0.65, n_mid)
-        outro_starts = _zone_starts(0.85, 1.0, n_outro)
-        all_starts = intro_starts + mid_starts + outro_starts
+        all_starts = dj_segment_starts(total_samples, seg_len, n_intro, n_mid, n_outro)
+        return [_extract_at(s) for s in all_starts]
 
     # Clamp starts
     all_starts = [max(0, min(s, total_samples - 1)) for s in all_starts]
     return [_extract_at(s) for s in all_starts]
+
+
+def dj_segment_starts(total_samples: int, seg_len: int, n_intro: int, n_mid: int, n_outro: int) -> List[int]:
+    """Inicios (en muestras) del modo porcentual de get_dj_segments: intro 0-15 %, medio 35-65 %,
+    outro 85-100 %, segmentos equiespaciados en cada zona; ya acotados a [0, total_samples-1]."""
+    def _zone_starts(zone_start_pct: float, zone_end_pct: float, n: int) -> List[int]:
+        zone_start = int(zone_start_pct * total_samples)
+        zone_end = int(zone_end_pct * total_samples)
+        zone_len = zone_end - zone_start
+        if n == 1:
+            return [zone_start + zone_len // 2 - seg_len // 2]
+        step = (zone_len - seg_len) // max(1, n - 1)
+        return [zone_start + i * step for i in range(n)]
+
+    starts = (_zone_starts(0.0, 0.15, n_intro) + _zone_starts(0.35, 0.65, n_mid)
+              + _zone_starts(0.85, 1.0, n_outro))
+    return [max(0, min(s, total_samples - 1)) for s in starts]
+
+
+def read_dj_segments(path: Path, segment_duration_s: float, n_intro: int, n_mid: int,
+                     n_outro: int) -> Tuple[List[np.ndarray], int]:
+    """Mismos segmentos que get_dj_segments(load mono completo) en modo porcentual, pero leyendo
+    solo esos tramos del archivo (seek): ~3x más rápido en MP3. Devuelve (segmentos mono, sr)."""
+    import soundfile as sf
+    try:
+        with sf.SoundFile(str(path)) as f:
+            sr, total = f.samplerate, f.frames
+            seg_len = int(segment_duration_s * sr)
+            segs = []
+            for start in dj_segment_starts(total, seg_len, n_intro, n_mid, n_outro):
+                f.seek(start)
+                x = f.read(seg_len, dtype="float32", always_2d=True).mean(axis=1)
+                if len(x) < seg_len:
+                    x = np.concatenate([x, np.zeros(seg_len - len(x), dtype=np.float32)])
+                segs.append(x.astype(np.float32))
+        return segs, sr
+    except Exception:  # noqa: BLE001  (MP3 que libsndfile no abre o no decodifica: "bad map offset", etc.)
+        return _read_dj_segments_ffmpeg(Path(path), segment_duration_s, n_intro, n_mid, n_outro)
+
+
+def _read_dj_segments_ffmpeg(path: Path, segment_duration_s: float, n_intro: int, n_mid: int,
+                             n_outro: int) -> Tuple[List[np.ndarray], int]:
+    """Respaldo con ffmpeg (debe estar en PATH) para archivos que libsndfile no abre."""
+    import subprocess
+    import mutagen
+    info = mutagen.File(str(path)).info
+    sr = int(getattr(info, "sample_rate", 44100) or 44100)
+    total = int(float(info.length) * sr)
+    seg_len = int(segment_duration_s * sr)
+    segs = []
+    for start in dj_segment_starts(total, seg_len, n_intro, n_mid, n_outro):
+        cmd = ["ffmpeg", "-v", "error", "-ss", f"{start / sr:.6f}", "-i", str(path), "-t", f"{segment_duration_s}",
+               "-ac", "1", "-ar", str(sr), "-f", "f32le", "-"]
+        raw = subprocess.run(cmd, capture_output=True, check=True).stdout
+        x = np.frombuffer(raw, dtype=np.float32)[:seg_len]
+        if len(x) < seg_len:
+            x = np.concatenate([x, np.zeros(seg_len - len(x), dtype=np.float32)])
+        segs.append(x.astype(np.float32))
+    return segs, sr
 
 
 def hpss_percussive(

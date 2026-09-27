@@ -32,6 +32,16 @@ datasets:
     metadata_csv: null
     manifest_csv: null
     expected_n: 243           # Total de archivos MP3 en el directorio (Phase 1 fallará ~1 bad file)
+    read_tags: true           # 2026-09-27: BPM/tonalidad de tags para baselines sin Essentia (phase1_tags)
+  musica:
+    # 2026-09-27: biblioteca completa de Gabriel copiada en la raíz del repo (git-ignorada).
+    audio_root: "Música"      # relativo a REPO_ROOT
+    recursive: true           # subcarpetas (#1 BIBO/PRO/..., 2019/..., 2020 new/...)
+    read_tags: true           # BPM/tonalidad/género de los tags + energía de Mixed In Key
+    hashing_mode: audio       # uid estable al escribir tags (etiqueta Vocal en el comentario)
+    metadata_csv: null
+    manifest_csv: null
+    expected_n: null
 
 clustering:
   pca_dim: 50              # dims PCA antes de HDBSCAN (0 = sin PCA); 93.7% var retained en 1024→50

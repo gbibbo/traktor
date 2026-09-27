@@ -3,7 +3,12 @@ PURPOSE: Phase 5 — Exportar playlists M3U compatibles con Traktor DJ.
          Estructura de output: playlists/V4_<N>/ con carpetas por cluster L1
          y archivos M3U por sub-cluster L2. Rutas Windows para uso directo en Traktor.
          Total de tracks exportados siempre == N canónico (track_uids.json).
+         Formatos (--formats): m3u (histórico: carpeta Windows + nombre de archivo), m3u8 (UTF-8,
+         rutas absolutas del catálogo), rekordbox (rekordbox.xml) y traktor (traktor.nml).
 CHANGELOG:
+  - 2026-09-27: --formats m3u8,rekordbox,traktor (src/v4/common/dj_export.py) con rutas absolutas
+                de catalog.source_path; --rep para el N canónico de una representación; --out-root;
+                nombres de playlist con rango de BPM de los tags.
   - 2026-03-01: Creación inicial V4.
   - 2026-03-01: Fix doble conteo: clusters con todos label_l2=-1 no generan playlist trivial adicional.
   - 2026-03-02: Fix nombre: grupos donde HDBSCAN L2 no encontró subclusters → playlist limpia en lugar de L2_X_Noise.m3u.
@@ -13,7 +18,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import pandas as pd
 
@@ -21,7 +26,11 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.v4.common.config_loader import load_config
+from src.v4.common.dj_export import PlaylistSpec, write_m3u8, write_rekordbox_xml, write_traktor_nml
+from src.v4.common.embedding_utils import load_track_embeddings
 from src.v4.common.path_resolver import resolve_dataset_artifacts
+
+DJ_FORMATS = ("m3u8", "rekordbox", "traktor")
 
 
 # ---------------------------------------------------------------------------
@@ -74,6 +83,17 @@ def _write_m3u(m3u_path: Path, tracks: pd.DataFrame, windows_audio_dir: str) -> 
             f.write(f"{wpath}\n")
 
 
+def _bpm_span(tracks: pd.DataFrame) -> str:
+    """' (122-126)' con el rango de BPM de los tags; '' si no hay BPM."""
+    if "tag_bpm" not in tracks.columns:
+        return ""
+    bpm = pd.to_numeric(tracks["tag_bpm"], errors="coerce").dropna()
+    if bpm.empty:
+        return ""
+    lo, hi = int(round(bpm.min())), int(round(bpm.max()))
+    return f" ({lo})" if lo == hi else f" ({lo}-{hi})"
+
+
 def _find_latest_ordered(clustering_dir: Path) -> Optional[Path]:
     candidates = sorted(clustering_dir.glob("ordered_*.parquet"), key=lambda p: p.stat().st_mtime)
     return candidates[-1] if candidates else None
@@ -93,16 +113,23 @@ def run_export(
     config: dict,
     config_hash: Optional[str] = None,
     windows_audio_dir: Optional[str] = None,
+    formats: tuple = ("m3u",),
+    rep: Optional[str] = None,
+    out_root: Optional[Path] = None,
+    root_name: Optional[str] = None,
 ) -> Path:
     """
-    Genera playlists M3U desde ordered_<hash>.parquet y names_<hash>.json.
+    Genera playlists desde ordered_<hash>.parquet y names_<hash>.json.
+    formats: subconjunto de ('m3u', 'm3u8', 'rekordbox', 'traktor').
+    rep: representación usada en Phases 2-4 (define el N canónico); None = Phase 1.
 
-    Returns: Ruta al directorio playlists/V4_<N>/ generado.
+    Returns: Ruta al directorio <out_root>/V4_<N>/ generado.
     """
     artifacts_dir = resolve_dataset_artifacts(dataset_name, config)
     clustering_dir = artifacts_dir / "clustering"
-    embeddings_dir = artifacts_dir / "embeddings"
-    playlists_base = REPO_ROOT / "playlists"
+    playlists_base = Path(out_root) if out_root else REPO_ROOT / "playlists"
+    formats = tuple(formats)
+    specs: List[PlaylistSpec] = []
 
     # Windows audio dir desde config o CLI override
     if windows_audio_dir is None:
@@ -147,14 +174,14 @@ def run_export(
     if not catalog.empty and "track_uid" in catalog.columns:
         df = df.merge(
             catalog[["track_uid", "filename"] +
-                    [c for c in catalog.columns if c in ("artist", "title")]],
+                    [c for c in catalog.columns if c in ("artist", "title", "tag_bpm")]],
             on="track_uid", how="left"
         )
+    if any(f in DJ_FORMATS for f in formats) and "source_path" not in catalog.columns:
+        raise ValueError("Formatos m3u8/rekordbox/traktor necesitan catalog.source_path")
 
-    # N canónico = len(track_uids.json)
-    uids_path = embeddings_dir / "track_uids.json"
-    with open(uids_path) as f:
-        N_canonical = len(json.load(f))
+    # N canónico = filas de la representación usada (track_uids.json)
+    N_canonical = len(load_track_embeddings(artifacts_dir, rep=rep)[0])
 
     # Crear directorio de output versionado
     out_dir = _next_version_dir(playlists_base)
@@ -164,11 +191,18 @@ def run_export(
     total_exported = 0
     summary_lines = []
 
+    def _emit(m3u_path: Path, tracks: pd.DataFrame, folder: str, name: str) -> None:
+        """Escribe el M3U histórico si se pidió y registra la playlist para los formatos DJ."""
+        if "m3u" in formats:
+            _write_m3u(m3u_path, tracks, windows_audio_dir)
+        specs.append(PlaylistSpec(folder=folder, name=name + _bpm_span(tracks),
+                                  track_uids=tracks["track_uid"].tolist()))
+
     # Tracks de ruido L1 → All_Noise.m3u
     noise_df = df[df["label_l1"] == -1].copy()
     if not noise_df.empty:
         noise_path = out_dir / "All_Noise.m3u"
-        _write_m3u(noise_path, noise_df, windows_audio_dir)
+        _emit(noise_path, noise_df, "", "Sin grupo")
         total_exported += len(noise_df)
         summary_lines.append(f"Noise        | All_Noise.m3u                     | {len(noise_df):>4} tracks")
         print(f"  [OK] All_Noise.m3u ({len(noise_df)} tracks)")
@@ -181,7 +215,9 @@ def run_export(
         l1_letter = _cluster_to_letter_export(l1)
         l1_dirname = f"L1_{l1_letter}_{_sanitize_dirname(l1_name)}"
         l1_dir = out_dir / l1_dirname
-        l1_dir.mkdir(exist_ok=True)
+        if "m3u" in formats:
+            l1_dir.mkdir(exist_ok=True)
+        l1_folder = f"{l1_letter} · {l1_name}" if not l1_name.startswith("Group") else l1_letter
 
         mask_l1 = df["label_l1"] == l1
         l2_labels = sorted([l for l in df.loc[mask_l1, "label_l2"].unique() if l >= 0])
@@ -195,7 +231,7 @@ def run_export(
                 tracks_all = tracks_all.sort_values("position")
             l2_name = names.get(f"l1_{l1}_l2_0", f"{l1_letter}1")
             fn = f"L2_{_sanitize_dirname(l2_name)}.m3u"
-            _write_m3u(l1_dir / fn, tracks_all, windows_audio_dir)
+            _emit(l1_dir / fn, tracks_all, l1_folder, l2_name)
             total_exported += len(tracks_all)
             summary_lines.append(f"L1_{l1_letter} (all)  | {fn:<35} | {len(tracks_all):>4} tracks")
             print(f"  [OK] {l1_dirname}/{fn} ({len(tracks_all)} tracks)")
@@ -207,7 +243,7 @@ def run_export(
             if noise_l2["position"].max() > 0:
                 noise_l2 = noise_l2.sort_values("position")
             fn = f"L2_{l1_letter}_Noise.m3u"
-            _write_m3u(l1_dir / fn, noise_l2, windows_audio_dir)
+            _emit(l1_dir / fn, noise_l2, l1_folder, f"{l1_letter} varios")
             total_exported += len(noise_l2)
             summary_lines.append(f"L1_{l1_letter} Noise  | {fn:<35} | {len(noise_l2):>4} tracks")
             print(f"  [OK] {l1_dirname}/{fn} ({len(noise_l2)} tracks, L2-noise)")
@@ -221,7 +257,7 @@ def run_export(
                 tracks_l1 = tracks_l1.sort_values("position")
             l2_name = names.get(f"l1_{l1}_l2_0", f"{l1_letter}1")
             fn = f"L2_{_sanitize_dirname(l2_name)}.m3u"
-            _write_m3u(l1_dir / fn, tracks_l1, windows_audio_dir)
+            _emit(l1_dir / fn, tracks_l1, l1_folder, l2_name)
             total_exported += len(tracks_l1)
             summary_lines.append(f"L1_{l1_letter} L2_1    | {fn:<35} | {len(tracks_l1):>4} tracks")
             print(f"  [OK] {l1_dirname}/{fn} ({len(tracks_l1)} tracks)")
@@ -235,10 +271,25 @@ def run_export(
             if tracks_l2["position"].max() > 0:
                 tracks_l2 = tracks_l2.sort_values("position")
             fn = f"L2_{_sanitize_dirname(l2_name)}.m3u"
-            _write_m3u(l1_dir / fn, tracks_l2, windows_audio_dir)
+            _emit(l1_dir / fn, tracks_l2, l1_folder, l2_name)
             total_exported += len(tracks_l2)
             summary_lines.append(f"L1_{l1_letter}        | {fn:<35} | {len(tracks_l2):>4} tracks")
             print(f"  [OK] {l1_dirname}/{fn} ({len(tracks_l2)} tracks)")
+
+    # Formatos para software de DJ (rutas absolutas del catálogo)
+    if any(f in DJ_FORMATS for f in formats):
+        tracks_meta = catalog.drop_duplicates("track_uid").set_index("track_uid")
+        root_label = root_name or f"TRAKTOR ML {out_dir.name}"
+        if "m3u8" in formats:
+            for spec in specs:
+                folder_dir = out_dir / "m3u8" / _sanitize_dirname(spec.folder) if spec.folder else out_dir / "m3u8"
+                folder_dir.mkdir(parents=True, exist_ok=True)
+                write_m3u8(folder_dir / f"{_sanitize_dirname(spec.name)}.m3u8", tracks_meta, spec.track_uids)
+        if "rekordbox" in formats:
+            write_rekordbox_xml(out_dir / "rekordbox.xml", tracks_meta, specs, root_label)
+        if "traktor" in formats:
+            write_traktor_nml(out_dir / "traktor.nml", tracks_meta, specs, root_label)
+        print(f"[INFO] Formatos DJ {[f for f in formats if f in DJ_FORMATS]}: {len(specs)} playlists")
 
     # Verificar total
     if total_exported != N_canonical:
@@ -287,6 +338,10 @@ def main() -> int:
     parser.add_argument("--windows-audio-dir", default=None,
                         help="Ruta raíz Windows de audio (override de config)")
     parser.add_argument("--config", default=None)
+    parser.add_argument("--formats", default="m3u", help="m3u,m3u8,rekordbox,traktor")
+    parser.add_argument("--rep", default=None, help="Variante de representations/ usada en Phases 2-4")
+    parser.add_argument("--out-root", default=None, help="Carpeta base de los exports (default: playlists/)")
+    parser.add_argument("--root-name", default=None, help="Nombre de la carpeta raíz en Rekordbox/Traktor")
     args = parser.parse_args()
 
     print("=" * 70)
@@ -302,6 +357,10 @@ def main() -> int:
         config=config,
         config_hash=args.config_hash,
         windows_audio_dir=args.windows_audio_dir,
+        formats=tuple(f.strip() for f in args.formats.split(",") if f.strip()),
+        rep=args.rep,
+        out_root=Path(args.out_root) if args.out_root else None,
+        root_name=args.root_name,
     )
     return 0
 

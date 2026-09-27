@@ -6,9 +6,19 @@ PURPOSE: Extraer representaciones congeladas (Discogs-EffNet, MAEST, MERT por ca
          track_uids.json, manifest.json}, alineada por track_uids.json (fase 2 de
          docs/plans/representation_model_plan.md).
          Backends: 'effnet' y 'maest' requieren essentia-tensorflow (venv Python 3.10, sin torch);
-         'mert' y 'clap' requieren torch + transformers (venv Python 3.11). --sources full,hpss añade
+         'mert', 'clap', 'maesthf' (MAEST de Hugging Face, sin Essentia) y 'ast' (etiquetador
+         AudioSet, para detectar voces) requieren torch + transformers. --sources full,hpss añade
          variantes percusivas por HPSS (torch o scipy).
+         Claves de caché que empiezan con '_win' guardan una fila por ventana (se concatenan, no
+         se promedian) y, como '_layers', no se ensamblan en variantes.
 CHANGELOG:
+  - 2026-09-27: CLAP determinista: cada segmento de 30 s se parte en 3 ventanas de 10 s (antes el
+                procesador recortaba 10 s al azar: dos pasadas del mismo segmento daban coseno 0.98
+                y se usaba un tercio del audio); guarda también las ventanas ('_winclap') para
+                clasificación zero-shot. Nuevos backends 'maesthf' y 'ast'. Filtros --min-duration /
+                --max-duration (fuera muestras, FX y mixes enteros). Lee solo los segmentos del archivo
+                (read_dj_segments, mismos segmentos que antes). --shard K:i para repartir en K procesos
+                y --assemble-only para ensamblar al final.
   - 2026-09-12: Creación inicial.
 """
 from __future__ import annotations
@@ -30,7 +40,7 @@ import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
-from src.v4.common.audio_utils import get_dj_segments, hpss_percussive  # noqa: E402
+from src.v4.common.audio_utils import hpss_percussive, read_dj_segments  # noqa: E402
 from src.v4.common.config_loader import load_config  # noqa: E402
 from src.v4.common.path_resolver import resolve_dataset_artifacts  # noqa: E402
 
@@ -39,6 +49,8 @@ EFFNET_PB = "discogs-effnet-bs64-1.pb"
 MAEST_PB = "discogs-maest-30s-pw-1.pb"
 MERT_NAME = "m-a-p/MERT-v1-330M"
 CLAP_NAME = "laion/clap-htsat-unfused"
+MAESTHF_NAME = "mtg-upf/discogs-maest-30s-pw-129e"
+AST_NAME = "MIT/ast-finetuned-audioset-10-10-0.4593"
 MAEST_LAYERS = (7,)  # capa 7 = recomendada por MTG; cada capa extra es una pasada más del modelo de 350 MB
 MERT_VARIANTS = {"last": [24], "last4": [21, 22, 23, 24], "l7": [7], "l12": [12]}
 
@@ -153,15 +165,82 @@ class ClapBackend:
         self.info = {"model": CLAP_NAME, "pooling": "audio projection, mean segments", "dim": 512}
 
     def embed(self, seg: np.ndarray) -> Dict[str, np.ndarray]:
-        inputs = self.processor(audio=seg, sampling_rate=self.sr, return_tensors="pt")
+        # El modelo ve 10 s: partir el segmento en ventanas exactas evita el recorte al azar
+        # ('rand_trunc') del procesador y cubre todo el segmento.
+        wins = split_windows(seg, self.sr * 10)
+        inputs = self.processor(audio=wins, sampling_rate=self.sr, return_tensors="pt")
         with self.torch.no_grad():
             feats = self.model.get_audio_features(**inputs)
         if not self.torch.is_tensor(feats):  # transformers>=5: ModelOutput con la proyección en pooler_output
             feats = getattr(feats, "audio_embeds", None) if getattr(feats, "audio_embeds", None) is not None else feats.pooler_output
-        vec = feats.reshape(-1).numpy().astype(np.float32)
-        if vec.shape[0] != 512:
-            raise RuntimeError(f"CLAP: dimensión inesperada {vec.shape}")
-        return {"": vec}
+        mat = feats.reshape(len(wins), -1).numpy().astype(np.float32)
+        if mat.shape[1] != 512:
+            raise RuntimeError(f"CLAP: dimensión inesperada {mat.shape}")
+        return {"": mat.mean(axis=0), "_winclap": mat}
+
+
+def split_windows(seg: np.ndarray, win: int) -> List[np.ndarray]:
+    """Ventanas consecutivas de win muestras (la última con relleno de ceros si falta; mínimo una)."""
+    n = max(1, int(math.ceil(len(seg) / win)))
+    out = []
+    for i in range(n):
+        w = seg[i * win:(i + 1) * win]
+        if len(w) < win:
+            w = np.pad(w, (0, win - len(w)))
+        out.append(w.astype(np.float32))
+    return out
+
+
+class MaestHfBackend:
+    """MAEST (Discogs, 400 estilos) desde Hugging Face: corre en Windows sin Essentia."""
+    sr = 16000
+    name = "maesthf"
+
+    def __init__(self, hf_cache: Optional[str], layer: int = 7):
+        import torch
+        from transformers import AutoFeatureExtractor, AutoModelForAudioClassification
+        kwargs = {"trust_remote_code": True}
+        if hf_cache:
+            kwargs["cache_dir"] = hf_cache
+        self.torch = torch
+        self.layer = layer
+        self.fe = AutoFeatureExtractor.from_pretrained(MAESTHF_NAME, **kwargs)
+        self.model = AutoModelForAudioClassification.from_pretrained(MAESTHF_NAME, **kwargs).eval()
+        self.labels = [self.model.config.id2label[i] for i in range(len(self.model.config.id2label))]
+        self.info = {"model": MAESTHF_NAME, "layer": layer, "pooling": "mean tokens, mean segments", "dim": 768,
+                     "styles": "sigmoid de los 400 estilos Discogs, media de segmentos ('_styles')"}
+
+    def embed(self, seg: np.ndarray) -> Dict[str, np.ndarray]:
+        inputs = self.fe([seg], sampling_rate=self.sr, return_tensors="pt")
+        with self.torch.no_grad():
+            out = self.model(**inputs, output_hidden_states=True)
+        tokens = out.hidden_states[self.layer][0]  # (n_tokens, 768)
+        return {f"_l{self.layer}": tokens.mean(dim=0).numpy().astype(np.float32),
+                "_styles": self.torch.sigmoid(out.logits[0]).numpy().astype(np.float32)}
+
+
+class AstBackend:
+    """Etiquetador AudioSet (527 clases): probabilidades por ventana de 10 s para detectar voces."""
+    sr = 16000
+    name = "ast"
+
+    def __init__(self, hf_cache: Optional[str]):
+        import torch
+        from transformers import ASTFeatureExtractor, ASTForAudioClassification
+        kwargs = {"cache_dir": hf_cache} if hf_cache else {}
+        self.torch = torch
+        self.fe = ASTFeatureExtractor.from_pretrained(AST_NAME, **kwargs)
+        self.model = ASTForAudioClassification.from_pretrained(AST_NAME, **kwargs).eval()
+        self.labels = [self.model.config.id2label[i] for i in range(len(self.model.config.id2label))]
+        self.info = {"model": AST_NAME, "pooling": "sigmoid por ventana de 10 s; media ('_probmean') y "
+                     "ventanas ('_winprob')", "dim": len(self.labels)}
+
+    def embed(self, seg: np.ndarray) -> Dict[str, np.ndarray]:
+        wins = split_windows(seg, self.sr * 10)
+        inputs = self.fe(wins, sampling_rate=self.sr, return_tensors="pt")
+        with self.torch.no_grad():
+            probs = self.torch.sigmoid(self.model(**inputs).logits).numpy().astype(np.float32)
+        return {"_probmean": probs.mean(axis=0), "_winprob": probs}
 
 
 def build_backend(name: str, models_dir: Path, hf_cache: Optional[str], maest_layers=MAEST_LAYERS):
@@ -173,6 +252,10 @@ def build_backend(name: str, models_dir: Path, hf_cache: Optional[str], maest_la
         return MertBackend(hf_cache)
     if name == "clap":
         return ClapBackend(hf_cache)
+    if name == "maesthf":
+        return MaestHfBackend(hf_cache)
+    if name == "ast":
+        return AstBackend(hf_cache)
     raise ValueError(f"backend desconocido: {name}")
 
 
@@ -199,19 +282,29 @@ def variant_dir(rep_root: Path, backend: str, source: str, suffix: str) -> Path:
 
 
 def run(dataset_name: str, config: dict, backends: List[str], sources: List[str], audio_root: Optional[Path],
-        max_tracks: Optional[int], models_dir: Path, hf_cache: Optional[str], maest_layers=MAEST_LAYERS) -> None:
+        max_tracks: Optional[int], models_dir: Path, hf_cache: Optional[str], maest_layers=MAEST_LAYERS,
+        min_duration: Optional[float] = None, max_duration: Optional[float] = None,
+        shard: Optional[tuple] = None, assemble_only: bool = False) -> None:
     artifacts = resolve_dataset_artifacts(dataset_name, config)
     catalog = pd.read_parquet(artifacts / "catalog.parquet")
+    if min_duration is not None or max_duration is not None:
+        n0 = len(catalog)
+        lo = min_duration if min_duration is not None else 0.0
+        hi = max_duration if max_duration is not None else np.inf
+        catalog = catalog[catalog["duration_s"].between(lo, hi)]
+        print(f"[INFO] Filtro de duración [{lo}, {hi}] s: {len(catalog)}/{n0} temas")
     if max_tracks:
         catalog = catalog.head(max_tracks)
     rep_root = artifacts / "representations"
     seg_params = segmentation_params(config)
-    print(f"[INFO] {len(catalog)} temas | backends={backends} | sources={sources} | segmentación={seg_params}")
+    work = catalog.iloc[shard[1]::shard[0]] if shard else catalog
+    print(f"[INFO] {len(work)} temas{f' (shard {shard[1]}/{shard[0]})' if shard else ''} | backends={backends} "
+          f"| sources={sources} | segmentación={seg_params}")
 
-    loaded = {b: build_backend(b, models_dir, hf_cache, maest_layers) for b in backends}
+    loaded = {} if assemble_only else {b: build_backend(b, models_dir, hf_cache, maest_layers) for b in backends}
     t0 = time.time()
     failed: Dict[str, str] = {}
-    for i, row in enumerate(catalog.itertuples(), 1):
+    for i, row in enumerate(([] if assemble_only else work.itertuples()), 1):
         uid = row.track_uid
         path = (audio_root / row.filename) if audio_root else Path(row.source_path)
         # ¿ya está todo en caché para este tema?
@@ -220,9 +313,8 @@ def run(dataset_name: str, config: dict, backends: List[str], sources: List[str]
         if not pending:
             continue
         try:
-            audio, sr = load_mono(path)
-            segs_full = get_dj_segments(audio, sr, seg_params["segment_duration_s"],
-                                        seg_params["n_intro"], seg_params["n_mid"], seg_params["n_outro"])
+            segs_full, sr = read_dj_segments(path, seg_params["segment_duration_s"], seg_params["n_intro"],
+                                             seg_params["n_mid"], seg_params["n_outro"])
             # HPSS solo sobre los segmentos (90 s), no sobre el tema entero: 4-5x más barato
             per_source = {"full": segs_full}
             if "hpss" in sources:
@@ -236,13 +328,20 @@ def run(dataset_name: str, config: dict, backends: List[str], sources: List[str]
                         acc.setdefault(suffix, []).append(vec)
                 cache = rep_root / f"{b}_{s}" / "cache"
                 cache.mkdir(parents=True, exist_ok=True)
-                np.savez(cache / f"{uid}.npz", **{(k or "_"): np.mean(v, axis=0) for k, v in acc.items()})
+                np.savez(cache / f"{uid}.npz", **{(k or "_"): (np.concatenate(v, axis=0) if k.startswith("_win")
+                                                               else np.mean(v, axis=0)) for k, v in acc.items()})
         except Exception as exc:  # noqa: BLE001
             failed[uid] = f"{type(exc).__name__}: {exc}"
             print(f"[WARN] {row.filename}: {failed[uid]}")
-        if i % 10 == 0 or i == len(catalog):
+        if i % 10 == 0 or i == len(work):
             el = time.time() - t0
-            print(f"[INFO] {i}/{len(catalog)} temas | {el/60:.1f} min | {el/i:.1f} s/tema", flush=True)
+            print(f"[INFO] {i}/{len(work)} temas | {el/60:.1f} min | {el/i:.1f} s/tema", flush=True)
+
+    if shard:
+        if failed:
+            print(f"[WARN] {len(failed)} temas fallidos en este shard")
+        print("[INFO] Shard terminado; ensamblar con --assemble-only cuando terminen todos")
+        return
 
     # Ensamblar por variante
     for b in backends:
@@ -258,8 +357,8 @@ def run(dataset_name: str, config: dict, backends: List[str], sources: List[str]
                 for k in data.files:
                     per_key.setdefault(k, []).append(data[k])
             for k, vecs in per_key.items():
-                if k == "_layers":
-                    continue  # matriz (25,1024) por tema: se conserva solo en caché
+                if k == "_layers" or k.startswith("_win"):
+                    continue  # matrices por capa / por ventana: se conservan solo en caché
                 suffix = "" if k == "_" else k
                 out = variant_dir(rep_root, b, s, suffix)
                 out.mkdir(parents=True, exist_ok=True)
@@ -267,7 +366,8 @@ def run(dataset_name: str, config: dict, backends: List[str], sources: List[str]
                 np.save(out / "embeddings.npy", mat)
                 (out / "track_uids.json").write_text(json.dumps(uids), encoding="utf-8")
                 manifest = {"variant": out.name, "backend": b, "source": s, "n_tracks": len(uids),
-                            "dim": int(mat.shape[1]), "segmentation": seg_params, "backend_info": loaded[b].info,
+                            "dim": int(mat.shape[1]), "segmentation": seg_params,
+                            "backend_info": loaded[b].info if b in loaded else "assemble-only",
                             "failed_uids": {u: e for u, e in failed.items()}, "git_commit": git_commit(),
                             "created": dt.datetime.now(dt.timezone.utc).isoformat(), "finite": bool(np.isfinite(mat).all())}
                 (out / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -281,13 +381,17 @@ def main() -> int:
     parser.add_argument("--dataset-name", default="test_20")
     parser.add_argument("--config", default=None)
     parser.add_argument("--audio-root", default=None, help="Carpeta de audio (une con catalog.filename); útil en WSL")
-    parser.add_argument("--models", default="effnet,maest", help="effnet,maest (essentia-tensorflow) | mert,clap (torch)")
+    parser.add_argument("--models", default="effnet,maest", help="effnet,maest (essentia-tensorflow) | mert,clap,maesthf,ast (torch)")
     parser.add_argument("--sources", default="full", help="full,hpss")
     parser.add_argument("--max-tracks", type=int, default=None)
     parser.add_argument("--models-dir", default=str(ESSENTIA_MODELS_DIR))
     parser.add_argument("--hf-cache", default=os.environ.get("TRAKTOR_HF_CACHE"))
     parser.add_argument("--threads", type=int, default=None, help="Hilos para torch (por defecto los del sistema)")
     parser.add_argument("--maest-layers", default=",".join(str(L) for L in MAEST_LAYERS), help="Capas MAEST a extraer, p. ej. 7,12")
+    parser.add_argument("--min-duration", type=float, default=None, help="Omitir temas más cortos (s): muestras, FX")
+    parser.add_argument("--max-duration", type=float, default=None, help="Omitir temas más largos (s): mixes enteros")
+    parser.add_argument("--shard", default=None, help="K:i — procesar solo las filas i, i+K, ... (sin ensamblar)")
+    parser.add_argument("--assemble-only", action="store_true", help="Solo ensamblar variantes desde la caché")
     args = parser.parse_args()
 
     if args.threads:
@@ -299,7 +403,8 @@ def main() -> int:
     config = load_config(Path(args.config) if args.config else None)
     run(args.dataset_name, config, args.models.split(","), args.sources.split(","),
         Path(args.audio_root) if args.audio_root else None, args.max_tracks, Path(args.models_dir), args.hf_cache,
-        tuple(int(x) for x in args.maest_layers.split(",")))
+        tuple(int(x) for x in args.maest_layers.split(",")), args.min_duration, args.max_duration,
+        tuple(int(x) for x in args.shard.split(":")) if args.shard else None, args.assemble_only)
     return 0
 
 

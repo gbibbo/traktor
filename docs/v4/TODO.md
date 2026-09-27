@@ -54,3 +54,13 @@ Formato: - [x] Tarea X.Y — Descripción | Completado: YYYY-MM-DD
 - Bug checkpoint corregido: run_id en progress_shard_XX.json (phase1_extract.py)
 - Keys de Essentia ("C minor") → Camelot ("5A") normalización en phase4_order.py
 - TEST-3 assertions suavizadas: n_clusters≥1, noise<0.8 (hard); resto = reporte humano
+
+## BLOQUE 6: MVP biblioteca completa → Rekordbox + Traktor (Windows, CPU)
+- [x] 6.1 Catálogo recursivo con tags, hash de audio sin tags y deduplicado       | Completado: 2026-09-27
+- [x] 6.2 phase1_tags: BPM/tonalidad/energía de tags + BPM estimado (tempo.py)    | Completado: 2026-09-27
+- [x] 6.3 extract_representations: CLAP determinista, MAEST-HF, AST, shards       | Completado: 2026-09-27
+- [x] 6.4 tag_vocals: etiqueta Vocal (CLAP zero-shot) con respaldo y revert       | Completado: 2026-09-27
+- [x] 6.5 Phase 2 --rep / --bpm-weight / --method ward; Phase 4 --rep + energía   | Completado: 2026-09-27
+- [x] 6.6 Phase 5 --formats m3u8,rekordbox,traktor (dj_export.py)                 | Completado: 2026-09-27
+- [ ] 6.7 Gabriel importa en Rekordbox (pendrive) y Traktor y valida los formatos
+- [ ] 6.8 MAEST-HF sobre la biblioteca (noche) y comparación contra CLAP en tripletas/carpetas

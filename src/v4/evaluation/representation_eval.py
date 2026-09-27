@@ -6,7 +6,10 @@ PURPOSE: Instrumento de evaluación de representaciones (embeddings) contra la e
              (pureza kNN y precisión media de recuperación con "misma carpeta" como relevante).
          Baselines incluidos: BPM (equivalencia 0.5x/1x/2x), clave (regla armónica), clase mayoritaria.
          Cualquier .npy alineado por track_uids.json se puede evaluar; nada aquí ajusta parámetros.
+         Opcional (--own-folders DIR): la misma coherencia contra las carpetas que Gabriel armó a mano
+         (p. ej. Música/2020 new/<estilo>/), mapeadas por nombre de archivo.
 CHANGELOG:
+  - 2026-09-27: --own-folders: coherencia contra las carpetas propias de Gabriel.
   - 2026-09-12: Creación inicial (fase 1 de docs/plans/representation_model_plan.md).
 """
 from __future__ import annotations
@@ -210,6 +213,21 @@ def load_v1_labels(catalog: pd.DataFrame) -> Dict[str, str]:
     return {name_to_uid[f]: c for f, c in by_name.items() if c != "NOISE" and f in name_to_uid}
 
 
+def load_folder_labels(root: Path, catalog: pd.DataFrame, exclude=("z_EXTRAS",)) -> Dict[str, str]:
+    """Carpeta propia (relativa a root) de cada tema del catálogo, por nombre de archivo.
+    Ignora archivos sueltos en root y las carpetas de exclude."""
+    name_to_uid = dict(zip(catalog["filename"], catalog["track_uid"]))
+    out: Dict[str, str] = {}
+    for p in sorted(Path(root).rglob("*")):
+        if not p.is_file() or p.name not in name_to_uid or p.parent == Path(root):
+            continue
+        folder = p.parent.relative_to(root).as_posix()
+        if folder.split("/")[0] in exclude:
+            continue
+        out[name_to_uid[p.name]] = folder
+    return out
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -233,6 +251,8 @@ def main() -> int:
     parser.add_argument("--rep-root", default=None,
                         help="Directorio con subcarpetas <nombre>/embeddings.npy; por defecto artifacts/<dataset>/representations")
     parser.add_argument("--out", default=None, help="JSON de salida (por defecto artifacts/<dataset>/evaluation/representations_<fecha>.json)")
+    parser.add_argument("--own-folders", default=None,
+                        help="Carpeta con subcarpetas armadas a mano (p. ej. 'Música/2020 new'): coherencia extra")
     args = parser.parse_args()
 
     config = load_config(Path(args.config) if args.config else None)
@@ -281,12 +301,22 @@ def main() -> int:
     print(shown[cols].to_string(index=False, float_format=lambda v: f"{v:.3f}"))
     print(f"\n[RESULT] Coherencia contra {len(v1)} temas en carpetas de v1 (k={KNN_K})")
     print(pd.DataFrame(coherence).T.to_string(float_format=lambda v: f"{v:.3f}"))
+    own_coherence = None
+    if args.own_folders:
+        own_root = Path(args.own_folders)
+        own_root = own_root if own_root.is_absolute() else REPO_ROOT / own_root
+        own = load_folder_labels(own_root, catalog)
+        own_coherence = {rep.name: folder_coherence(rep, own) for rep in reps}
+        print(f"\n[RESULT] Coherencia contra {len(own)} temas en {len(set(own.values()))} carpetas propias "
+              f"({own_root.name}, k={KNN_K})")
+        print(pd.DataFrame(own_coherence).T.to_string(float_format=lambda v: f"{v:.3f}"))
 
     out = Path(args.out) if args.out else artifacts / "evaluation" / f"representations_{dt.date.today().isoformat()}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     payload = {"dataset": args.dataset_name, "date": dt.datetime.now(dt.timezone.utc).isoformat(),
                "n_triplets": int(len(triplets)), "triplets": table.to_dict(orient="records"),
-               "folder_coherence": coherence, "v1_labels_file": str(V1_CLUSTERS.relative_to(REPO_ROOT))}
+               "folder_coherence": coherence, "v1_labels_file": str(V1_CLUSTERS.relative_to(REPO_ROOT)),
+               "own_folder_coherence": own_coherence, "own_folders": args.own_folders}
     out.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"\n[INFO] Escrito {out}")
     return 0

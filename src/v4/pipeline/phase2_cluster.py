@@ -6,6 +6,12 @@ PURPOSE: Phase 2 — Clustering jerárquico L1/L2 sobre embeddings MERT.
          UMAP 2D para visualización.
          Guarda clustering/results_<hash>.parquet y clustering/config_<hash>.json.
 CHANGELOG:
+  - 2026-09-27: --rep: clusterizar con una variante de extract_representations (L1 y L2 sobre la misma).
+                --bpm-weight w: agrega el BPM estandarizado (features/bpm_key.parquet) por w como una
+                dimensión más tras normalizar (cajones con tempo coherente; decisión de diseño).
+                --method ward: aglomerativo Ward determinista con número de grupos fijado (--n-l1,
+                y L2 con --l2-target-size temas por playlist). En CLAP, HDBSCAN deja ~88 % de ruido
+                y 2-3 grupos gigantes: el espacio no tiene grupos densos, hace falta particionar.
   - 2026-02-28: Creación inicial V4 (Block 3).
   - 2026-03-01: Añadir PCA pre-HDBSCAN para reducir curse of dimensionality (1024→pca_dim).
   - 2026-03-01: Reemplazar paquete hdbscan por sklearn.cluster.HDBSCAN (evita compilación C en nodos sin Python.h).
@@ -17,7 +23,7 @@ import json
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -26,6 +32,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.v4.common.config_loader import load_config
+from src.v4.common.embedding_utils import load_track_embeddings
 from src.v4.common.path_resolver import resolve_dataset_artifacts
 
 
@@ -70,6 +77,15 @@ def _hdbscan_cluster(
     return clusterer.labels_.astype(int)
 
 
+def _ward_cluster(X: np.ndarray, n_clusters: int) -> np.ndarray:
+    """Aglomerativo Ward con n_clusters (determinista, sin ruido)."""
+    from sklearn.cluster import AgglomerativeClustering
+    n_clusters = max(1, min(n_clusters, len(X)))
+    if n_clusters == 1:
+        return np.zeros(len(X), dtype=int)
+    return AgglomerativeClustering(n_clusters=n_clusters, linkage="ward").fit_predict(X).astype(int)
+
+
 def _apply_pca(X: np.ndarray, pca_dim: int, label: str = "") -> np.ndarray:
     """Reducir dimensionalidad con PCA. Si pca_dim<=0 o pca_dim>=X.shape[1], retorna X sin cambios."""
     if pca_dim <= 0 or pca_dim >= X.shape[1]:
@@ -112,6 +128,17 @@ def _reassign_noise(X: np.ndarray, labels: np.ndarray) -> np.ndarray:
     return new_labels
 
 
+def _append_bpm(X: np.ndarray, track_uids: List[str], artifacts_dir: Path, weight: float) -> np.ndarray:
+    """Agrega weight * BPM estandarizado como última columna (BPM faltante = mediana)."""
+    feats = pd.read_parquet(artifacts_dir / "features" / "bpm_key.parquet").drop_duplicates("track_uid")
+    bpm = pd.to_numeric(feats.set_index("track_uid").reindex(track_uids)["bpm"], errors="coerce")
+    bpm = bpm.fillna(bpm.median()).to_numpy(dtype=np.float64)
+    std = bpm.std() or 1.0
+    z = (bpm - bpm.mean()) / std
+    print(f"[INFO] BPM agregado al embedding con peso {weight} (media {bpm.mean():.1f}, sd {std:.1f})")
+    return np.hstack([X, (weight * z)[:, None]]).astype(np.float32)
+
+
 def _umap_2d(X: np.ndarray, n_neighbors: int = 15, min_dist: float = 0.1) -> np.ndarray:
     """UMAP 2D para visualización. Retorna (N, 2) array."""
     try:
@@ -141,6 +168,11 @@ def run_clustering(
     skip_umap: bool = False,
     pca_dim: int = 0,
     assign_noise: bool = True,
+    rep: Optional[str] = None,
+    bpm_weight: float = 0.0,
+    method: str = "hdbscan",
+    n_l1: Optional[int] = None,
+    l2_target_size: int = 30,
 ) -> Path:
     """Ejecutar clustering L1/L2 y guardar resultados.
 
@@ -153,6 +185,10 @@ def run_clustering(
         skip_umap: si True, omite UMAP (útil para tests rápidos).
         pca_dim: dims PCA antes de HDBSCAN (0 = sin PCA).
         assign_noise: si True, reasignar noise points al cluster vecino más cercano (1-NN).
+        rep: variante de representations/ (p. ej. 'clap_full') para L1 y L2; None = MERT de Phase 1.
+        bpm_weight: peso del BPM estandarizado agregado como dimensión extra (0 = sin BPM).
+        method: 'hdbscan' (histórico) o 'ward' (número de grupos fijado, sin ruido).
+        n_l1: grupos L1 con ward (default N/150). l2_target_size: temas por playlist L2 con ward.
 
     Returns:
         Path al parquet de resultados.
@@ -164,22 +200,28 @@ def run_clustering(
     clustering_dir.mkdir(parents=True, exist_ok=True)
 
     # --- Cargar embeddings ---
-    uids_path = embeddings_dir / "track_uids.json"
-    perc_path = embeddings_dir / "mert_perc.npy"
-    full_path = embeddings_dir / "mert_full.npy"
+    if rep:
+        # Una sola representación (extract_representations) para L1 y L2
+        track_uids, mert_full = load_track_embeddings(artifacts_dir, rep=rep)
+        mert_perc = mert_full
+        print(f"[INFO] Representación: {rep}")
+    else:
+        uids_path = embeddings_dir / "track_uids.json"
+        perc_path = embeddings_dir / "mert_perc.npy"
+        full_path = embeddings_dir / "mert_full.npy"
 
-    for p in (uids_path, perc_path, full_path):
-        if not p.exists():
-            raise FileNotFoundError(
-                f"Embedding artifact not found: {p}\n"
-                "Run phase1_extract.py + phase1_merge_shards.py first."
-            )
+        for p in (uids_path, perc_path, full_path):
+            if not p.exists():
+                raise FileNotFoundError(
+                    f"Embedding artifact not found: {p}\n"
+                    "Run phase1_extract.py + phase1_merge_shards.py first."
+                )
 
-    with open(uids_path) as f:
-        track_uids: List[str] = json.load(f)
+        with open(uids_path) as f:
+            track_uids: List[str] = json.load(f)
 
-    mert_perc = np.load(perc_path)  # (N, 1024)
-    mert_full = np.load(full_path)  # (N, 1024)
+        mert_perc = np.load(perc_path)  # (N, 1024)
+        mert_full = np.load(full_path)  # (N, 1024)
     N = len(track_uids)
 
     if mert_perc.shape[0] != N or mert_full.shape[0] != N:
@@ -206,14 +248,22 @@ def run_clustering(
     # --- L2-normalizar ---
     perc_norm = _l2_normalize(mert_perc)
     full_norm = _l2_normalize(mert_full)
+    if bpm_weight > 0:
+        perc_norm = _append_bpm(perc_norm, track_uids, artifacts_dir, bpm_weight)
+        full_norm = _append_bpm(full_norm, track_uids, artifacts_dir, bpm_weight)
 
     # --- PCA L1 (sobre perc_norm) ---
     perc_for_l1 = _apply_pca(perc_norm, pca_dim, label="L1/perc")
 
     # --- L1 Clustering (sobre mert_perc) ---
-    print(f"[INFO] Running L1 HDBSCAN (min_cluster_size={l1_min_cluster_size}, "
-          f"min_samples={l1_min_samples}) ...")
-    labels_l1 = _hdbscan_cluster(perc_for_l1, l1_min_cluster_size, l1_min_samples)
+    if method == "ward":
+        n_l1 = n_l1 or max(2, int(round(N / 150)))
+        print(f"[INFO] Running L1 Ward (n_clusters={n_l1}) ...")
+        labels_l1 = _ward_cluster(perc_for_l1, n_l1)
+    else:
+        print(f"[INFO] Running L1 HDBSCAN (min_cluster_size={l1_min_cluster_size}, "
+              f"min_samples={l1_min_samples}) ...")
+        labels_l1 = _hdbscan_cluster(perc_for_l1, l1_min_cluster_size, l1_min_samples)
     labels_l1_raw = labels_l1.copy()  # conservar para diagnóstico
 
     n_clusters_l1 = len(set(labels_l1[labels_l1 != -1]))
@@ -243,7 +293,10 @@ def run_clustering(
             # PCA L2: solo si hay suficientes tracks (idealmente > 2*pca_dim)
             if pca_dim > 0 and n_in_cluster >= 2 * pca_dim:
                 sub_emb = _apply_pca(sub_emb, pca_dim, label=f"L2/cl{cl1}")
-            sub_labels = _hdbscan_cluster(sub_emb, l2_min_cluster_size, l2_min_samples)
+            if method == "ward":
+                sub_labels = _ward_cluster(sub_emb, int(round(n_in_cluster / l2_target_size)))
+            else:
+                sub_labels = _hdbscan_cluster(sub_emb, l2_min_cluster_size, l2_min_samples)
             labels_l2_raw[mask] = sub_labels  # conservar raw antes de reassignment
             if assign_noise:
                 sub_labels = _reassign_noise(sub_emb, sub_labels)
@@ -272,6 +325,12 @@ def run_clustering(
         "config_tag": config_tag,
         "dataset_name": dataset_name,
     }
+    if rep:
+        cluster_cfg["rep"] = rep  # solo si se usa: no cambia los hashes históricos de MERT
+    if bpm_weight > 0:
+        cluster_cfg["bpm_weight"] = bpm_weight
+    if method != "hdbscan":
+        cluster_cfg.update({"method": method, "n_l1": n_l1, "l2_target_size": l2_target_size})
     config_hash = _hash_config(cluster_cfg)
 
     # --- Guardar parquet ---
@@ -365,6 +424,21 @@ def main() -> int:
         "--assign-noise", action=argparse.BooleanOptionalAction, default=None,
         help="Reasignar noise points al cluster vecino más cercano 1-NN (default: del config).",
     )
+    parser.add_argument(
+        "--method", choices=("hdbscan", "ward"), default="hdbscan",
+        help="hdbscan (densidad, con ruido) o ward (número de grupos fijado).",
+    )
+    parser.add_argument("--n-l1", type=int, default=None, help="Grupos L1 con --method ward (default N/150).")
+    parser.add_argument("--l2-target-size", type=int, default=30,
+                        help="Temas por playlist L2 con --method ward.")
+    parser.add_argument(
+        "--bpm-weight", type=float, default=0.0,
+        help="Peso del BPM estandarizado agregado al embedding (0 = sin BPM).",
+    )
+    parser.add_argument(
+        "--rep", default=None,
+        help="Variante de representations/ (p. ej. clap_full) en lugar de MERT de Phase 1.",
+    )
     args = parser.parse_args()
 
     print("=" * 70)
@@ -396,6 +470,11 @@ def main() -> int:
             skip_umap=args.skip_umap,
             pca_dim=pca_dim,
             assign_noise=assign_noise,
+            rep=args.rep,
+            bpm_weight=args.bpm_weight,
+            method=args.method,
+            n_l1=args.n_l1,
+            l2_target_size=args.l2_target_size,
         )
         return 0
     except FileNotFoundError as e:
