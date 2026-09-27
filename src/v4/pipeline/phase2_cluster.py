@@ -9,6 +9,8 @@ CHANGELOG:
   - 2026-09-27: --rep: clusterizar con una variante de extract_representations (L1 y L2 sobre la misma).
                 --bpm-weight w: agrega el BPM estandarizado (features/bpm_key.parquet) por w como una
                 dimensión más tras normalizar (cajones con tempo coherente; decisión de diseño).
+                PCA con random_state=0: con N > 500 sklearn usa el solver randomized y, sin semilla,
+                los grupos cambiaban entre corridas.
                 --method ward: aglomerativo Ward determinista con número de grupos fijado (--n-l1,
                 y L2 con --l2-target-size temas por playlist). En CLAP, HDBSCAN deja ~88 % de ruido
                 y 2-3 grupos gigantes: el espacio no tiene grupos densos, hace falta particionar.
@@ -92,7 +94,7 @@ def _apply_pca(X: np.ndarray, pca_dim: int, label: str = "") -> np.ndarray:
         return X
     from sklearn.decomposition import PCA
     n_components = min(pca_dim, X.shape[0] - 1)
-    pca = PCA(n_components=n_components, whiten=False)
+    pca = PCA(n_components=n_components, whiten=False, random_state=0)  # el solver randomized necesita semilla
     X_reduced = pca.fit_transform(X).astype(np.float32)
     var_retained = float(pca.explained_variance_ratio_.sum())
     tag = f" [{label}]" if label else ""
