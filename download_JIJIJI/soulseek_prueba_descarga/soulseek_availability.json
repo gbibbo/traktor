@@ -1,0 +1,2320 @@
+{
+  "playlist": {
+    "name": "Viajeros",
+    "source": "https://open.spotify.com/playlist/0ULQLa8MxdMEH8NjTUMDXG?si=eb5f4cadf5c74909"
+  },
+  "total_tracks": 20,
+  "checked": 20,
+  "available": 16,
+  "missing": 4,
+  "errors": 0,
+  "missing_list": "C:\\VS\\traktor\\download_JIJIJI\\soulseek_prueba_descarga\\soulseek_missing.txt",
+  "missing_json": "C:\\VS\\traktor\\download_JIJIJI\\soulseek_prueba_descarga\\soulseek_missing.json",
+  "preflight_mode": "single_sockseek_batch",
+  "tracks": [
+    {
+      "position": 1,
+      "spotify": {
+        "spotify_id": "04R4oiYD4NU6ZkdwlaJSep",
+        "uri": "spotify:track:04R4oiYD4NU6ZkdwlaJSep",
+        "url": "https://open.spotify.com/track/04R4oiYD4NU6ZkdwlaJSep",
+        "title": "Bad Memories - Felix Jaehn Remix",
+        "artists": [
+          "MEDUZA",
+          "James Carter",
+          "felix jaehn",
+          "Elley Duhé",
+          "FAST BOY"
+        ],
+        "album": "Bad Memories (Felix Jaehn Remix)",
+        "album_id": "1BDhBICG1Iowos7dCtSizl",
+        "album_artists": [
+          "MEDUZA",
+          "James Carter",
+          "felix jaehn"
+        ],
+        "release_date": "2022-10-14",
+        "track_number": 1,
+        "total_tracks": 2,
+        "disc_number": 1,
+        "duration_ms": 149565,
+        "isrc": "GBUM72206877",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b2737b84db4a83066be54d1dbe35",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "© 2022 Secondo Piano SRL, under exclusive license to Universal Music Operations Limited",
+          "℗ 2022 Secondo Piano SRL, under exclusive license to Universal Music Operations Limited"
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-04-06T10:13:23Z",
+        "duration_seconds": 149.565,
+        "duration_hms": "2:30"
+      },
+      "status": "available",
+      "result_count": 10,
+      "quality_unknown": false,
+      "top_candidates": [
+        {
+          "username": "wbrab",
+          "upload_speed_mib_s": 2.9027843,
+          "has_free_upload_slot": true,
+          "filename": "music\\MEDUZA x James Carter ft. Elley Duhé + FAST BOY\\Bad Memories - Felix Jaehn Remix - MEDUZA & James Carter & Felix Jaehn & Elley Duhé & FAST BOY.mp3",
+          "format": "mp3",
+          "length_s": 149,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 6085233
+        },
+        {
+          "username": "manmad",
+          "upload_speed_mib_s": 2.5669422,
+          "has_free_upload_slot": true,
+          "filename": "music\\MEDUZA\\MEDUZA - Bad Memories (Felix Jaehn Remix)\\01 - Bad Memories - Felix Jaehn Remix.flac",
+          "format": "flac",
+          "length_s": 149,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 18141742
+        },
+        {
+          "username": "txbandit",
+          "upload_speed_mib_s": 0.7852869,
+          "has_free_upload_slot": true,
+          "filename": "artists\\MEDUZA\\Bad Memories (Felix Jaehn Remix)\\MEDUZA - Bad Memories - Felix Jaehn Remix.mp3",
+          "format": "mp3",
+          "length_s": 149,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 9907444
+        },
+        {
+          "username": "Bucifer6",
+          "upload_speed_mib_s": 0.5280733,
+          "has_free_upload_slot": true,
+          "filename": "@@pwmbf\\Muzica\\Spotify\\Tracks\\MEDUZA\\[2022] Bad Memories (Felix Jaehn Remix)\\1. Bad Memories - Felix Jaehn Remix.mp3",
+          "format": "mp3",
+          "length_s": 149,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 6555391
+        },
+        {
+          "username": "FM OXIGENO",
+          "upload_speed_mib_s": 0.6554203,
+          "has_free_upload_slot": false,
+          "filename": "@@fzssp\\SERVIDOR 2023\\Power & Hot (2023)\\85. MEDUZA - Bad Memories - Felix Jaehn Remix.mp3",
+          "format": "mp3",
+          "length_s": 149,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 6329028
+        },
+        {
+          "username": "musicmasterrdjpool",
+          "upload_speed_mib_s": 0.00578022,
+          "has_free_upload_slot": false,
+          "filename": "NEWMUSICFRIDAY\\WK11\\House Mix 2025\\Bad Memories - Felix Jaehn Remix - MEDUZA, James Carter, Felix Jaehn, Elley Duhé, FAST BOY.mp3",
+          "format": "mp3",
+          "length_s": 149,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 6163127
+        },
+        {
+          "username": "bananabean84627",
+          "upload_speed_mib_s": 0.8533611,
+          "has_free_upload_slot": true,
+          "filename": "music\\MEDUZA\\Bad Memories _Felix Jaehn Remix_\\Bad Memories - Felix Jaehn Remix [04R4oiYD4NU6ZkdwlaJSep].mp3",
+          "format": "mp3",
+          "length_s": 149,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 6076357
+        },
+        {
+          "username": "bananabean84627",
+          "upload_speed_mib_s": 0.8533611,
+          "has_free_upload_slot": true,
+          "filename": "music\\MEDUZA\\Best Hockey Songs Ever\\Bad Memories - Felix Jaehn Remix [02b0WhU2NwLWoL6CDNTuDd].mp3",
+          "format": "mp3",
+          "length_s": 149,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 6076330
+        },
+        {
+          "username": "Bucifer6",
+          "upload_speed_mib_s": 0.5280733,
+          "has_free_upload_slot": true,
+          "filename": "@@bkxan\\Muzica\\Spotify\\MEDUZA\\[2022] Bad Memories (Felix Jaehn Remix)\\MEDUZA - Bad Memories (Felix Jaehn Remix) - Bad Memories - Felix Jaehn Remix.mp3",
+          "format": "mp3",
+          "length_s": 149,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 6554061
+        },
+        {
+          "username": "Bucifer6",
+          "upload_speed_mib_s": 0.5280733,
+          "has_free_upload_slot": true,
+          "filename": "@@pwmbf\\Muzica\\Spotify\\MEDUZA\\[2022] Bad Memories (Felix Jaehn Remix)\\MEDUZA - Bad Memories (Felix Jaehn Remix) - Bad Memories - Felix Jaehn Remix.mp3",
+          "format": "mp3",
+          "length_s": 149,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 6554061
+        }
+      ],
+      "error": null
+    },
+    {
+      "position": 2,
+      "spotify": {
+        "spotify_id": "5U0iZCQ9e8PaLYxup0pcnO",
+        "uri": "spotify:track:5U0iZCQ9e8PaLYxup0pcnO",
+        "url": "https://open.spotify.com/track/5U0iZCQ9e8PaLYxup0pcnO",
+        "title": "Another World",
+        "artists": [
+          "MEDUZA",
+          "HAYLA"
+        ],
+        "album": "Another World",
+        "album_id": "72ArwEgG0egqM3vmQKxWVZ",
+        "album_artists": [
+          "MEDUZA",
+          "HAYLA"
+        ],
+        "release_date": "2024-09-13",
+        "track_number": 1,
+        "total_tracks": 1,
+        "disc_number": 1,
+        "duration_ms": 144000,
+        "isrc": "US38Y2418589",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b27318f0188d20b0b6e9caffe608",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "© 2024 Secondo Piano SRL, under exclusive license to Universal Music Operations Limited",
+          "℗ 2024 Secondo Piano SRL, under exclusive license to Universal Music Operations Limited"
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-04-06T10:13:34Z",
+        "duration_seconds": 144.0,
+        "duration_hms": "2:24"
+      },
+      "status": "available_quality_unknown",
+      "result_count": 150,
+      "quality_unknown": true,
+      "top_candidates": [
+        {
+          "username": "overhung femur",
+          "upload_speed_mib_s": 9.0636425,
+          "has_free_upload_slot": true,
+          "filename": "music\\MEDUZA\\Another World\\MEDUZA_Another World_01_Another World.mp3",
+          "format": "mp3",
+          "length_s": 144,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 5766835
+        },
+        {
+          "username": "Rumour",
+          "upload_speed_mib_s": 5.7019825,
+          "has_free_upload_slot": true,
+          "filename": "beets\\MEDUZA\\Another World (Liva K remix)\\02 Another World.flac",
+          "format": "flac",
+          "length_s": 144,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 32702077
+        },
+        {
+          "username": "Rumour",
+          "upload_speed_mib_s": 5.7019825,
+          "has_free_upload_slot": true,
+          "filename": "beets\\MEDUZA × Hayla\\Another World\\01 Another World.flac",
+          "format": "flac",
+          "length_s": 166,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 24767235
+        },
+        {
+          "username": "speedeebe",
+          "upload_speed_mib_s": 5.4356556,
+          "has_free_upload_slot": true,
+          "filename": "Downloads\\MP3 NEW RELEASES 2024 WEEK 45\\Disc 2\\The Dome Vol. 109\\CD1\\14 - MEDUZA - Another World.mp3",
+          "format": "mp3",
+          "length_s": 144,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 6252006
+        },
+        {
+          "username": "kindlykho",
+          "upload_speed_mib_s": 5.3429756,
+          "has_free_upload_slot": true,
+          "filename": "music\\PMEDiA Music Pack 003 of 2025\\Top 100 EDM Chart (11-January-2025)\\73. MEDUZA - Another World.mp3",
+          "format": "mp3",
+          "length_s": 144,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 6051057
+        },
+        {
+          "username": "Balakov1981",
+          "upload_speed_mib_s": 3.490593,
+          "has_free_upload_slot": true,
+          "filename": "mp3\\EDM\\Compilations\\The Dome (Y) (320k)\\The Dome Vol 109 (2024) (320k)\\The Dome Vol 109 CD2 - 14 - Another World - MEDUZA.mp3",
+          "format": "mp3",
+          "length_s": 156,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 8373797
+        },
+        {
+          "username": "GtGABLnl",
+          "upload_speed_mib_s": 3.7169313,
+          "has_free_upload_slot": true,
+          "filename": "Music\\MEDUZA\\Another World (2024)\\MEDUZA - Another World - 01 - Another World.mp3",
+          "format": "mp3",
+          "length_s": 144,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 6060190
+        },
+        {
+          "username": "m00nl1ght98",
+          "upload_speed_mib_s": 3.4659405,
+          "has_free_upload_slot": true,
+          "filename": "music\\MEDUZA\\Another World\\MEDUZA_Another World_02_Another World.flac",
+          "format": "flac",
+          "length_s": 144,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 19732012
+        },
+        {
+          "username": "Thircase",
+          "upload_speed_mib_s": 3.4251251,
+          "has_free_upload_slot": true,
+          "filename": "Música\\Meduza\\Meduza, Hayla - 2024 - Another World [WEB-FLAC] [24B-44.1kHz] [288261509]\\01. Another World.flac",
+          "format": "flac",
+          "length_s": 144,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 24,
+          "size_bytes": 31422689
+        },
+        {
+          "username": "miredswamp",
+          "upload_speed_mib_s": 2.6907616,
+          "has_free_upload_slot": true,
+          "filename": "EDM Klepto Blitz\\Dance & Electronic\\Beatport - New Top 100 Dance - Pop  [21 February 2025]\\Another World - Nico De Andrea Remix - Meduza,Hayla,Nico De Andrea 125.mp3",
+          "format": "mp3",
+          "length_s": 193,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 8080609
+        }
+      ],
+      "error": null
+    },
+    {
+      "position": 3,
+      "spotify": {
+        "spotify_id": "6iW38RGqdDGOofmz2HeXLW",
+        "uri": "spotify:track:6iW38RGqdDGOofmz2HeXLW",
+        "url": "https://open.spotify.com/track/6iW38RGqdDGOofmz2HeXLW",
+        "title": "Piece Of Your Heart - Alok Remix",
+        "artists": [
+          "MEDUZA",
+          "Alok",
+          "Goodboys"
+        ],
+        "album": "Piece Of Your Heart (Alok Remix)",
+        "album_id": "6RlifxGX8F3IijsJXkTIlq",
+        "album_artists": [
+          "MEDUZA",
+          "Alok",
+          "Goodboys"
+        ],
+        "release_date": "2019-06-07",
+        "track_number": 1,
+        "total_tracks": 1,
+        "disc_number": 1,
+        "duration_ms": 166451,
+        "isrc": "DEUM71902068",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b2730df78e6e88fdefb1f8f90d55",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "© 2019 Meduza, under exclusive license to Universal Music GmbH",
+          "℗ 2019 Meduza, under exclusive license to Universal Music GmbH"
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-04-06T10:13:39Z",
+        "duration_seconds": 166.451,
+        "duration_hms": "2:46"
+      },
+      "status": "available_quality_unknown",
+      "result_count": 8,
+      "quality_unknown": true,
+      "top_candidates": [
+        {
+          "username": "sbach",
+          "upload_speed_mib_s": 5.021472,
+          "has_free_upload_slot": true,
+          "filename": "Music\\explo\\Weekly-Exploration-2026-Week5\\Piece Of Your Heart - Alok Remix - MEDUZA, Alok, Goodboys.flac",
+          "format": "flac",
+          "length_s": 166,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 24,
+          "size_bytes": 20590111
+        },
+        {
+          "username": "AlesR",
+          "upload_speed_mib_s": 1.6037779,
+          "has_free_upload_slot": true,
+          "filename": "@@vvdqy\\Downloads2\\complete\\breakz360\\Car Music 2025 🚘 Bass Boosted 🔊\\Piece Of Your Heart - Alok Remix - MEDUZA.mp3",
+          "format": "mp3",
+          "length_s": null,
+          "bitrate_kbps": null,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 6765914
+        },
+        {
+          "username": "Snorth8554",
+          "upload_speed_mib_s": 0.7757225,
+          "has_free_upload_slot": true,
+          "filename": "@@imeej\\Spinnin Home Sessions (06.04.2020)\\38 - MEDUZA, Alok, Goodboys - Piece Of Your Heart - Alok Remix.mp3",
+          "format": "mp3",
+          "length_s": 166,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 6765914
+        },
+        {
+          "username": "igorr",
+          "upload_speed_mib_s": 0.8646736,
+          "has_free_upload_slot": true,
+          "filename": "downloads\\M\\MEDUZA\\Piece Of Your Heart (Alok Remix)\\MEDUZA; Alok; Goodboys - Piece Of Your Heart - Alok Remix.flac",
+          "format": "flac",
+          "length_s": 166,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 22178993
+        },
+        {
+          "username": "Bucifer6",
+          "upload_speed_mib_s": 0.5280733,
+          "has_free_upload_slot": true,
+          "filename": "@@pwmbf\\Muzica\\Spotify\\Tracks\\MEDUZA\\[2019] Piece Of Your Heart (Alok Remix)\\1. Piece Of Your Heart - Alok Remix.mp3",
+          "format": "mp3",
+          "length_s": 166,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 7100134
+        },
+        {
+          "username": "nemgyuri123",
+          "upload_speed_mib_s": 2.6051931,
+          "has_free_upload_slot": false,
+          "filename": "mp3\\14 - 2020\\House (Remixes)\\014 - MEDUZA, Alok, Goodboys - Piece Of Your Heart - Alok Remix.mp3",
+          "format": "mp3",
+          "length_s": 166,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 6776605
+        },
+        {
+          "username": "krios23",
+          "upload_speed_mib_s": 10.164448,
+          "has_free_upload_slot": true,
+          "filename": "media\\MEDUZA\\Piece of Your Heart (Alok remix) (2019)\\MEDUZA - Piece Of Your Heart (Alok Remix) - 01 - Piece Of Your Heart - Alok Remix.flac",
+          "format": "flac",
+          "length_s": 166,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 23845716
+        },
+        {
+          "username": "Jitlab",
+          "upload_speed_mib_s": 3.095667,
+          "has_free_upload_slot": true,
+          "filename": "music\\EDM\\MEDUZA\\Piece Of Your Heart (Alok Remix) [2019] flac\\1-01. Piece Of Your Heart - Alok Remix (16 44.1 kHz).flac",
+          "format": "flac",
+          "length_s": 166,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 22180601
+        }
+      ],
+      "error": null
+    },
+    {
+      "position": 4,
+      "spotify": {
+        "spotify_id": "7jrMFjEq0t09f7m3HnnWXl",
+        "uri": "spotify:track:7jrMFjEq0t09f7m3HnnWXl",
+        "url": "https://open.spotify.com/track/7jrMFjEq0t09f7m3HnnWXl",
+        "title": "Tell Me Why - MEDUZA Remix",
+        "artists": [
+          "Supermode",
+          "MEDUZA"
+        ],
+        "album": "Tell Me Why (MEDUZA Remix)",
+        "album_id": "6CTjQWx50yUs4wNu95cnlM",
+        "album_artists": [
+          "Supermode",
+          "MEDUZA"
+        ],
+        "release_date": "2022-09-02",
+        "track_number": 1,
+        "total_tracks": 2,
+        "disc_number": 1,
+        "duration_ms": 171428,
+        "isrc": "GBKCF2201098",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b273010a5f4abb5bc82685e30137",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "2022 Axtone Records Ltd.",
+          "2022 Axtone Records Ltd."
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-04-06T10:13:44Z",
+        "duration_seconds": 171.428,
+        "duration_hms": "2:51"
+      },
+      "status": "available_quality_unknown",
+      "result_count": 10,
+      "quality_unknown": true,
+      "top_candidates": [
+        {
+          "username": "panik13",
+          "upload_speed_mib_s": 2.1833382,
+          "has_free_upload_slot": true,
+          "filename": "music\\Supermode\\Supermode - Tell Me Why (MEDUZA Remix)\\01 - Tell Me Why - MEDUZA Remix.flac",
+          "format": "flac",
+          "length_s": 171,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 25322974
+        },
+        {
+          "username": "fraiklers33king",
+          "upload_speed_mib_s": 0.8966379,
+          "has_free_upload_slot": true,
+          "filename": "share\\Beast Mode\\Tell Me Why - MEDUZA Remix - Supermode, MEDUZA.mp3",
+          "format": "mp3",
+          "length_s": 171,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 7006262
+        },
+        {
+          "username": "www.electronicfresh.com",
+          "upload_speed_mib_s": 0.81749344,
+          "has_free_upload_slot": true,
+          "filename": "@@slmit\\Music New\\Music 2022\\Beatport 2022\\Beatport Weekend Picks 35\\Supermode,MEDUZA - Tell Me Why - MEDUZA Remix - www.djsoundtop.com.mp3",
+          "format": "mp3",
+          "length_s": null,
+          "bitrate_kbps": null,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 6884392
+        },
+        {
+          "username": "Bucifer6",
+          "upload_speed_mib_s": 0.5280733,
+          "has_free_upload_slot": true,
+          "filename": "@@pwmbf\\Muzica\\Spotify\\Tracks\\Supermode\\[2022] Tell Me Why (MEDUZA Remix)\\1. Tell Me Why - MEDUZA Remix.mp3",
+          "format": "mp3",
+          "length_s": 171,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 7361795
+        },
+        {
+          "username": "fishingpvalues",
+          "upload_speed_mib_s": 0.38309956,
+          "has_free_upload_slot": true,
+          "filename": "music\\Singletons\\Supermode, MEDUZA\\Tell Me Why - MEDUZA Remix.flac",
+          "format": "flac",
+          "length_s": 171,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 20971207
+        },
+        {
+          "username": "kbkoll911-za",
+          "upload_speed_mib_s": 0.7349558,
+          "has_free_upload_slot": false,
+          "filename": "Music\\Downloaded Music - Sorted Lexicon\\0000000000000\\Tell Me Why - MEDUZA Remix - Supermode, MEDUZA.mp3",
+          "format": "mp3",
+          "length_s": 171,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 7006134
+        },
+        {
+          "username": "musicmasterrdjpool",
+          "upload_speed_mib_s": 0.00578022,
+          "has_free_upload_slot": false,
+          "filename": "NEWMUSICFRIDAY\\WK11\\House Mix 2025\\Tell Me Why - MEDUZA Remix - Supermode, MEDUZA.mp3",
+          "format": "mp3",
+          "length_s": 171,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 7006267
+        },
+        {
+          "username": "bananabean84627",
+          "upload_speed_mib_s": 0.8533611,
+          "has_free_upload_slot": true,
+          "filename": "music\\Supermode\\Tell Me Why _MEDUZA Remix_\\Tell Me Why - MEDUZA Remix [7jrMFjEq0t09f7m3HnnWXl].mp3",
+          "format": "mp3",
+          "length_s": 171,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 7073396
+        },
+        {
+          "username": "Bucifer6",
+          "upload_speed_mib_s": 0.5280733,
+          "has_free_upload_slot": true,
+          "filename": "@@bkxan\\Muzica\\Spotify\\Supermode\\[2022] Tell Me Why (MEDUZA Remix)\\Supermode - Tell Me Why (MEDUZA Remix) - Tell Me Why - MEDUZA Remix.mp3",
+          "format": "mp3",
+          "length_s": 171,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 7366131
+        },
+        {
+          "username": "Bucifer6",
+          "upload_speed_mib_s": 0.5280733,
+          "has_free_upload_slot": true,
+          "filename": "@@pwmbf\\Muzica\\Spotify\\Supermode\\[2022] Tell Me Why (MEDUZA Remix)\\Supermode - Tell Me Why (MEDUZA Remix) - Tell Me Why - MEDUZA Remix.mp3",
+          "format": "mp3",
+          "length_s": 171,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 7366131
+        }
+      ],
+      "error": null
+    },
+    {
+      "position": 5,
+      "spotify": {
+        "spotify_id": "1dtNRzHMtDS3TtIzxNdyag",
+        "uri": "spotify:track:1dtNRzHMtDS3TtIzxNdyag",
+        "url": "https://open.spotify.com/track/1dtNRzHMtDS3TtIzxNdyag",
+        "title": "Friends - ARTBAT Remix",
+        "artists": [
+          "MEDUZA",
+          "ARTBAT"
+        ],
+        "album": "Friends (ARTBAT Remix)",
+        "album_id": "3sTdQoIdHfjxVLGtb3I3FL",
+        "album_artists": [
+          "MEDUZA",
+          "ARTBAT"
+        ],
+        "release_date": "2024-04-12",
+        "track_number": 1,
+        "total_tracks": 1,
+        "disc_number": 1,
+        "duration_ms": 260307,
+        "isrc": "US38Y2407000",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b273321b16d3533de1aa22208e73",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "2024 AETERNA Records",
+          "2024 AETERNA Records"
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-04-06T10:13:49Z",
+        "duration_seconds": 260.307,
+        "duration_hms": "4:20"
+      },
+      "status": "missing",
+      "result_count": 0,
+      "quality_unknown": false,
+      "top_candidates": [],
+      "error": null
+    },
+    {
+      "position": 6,
+      "spotify": {
+        "spotify_id": "697iHczKJdfanFybpes65G",
+        "uri": "spotify:track:697iHczKJdfanFybpes65G",
+        "url": "https://open.spotify.com/track/697iHczKJdfanFybpes65G",
+        "title": "Fading",
+        "artists": [
+          "ARTBAT",
+          "Dino Lenny"
+        ],
+        "album": "Unity Pt. 2",
+        "album_id": "3XCXszgpnwhnZa0TdyoIFX",
+        "album_artists": [
+          "Various Artists"
+        ],
+        "release_date": "2021-01-22",
+        "track_number": 14,
+        "total_tracks": 25,
+        "disc_number": 1,
+        "duration_ms": 487868,
+        "isrc": "DEEC33500044",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b27323fef05df7019789cfbf9e3f",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "© 2021 Afterlife Recordings",
+          "℗ 2021 Afterlife Recordings"
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-04-06T10:13:54Z",
+        "duration_seconds": 487.868,
+        "duration_hms": "8:08"
+      },
+      "status": "available_quality_unknown",
+      "result_count": 30,
+      "quality_unknown": true,
+      "top_candidates": [
+        {
+          "username": "tsuukai.",
+          "upload_speed_mib_s": 3.838336,
+          "has_free_upload_slot": true,
+          "filename": "!Music\\!@SORT\\Various Artists - Unity Pt. 2\\14 - ARTBAT & Dino Lenny - Fading.mp3",
+          "format": "mp3",
+          "length_s": 488,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 19568986
+        },
+        {
+          "username": "disantrop",
+          "upload_speed_mib_s": 3.6627283,
+          "has_free_upload_slot": true,
+          "filename": "Techno & House\\Label Afterlife Records\\[AL047] VA - Unity Pt. 2 [2021]\\14. Artbat, Dino Lenny - Fading.flac",
+          "format": "flac",
+          "length_s": 487,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 47698907
+        },
+        {
+          "username": "moroderrrrrr",
+          "upload_speed_mib_s": 2.0511732,
+          "has_free_upload_slot": true,
+          "filename": "@@pzcxd\\BATEA GENERAL HISTORICA\\000 CONGA DE ORO\\04E 5A - 122 - ARTBAT, DINO LENNY - FADING.mp3",
+          "format": "mp3",
+          "length_s": 487,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 19565355
+        },
+        {
+          "username": "moroderrrrrr",
+          "upload_speed_mib_s": 2.0511732,
+          "has_free_upload_slot": true,
+          "filename": "@@pzcxd\\BATEA GENERAL HISTORICA\\BATEA 2022\\000 CONGA DE ORO\\04E 5A - 122 - ARTBAT, DINO LENNY - FADING.mp3",
+          "format": "mp3",
+          "length_s": 487,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 19565355
+        },
+        {
+          "username": "moroderrrrrr",
+          "upload_speed_mib_s": 2.0511732,
+          "has_free_upload_slot": true,
+          "filename": "@@pzcxd\\BATEA GENERAL HISTORICA\\JULIO ERRE\\001 NUEVOS SETS 2020\\000 CONGA DE ORO\\04E 5A - 122 - ARTBAT, DINO LENNY - FADING.mp3",
+          "format": "mp3",
+          "length_s": 487,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 19565355
+        },
+        {
+          "username": "s3NNheis3R",
+          "upload_speed_mib_s": 1.5098419,
+          "has_free_upload_slot": true,
+          "filename": "@@dnaip\\-[Labels]-\\Afterlife\\[AL047] Tale Of Us-Unity Pt. 2-WEB-FLAC-2021\\14. Artbat & Dino Lenny - Fading.flac",
+          "format": "flac",
+          "length_s": 487,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 45602492
+        },
+        {
+          "username": "s3NNheis3R",
+          "upload_speed_mib_s": 1.5098419,
+          "has_free_upload_slot": true,
+          "filename": "@@dnaip\\[Techno, House]\\VA - Unity Pt 2-WEB-FLAC-2021\\14. ARTBAT & Dino Lenny - Fading.flac",
+          "format": "flac",
+          "length_s": 487,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 47355810
+        },
+        {
+          "username": "overgrow",
+          "upload_speed_mib_s": 0.4897108,
+          "has_free_upload_slot": true,
+          "filename": "@@hxxal\\Torrent-Save5-House\\VA - Tale Of Us - Unity [Afterlife] FLAC\\Unity Pt 2-2021\\14-ARTBAT & Dino Lenny - Fading.flac",
+          "format": "flac",
+          "length_s": 487,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 47355810
+        },
+        {
+          "username": "sweet'n'slow",
+          "upload_speed_mib_s": 0.6041794,
+          "has_free_upload_slot": true,
+          "filename": "@@etiya\\Soulseek Downloads\\complete\\New Exclusive Music – 113 Tracks Сollection January 2023 (Djsoundtop.Com)\\ARTBAT, Dino Lenny - Fading.mp3",
+          "format": "mp3",
+          "length_s": null,
+          "bitrate_kbps": null,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 20284678
+        },
+        {
+          "username": "ultrabell",
+          "upload_speed_mib_s": 0.79599476,
+          "has_free_upload_slot": false,
+          "filename": "@@vltco\\Music Torrents\\Unity Pt 2-2021\\14-ARTBAT & Dino Lenny - Fading.flac",
+          "format": "flac",
+          "length_s": 487,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 47355810
+        }
+      ],
+      "error": null
+    },
+    {
+      "position": 7,
+      "spotify": {
+        "spotify_id": "70hIxHhQLcxmqwxfcYkoUf",
+        "uri": "spotify:track:70hIxHhQLcxmqwxfcYkoUf",
+        "url": "https://open.spotify.com/track/70hIxHhQLcxmqwxfcYkoUf",
+        "title": "Another World - Kevin de Vries & SLVR Remix",
+        "artists": [
+          "MEDUZA",
+          "HAYLA",
+          "Kevin de Vries",
+          "SLVR"
+        ],
+        "album": "Another World (Kevin de Vries & SLVR Remix)",
+        "album_id": "6rsdb9z4X2APof4aa8fJuz",
+        "album_artists": [
+          "MEDUZA",
+          "HAYLA"
+        ],
+        "release_date": "2024-11-15",
+        "track_number": 1,
+        "total_tracks": 2,
+        "disc_number": 1,
+        "duration_ms": 211653,
+        "isrc": "GBUM72406767",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b273ef3480cc6ee58d4ac0b65c92",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "© 2024 Secondo Piano SRL, under exclusive license to Universal Music Operations Limited",
+          "℗ 2024 Secondo Piano SRL, under exclusive license to Universal Music Operations Limited"
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-04-06T10:13:59Z",
+        "duration_seconds": 211.653,
+        "duration_hms": "3:32"
+      },
+      "status": "available",
+      "result_count": 5,
+      "quality_unknown": false,
+      "top_candidates": [
+        {
+          "username": "fermionsbaryon6",
+          "upload_speed_mib_s": 1.952096,
+          "has_free_upload_slot": true,
+          "filename": "data\\Various Artists\\Beatport New Top 100 Melodic House & Techno (2025)\\Another World - Kevin De Vries & Slvr Remix - Meduza,Hayla,Kevin De Vries,Slvr 127.mp3",
+          "format": "mp3",
+          "length_s": 211,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 8470597
+        },
+        {
+          "username": "omvsoul",
+          "upload_speed_mib_s": 1.5243635,
+          "has_free_upload_slot": true,
+          "filename": "shared\\share\\Appo-Appochop_EP_(CHOPDIGI010)-WEB-2012-MiNDTRiP\\VA-Beatport.New.Top.100.Melodic.House.and.Techno-2025\\Another World - Kevin De Vries & Slvr Remix - Meduza,Hayla,Kevin De Vries,Slvr 127.mp3",
+          "format": "mp3",
+          "length_s": 211,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 8470597
+        },
+        {
+          "username": "pedro666",
+          "upload_speed_mib_s": 1.3836136,
+          "has_free_upload_slot": true,
+          "filename": "@@yrvia\\Music\\New\\EDM\\Miss Monique\\Miss Monique & her friends (2025)\\049. MEDUZA, HAYLA, Kevin de Vries, SLVR - Another World - Kevin de Vries & SLVR Remix.mp3",
+          "format": "mp3",
+          "length_s": 211,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 8621486
+        },
+        {
+          "username": "fermionsbaryon2",
+          "upload_speed_mib_s": 0.7644024,
+          "has_free_upload_slot": true,
+          "filename": "media\\Various Artists\\Beatport New Top 100 Melodic House & Techno (2025)\\Another World - Kevin De Vries & Slvr Remix - Meduza,Hayla,Kevin De Vries,Slvr 127.mp3",
+          "format": "mp3",
+          "length_s": 211,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 8470597
+        },
+        {
+          "username": "Bucifer6",
+          "upload_speed_mib_s": 0.5280733,
+          "has_free_upload_slot": true,
+          "filename": "@@pwmbf\\Muzica\\Spotify\\Tracks\\MEDUZA\\[2024] Another World (Kevin de Vries & SLVR Remix)\\1. Another World - Kevin de Vries & SLVR Remix.mp3",
+          "format": "mp3",
+          "length_s": 211,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 9082954
+        }
+      ],
+      "error": null
+    },
+    {
+      "position": 8,
+      "spotify": {
+        "spotify_id": "0NInmbZliZg9hCrw5HgDuf",
+        "uri": "spotify:track:0NInmbZliZg9hCrw5HgDuf",
+        "url": "https://open.spotify.com/track/0NInmbZliZg9hCrw5HgDuf",
+        "title": "Sweet Disposition - ARTBAT Remix",
+        "artists": [
+          "The Temper Trap",
+          "ARTBAT"
+        ],
+        "album": "Sweet Disposition (ARTBAT Remix)",
+        "album_id": "5OPFryeZlyPtGluGjGKWbG",
+        "album_artists": [
+          "The Temper Trap",
+          "ARTBAT"
+        ],
+        "release_date": "2025-04-25",
+        "track_number": 1,
+        "total_tracks": 1,
+        "disc_number": 1,
+        "duration_ms": 210000,
+        "isrc": "US38Y2529365",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b273c2d0f2020b188c58bcba1d6e",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "2025 UPPERGROUND",
+          "2025 UPPERGROUND"
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-04-06T10:38:04Z",
+        "duration_seconds": 210.0,
+        "duration_hms": "3:30"
+      },
+      "status": "available",
+      "result_count": 1,
+      "quality_unknown": false,
+      "top_candidates": [
+        {
+          "username": "Bucifer6",
+          "upload_speed_mib_s": 0.5280733,
+          "has_free_upload_slot": true,
+          "filename": "@@pwmbf\\Muzica\\Spotify\\Tracks\\The Temper Trap\\[2025] Sweet Disposition (ARTBAT Remix)\\1. Sweet Disposition - ARTBAT Remix.mp3",
+          "format": "mp3",
+          "length_s": 210,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 8565321
+        }
+      ],
+      "error": null
+    },
+    {
+      "position": 9,
+      "spotify": {
+        "spotify_id": "4TNiHQs5zO3slGpbBwutVB",
+        "uri": "spotify:track:4TNiHQs5zO3slGpbBwutVB",
+        "url": "https://open.spotify.com/track/4TNiHQs5zO3slGpbBwutVB",
+        "title": "So Hï",
+        "artists": [
+          "KREAM"
+        ],
+        "album": "So Hï",
+        "album_id": "5GA1vg8Xv8zqtNedFbHasK",
+        "album_artists": [
+          "KREAM"
+        ],
+        "release_date": "2024-03-22",
+        "track_number": 1,
+        "total_tracks": 1,
+        "disc_number": 1,
+        "duration_ms": 212139,
+        "isrc": "NLZ542400214",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b2730812d1b83fa43ea4f219d382",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "© 2024 Musical Freedom Label Ltd.",
+          "℗ 2024 Musical Freedom Label Ltd."
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-04-06T10:42:51Z",
+        "duration_seconds": 212.139,
+        "duration_hms": "3:32"
+      },
+      "status": "available",
+      "result_count": 36,
+      "quality_unknown": false,
+      "top_candidates": [
+        {
+          "username": "Bluestar",
+          "upload_speed_mib_s": 2.6023636,
+          "has_free_upload_slot": true,
+          "filename": "@@kkmkm\\Muziek_Singles_Flac\\2024\\Week 12\\KREAM - So Hï.flac",
+          "format": "flac",
+          "length_s": 212,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 26267157
+        },
+        {
+          "username": "manmad",
+          "upload_speed_mib_s": 2.5669422,
+          "has_free_upload_slot": true,
+          "filename": "music\\KREAM\\KREAM - So Hï\\01 - So Hï.flac",
+          "format": "flac",
+          "length_s": 212,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 26257274
+        },
+        {
+          "username": "esoess",
+          "upload_speed_mib_s": 1.2150126,
+          "has_free_upload_slot": true,
+          "filename": "@@pywrl\\Music\\Unsorted\\KREAM - So Hï.mp3",
+          "format": "mp3",
+          "length_s": 212,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 8544180
+        },
+        {
+          "username": "SAMSA",
+          "upload_speed_mib_s": 1.0799437,
+          "has_free_upload_slot": true,
+          "filename": "@@wdhrz\\complete\\KREAM_-_So_Hi-(5021732239266)-SINGLE-WEB-2024-ZzZz\\01-kream_-_so_hi-zzzz.mp3",
+          "format": "mp3",
+          "length_s": 212,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 8509916
+        },
+        {
+          "username": "TranscendZ",
+          "upload_speed_mib_s": 0.9444542,
+          "has_free_upload_slot": true,
+          "filename": "downloads\\Electronic\\Best of 2024 Tech House (Mp3 320kbps) [PMEDIA] ⭐️\\12. KREAM - So Hï.mp3",
+          "format": "mp3",
+          "length_s": 214,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 8634282
+        },
+        {
+          "username": "Protoss77",
+          "upload_speed_mib_s": 0.41072273,
+          "has_free_upload_slot": true,
+          "filename": "@@vlfro\\Party Zone\\2025\\KREAM - So Hi.mp3",
+          "format": "mp3",
+          "length_s": 212,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 8489881
+        },
+        {
+          "username": "PTH",
+          "upload_speed_mib_s": 0.5311165,
+          "has_free_upload_slot": true,
+          "filename": "music\\KREAM\\2024. So Hï\\1. So Hï.flac",
+          "format": "flac",
+          "length_s": 212,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 26326113
+        },
+        {
+          "username": "xyz_soulseek",
+          "upload_speed_mib_s": 0.22056007,
+          "has_free_upload_slot": true,
+          "filename": "Music 1 (FLAC)\\KREAM\\So Hï\\01 - So Hï.flac",
+          "format": "flac",
+          "length_s": 212,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 26257274
+        },
+        {
+          "username": "nemgyuri123",
+          "upload_speed_mib_s": 2.6051931,
+          "has_free_upload_slot": false,
+          "filename": "mp3\\14 - 2020\\Party Zone\\2025\\KREAM - So Hi.mp3",
+          "format": "mp3",
+          "length_s": 212,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 8489881
+        },
+        {
+          "username": "Grenoybel",
+          "upload_speed_mib_s": 1.3619976,
+          "has_free_upload_slot": false,
+          "filename": "Scene1\\2024\\03\\House\\MP3\\KREAM_-_So_Hi-(5021732239266)-SINGLE-WEB-2024-ZzZz\\01-kream_-_so_hi-zzzz.mp3",
+          "format": "mp3",
+          "length_s": 212,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 8591884
+        }
+      ],
+      "error": null
+    },
+    {
+      "position": 10,
+      "spotify": {
+        "spotify_id": "48XuAKxSzr3nJBeU1yf0KM",
+        "uri": "spotify:track:48XuAKxSzr3nJBeU1yf0KM",
+        "url": "https://open.spotify.com/track/48XuAKxSzr3nJBeU1yf0KM",
+        "title": "Dun Dun",
+        "artists": [
+          "Cassian"
+        ],
+        "album": "Dun Dun",
+        "album_id": "4Ycyp1cQVW9VPOzlEdSk83",
+        "album_artists": [
+          "Cassian"
+        ],
+        "release_date": "2024-08-02",
+        "track_number": 1,
+        "total_tracks": 2,
+        "disc_number": 1,
+        "duration_ms": 209523,
+        "isrc": "USA2P2446612",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b27352f9affd4b2746420ad8031d",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "© 2024 Afterlife",
+          "℗ 2024 Afterlife"
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-04-06T10:50:30Z",
+        "duration_seconds": 209.523,
+        "duration_hms": "3:30"
+      },
+      "status": "available",
+      "result_count": 22,
+      "quality_unknown": false,
+      "top_candidates": [
+        {
+          "username": "recovery8655",
+          "upload_speed_mib_s": 9.703228,
+          "has_free_upload_slot": true,
+          "filename": "music\\Cassian\\Dun Dun (2024)\\39-Cassian-Dun Dun.flac",
+          "format": "flac",
+          "length_s": 209,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 28226944
+        },
+        {
+          "username": "reverwinsskt",
+          "upload_speed_mib_s": 5.8064203,
+          "has_free_upload_slot": true,
+          "filename": "music\\Cassian\\Dun Dun\\Cassian - Dun Dun.flac",
+          "format": "flac",
+          "length_s": 209,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 29360548
+        },
+        {
+          "username": "tsuukai.",
+          "upload_speed_mib_s": 3.838336,
+          "has_free_upload_slot": true,
+          "filename": "!Music\\!@SORT\\Cassian - Dun Dun\\01. Cassian - Dun Dun.mp3",
+          "format": "mp3",
+          "length_s": 209,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 8686457
+        },
+        {
+          "username": "disantrop",
+          "upload_speed_mib_s": 3.6627283,
+          "has_free_upload_slot": true,
+          "filename": "Techno & House\\Label Afterlife Records\\[AL096] Cassian - Dun Dun [2024]\\01. Cassian - Dun Dun.flac",
+          "format": "flac",
+          "length_s": 209,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 28298854
+        },
+        {
+          "username": "hayeled",
+          "upload_speed_mib_s": 3.6253052,
+          "has_free_upload_slot": true,
+          "filename": "Auditions\\2024\\Cassian - Dun Dun.flac",
+          "format": "flac",
+          "length_s": 209,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 28253479
+        },
+        {
+          "username": "fermionsbaryon6",
+          "upload_speed_mib_s": 1.952096,
+          "has_free_upload_slot": true,
+          "filename": "data\\Various Artists\\Beatport New Top 100 Melodic House & Techno (2025)\\Dun Dun - Cassian 126.mp3",
+          "format": "mp3",
+          "length_s": 209,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 8385035
+        },
+        {
+          "username": "omvsoul",
+          "upload_speed_mib_s": 1.5243635,
+          "has_free_upload_slot": true,
+          "filename": "shared\\share\\Appo-Appochop_EP_(CHOPDIGI010)-WEB-2012-MiNDTRiP\\VA-Beatport.New.Top.100.Melodic.House.and.Techno-2025\\Dun Dun - Cassian 126.mp3",
+          "format": "mp3",
+          "length_s": 209,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 8385035
+        },
+        {
+          "username": "Terra001",
+          "upload_speed_mib_s": 0.76178646,
+          "has_free_upload_slot": true,
+          "filename": "@@hkdas\\House 2025 Pt 1\\7A - 128 - GALA vs Cassian - Freed From Desire Terra 'Dun Dun' Edit).mp3",
+          "format": "mp3",
+          "length_s": 241,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 9744083
+        },
+        {
+          "username": "kbkoll911-za",
+          "upload_speed_mib_s": 0.7349558,
+          "has_free_upload_slot": true,
+          "filename": "Music\\no tag\\Cassian 126 - Dun Dun.mp3",
+          "format": "mp3",
+          "length_s": 209,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 8385035
+        },
+        {
+          "username": "fermionsbaryon2",
+          "upload_speed_mib_s": 0.7644024,
+          "has_free_upload_slot": true,
+          "filename": "media\\Various Artists\\Beatport New Top 100 Melodic House & Techno (2025)\\Dun Dun - Cassian 126.mp3",
+          "format": "mp3",
+          "length_s": 209,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 8385035
+        }
+      ],
+      "error": null
+    },
+    {
+      "position": 11,
+      "spotify": {
+        "spotify_id": "2vl9yXYJmoKbv72pUIxoue",
+        "uri": "spotify:track:2vl9yXYJmoKbv72pUIxoue",
+        "url": "https://open.spotify.com/track/2vl9yXYJmoKbv72pUIxoue",
+        "title": "Apollo 11",
+        "artists": [
+          "Matador",
+          "ARTBAT"
+        ],
+        "album": "Apollo 11",
+        "album_id": "4K8v2zx2n4sSBSaTyPixHa",
+        "album_artists": [
+          "Matador",
+          "ARTBAT"
+        ],
+        "release_date": "2019-03-15",
+        "track_number": 1,
+        "total_tracks": 2,
+        "disc_number": 1,
+        "duration_ms": 464646,
+        "isrc": "FR10S1946291",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b27383a25987bef45a6ae17cddc9",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "2019 Rukus",
+          "2019 Rukus"
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-04-06T10:59:03Z",
+        "duration_seconds": 464.646,
+        "duration_hms": "7:45"
+      },
+      "status": "missing",
+      "result_count": 0,
+      "quality_unknown": false,
+      "top_candidates": [],
+      "error": null
+    },
+    {
+      "position": 12,
+      "spotify": {
+        "spotify_id": "6tifCCTIVBLC2TmTquYG7G",
+        "uri": "spotify:track:6tifCCTIVBLC2TmTquYG7G",
+        "url": "https://open.spotify.com/track/6tifCCTIVBLC2TmTquYG7G",
+        "title": "Fine Day Anthem",
+        "artists": [
+          "Skrillex",
+          "Boys Noize",
+          "Opus III"
+        ],
+        "album": "Fine Day Anthem",
+        "album_id": "2mxzA7momOeBvCyKDgZRIb",
+        "album_artists": [
+          "Skrillex",
+          "Boys Noize",
+          "Opus III"
+        ],
+        "release_date": "2023-07-07",
+        "track_number": 1,
+        "total_tracks": 1,
+        "disc_number": 1,
+        "duration_ms": 193690,
+        "isrc": "USAT22306616",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b2735f6289f9ea5e1cf24e9bf7b1",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "© 2023 OWSLA / Boysnoize Records / Atlantic, Inc",
+          "℗ 2023 OWSLA / Boysnoize Records / Atlantic, Inc"
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-04-06T11:07:25Z",
+        "duration_seconds": 193.69,
+        "duration_hms": "3:14"
+      },
+      "status": "available_quality_unknown",
+      "result_count": 219,
+      "quality_unknown": true,
+      "top_candidates": [
+        {
+          "username": "ggrrmmll",
+          "upload_speed_mib_s": 14.722992,
+          "has_free_upload_slot": true,
+          "filename": "music\\Techno\\1. Skrillex - Fine Day Anthem.flac",
+          "format": "flac",
+          "length_s": 193,
+          "bitrate_kbps": null,
+          "sample_rate": 48000,
+          "bit_depth": 24,
+          "size_bytes": 42216155
+        },
+        {
+          "username": "94lnt3r3xt3n5l0n",
+          "upload_speed_mib_s": 14.145998,
+          "has_free_upload_slot": true,
+          "filename": "music\\Skrillex\\01 - Fine Day Anthem.flac",
+          "format": "flac",
+          "length_s": 193,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 22667510
+        },
+        {
+          "username": "valosss",
+          "upload_speed_mib_s": 12.1516695,
+          "has_free_upload_slot": true,
+          "filename": "music\\Skrillex\\Fine Day Anthem (2023)\\Skrillex - Fine Day Anthem - 01 - Fine Day Anthem.flac",
+          "format": "flac",
+          "length_s": 193,
+          "bitrate_kbps": null,
+          "sample_rate": 48000,
+          "bit_depth": 24,
+          "size_bytes": 42014472
+        },
+        {
+          "username": "valentinchpx",
+          "upload_speed_mib_s": 10.113749,
+          "has_free_upload_slot": true,
+          "filename": "musics\\Skrillex\\Fine Day Anthem (2023)\\01 - Fine Day Anthem.flac",
+          "format": "flac",
+          "length_s": 193,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 22666648
+        },
+        {
+          "username": "n0h0pe",
+          "upload_speed_mib_s": 9.584673,
+          "has_free_upload_slot": true,
+          "filename": "media\\Skrillex, Boys Noize & Opus III\\Fine Day Anthem (2023) [WEB-FLAC] {Atlantic; Boysnoize Records; OWSLA-075679680129}\\01. Skrillex, Boys Noize & Opus III - Fine Day Anthem.flac",
+          "format": "flac",
+          "length_s": 193,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 22474349
+        },
+        {
+          "username": "user3372818743",
+          "upload_speed_mib_s": 8.418261,
+          "has_free_upload_slot": true,
+          "filename": "share\\Skrillex\\Fine Day Anthem (2023)\\Skrillex - 01 - Fine Day Anthem.flac",
+          "format": "flac",
+          "length_s": 193,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 22666049
+        },
+        {
+          "username": "justasillywolfy",
+          "upload_speed_mib_s": 7.959114,
+          "has_free_upload_slot": true,
+          "filename": "music\\Skrillex\\Fine Day Anthem\\1-01 Fine Day Anthem.flac",
+          "format": "flac",
+          "length_s": 193,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 22596251
+        },
+        {
+          "username": "newsound",
+          "upload_speed_mib_s": 6.5935764,
+          "has_free_upload_slot": true,
+          "filename": "music\\Skrillex\\Skrillex, Boys Noize, Opus III - Fine Day Anthem (2023) [MP4] [16B-44100kHz]\\01. Skrillex, Boys Noize, Opus III - Fine Day Anthem.flac",
+          "format": "flac",
+          "length_s": 193,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 22459447
+        },
+        {
+          "username": "racycars",
+          "upload_speed_mib_s": 6.2212296,
+          "has_free_upload_slot": true,
+          "filename": "media\\music\\Skrillex\\Fine Day Anthem (2023)\\Skrillex - Fine Day Anthem - 01 - Fine Day Anthem.flac",
+          "format": "flac",
+          "length_s": 193,
+          "bitrate_kbps": null,
+          "sample_rate": 48000,
+          "bit_depth": 24,
+          "size_bytes": 42014472
+        },
+        {
+          "username": "zYx",
+          "upload_speed_mib_s": 5.8224516,
+          "has_free_upload_slot": true,
+          "filename": "media\\Soulseek\\Topradio Dance Top 1000(2023)\\463. Skrillex - Fine Day Anthem.mp3",
+          "format": "mp3",
+          "length_s": 193,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 7818665
+        }
+      ],
+      "error": null
+    },
+    {
+      "position": 13,
+      "spotify": {
+        "spotify_id": "7p7gqBkkvDFIepji8U0Lgh",
+        "uri": "spotify:track:7p7gqBkkvDFIepji8U0Lgh",
+        "url": "https://open.spotify.com/track/7p7gqBkkvDFIepji8U0Lgh",
+        "title": "We Are The People - ARTBAT Remix",
+        "artists": [
+          "Empire Of The Sun",
+          "ARTBAT"
+        ],
+        "album": "We Are The People (Reimagined)",
+        "album_id": "2RMOlO1CtKZ6cSbIGvXuvP",
+        "album_artists": [
+          "Empire Of The Sun"
+        ],
+        "release_date": "2024-12-13",
+        "track_number": 3,
+        "total_tracks": 4,
+        "disc_number": 1,
+        "duration_ms": 238080,
+        "isrc": "AU2DY2400440",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b273854dc173d13eb17caade644f",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "© 2024 The Sleepy Jackson Pty Ltd and Nick Littlemore, under exclusive licence to Universal Music Australia Pty Ltd",
+          "℗ 2024 The Sleepy Jackson Pty Ltd and Nick Littlemore, under exclusive licence to Universal Music Australia Pty Ltd"
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-04-06T11:22:22Z",
+        "duration_seconds": 238.08,
+        "duration_hms": "3:58"
+      },
+      "status": "available",
+      "result_count": 4,
+      "quality_unknown": false,
+      "top_candidates": [
+        {
+          "username": "fermionsbaryon6",
+          "upload_speed_mib_s": 1.952096,
+          "has_free_upload_slot": true,
+          "filename": "data\\Various Artists\\Beatport New Top 100 Melodic House & Techno (2025)\\We Are The People - Artbat Remix - Empire Of The Sun,Artbat 125.mp3",
+          "format": "mp3",
+          "length_s": 238,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 9527519
+        },
+        {
+          "username": "omvsoul",
+          "upload_speed_mib_s": 1.5243635,
+          "has_free_upload_slot": true,
+          "filename": "shared\\share\\Appo-Appochop_EP_(CHOPDIGI010)-WEB-2012-MiNDTRiP\\VA-Beatport.New.Top.100.Melodic.House.and.Techno-2025\\We Are The People - Artbat Remix - Empire Of The Sun,Artbat 125.mp3",
+          "format": "mp3",
+          "length_s": 238,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 9527519
+        },
+        {
+          "username": "fermionsbaryon2",
+          "upload_speed_mib_s": 0.7644024,
+          "has_free_upload_slot": true,
+          "filename": "media\\Various Artists\\Beatport New Top 100 Melodic House & Techno (2025)\\We Are The People - Artbat Remix - Empire Of The Sun,Artbat 125.mp3",
+          "format": "mp3",
+          "length_s": 238,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 9527519
+        },
+        {
+          "username": "Bucifer6",
+          "upload_speed_mib_s": 0.5280733,
+          "has_free_upload_slot": true,
+          "filename": "@@pwmbf\\Muzica\\Spotify\\Tracks\\Empire Of The Sun\\[2024] We Are The People (ARTBAT Remix)\\1. We Are The People - ARTBAT Remix.mp3",
+          "format": "mp3",
+          "length_s": 238,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 10241775
+        }
+      ],
+      "error": null
+    },
+    {
+      "position": 14,
+      "spotify": {
+        "spotify_id": "72fsISRF1G1vDUVPwbTgMO",
+        "uri": "spotify:track:72fsISRF1G1vDUVPwbTgMO",
+        "url": "https://open.spotify.com/track/72fsISRF1G1vDUVPwbTgMO",
+        "title": "Afterparty",
+        "artists": [
+          "ARTBAT"
+        ],
+        "album": "Afterparty",
+        "album_id": "4paVM4hXl2Lq9EhngKRpWy",
+        "album_artists": [
+          "ARTBAT"
+        ],
+        "release_date": "2025-02-28",
+        "track_number": 1,
+        "total_tracks": 1,
+        "disc_number": 1,
+        "duration_ms": 298739,
+        "isrc": "US38Y2507040",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b273a838d4fb544a560e5b1a63e0",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "2025 UPPERGROUND",
+          "2025 UPPERGROUND"
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-04-06T11:34:38Z",
+        "duration_seconds": 298.739,
+        "duration_hms": "4:59"
+      },
+      "status": "available_quality_unknown",
+      "result_count": 86,
+      "quality_unknown": true,
+      "top_candidates": [
+        {
+          "username": "zeytin",
+          "upload_speed_mib_s": 5.330907,
+          "has_free_upload_slot": true,
+          "filename": "00_AudioLib\\00-LooseTraxx\\Artbat - Afterparty.flac",
+          "format": "flac",
+          "length_s": 296,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 32719319
+        },
+        {
+          "username": "bofhxyto",
+          "upload_speed_mib_s": 3.0969,
+          "has_free_upload_slot": true,
+          "filename": "Music\\ARTBAT\\Afterparty\\01 Afterparty.flac",
+          "format": "flac",
+          "length_s": 298,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 32401810
+        },
+        {
+          "username": "Bluestar",
+          "upload_speed_mib_s": 2.6023636,
+          "has_free_upload_slot": true,
+          "filename": "@@kkmkm\\Muziek_Singles_Flac\\2025\\Week 09\\ARTBAT - Afterparty.flac",
+          "format": "flac",
+          "length_s": 298,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 32558292
+        },
+        {
+          "username": "RekordAir",
+          "upload_speed_mib_s": 2.179677,
+          "has_free_upload_slot": true,
+          "filename": "@@tgkfq\\Music\\MusicRB\\Library\\01  ARTBAT - Afterparty.mp3",
+          "format": "mp3",
+          "length_s": 298,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 12047525
+        },
+        {
+          "username": "Snorth8554",
+          "upload_speed_mib_s": 0.7757225,
+          "has_free_upload_slot": true,
+          "filename": "@@dubqn\\2025 - New Music Releases (320)\\ARTBAT - Afterparty.mp3",
+          "format": "mp3",
+          "length_s": 298,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 12141955
+        },
+        {
+          "username": "kbkoll911-za",
+          "upload_speed_mib_s": 0.7349558,
+          "has_free_upload_slot": true,
+          "filename": "Music\\Downloaded Music - Sorted Lexicon --\\Dance all\\Dance\\Artbat\\Afterparty - Artbat.flac",
+          "format": "flac",
+          "length_s": 298,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 32558292
+        },
+        {
+          "username": "rumataest",
+          "upload_speed_mib_s": 1.0172529,
+          "has_free_upload_slot": true,
+          "filename": "@@purzk\\torrent_music\\ARTBAT\\Single\\(2025) Afterparty\\01 - ARTBAT - Afterparty.flac",
+          "format": "flac",
+          "length_s": 298,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 32246265
+        },
+        {
+          "username": "www.electronicfresh.com",
+          "upload_speed_mib_s": 0.81749344,
+          "has_free_upload_slot": true,
+          "filename": "@@qlfyc\\Music New - djsoundtop.com\\Music New 2025\\New Exclusive Music – Сollection February 2025 (Djsoundtop.Com)\\New Exclusive Music – 216 Tracks Сollection February 2025 (Djsoundtop.Com)\\ARTBAT - Afterparty - www.djsoundtop.com.mp3",
+          "format": "mp3",
+          "length_s": null,
+          "bitrate_kbps": null,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 12389204
+        },
+        {
+          "username": "r0b07",
+          "upload_speed_mib_s": 1.0004091,
+          "has_free_upload_slot": true,
+          "filename": "shared\\ARTBAT\\ARTBAT - 2025 - Afterparty\\01 - Afterparty.flac",
+          "format": "flac",
+          "length_s": 298,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 32544268
+        },
+        {
+          "username": "Bucifer6",
+          "upload_speed_mib_s": 0.5280733,
+          "has_free_upload_slot": true,
+          "filename": "@@pwmbf\\Muzica\\Spotify\\Tracks\\ARTBAT\\[2025] Afterparty\\1. Afterparty.mp3",
+          "format": "mp3",
+          "length_s": 298,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 12401284
+        }
+      ],
+      "error": null
+    },
+    {
+      "position": 15,
+      "spotify": {
+        "spotify_id": "2LVr6WQ6W7B3i8CeWFjcLP",
+        "uri": "spotify:track:2LVr6WQ6W7B3i8CeWFjcLP",
+        "url": "https://open.spotify.com/track/2LVr6WQ6W7B3i8CeWFjcLP",
+        "title": "Montserrat - Artbat Edit",
+        "artists": [
+          "WhoMadeWho",
+          "ARTBAT"
+        ],
+        "album": "Montserrat (Artbat Edit)",
+        "album_id": "0xP3As4wwckI15pJ616PFC",
+        "album_artists": [
+          "WhoMadeWho",
+          "ARTBAT"
+        ],
+        "release_date": "2019-04-05",
+        "track_number": 1,
+        "total_tracks": 1,
+        "disc_number": 1,
+        "duration_ms": 488170,
+        "isrc": "DEPX41900300",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b273a8aac9c8e70ba063d04bd300",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "2019 Watergate Records",
+          "2019 Watergate Records"
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-04-06T11:42:58Z",
+        "duration_seconds": 488.17,
+        "duration_hms": "8:08"
+      },
+      "status": "available",
+      "result_count": 1,
+      "quality_unknown": false,
+      "top_candidates": [
+        {
+          "username": "Bucifer6",
+          "upload_speed_mib_s": 0.5280733,
+          "has_free_upload_slot": true,
+          "filename": "@@pwmbf\\Muzica\\Spotify\\Tracks\\WhoMadeWho\\[2019] Montserrat - Closer\\1. Montserrat - Artbat Edit.mp3",
+          "format": "mp3",
+          "length_s": 488,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 20145606
+        }
+      ],
+      "error": null
+    },
+    {
+      "position": 16,
+      "spotify": {
+        "spotify_id": "1tf1bJWmA54TDD3F0tdZy2",
+        "uri": "spotify:track:1tf1bJWmA54TDD3F0tdZy2",
+        "url": "https://open.spotify.com/track/1tf1bJWmA54TDD3F0tdZy2",
+        "title": "Culture",
+        "artists": [
+          "MORTEN",
+          "ARTBAT"
+        ],
+        "album": "Culture",
+        "album_id": "0jqUzeynq0OFvfiRxidGfE",
+        "album_artists": [
+          "MORTEN",
+          "ARTBAT"
+        ],
+        "release_date": "2025-05-30",
+        "track_number": 1,
+        "total_tracks": 1,
+        "disc_number": 1,
+        "duration_ms": 214070,
+        "isrc": "NL8RL2517968",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b273a3f778f96570b0a98359b083",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "2025 Insomniac Records",
+          "2025 Insomniac Records"
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-04-06T11:48:55Z",
+        "duration_seconds": 214.07,
+        "duration_hms": "3:34"
+      },
+      "status": "available_quality_unknown",
+      "result_count": 28,
+      "quality_unknown": true,
+      "top_candidates": [
+        {
+          "username": "dolche",
+          "upload_speed_mib_s": 1.4045029,
+          "has_free_upload_slot": true,
+          "filename": "music\\MORTEN\\Culture (2025)\\MORTEN - Culture - 01 - Culture.flac",
+          "format": "flac",
+          "length_s": 214,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 27246271
+        },
+        {
+          "username": "GeorgeNu_",
+          "upload_speed_mib_s": 1.1443605,
+          "has_free_upload_slot": true,
+          "filename": "Download\\SoulSeek Download\\complete\\2025 download\\Morten - Culture.flac",
+          "format": "flac",
+          "length_s": 214,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 27371792
+        },
+        {
+          "username": "r0b07",
+          "upload_speed_mib_s": 1.0004091,
+          "has_free_upload_slot": true,
+          "filename": "shared\\MORTEN\\MORTEN - 2025 - Culture\\01 - Culture.flac",
+          "format": "flac",
+          "length_s": 214,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 27371792
+        },
+        {
+          "username": "kbkoll911-za",
+          "upload_speed_mib_s": 0.7349558,
+          "has_free_upload_slot": true,
+          "filename": "Music\\Downloaded Music - Sorted Lexicon --\\Dance all\\Dance\\Morten, Artbat\\Culture - Morten, Artbat.flac",
+          "format": "flac",
+          "length_s": 214,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 27192129
+        },
+        {
+          "username": "jackstr",
+          "upload_speed_mib_s": 8.1421995,
+          "has_free_upload_slot": false,
+          "filename": "music\\MORTEN\\Culture\\01 - Culture.flac",
+          "format": "flac",
+          "length_s": 214,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 27590178
+        },
+        {
+          "username": "s3NNheis3R",
+          "upload_speed_mib_s": 1.5098419,
+          "has_free_upload_slot": true,
+          "filename": "@@dnaip\\Tomorrowland Lives\\Tomorrowland Winter 2024_ MORTEN at Mainstage (DJ Mix) (2024)\\23. Culture (Mixed).flac",
+          "format": "flac",
+          "length_s": 204,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 23510092
+        },
+        {
+          "username": "s3NNheis3R",
+          "upload_speed_mib_s": 1.5098419,
+          "has_free_upload_slot": true,
+          "filename": "@@dnaip\\Tomorrowland Lives\\Tomorrowland Winter 2026_ MORTEN b2b Malaa at Mainstage (DJ Mix)\\13. Culture (Mixed).flac",
+          "format": "flac",
+          "length_s": 156,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 18929411
+        },
+        {
+          "username": "www.electronicfresh.com",
+          "upload_speed_mib_s": 0.81749344,
+          "has_free_upload_slot": true,
+          "filename": "@@qlfyc\\Music New - djsoundtop.com\\Music New 2025\\Beatport Music 2025\\Music Spring 2025\\Beatport Top 100 Melodic House & Techno June 2025\\MORTEN, ARTBAT - Culture (Extended Mix).flac",
+          "format": "flac",
+          "length_s": null,
+          "bitrate_kbps": null,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 37990246
+        },
+        {
+          "username": "www.electronicfresh.com",
+          "upload_speed_mib_s": 0.81749344,
+          "has_free_upload_slot": true,
+          "filename": "@@qlfyc\\Music New - djsoundtop.com\\Music New 2025\\Top Music New - Most Wanted, Hot Dj Charts\\Most Wanted 294 Djs Chart Top 160 Tracks – ElectronicFresh.com\\MORTEN & ARTBAT - CULTURE (Extended Mix) - www.djsoundtop.com.mp3",
+          "format": "mp3",
+          "length_s": null,
+          "bitrate_kbps": null,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 12097411
+        },
+        {
+          "username": "www.electronicfresh.com",
+          "upload_speed_mib_s": 0.81749344,
+          "has_free_upload_slot": true,
+          "filename": "@@qlfyc\\Music New - djsoundtop.com\\Music New 2025\\Beatport Music 2025\\Music Spring 2025\\BP Weekend Picks 2025 Week 22 - djsoundtop.com\\MORTEN, ARTBAT - Culture (Extended Mix).mp3",
+          "format": "mp3",
+          "length_s": null,
+          "bitrate_kbps": null,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 12126579
+        }
+      ],
+      "error": null
+    },
+    {
+      "position": 17,
+      "spotify": {
+        "spotify_id": "4Zpdgr6ey6qQM9p4pEumhs",
+        "uri": "spotify:track:4Zpdgr6ey6qQM9p4pEumhs",
+        "url": "https://open.spotify.com/track/4Zpdgr6ey6qQM9p4pEumhs",
+        "title": "Tides (feat. Bajka) - Extended",
+        "artists": [
+          "MEDUZA",
+          "HEVOLVE",
+          "Beanfield",
+          "Bajka"
+        ],
+        "album": "Tides (feat. Bajka) [Extended]",
+        "album_id": "52VVvPGDiJrP5YevnNVib8",
+        "album_artists": [
+          "MEDUZA",
+          "HEVOLVE",
+          "Beanfield"
+        ],
+        "release_date": "2024-08-09",
+        "track_number": 1,
+        "total_tracks": 1,
+        "disc_number": 1,
+        "duration_ms": 330967,
+        "isrc": "US38Y2417075",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b2732547fe8e96c5eb159fe48bf3",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "2024 AETERNA Records",
+          "2024 AETERNA Records"
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-04-06T12:02:08Z",
+        "duration_seconds": 330.967,
+        "duration_hms": "5:31"
+      },
+      "status": "missing",
+      "result_count": 0,
+      "quality_unknown": false,
+      "top_candidates": [],
+      "error": null
+    },
+    {
+      "position": 18,
+      "spotify": {
+        "spotify_id": "4w3dp65mVEKvTHeKZ7U2l8",
+        "uri": "spotify:track:4w3dp65mVEKvTHeKZ7U2l8",
+        "url": "https://open.spotify.com/track/4w3dp65mVEKvTHeKZ7U2l8",
+        "title": "Freak",
+        "artists": [
+          "GENESI",
+          "MEDUZA",
+          "Aya Anne"
+        ],
+        "album": "Freak",
+        "album_id": "01gA8BZQ4nRgWY3BP14HhT",
+        "album_artists": [
+          "GENESI",
+          "MEDUZA",
+          "Aya Anne"
+        ],
+        "release_date": "2025-02-21",
+        "track_number": 1,
+        "total_tracks": 1,
+        "disc_number": 1,
+        "duration_ms": 180000,
+        "isrc": "DEDH72300372",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b273b6aefe9a06c0ea923634eeb4",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "(C) 2025 Diynamic Music",
+          "(P) 2025 Diynamic Music"
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-04-06T12:07:16Z",
+        "duration_seconds": 180.0,
+        "duration_hms": "3:00"
+      },
+      "status": "available_quality_unknown",
+      "result_count": 87,
+      "quality_unknown": true,
+      "top_candidates": [
+        {
+          "username": "djelvigilante",
+          "upload_speed_mib_s": 4.271676,
+          "has_free_upload_slot": true,
+          "filename": "@@awlej\\G\\Genesi\\(2025) Freak EP\\01-01. Freak.flac",
+          "format": "flac",
+          "length_s": 180,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 24,
+          "size_bytes": 36727734
+        },
+        {
+          "username": "Thircase",
+          "upload_speed_mib_s": 3.4251251,
+          "has_free_upload_slot": true,
+          "filename": "Música\\Meduza\\Genesi, Meduza - 2025 - Freak EP [WEB-FLAC] [24B-44.1kHz] [315127445]\\01. Freak.flac",
+          "format": "flac",
+          "length_s": 180,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 24,
+          "size_bytes": 35678522
+        },
+        {
+          "username": "bofhxyto",
+          "upload_speed_mib_s": 3.0969,
+          "has_free_upload_slot": true,
+          "filename": "Music\\GENESI & MEDUZA\\Freak\\01 GENESI, MEDUZA feat. Aya Anne - Freak.flac",
+          "format": "flac",
+          "length_s": 180,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 20685606
+        },
+        {
+          "username": "Bluestar",
+          "upload_speed_mib_s": 2.6023636,
+          "has_free_upload_slot": true,
+          "filename": "@@kkmkm\\Muziek_Singles_Flac\\2025\\Week 08\\GENESI - Freak.flac",
+          "format": "flac",
+          "length_s": 180,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 20860357
+        },
+        {
+          "username": "OhSnapWord",
+          "upload_speed_mib_s": 2.5768166,
+          "has_free_upload_slot": true,
+          "filename": "music\\GENESI\\Freak [2025] [EP]\\01 - Freak.flac",
+          "format": "flac",
+          "length_s": 180,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 20771091
+        },
+        {
+          "username": "Snorth8554",
+          "upload_speed_mib_s": 0.7757225,
+          "has_free_upload_slot": true,
+          "filename": "@@dubqn\\2025 - New Music Releases (320)\\GENESI - Freak.mp3",
+          "format": "mp3",
+          "length_s": 180,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 7423289
+        },
+        {
+          "username": "kbkoll911-za",
+          "upload_speed_mib_s": 0.7349558,
+          "has_free_upload_slot": true,
+          "filename": "Music\\Downloaded Music - Sorted Lexicon\\Electro\\GENESI;MEDUZA;Aya Anne\\Freak - GENESI;MEDUZA;Aya Anne.flac",
+          "format": "flac",
+          "length_s": 180,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 20860357
+        },
+        {
+          "username": "kbkoll911-za",
+          "upload_speed_mib_s": 0.7349558,
+          "has_free_upload_slot": true,
+          "filename": "Music\\Downloaded Music - Sorted Lexicon\\Electro\\Genesi, Meduza, Aya Anne\\Freak - Genesi, Meduza, Aya Anne.flac",
+          "format": "flac",
+          "length_s": 180,
+          "bitrate_kbps": null,
+          "sample_rate": 44100,
+          "bit_depth": 16,
+          "size_bytes": 20685606
+        },
+        {
+          "username": "Bucifer6",
+          "upload_speed_mib_s": 0.5280733,
+          "has_free_upload_slot": true,
+          "filename": "@@pwmbf\\Muzica\\Spotify\\Tracks\\GENESI\\[2025] Freak EP\\1. Freak.mp3",
+          "format": "mp3",
+          "length_s": 180,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 7726048
+        },
+        {
+          "username": "miredswamp",
+          "upload_speed_mib_s": 2.6907616,
+          "has_free_upload_slot": false,
+          "filename": "EDM Klepto Blitz\\~ Singles etc\\2025\\Release Week of 2025\\New Music Releases Week 08 of 2025\\GENESI - Freak.mp3",
+          "format": "mp3",
+          "length_s": 182,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 7423289
+        }
+      ],
+      "error": null
+    },
+    {
+      "position": 19,
+      "spotify": {
+        "spotify_id": "7KMfwnMzaZVa8K9P245Xiw",
+        "uri": "spotify:track:7KMfwnMzaZVa8K9P245Xiw",
+        "url": "https://open.spotify.com/track/7KMfwnMzaZVa8K9P245Xiw",
+        "title": "Girl Gone Wild - Offer Nissim Remix",
+        "artists": [
+          "Madonna",
+          "Offer Nissim"
+        ],
+        "album": "Girl Gone Wild (Remixes)",
+        "album_id": "6QOFieTH8dA2jAXXetfHLj",
+        "album_artists": [
+          "Madonna"
+        ],
+        "release_date": "2012-01-01",
+        "track_number": 6,
+        "total_tracks": 10,
+        "disc_number": 1,
+        "duration_ms": 409426,
+        "isrc": "USUG11200796",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b27396b9d7e5b3728c3f55326542",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "© 2012 Boy Toy, Inc. Under exclusive license to Warner Records LLC.",
+          "℗ 2012 Boy Toy, Inc. Under exclusive license to Warner Records LLC."
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-06-14T15:29:53Z",
+        "duration_seconds": 409.426,
+        "duration_hms": "6:49"
+      },
+      "status": "available",
+      "result_count": 1,
+      "quality_unknown": false,
+      "top_candidates": [
+        {
+          "username": "ana3325",
+          "upload_speed_mib_s": 1.6017189,
+          "has_free_upload_slot": true,
+          "filename": "1 - Music 320k\\POP-R&B-RAP\\Madonna\\04. Madonna - Remixes\\(2012) Madonna - Girl Gone Wild (Remixes)\\06 - Girl Gone Wild - Offer Nissim Remix.mp3",
+          "format": "mp3",
+          "length_s": 409,
+          "bitrate_kbps": 320,
+          "sample_rate": null,
+          "bit_depth": null,
+          "size_bytes": 16446718
+        }
+      ],
+      "error": null
+    },
+    {
+      "position": 20,
+      "spotify": {
+        "spotify_id": "65baOP5OngpGwLOeFI1drl",
+        "uri": "spotify:track:65baOP5OngpGwLOeFI1drl",
+        "url": "https://open.spotify.com/track/65baOP5OngpGwLOeFI1drl",
+        "title": "Lioness - Argy Remix",
+        "artists": [
+          "Swedish House Mafia",
+          "Niki & The Dove",
+          "Argy"
+        ],
+        "album": "Lioness (Argy Remix)",
+        "album_id": "3PXHFsTDpYQyQe31jilqYr",
+        "album_artists": [
+          "Swedish House Mafia",
+          "Niki & The Dove",
+          "Argy"
+        ],
+        "release_date": "2024-08-23",
+        "track_number": 1,
+        "total_tracks": 1,
+        "disc_number": 1,
+        "duration_ms": 187500,
+        "isrc": "USUG12405285",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b27342dcf98bfeb44209316a7e5a",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "© 2024 SSA Recording, LLP, under exclusive license to Republic Records, a division of UMG Recordings, Inc.",
+          "℗ 2024 SSA Recording, LLP, under exclusive license to Republic Records, a division of UMG Recordings, Inc."
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-09-02T01:00:14Z",
+        "duration_seconds": 187.5,
+        "duration_hms": "3:08"
+      },
+      "status": "missing",
+      "result_count": 0,
+      "quality_unknown": false,
+      "top_candidates": [],
+      "error": null
+    }
+  ]
+}

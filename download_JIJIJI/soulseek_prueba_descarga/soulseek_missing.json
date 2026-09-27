@@ -1,0 +1,176 @@
+{
+  "source_playlist": {
+    "name": "Viajeros",
+    "source": "https://open.spotify.com/playlist/0ULQLa8MxdMEH8NjTUMDXG?si=eb5f4cadf5c74909"
+  },
+  "generated_missing_playlist": null,
+  "missing_count": 4,
+  "order": "source_playlist_order",
+  "tracks": [
+    {
+      "playlist_position": 5,
+      "duration_ms": 260307,
+      "duration_seconds": 260.307,
+      "duration_hms": "4:20",
+      "spotify": {
+        "spotify_id": "1dtNRzHMtDS3TtIzxNdyag",
+        "uri": "spotify:track:1dtNRzHMtDS3TtIzxNdyag",
+        "url": "https://open.spotify.com/track/1dtNRzHMtDS3TtIzxNdyag",
+        "title": "Friends - ARTBAT Remix",
+        "artists": [
+          "MEDUZA",
+          "ARTBAT"
+        ],
+        "album": "Friends (ARTBAT Remix)",
+        "album_id": "3sTdQoIdHfjxVLGtb3I3FL",
+        "album_artists": [
+          "MEDUZA",
+          "ARTBAT"
+        ],
+        "release_date": "2024-04-12",
+        "track_number": 1,
+        "total_tracks": 1,
+        "disc_number": 1,
+        "duration_ms": 260307,
+        "isrc": "US38Y2407000",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b273321b16d3533de1aa22208e73",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "2024 AETERNA Records",
+          "2024 AETERNA Records"
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-04-06T10:13:49Z",
+        "duration_seconds": 260.307,
+        "duration_hms": "4:20"
+      }
+    },
+    {
+      "playlist_position": 11,
+      "duration_ms": 464646,
+      "duration_seconds": 464.646,
+      "duration_hms": "7:45",
+      "spotify": {
+        "spotify_id": "2vl9yXYJmoKbv72pUIxoue",
+        "uri": "spotify:track:2vl9yXYJmoKbv72pUIxoue",
+        "url": "https://open.spotify.com/track/2vl9yXYJmoKbv72pUIxoue",
+        "title": "Apollo 11",
+        "artists": [
+          "Matador",
+          "ARTBAT"
+        ],
+        "album": "Apollo 11",
+        "album_id": "4K8v2zx2n4sSBSaTyPixHa",
+        "album_artists": [
+          "Matador",
+          "ARTBAT"
+        ],
+        "release_date": "2019-03-15",
+        "track_number": 1,
+        "total_tracks": 2,
+        "disc_number": 1,
+        "duration_ms": 464646,
+        "isrc": "FR10S1946291",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b27383a25987bef45a6ae17cddc9",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "2019 Rukus",
+          "2019 Rukus"
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-04-06T10:59:03Z",
+        "duration_seconds": 464.646,
+        "duration_hms": "7:45"
+      }
+    },
+    {
+      "playlist_position": 17,
+      "duration_ms": 330967,
+      "duration_seconds": 330.967,
+      "duration_hms": "5:31",
+      "spotify": {
+        "spotify_id": "4Zpdgr6ey6qQM9p4pEumhs",
+        "uri": "spotify:track:4Zpdgr6ey6qQM9p4pEumhs",
+        "url": "https://open.spotify.com/track/4Zpdgr6ey6qQM9p4pEumhs",
+        "title": "Tides (feat. Bajka) - Extended",
+        "artists": [
+          "MEDUZA",
+          "HEVOLVE",
+          "Beanfield",
+          "Bajka"
+        ],
+        "album": "Tides (feat. Bajka) [Extended]",
+        "album_id": "52VVvPGDiJrP5YevnNVib8",
+        "album_artists": [
+          "MEDUZA",
+          "HEVOLVE",
+          "Beanfield"
+        ],
+        "release_date": "2024-08-09",
+        "track_number": 1,
+        "total_tracks": 1,
+        "disc_number": 1,
+        "duration_ms": 330967,
+        "isrc": "US38Y2417075",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b2732547fe8e96c5eb159fe48bf3",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "2024 AETERNA Records",
+          "2024 AETERNA Records"
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-04-06T12:02:08Z",
+        "duration_seconds": 330.967,
+        "duration_hms": "5:31"
+      }
+    },
+    {
+      "playlist_position": 20,
+      "duration_ms": 187500,
+      "duration_seconds": 187.5,
+      "duration_hms": "3:08",
+      "spotify": {
+        "spotify_id": "65baOP5OngpGwLOeFI1drl",
+        "uri": "spotify:track:65baOP5OngpGwLOeFI1drl",
+        "url": "https://open.spotify.com/track/65baOP5OngpGwLOeFI1drl",
+        "title": "Lioness - Argy Remix",
+        "artists": [
+          "Swedish House Mafia",
+          "Niki & The Dove",
+          "Argy"
+        ],
+        "album": "Lioness (Argy Remix)",
+        "album_id": "3PXHFsTDpYQyQe31jilqYr",
+        "album_artists": [
+          "Swedish House Mafia",
+          "Niki & The Dove",
+          "Argy"
+        ],
+        "release_date": "2024-08-23",
+        "track_number": 1,
+        "total_tracks": 1,
+        "disc_number": 1,
+        "duration_ms": 187500,
+        "isrc": "USUG12405285",
+        "cover_url": "https://i.scdn.co/image/ab67616d0000b27342dcf98bfeb44209316a7e5a",
+        "explicit": false,
+        "label": null,
+        "copyrights": [
+          "© 2024 SSA Recording, LLP, under exclusive license to Republic Records, a division of UMG Recordings, Inc.",
+          "℗ 2024 SSA Recording, LLP, under exclusive license to Republic Records, a division of UMG Recordings, Inc."
+        ],
+        "playlist_id": "0ULQLa8MxdMEH8NjTUMDXG",
+        "playlist_name": "Viajeros",
+        "added_at": "2026-09-02T01:00:14Z",
+        "duration_seconds": 187.5,
+        "duration_hms": "3:08"
+      }
+    }
+  ]
+}

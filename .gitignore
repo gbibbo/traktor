@@ -20,6 +20,11 @@ env/
 *.ogg
 *.aiff
 *.aac
+*.aif
+*.m4a
+*.opus
+*.wma
+*.alac
 
 # ML model weights
 *.pt
@@ -53,3 +58,5 @@ Thumbs.db
 
 # Conda
 *.conda
+.env
+.spotify_token_cache
