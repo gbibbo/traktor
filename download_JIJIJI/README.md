@@ -18,8 +18,10 @@ El orquestador:
 
 Los MP3 grabados y los descargados por Soulseek pasan por el mismo finalizador:
 usan el nombre `Artista principal - Título.mp3`, las etiquetas oficiales de
-Spotify (álbum, artistas, fecha, número de pista/disco, ISRC, sello y campos de
-auditoría) y el cover oficial embebido.
+Spotify (álbum, artistas, fecha, número de pista/disco e ISRC), los identificadores
+y enlaces esenciales para auditoría, y el cover oficial embebido. Se conserva un
+perfil ID3v2.3 reducido, comprobado tanto en Windows Media Player Legacy como en
+el Reproductor multimedia actual de Windows.
 
 ## Reanudación después de una interrupción
 

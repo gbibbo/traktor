@@ -6,6 +6,7 @@ spotify_soulseek_download.py
 PURPOSE: Reconcile a Spotify playlist against Soulseek and download matches.
 
 CHANGELOG:
+- 2026-09-27: Match the Windows Media-compatible Soulseek ID3 frame profile.
 - 2026-09-27: Expose the canonical Spotify metadata/cover writer for recordings.
 - 2026-09-27: Add an optional pre-download gate for external orchestration.
 
@@ -74,13 +75,11 @@ try:
         APIC,
         ID3,
         TALB,
-        TCOP,
         TDRC,
         TIT2,
         TPE1,
         TPE2,
         TPOS,
-        TPUB,
         TRCK,
         TSRC,
         TXXX,
@@ -1454,25 +1453,15 @@ def write_tags(
     if tag_isrc:
         tags.add(TSRC(encoding=3, text=tag_isrc))
 
-    if track.label:
-        tags.add(TPUB(encoding=3, text=track.label))
-    if track.copyrights:
-        tags.add(TCOP(encoding=3, text=" | ".join(track.copyrights)))
-
+    # Keep this profile identical to the Soulseek files known to be readable by
+    # both Windows Media Player Legacy and the current Windows Media Player.
+    # The modern player can fail to expose APIC when numerous auxiliary TXXX or
+    # copyright/publisher frames precede the artwork.
     custom = {
         "Spotify Track ID": track.spotify_id,
         "Spotify URI": track.uri,
         "Spotify URL": track.url,
         "Spotify Album ID": track.album_id or "",
-        "Spotify Playlist ID": track.playlist_id or "",
-        "Spotify Playlist Name": track.playlist_name or "",
-        "Spotify Added At": track.added_at or "",
-        "Spotify Explicit": "1" if track.explicit else "0",
-        "Spotify Original Duration ms": str(track.duration_ms),
-        "Spotify Cover URL": track.cover_url or "",
-        "Spotify ISRC": track.isrc or "",
-        "Local Source ISRC": source.isrc or "",
-        "Local Source Filename": source.path.name,
         "Version": "Extended" if extended else "Spotify-length",
     }
     for desc, val in custom.items():

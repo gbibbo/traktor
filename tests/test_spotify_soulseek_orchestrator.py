@@ -198,15 +198,25 @@ class RecordedMetadataTests(unittest.TestCase):
             self.assertEqual(str(tags["TRCK"]), "3/10")
             self.assertEqual(str(tags["TPOS"]), "1")
             self.assertEqual(str(tags["TSRC"]), report["isrc"])
-            self.assertEqual(str(tags["TPUB"]), report["label"])
             self.assertTrue(tags.getall("APIC"))
             custom = {
                 frame.desc: str(frame)
                 for frame in tags.getall("TXXX")
             }
             self.assertEqual(custom["Spotify Track ID"], report["spotify_id"])
-            self.assertEqual(custom["Spotify Playlist Name"], report["playlist_name"])
             self.assertEqual(custom["Version"], "Spotify-length")
+            self.assertEqual(
+                set(custom),
+                {
+                    "Spotify Track ID",
+                    "Spotify URI",
+                    "Spotify URL",
+                    "Spotify Album ID",
+                    "Version",
+                },
+            )
+            self.assertNotIn("TCOP", tags)
+            self.assertNotIn("TPUB", tags)
 
 
 class ResumeTests(unittest.TestCase):
