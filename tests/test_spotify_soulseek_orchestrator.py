@@ -35,6 +35,14 @@ class PlaylistIdTests(unittest.TestCase):
         )
         self.assertEqual(ORCHESTRATOR.playlist_id_from_url(playlist_id), playlist_id)
 
+    def test_normalizes_markdown_link_to_canonical_url(self) -> None:
+        playlist_id = "31xPzrgElxRxrMErJ1WBhD"
+        url = f"https://open.spotify.com/playlist/{playlist_id}?si=abc"
+        self.assertEqual(
+            ORCHESTRATOR.canonical_playlist_url(f"[{url}]({url})"),
+            f"https://open.spotify.com/playlist/{playlist_id}",
+        )
+
     def test_rejects_invalid_url(self) -> None:
         with self.assertRaises(ORCHESTRATOR.WorkflowError):
             ORCHESTRATOR.playlist_id_from_url("https://example.com/not-spotify")

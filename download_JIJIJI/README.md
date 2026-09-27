@@ -29,7 +29,12 @@ Instalar los paquetes Python:
 ```
 
 También deben estar disponibles `ffmpeg` y `sockseek`. El orquestador busca
-`sockseek.exe` tanto en `PATH` como en `tools/sockseek/sockseek.exe`.
+`sockseek.exe` tanto en `PATH` como en `tools/sockseek/sockseek.exe`; para
+`ffmpeg.exe` también reconoce automáticamente la instalación de WinGet de
+`Gyan.FFmpeg`, aunque el enlace de WinGet todavía no esté disponible en `PATH`.
+
+La entrada se normaliza a una URL canónica. Por eso también tolera que PowerShell
+reciba accidentalmente un enlace Markdown con la forma `[URL](URL)`.
 
 Definir en el archivo `.env` ignorado por Git:
 

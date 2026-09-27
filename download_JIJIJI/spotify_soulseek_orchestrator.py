@@ -48,7 +48,7 @@ class WorkflowError(RuntimeError):
 
 
 def playlist_id_from_url(value: str) -> str:
-    """Return a Spotify playlist ID from a web URL, URI, or bare ID."""
+    """Return a Spotify playlist ID from a web URL, Markdown link, URI, or ID."""
     value = value.strip()
     match = re.search(r"open\.spotify\.com/playlist/([A-Za-z0-9]+)", value)
     if match:
@@ -58,6 +58,11 @@ def playlist_id_from_url(value: str) -> str:
     if value and value.isalnum():
         return value
     raise WorkflowError(f"No pude interpretar la playlist de Spotify: {value}")
+
+
+def canonical_playlist_url(value: str) -> str:
+    playlist_id = playlist_id_from_url(value)
+    return f"https://open.spotify.com/playlist/{playlist_id}"
 
 
 def load_environment() -> None:
@@ -123,6 +128,19 @@ def find_required_program(name: str) -> Path:
         REPO_ROOT / "tools" / name / f"{name}.exe",
         REPO_ROOT / "tools" / name / name,
     ]
+    if name == "ffmpeg" and os.environ.get("LOCALAPPDATA"):
+        winget_packages = (
+            Path(os.environ["LOCALAPPDATA"])
+            / "Microsoft"
+            / "WinGet"
+            / "Packages"
+        )
+        candidates.extend(
+            sorted(
+                winget_packages.glob("Gyan.FFmpeg_*/*/bin/ffmpeg.exe"),
+                reverse=True,
+            )
+        )
     for candidate in candidates:
         if candidate.is_file():
             return candidate.resolve()
@@ -239,6 +257,7 @@ def release_downloads(path: Path) -> None:
 
 def run_workflow(args: argparse.Namespace) -> int:
     playlist_id = playlist_id_from_url(args.playlist_url)
+    playlist_url = canonical_playlist_url(args.playlist_url)
     load_environment()
     validate_environment()
 
@@ -260,13 +279,13 @@ def run_workflow(args: argparse.Namespace) -> int:
     run_dir.mkdir(parents=True, exist_ok=False)
 
     print("\n=== FLUJO AUTOMÁTICO SPOTIFY / SOULSEEK ===")
-    print(f"Playlist : {args.playlist_url}")
+    print(f"Playlist : {playlist_url}")
     print(f"Run      : {run_dir}")
 
     downloader: subprocess.Popen[Any] | None = None
     recorder: subprocess.Popen[Any] | None = None
     summary: dict[str, Any] = {
-        "source_playlist": args.playlist_url,
+        "source_playlist": playlist_url,
         "playlist_id": playlist_id,
         "run_dir": str(run_dir),
         "missing_json": str(missing_json),
@@ -280,7 +299,7 @@ def run_workflow(args: argparse.Namespace) -> int:
             sys.executable,
             "-u",
             str(SCRIPT_DIR / "spotify_soulseek_download.py"),
-            args.playlist_url,
+            playlist_url,
             "--output",
             str(soulseek_dir),
             "--missing-json",
