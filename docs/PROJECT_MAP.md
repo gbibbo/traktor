@@ -135,6 +135,9 @@ configuración inicial y el uso. La grabación crea checkpoints por tema en
 reanuda Spotify desde la primera pista pendiente. El grabador reutiliza el
 escritor canónico de metadata y cover de `spotify_soulseek_download.py`, por lo
 que ambos orígenes producen MP3 con el mismo criterio de nombres y etiquetas.
+Al completar ambas ramas, el orquestador mueve todo el audio sin duplicados a
+`download_JIJIJI/Playlists_DOWNLOAD/<nombre>/`; el run conserva sólo tres JSON
+principales y un subdirectorio `diagnostics/` con el detalle técnico.
 
 ## Revisión de playlists (`tools/playlist_review/`)
 

@@ -2008,6 +2008,7 @@ def main() -> int:
         print("ffmpeg no está en el PATH", file=sys.stderr)
         return 2
 
+    staging_is_temporary = args.staging is None
     staging = Path(
         args.staging or tempfile.mkdtemp(prefix="soulseek_staging_")
     ).expanduser().resolve()
@@ -2151,6 +2152,7 @@ def main() -> int:
                 },
                 "output": str(out),
                 "staging": str(staging),
+                "staging_is_temporary": staging_is_temporary,
                 "prefer_extended": not args.no_extended,
                 "download_total": len(available_tracks),
                 "completed": ok,
@@ -2158,6 +2160,15 @@ def main() -> int:
                 "tracks": rows,
             },
         )
+
+    staging_cleaned = False
+    staging_cleanup_error: str | None = None
+    if staging_is_temporary:
+        try:
+            shutil.rmtree(staging)
+            staging_cleaned = True
+        except OSError as exc:
+            staging_cleanup_error = str(exc)
 
     final_report = {
         "playlist": {"name": pl_name, "source": args.playlist},
@@ -2172,6 +2183,9 @@ def main() -> int:
         },
         "output": str(out),
         "staging": str(staging),
+        "staging_is_temporary": staging_is_temporary,
+        "staging_cleaned": staging_cleaned,
+        "staging_cleanup_error": staging_cleanup_error,
         "prefer_extended": not args.no_extended,
         "download_total": len(available_tracks),
         "completed": ok,
@@ -2189,7 +2203,13 @@ def main() -> int:
 
     # Éxito significa: todos los que estaban disponibles fueron finalizados y no hubo
     # errores de consulta. Los MISSING son un resultado válido del preflight.
-    return 0 if ok == len(available_tracks) and not preflight_errors else 3
+    return (
+        0
+        if ok == len(available_tracks)
+        and not preflight_errors
+        and staging_cleanup_error is None
+        else 3
+    )
 
 
 if __name__ == "__main__":

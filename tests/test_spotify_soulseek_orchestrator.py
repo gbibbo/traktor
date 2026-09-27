@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest import mock
 
-from mutagen.id3 import ID3
+from mutagen.id3 import ID3, TXXX
 
 
 MODULE_PATH = (
@@ -217,6 +217,100 @@ class RecordedMetadataTests(unittest.TestCase):
             )
             self.assertNotIn("TCOP", tags)
             self.assertNotIn("TPUB", tags)
+
+
+class ConsolidationTests(unittest.TestCase):
+    @staticmethod
+    def tagged_file(path: Path, spotify_id: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tags = ID3()
+        tags.add(
+            TXXX(
+                encoding=3,
+                desc="Spotify Track ID",
+                text=[spotify_id],
+            )
+        )
+        tags.save(path, v2_version=3)
+
+    def test_moves_both_branches_and_resolves_cross_branch_collision(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            run_dir = root / "runs" / "run-1"
+            soulseek_dir = run_dir / "soulseek"
+            recorded_dir = run_dir / "recorded_missing"
+            first = soulseek_dir / "Artist - Title.mp3"
+            second = recorded_dir / "Artist - Title.mp3"
+            self.tagged_file(first, "track-one")
+            self.tagged_file(second, "track-two")
+
+            playlist_dir, moved, report = ORCHESTRATOR.consolidate_audio(
+                run_dir,
+                soulseek_dir,
+                recorded_dir,
+                root / "Playlists_DOWNLOAD",
+                'My: Playlist?*',
+                expected_spotify_ids={"track-one", "track-two"},
+            )
+
+            self.assertEqual(playlist_dir.name, "My Playlist")
+            self.assertTrue((playlist_dir / "Artist - Title.mp3").is_file())
+            self.assertTrue(
+                (playlist_dir / "Artist - Title [track-two].mp3").is_file()
+            )
+            self.assertFalse(first.exists())
+            self.assertFalse(second.exists())
+            self.assertEqual(report["audio_count"], 2)
+            self.assertEqual(report["moved"], 2)
+            self.assertEqual(len(moved), 2)
+
+    def test_existing_same_spotify_id_is_deduplicated(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            run_dir = root / "runs" / "run-1"
+            source = run_dir / "soulseek" / "Artist - Title.mp3"
+            existing = root / "Playlists_DOWNLOAD" / "Playlist" / source.name
+            self.tagged_file(source, "same-track")
+            self.tagged_file(existing, "same-track")
+
+            _, _, report = ORCHESTRATOR.consolidate_audio(
+                run_dir,
+                run_dir / "soulseek",
+                run_dir / "recorded_missing",
+                root / "Playlists_DOWNLOAD",
+                "Playlist",
+                expected_spotify_ids={"same-track"},
+            )
+
+            self.assertFalse(source.exists())
+            self.assertTrue(existing.exists())
+            self.assertEqual(report["deduplicated"], 1)
+
+    def test_completed_run_keeps_readable_root_and_diagnostics(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run_dir = Path(temp_dir) / "run"
+            recorded = run_dir / "recorded_missing"
+            recorded.mkdir(parents=True)
+            (run_dir / "orchestration_report.json").write_text("{}", encoding="utf-8")
+            (run_dir / "soulseek_missing.json").write_text("{}", encoding="utf-8")
+            (run_dir / "consolidation_report.json").write_text("{}", encoding="utf-8")
+            (run_dir / "player_ready.json").write_text("{}", encoding="utf-8")
+            (run_dir / "start.signal").write_text("start", encoding="utf-8")
+            (recorded / "recording_progress.json").write_text(
+                json.dumps({"tracks": []}),
+                encoding="utf-8",
+            )
+            (recorded / "partial.wav").write_bytes(b"partial")
+
+            diagnostics = ORCHESTRATOR.simplify_completed_run(run_dir, {})
+
+            self.assertTrue((run_dir / "orchestration_report.json").is_file())
+            self.assertTrue((run_dir / "soulseek_missing.json").is_file())
+            self.assertTrue((run_dir / "consolidation_report.json").is_file())
+            self.assertTrue((diagnostics / "recording_progress.json").is_file())
+            self.assertFalse((run_dir / "player_ready.json").exists())
+            self.assertFalse((run_dir / "start.signal").exists())
+            self.assertFalse((recorded / "partial.wav").exists())
 
 
 class ResumeTests(unittest.TestCase):

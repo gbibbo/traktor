@@ -14,7 +14,9 @@ El orquestador:
 3. espera el JSON definitivo y la URL de la playlist privada de faltantes;
 4. abre el grabador WASAPI loopback;
 5. cuando el grabador confirma que está listo, inicia esa playlist en Spotify;
-6. libera la descarga de Soulseek y espera a que terminen ambas ramas.
+6. libera la descarga de Soulseek y espera a que terminen ambas ramas;
+7. mueve todos los MP3 a `Playlists_DOWNLOAD/<nombre de playlist>/`, elimina
+   duplicados por Spotify Track ID y limpia los intermedios del run.
 
 Los MP3 grabados y los descargados por Soulseek pasan por el mismo finalizador:
 usan el nombre `Artista principal - Título.mp3`, las etiquetas oficiales de
@@ -41,12 +43,18 @@ Al ejecutar nuevamente exactamente el mismo comando, el orquestador:
 4. inicia Spotify desde la primera pista pendiente y desde el segundo cero.
 
 El fragmento del tema interrumpido no se reutiliza: solo se conservan temas
-completos. Para ignorar deliberadamente un checkpoint anterior y crear otra
-sesión puede usarse `--fresh`.
+completos, y por eso la captura WAV parcial se elimina. Para ignorar
+deliberadamente un checkpoint anterior y crear otra sesión puede usarse
+`--fresh`.
 
 Cada ejecución queda aislada en `download_JIJIJI/runs/<fecha>_<playlist-id>/`,
-con los MP3, JSON de auditoría y reporte final. Puede cambiarse la raíz mediante
-`SPOTIFY_DOWNLOAD_ROOT`.
+pero al completarse ya no conserva audio. En la raíz quedan el resumen, el JSON
+de faltantes y el reporte de consolidación; los detalles se agrupan bajo
+`diagnostics/`. La música terminada queda en
+`download_JIJIJI/Playlists_DOWNLOAD/<nombre de playlist>/`.
+
+Puede cambiarse la raíz de runs mediante `SPOTIFY_DOWNLOAD_ROOT` y la biblioteca
+consolidada mediante `SPOTIFY_PLAYLISTS_ROOT`.
 
 ## Configuración inicial
 

@@ -3,6 +3,7 @@
 PURPOSE: Record a Spotify playlist through Windows WASAPI loopback and split it.
 
 CHANGELOG:
+- 2026-09-27: Remove partial WAV captures that are not used by resume.
 - 2026-09-27: Reuse the Soulseek finalizer's Spotify tags, cover, and filenames.
 - 2026-09-27: Add an optional ready-file handshake for process orchestration.
 - 2026-09-27: Checkpoint every completed MP3 and resume at the first pending track.
@@ -955,14 +956,22 @@ def main() -> int:
     if capture_error is not None:
         progress["status"] = "failed"
         progress["last_error"] = str(capture_error)
-        progress["last_partial_capture"] = str(temp_wav)
+        if args.keep_wav:
+            progress["last_partial_capture"] = str(temp_wav)
+        else:
+            temp_wav.unlink(missing_ok=True)
+            progress.pop("last_partial_capture", None)
         write_json_atomic(progress_path, progress)
         raise capture_error
 
     if exit_code:
         progress["status"] = "stalled" if exit_code == STALL_EXIT_CODE else "interrupted"
         progress["last_error"] = stopped_reason
-        progress["last_partial_capture"] = str(temp_wav)
+        if args.keep_wav:
+            progress["last_partial_capture"] = str(temp_wav)
+        else:
+            temp_wav.unlink(missing_ok=True)
+            progress.pop("last_partial_capture", None)
         write_json_atomic(progress_path, progress)
         print(f"\n{stopped_reason}", file=sys.stderr)
         print(
@@ -973,7 +982,10 @@ def main() -> int:
             "Relanza el orquestador: Spotify comenzará en la primera pista pendiente.",
             file=sys.stderr,
         )
-        print(f"Captura parcial conservada: {temp_wav}", file=sys.stderr)
+        if args.keep_wav:
+            print(f"Captura parcial conservada: {temp_wav}", file=sys.stderr)
+        else:
+            print("Captura WAV parcial eliminada; no se usa al reanudar.", file=sys.stderr)
         return exit_code
 
     if playlist_start is None or int(progress["completed_count"]) != total_tracks:

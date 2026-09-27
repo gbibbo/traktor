@@ -3,6 +3,7 @@
 PURPOSE: Run the complete Spotify -> Soulseek + loopback fallback workflow.
 
 CHANGELOG:
+- 2026-09-27: Consolidate successful runs into one named playlist directory.
 - 2026-09-27: Initial orchestration with manifest and recorder readiness handshakes.
 - 2026-09-27: Resume incomplete recording sessions at the first pending track.
 
@@ -41,7 +42,9 @@ for _stream in (sys.stdout, sys.stderr):
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 DEFAULT_RUNS_DIR = SCRIPT_DIR / "runs"
+DEFAULT_PLAYLISTS_DIR = SCRIPT_DIR / "Playlists_DOWNLOAD"
 MANIFEST_POLL_SECONDS = 0.25
+AUDIO_EXTENSIONS = {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg"}
 
 
 class WorkflowError(RuntimeError):
@@ -312,6 +315,192 @@ def release_downloads(path: Path) -> None:
     print("Descargas de Soulseek liberadas.")
 
 
+def safe_playlist_folder_name(name: str) -> str:
+    """Return a portable Windows folder name for a Spotify playlist."""
+    cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', " ", name)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip().rstrip(".")
+    return cleaned[:120].rstrip() or "Playlist sin nombre"
+
+
+def embedded_spotify_id(path: Path) -> str:
+    """Read the canonical Spotify track ID required for safe de-duplication."""
+    try:
+        from mutagen.id3 import ID3
+
+        tags = ID3(path)
+    except Exception as exc:
+        raise WorkflowError(f"MP3 sin metadata ID3 utilizable: {path}: {exc}") from exc
+    for frame in tags.getall("TXXX"):
+        if frame.desc == "Spotify Track ID" and frame.text:
+            return str(frame.text[0])
+    raise WorkflowError(f"MP3 sin Spotify Track ID: {path}")
+
+
+def _collision_destination(
+    playlist_dir: Path,
+    source: Path,
+    spotify_id: str,
+) -> tuple[Path, bool]:
+    """Choose the final path and report whether an identical track exists."""
+    destination = playlist_dir / source.name
+    if not destination.exists():
+        return destination, False
+    if embedded_spotify_id(destination) == spotify_id:
+        return destination, True
+
+    alternate = playlist_dir / f"{source.stem} [{spotify_id}]{source.suffix}"
+    if not alternate.exists():
+        return alternate, False
+    if embedded_spotify_id(alternate) == spotify_id:
+        return alternate, True
+    raise WorkflowError(f"Colisión de audio no resoluble: {alternate}")
+
+
+def consolidate_audio(
+    run_dir: Path,
+    soulseek_dir: Path,
+    recorded_dir: Path,
+    playlists_root: Path,
+    playlist_name: str,
+    expected_spotify_ids: set[str] | None = None,
+) -> tuple[Path, dict[str, str], dict[str, Any]]:
+    """Move every final MP3 into one playlist directory without duplicates."""
+    run_root = run_dir.resolve()
+    sources: list[tuple[str, Path]] = []
+    for origin, root in (("soulseek", soulseek_dir), ("loopback", recorded_dir)):
+        if root.is_dir():
+            sources.extend(
+                (origin, path)
+                for path in sorted(root.rglob("*.mp3"), key=lambda item: str(item).casefold())
+                if path.is_file()
+            )
+
+    identified_sources = [
+        (origin, source, embedded_spotify_id(source))
+        for origin, source in sources
+    ]
+    found_ids = {spotify_id for _, _, spotify_id in identified_sources}
+    if expected_spotify_ids is not None and found_ids != expected_spotify_ids:
+        missing = sorted(expected_spotify_ids - found_ids)
+        unexpected = sorted(found_ids - expected_spotify_ids)
+        raise WorkflowError(
+            "El conjunto de audio final no coincide con la playlist: "
+            f"faltan={missing}, inesperados={unexpected}"
+        )
+
+    playlist_dir = playlists_root.resolve() / safe_playlist_folder_name(playlist_name)
+    playlist_dir.mkdir(parents=True, exist_ok=True)
+    moved_paths: dict[str, str] = {}
+    rows: list[dict[str, Any]] = []
+
+    for origin, source, spotify_id in identified_sources:
+        resolved_source = source.resolve()
+        if not resolved_source.is_relative_to(run_root):
+            raise WorkflowError(f"Audio fuera del run rechazado: {source}")
+        destination, duplicate = _collision_destination(
+            playlist_dir,
+            source,
+            spotify_id,
+        )
+        source_key = str(resolved_source)
+        if duplicate:
+            source.unlink()
+            status = "deduplicated"
+        else:
+            shutil.move(str(source), str(destination))
+            status = "moved"
+        moved_paths[source_key] = str(destination.resolve())
+        rows.append(
+            {
+                "spotify_id": spotify_id,
+                "origin": origin,
+                "source": str(source),
+                "destination": str(destination),
+                "status": status,
+            }
+        )
+
+    report = {
+        "playlist_name": playlist_name,
+        "playlist_directory": str(playlist_dir),
+        "audio_count": len(rows),
+        "moved": sum(row["status"] == "moved" for row in rows),
+        "deduplicated": sum(row["status"] == "deduplicated" for row in rows),
+        "tracks": rows,
+    }
+    return playlist_dir, moved_paths, report
+
+
+def _rewrite_moved_outputs(path: Path, moved_paths: dict[str, str]) -> None:
+    payload = read_json_dict(path)
+    if payload is None:
+        return
+    for row in payload.get("tracks") or []:
+        if not isinstance(row, dict) or not row.get("output"):
+            continue
+        try:
+            key = str(Path(str(row["output"])).resolve())
+        except OSError:
+            continue
+        if key in moved_paths:
+            row["output"] = moved_paths[key]
+    payload.pop("last_partial_capture", None)
+    write_summary(path, payload)
+
+
+def simplify_completed_run(run_dir: Path, moved_paths: dict[str, str]) -> Path:
+    """Keep a small readable root plus detailed JSON under diagnostics/."""
+    diagnostics = run_dir / "diagnostics"
+    diagnostics.mkdir(exist_ok=True)
+
+    for json_path in list(run_dir.rglob("*.json")):
+        if diagnostics in json_path.parents:
+            continue
+        if json_path.name in {
+            "orchestration_report.json",
+            "soulseek_missing.json",
+            "consolidation_report.json",
+        }:
+            continue
+        if json_path.name in {"player_ready.json", "recorder_ready.json"}:
+            json_path.unlink(missing_ok=True)
+            continue
+        _rewrite_moved_outputs(json_path, moved_paths)
+        destination = diagnostics / json_path.name
+        if destination.exists():
+            destination = diagnostics / (
+                f"{json_path.parent.name}_{json_path.name}"
+            )
+        shutil.move(str(json_path), str(destination))
+
+    for signal in run_dir.glob("*.signal"):
+        signal.unlink(missing_ok=True)
+    for text_file in run_dir.rglob("*.txt"):
+        text_file.unlink(missing_ok=True)
+
+    remaining_mp3 = [path for path in run_dir.rglob("*.mp3") if path.is_file()]
+    if remaining_mp3:
+        raise WorkflowError(
+            "Quedó audio MP3 sin consolidar: "
+            + ", ".join(str(path) for path in remaining_mp3)
+        )
+    for path in list(run_dir.rglob("*")):
+        if path.is_file() and path.suffix.lower() in AUDIO_EXTENSIONS:
+            path.unlink()
+
+    for directory in sorted(
+        (path for path in run_dir.rglob("*") if path.is_dir()),
+        key=lambda path: len(path.parts),
+        reverse=True,
+    ):
+        if directory != diagnostics:
+            try:
+                directory.rmdir()
+            except OSError:
+                pass
+    return diagnostics
+
+
 def run_workflow(args: argparse.Namespace) -> int:
     playlist_id = playlist_id_from_url(args.playlist_url)
     playlist_url = canonical_playlist_url(args.playlist_url)
@@ -324,6 +513,7 @@ def run_workflow(args: argparse.Namespace) -> int:
 
     runs_root = args.output_root.expanduser().resolve()
     runs_root.mkdir(parents=True, exist_ok=True)
+    playlists_root = args.library_root.expanduser().resolve()
     resume_data = None if args.fresh else resumable_run(runs_root, playlist_id)
     is_resume = resume_data is not None
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -375,6 +565,7 @@ def run_workflow(args: argparse.Namespace) -> int:
         "missing_json": str(missing_json),
         "soulseek_output": str(soulseek_dir),
         "recorded_output": str(recorded_dir),
+        "playlists_root": str(playlists_root),
         "status": "running",
         "resumed": is_resume,
     }
@@ -536,12 +727,52 @@ def run_workflow(args: argparse.Namespace) -> int:
                 f"Soulseek={downloader_code}, grabador={recorder_code}."
             )
 
+        availability = read_json_dict(availability_json)
+        if availability is None:
+            raise WorkflowError(
+                f"No se pudo leer el reporte final de disponibilidad: {availability_json}"
+            )
+        playlist_data = availability.get("playlist") or {}
+        playlist_name = str(
+            playlist_data.get("name")
+            or (manifest.get("source_playlist") or {}).get("name")
+            or playlist_id
+        )
+        expected_ids = {
+            str((row.get("spotify") or {}).get("spotify_id"))
+            for row in availability.get("tracks") or []
+            if isinstance(row, dict) and (row.get("spotify") or {}).get("spotify_id")
+        }
+
+        summary["status"] = "consolidating"
+        summary["playlist_name"] = playlist_name
+        write_summary(summary_path, summary)
+        playlist_dir, moved_paths, consolidation = consolidate_audio(
+            run_dir,
+            soulseek_dir,
+            recorded_dir,
+            playlists_root,
+            playlist_name,
+            expected_spotify_ids=expected_ids,
+        )
+        consolidation_path = run_dir / "consolidation_report.json"
+        write_summary(consolidation_path, consolidation)
+        diagnostics_dir = simplify_completed_run(run_dir, moved_paths)
+
+        summary.pop("soulseek_output", None)
+        summary.pop("recorded_output", None)
+        summary.pop("playlists_root", None)
         summary["status"] = "completed"
+        summary["final_output"] = str(playlist_dir)
+        summary["audio_files"] = consolidation["audio_count"]
+        summary["moved_files"] = consolidation["moved"]
+        summary["deduplicated_files"] = consolidation["deduplicated"]
+        summary["diagnostics"] = str(diagnostics_dir)
         write_summary(summary_path, summary)
         print("\n=== FLUJO COMPLETADO ===")
-        print(f"Soulseek : {soulseek_dir}")
-        if missing_count:
-            print(f"Grabados : {recorded_dir}")
+        print(f"Playlist : {playlist_dir}")
+        print(f"Audios   : {consolidation['audio_count']}")
+        print(f"Debug    : {diagnostics_dir}")
         print(f"Reporte  : {summary_path}")
         return 0
     except KeyboardInterrupt:
@@ -577,6 +808,17 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Directorio de runs (default: download_JIJIJI/runs o "
             "SPOTIFY_DOWNLOAD_ROOT)"
+        ),
+    )
+    parser.add_argument(
+        "--library-root",
+        type=Path,
+        default=Path(
+            os.environ.get("SPOTIFY_PLAYLISTS_ROOT", DEFAULT_PLAYLISTS_DIR)
+        ),
+        help=(
+            "Destino consolidado de playlists (default: "
+            "download_JIJIJI/Playlists_DOWNLOAD)"
         ),
     )
     parser.add_argument(
