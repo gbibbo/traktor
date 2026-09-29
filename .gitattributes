@@ -1,0 +1,2 @@
+# Hooks de git: scripts de sh, siempre con LF aunque core.autocrlf esté activo.
+tools/git_hooks/pre-commit text eol=lf
