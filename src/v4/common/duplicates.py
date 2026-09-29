@@ -2,23 +2,28 @@
 PURPOSE: Temas repetidos: la regla que decidió Gabriel (DECISIONS 2026-09-29, informe
          docs/reports/temas_repetidos_2026-09-29.md).
            - Qué copia se queda (choose_keeper): siempre la MP3 de 320 kbps; si no hay, la de mejor
-             calidad (sin pérdida antes que comprimida; entre comprimidas, más kbps). Un empate de
-             calidad no se resuelve solo: se pregunta.
+             calidad (sin pérdida antes que comprimida; entre comprimidas, más kbps). Si empatan, la
+             mejor ubicada (location_rank): carpetas por año (las mejor clasificadas), después el resto,
+             después carpetas «copia»; nunca Milo (las copias de un amigo, de peor calidad).
            - Decisiones (artifacts/v4/datasets/<dataset>/duplicate_decisions.json): qué copias salen, a
              favor de cuál, por qué capa y quién decidió; también los pares que Gabriel dijo que son
              distintos, para no volver a preguntar. Las copias descartadas no entran a ninguna
              organización (organize.Library las excluye).
            - Detección (find_candidates), por capas:
-               sonido:   coseno CLAP >= 0.98 y duración a <= 5 s -> casi idéntico (se resuelve solo si la
-                         calidad decide);
+               sonido:   coseno CLAP >= 0.98 y duración a <= 5 s -> casi idéntico: se resuelve solo;
                parecido: coseno entre 0.97 y 0.98, duración a <= 5 s -> se pregunta (Abotha, 0.979, era
                          el mismo; dos tramos de un set continuo, 0.972, no);
-               nombre: mismo artista, título y mezcla, duración a <= 2 s, coseno >= 0.90 -> se pregunta;
+               nombre: mismo artista, título y mezcla, duración a <= 2 s, coseno >= 0.90 -> se resuelve
+                       solo (5 de 5 confirmados por Gabriel);
                corte:  mismo artista, título y mezcla con otra duración (edit contra original), coseno
-                       >= 0.90 -> es duplicado (regla d) pero se pregunta cuál queda.
+                       >= 0.90 -> es duplicado (regla d), pero no se resuelve solo.
+             Lo que no se resuelve solo (parecido, corte) queda como temas separados hasta que alguien
+             decida (dedupe.py decide).
              El hash exacto de audio ya lo resuelve Phase 0 (duplicates.csv).
 CHANGELOG:
   - 2026-09-29: Creación inicial.
+  - 2026-09-29: Desempate por ubicación (Gabriel: nunca Milo; primero lo mejor clasificado); 'nombre'
+                se resuelve solo; detección con prefiltro vectorizado (rápida para la app).
 """
 from __future__ import annotations
 
@@ -37,6 +42,10 @@ LIKE_COS = 0.97
 NAME_COS, NAME_DUR = 0.90, 2.0
 MP3_TOP_KBPS = 315          # "MP3 320": CBR 320 (mutagen informa 320; margen por redondeo)
 LOSSLESS = {"wav", "flac", "aif", "aiff"}
+AUTO_LAYERS = {"sonido", "nombre"}
+_MILO = re.compile(r"^milo(\s*\d+)?$", re.IGNORECASE)      # '#1 BIBO/PRO/Milo 7' (no 'para mezclar con Milo')
+_COPY = re.compile(r"(^|\W)(copia|copy)(\W|$)", re.IGNORECASE)
+_YEAR_TOP = re.compile(r"^(19|20)\d\d(\D|$)")
 
 _VERSION = re.compile(r"\b(mix|remix|rmx|edit|dub|version|rework|remaster(ed)?|vip|bootleg|instrumental|variation)\b",
                       re.IGNORECASE)
@@ -110,12 +119,28 @@ def quality_label(q: Dict) -> str:
     return f"{q['fmt'].upper()} {'sin pérdida' if q['lossless'] else str(q['kbps']) + 'k'}"
 
 
-def choose_keeper(qualities: Sequence[Dict]) -> Optional[int]:
-    """Índice de la copia que se queda, o None si las mejores empatan en calidad (se pregunta)."""
+def location_rank(rel_path: str) -> int:
+    """Menor = mejor ubicada. 0: carpetas por año (2019/…, 2020 new/…), las mejor clasificadas; 1: el resto
+    (#1 BIBO/PRO/Nuevitas…); 2: carpetas de respaldo («… - copia»); 3: Milo (nunca se elige)."""
+    parts = str(rel_path).replace("\\", "/").split("/")[:-1]
+    if any(_MILO.match(p.strip()) for p in parts):
+        return 3
+    if any(_COPY.search(p) for p in parts):
+        return 2
+    return 0 if parts and _YEAR_TOP.match(parts[0]) else 1
+
+
+def choose_keeper(qualities: Sequence[Dict], paths: Optional[Sequence[str]] = None) -> Optional[int]:
+    """Índice de la copia que se queda: mejor calidad; si empatan y hay rutas, la mejor ubicada y después
+    la ruta más corta. None solo si empatan en calidad y no se pasan rutas."""
     ranks = [quality_rank(q) for q in qualities]
     best = max(ranks)
     winners = [i for i, r in enumerate(ranks) if r == best]
-    return winners[0] if len(winners) == 1 else None
+    if len(winners) == 1:
+        return winners[0]
+    if paths is None:
+        return None
+    return min(winners, key=lambda i: (location_rank(paths[i]), len(str(paths[i])), str(paths[i])))
 
 
 # ---------------------------------------------------------------------------
@@ -189,19 +214,21 @@ def find_candidates(uids: Sequence[str], emb: np.ndarray, dur: Sequence[float], 
     n = len(uids)
     order = {"sonido": 0, "nombre": 1, "parecido": 2, "corte": 3}
     edges: Dict[Tuple[int, int], str] = {}
-    for i in range(n):
-        for j in range(i + 1, n):
-            if frozenset((uids[i], uids[j])) in skip:
-                continue
-            if focus is not None and uids[i] not in focus and uids[j] not in focus:
-                continue
-            dd, c = abs(dur[i] - dur[j]), S[i, j]
-            if c >= SOUND_COS and dd <= SOUND_DUR:
-                edges[(i, j)] = "sonido"
-            elif named[i] and key[i] == key[j] and c >= NAME_COS:
-                edges[(i, j)] = "nombre" if dd <= NAME_DUR else "corte"
-            elif c >= LIKE_COS and dd <= SOUND_DUR:
-                edges[(i, j)] = "parecido"
+    ii, jj = np.triu_indices(n, 1)
+    close = S[ii, jj] >= min(NAME_COS, LIKE_COS, SOUND_COS)  # ninguna capa baja de este coseno
+    if focus is not None:
+        infocus = np.array([u in focus for u in uids])
+        close &= infocus[ii] | infocus[jj]
+    for i, j in zip(ii[close].tolist(), jj[close].tolist()):
+        if frozenset((uids[i], uids[j])) in skip:
+            continue
+        dd, c = abs(dur[i] - dur[j]), S[i, j]
+        if c >= SOUND_COS and dd <= SOUND_DUR:
+            edges[(i, j)] = "sonido"
+        elif named[i] and key[i] == key[j] and c >= NAME_COS:
+            edges[(i, j)] = "nombre" if dd <= NAME_DUR else "corte"
+        elif c >= LIKE_COS and dd <= SOUND_DUR:
+            edges[(i, j)] = "parecido"
     parent = list(range(n))
 
     def find(x):
@@ -226,7 +253,7 @@ def find_candidates(uids: Sequence[str], emb: np.ndarray, dur: Sequence[float], 
     return sorted(out, key=lambda g: (order[g["layer"]], -g["sim"]))
 
 
-def resolve(group: Dict, qualities: Sequence[Dict]) -> Tuple[Optional[int], bool]:
-    """(copia que se queda o None, se resuelve sola). Solo 'sonido' con calidad distinta se resuelve sola."""
-    keep = choose_keeper(qualities)
-    return keep, group["layer"] == "sonido" and keep is not None
+def resolve(group: Dict, qualities: Sequence[Dict], paths: Optional[Sequence[str]] = None) -> Tuple[Optional[int], bool]:
+    """(copia que se queda o None, se resuelve sola). Se resuelven solas 'sonido' y 'nombre'."""
+    keep = choose_keeper(qualities, paths)
+    return keep, group["layer"] in AUTO_LAYERS and keep is not None

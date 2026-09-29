@@ -69,11 +69,12 @@ def test_find_candidates_layers_and_skip():
     assert [g["members"] for g in _cands(focus={"u1"})] == [[0, 1]]
 
 
-def test_resolve_only_sound_with_quality_difference():
+def test_resolve_by_layer():
     g = {"layer": "sonido", "members": [0, 1]}
     assert dup.resolve(g, [q("mp3", 192), q("mp3", 320)]) == (1, True)
-    assert dup.resolve(g, [q("mp3", 320), q("mp3", 320)]) == (None, False)  # empate: se pregunta
-    assert dup.resolve({"layer": "nombre", "members": [0, 1]}, [q("mp3", 128), q("mp3", 320)]) == (1, False)
+    assert dup.resolve(g, [q("mp3", 320), q("mp3", 320)]) == (None, False)  # empate sin rutas: no decide
+    assert dup.resolve({"layer": "nombre", "members": [0, 1]}, [q("mp3", 128), q("mp3", 320)]) == (1, True)
+    assert dup.resolve({"layer": "parecido", "members": [0, 1]}, [q("mp3", 128), q("mp3", 320)]) == (1, False)
 
 
 def test_decisions_roundtrip(tmp_path):
@@ -128,3 +129,102 @@ def test_band_between_097_and_098_is_asked():
     assert [(x["layer"], x["members"]) for x in g] == [("parecido", [0, 1])]
     assert dup.resolve(g[0], [q("mp3", 192), q("mp3", 320)]) == (1, False)  # se pregunta aunque la calidad decida
 
+
+
+def test_location_rank_and_tie_break():
+    # Gabriel: nunca Milo; primero lo mejor clasificado (carpetas por año), después el resto, después «copia»
+    assert dup.location_rank("#1 BIBO/PRO/Milo 10/Joris Voorn - Goodbye Fly (Original Mix).mp3") == 3
+    assert dup.location_rank("#1 BIBO/PRO/Milo/Markus Homm - Dance With Me.mp3") == 3
+    assert dup.location_rank("2020 old/para mezclar con Milo/Bora bora/x.mp3") == 0  # carpeta propia
+    assert dup.location_rank("2020 new - copia/x.wav") == 2
+    assert dup.location_rank("2019/Parte 4 - Techno Comercial/x.mp3") == 0
+    assert dup.location_rank("#1 BIBO/PRO/Nuevitas 6/x.mp3") == 1
+    # sus 8 elecciones en empates de calidad
+    ties = [(["2019/Parte 4 - Techno Comercial/a.mp3", "#1 BIBO/PRO/Nuevitas 6/a.mp3"], 0),
+            (["2019/Parte 1 - Tech House/b.mp3", "#1 BIBO/PRO/Nuevitas 9/b.mp3"], 0),
+            (["2020 old/old 2/c.mp3", "#1 BIBO/PRO/Milo 11/c.mp3"], 0),
+            (["#1 BIBO/PRO/Nuevitas 6/d.mp3", "#1 BIBO/PRO/Milo 7/d.mp3"], 0),
+            (["#1 BIBO/PRO/Nuevitas/TROPICALES/e.mp3", "#1 BIBO/PRO/Milo 8/e.mp3"], 0),
+            (["#1 BIBO/PRO/Milo 3/f.mp3", "2019/Parte 1 - Afro House/f.mp3"], 1),
+            (["2020 old/old 6/g.mp3", "#1 BIBO/PRO/Milo 10/g.mp3"], 0),
+            (["#1 BIBO/PRO/Nuevitas 12 (cachengue)/h.wav", "2019/Parte 2 - Misterio Melódico/h.wav",
+              "2020 new - copia/h.wav", "2020 new/Vocal/h.wav"], 3)]
+    for paths, want in ties:
+        assert dup.choose_keeper([q("mp3", 320)] * len(paths), paths) == want, paths
+    # la calidad manda antes que la ubicación: MP3 320 de Milo sobre MP3 192 bien ubicado
+    assert dup.choose_keeper([q("mp3", 192), q("mp3", 320)], ["2019/x.mp3", "#1 BIBO/PRO/Milo/x.mp3"]) == 1
+    assert dup.resolve({"layer": "sonido"}, [q("mp3", 320)] * 2, ["2019/x.mp3", "#1 BIBO/PRO/Milo/x.mp3"]) == (0, True)
+    assert dup.resolve({"layer": "nombre"}, [q("mp3", 128), q("mp3", 320)], ["a/x.mp3", "b/x.mp3"]) == (1, True)
+    assert dup.resolve({"layer": "corte"}, [q("mp3", 128), q("mp3", 320)], ["a/x.mp3", "b/x.mp3"]) == (1, False)
+
+
+def _dedupe_library(tmp_path):
+    """Biblioteca sintética con audio 'real' en disco: t1 es copia de t0 (Milo, peor ubicada)."""
+    import json
+    import pandas as pd
+    rng = np.random.default_rng(3)
+    n = 40
+    emb = rng.standard_normal((n, 32))
+    emb[1] = emb[0] + 0.001 * rng.standard_normal(32)
+    rels = [f"2019/Parte 1/t{i}.mp3" for i in range(n)]
+    rels[1] = "#1 BIBO/PRO/Milo 3/t0 copia.mp3"
+    audio = tmp_path / "Música"
+    for r in rels:
+        (audio / r).parent.mkdir(parents=True, exist_ok=True)
+        (audio / r).write_bytes(b"x" * 10)
+    art = tmp_path / "art"
+    (art / "features").mkdir(parents=True)
+    rep = art / "representations" / "clap_full"
+    rep.mkdir(parents=True)
+    uids = [f"{i:04d}" + "0" * 60 for i in range(n)]
+    cat = pd.DataFrame({"track_uid": uids, "rel_path": rels, "filename": [Path(r).name for r in rels],
+                        "source_path": [str(audio / r) for r in rels], "folder": [str(Path(r).parent.as_posix()) for r in rels],
+                        "artist": [f"A{i}" for i in range(n)], "title": [f"T{i}" for i in range(n)],
+                        "duration_s": [300.0 + i * 10 for i in range(n)], "beatport_genre_norm": "Techno"})
+    cat.loc[1, "duration_s"] = 300.5
+    cat.to_parquet(art / "catalog.parquet", index=False)
+    pd.DataFrame({"track_uid": uids, "bpm": 125.0, "key": "8A", "energy": 5.0}).to_parquet(art / "features" / "bpm_key.parquet", index=False)
+    np.save(rep / "embeddings.npy", emb.astype(np.float32))
+    (rep / "track_uids.json").write_text(json.dumps(uids))
+    return art, audio, uids
+
+
+def test_dedupe_auto_apply_move_and_restore(tmp_path):
+    import pandas as pd
+    from src.v4.pipeline import dedupe
+    art, audio, uids = _dedupe_library(tmp_path)
+    store = OrgStore(art, "t")
+    v1 = build(store, Library(art, "clap_full"), dict(PARAMS, n_l1=2, l2_target_size=10), [""])
+    r = dedupe.auto_resolve(art, audio, "t")
+    assert [(g["layer"], g["keep"]) for g in r["resolved"]] == [("sonido", uids[0])] and not r["pending"]
+    assert dup.dropped(art) == {uids[1]: uids[0]} and dup.load_decisions(art)[0]["by"] == "regla"
+    assert dedupe.apply(art, "t") == v1 + 1 and uids[1] not in set(store.load()[0]["track_uid"])
+    # mover: la copia va a _copias con su ruta; catálogo y decisiones apuntan ahí
+    moved = dedupe.move_copies(art, audio)["moved"]
+    assert [m["to"] for m in moved] == ["_copias/#1 BIBO/PRO/Milo 3/t0 copia.mp3"]
+    assert (audio / "_copias/#1 BIBO/PRO/Milo 3/t0 copia.mp3").is_file() and not (audio / "#1 BIBO/PRO/Milo 3/t0 copia.mp3").exists()
+    cat = pd.read_parquet(art / "catalog.parquet").set_index("track_uid")
+    assert cat.loc[uids[1], "rel_path"].startswith("_copias/") and Path(cat.loc[uids[1], "source_path"]).is_file()
+    assert any(t["rel_path"].startswith("_copias/") for t in dup.load_decisions(art)[0]["tracks"])
+    assert dedupe.move_copies(art, audio)["moved"] == []  # ya estaba movida
+    assert dedupe.candidates(art, audio, "t") == []  # nada nuevo para decidir
+    # volver atrás
+    back = dedupe.restore_copies(art, audio)
+    assert len(back["restored"]) == 1 and (audio / "#1 BIBO/PRO/Milo 3/t0 copia.mp3").is_file()
+    assert pd.read_parquet(art / "catalog.parquet").set_index("track_uid").loc[uids[1], "rel_path"] == "#1 BIBO/PRO/Milo 3/t0 copia.mp3"
+
+
+def test_move_copies_protects_other_datasets_and_restores_some(tmp_path):
+    from src.v4.pipeline import dedupe
+    art, audio, uids = _dedupe_library(tmp_path)
+    store = OrgStore(art, "t")
+    build(store, Library(art, "clap_full"), dict(PARAMS, n_l1=2, l2_target_size=10), [""])
+    dedupe.auto_resolve(art, audio, "t")
+    # la carpeta de la copia es la de otro dataset (como test_20 -> «2020 new - copia»): no se mueve
+    r = dedupe.move_copies(art, audio, protected=[audio / "#1 BIBO/PRO/Milo 3"])
+    assert r["moved"] == [] and "otro dataset" in r["skipped"][0]["error"]
+    assert (audio / "#1 BIBO/PRO/Milo 3/t0 copia.mp3").is_file()
+    r = dedupe.move_copies(art, audio)
+    assert len(r["moved"]) == 1
+    assert dedupe.restore_copies(art, audio, only=["otra/ruta.mp3"])["restored"] == []  # no toca las demás
+    assert len(dedupe.restore_copies(art, audio, only=["#1 BIBO/PRO/Milo 3/t0 copia.mp3"])["restored"]) == 1

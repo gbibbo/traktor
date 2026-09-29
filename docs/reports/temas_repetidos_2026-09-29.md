@@ -169,3 +169,22 @@ parecido, corte), `src/v4/pipeline/dedupe.py` (candidates / decide / import / ap
 meter). Decisiones en `artifacts/v4/datasets/musica/duplicate_decisions.json`. La app muestra en el
 tooltip y en la tabla las copias de cada tema que quedaron fuera de las playlists.
 
+## Cierre (2026-09-29)
+
+Gabriel dio el tema por cerrado y delegó lo pendiente (DECISIONS 2026-09-29, punto 13). El desempate
+de calidad es por ubicación (`duplicates.location_rank`: nunca Milo; primero las carpetas por año);
+reproduce sus 8 elecciones en empates (test `test_location_rank_and_tie_break`).
+
+| Afirmación | Etiqueta | Evidencia |
+| :--- | :--- | :--- |
+| Grupo 11 resuelto por la regla (queda `2020 old/old 6`) | EVIDENCIA OBSERVADA | `dedupe.py auto`: 1 grupo resuelto |
+| C y D: otro corte, queda la MP3 320; B y Techyon/Egorythmia: distintos | EVIDENCIA OBSERVADA | `duplicate_decisions.json`, `by: claude`, con la nota de la delegación |
+| `biblioteca` v11: 1760 temas, ninguna copia descartada, los 24 temas que se quedan presentes | EVIDENCIA OBSERVADA | verificación en esta sesión |
+| 25 copias en `Música/_copias/<ruta>`; catálogo, decisiones y `duplicates.csv` apuntan ahí. La de `2020 new - copia` volvió a su lugar (es `test_20`) | EVIDENCIA OBSERVADA | `moved_copies.csv` (25 filas); los 1760 temas de la organización tienen su archivo; `test_block1_common` otra vez con 243 |
+| Si Rekordbox o Traktor tenían alguna de esas 25 copias, ahora la ven como faltante | HIPÓTESIS | no se revisaron sus colecciones; `dedupe.py restore-copies` las devuelve |
+
+Con música nueva, la app agrega un paso «Buscar temas repetidos». Lo que la regla resuelve sola
+(capas «sonido» y «nombre») queda con una sola copia, y las otras van a `_copias`. «Parecido» y
+«corte» quedan como temas separados, sin preguntar. Las ≈ 616 copias idénticas que ya ocultaba
+Phase 0 siguen en su lugar.
+

@@ -33,20 +33,42 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 8. **Temas repetidos: una sola copia por tema en las playlists** (Gabriel, escuchando los 24 grupos
    de `Música/_duplicados_para_escuchar.html`). 21 grupos son el mismo tema (1 a 10, 12 a 21 y el
    caso A, Abotha); sus 23 copias sobrantes salieron de `biblioteca` (v10, `dedupe.py apply`) y de
-   los exports. Pendientes: grupo 11 (Joris Voorn – Goodbye Fly, sin responder), caso B (Boris
+   los exports. [REEMPLAZADO 2026-09-29 por el punto 13: los cuatro pendientes quedaron resueltos]
+   Pendientes: grupo 11 (Joris Voorn – Goodbye Fly, sin responder), caso B (Boris
    Brejcha: según sus tags son la Vocal Mix y la Original Mix), caso C (Markus Homm, otro corte) y
    «Enjoy The Silence … Cotton Dub» contra su «(boosted and cutted)», que apareció después.
 9. **Qué copia se queda: siempre la MP3 de 320 kbps; si no hay, la de mejor calidad** (sin pérdida
    antes que comprimida; entre comprimidas, más kbps). Coincide con lo que eligió en los 10 grupos
-   donde la calidad decide. Empate de calidad: se pregunta. Sin confirmar: en los 7 empates eligió
+   donde la calidad decide. [REEMPLAZADO 2026-09-29 por el punto 13: el empate se resuelve por
+   ubicación] Empate de calidad: se pregunta. Sin confirmar: en los 7 empates eligió
    carpetas de año (2019, 2020…) antes que Nuevitas y Nuevitas antes que Milo.
 10. **El mismo tema en otro corte (edit contra original) es un duplicado: queda uno.** Cuál, se pregunta.
 11. **Música nueva:** lo idéntico o casi idéntico con calidad distinta se resuelve solo; lo dudoso
-    (empate de calidad, mismo nombre, parecido, otro corte) lo pregunta la app. La pregunta en la app
-    todavía no existe; por ahora, `dedupe.py candidates`.
+    (empate de calidad, mismo nombre, parecido, otro corte) lo pregunta la app. [REEMPLAZADO
+    2026-09-29 por el punto 13: se resuelven solos «sonido» y «nombre»; lo demás queda como temas
+    separados, sin preguntar] La pregunta en la app todavía no existe; por ahora, `dedupe.py candidates`.
 12. **Las copias que no se quedan, además, se mueven a una carpeta aparte (`_copias`).** Antes de
     mover archivos hay que confirmar el alcance: las 23 de hoy o también las ≈ 616 copias idénticas
-    que Phase 0 ya ocultaba (`duplicates.csv`).
+    que Phase 0 ya ocultaba (`duplicates.csv`). [REEMPLAZADO 2026-09-29 por el punto 13: se mueven
+    solo las copias decididas]
+13. **Temas repetidos, cierre: Gabriel dio el tema por cerrado y delegó lo pendiente** («lo mejor,
+    menos molesto y reversible»). Lo que dijo él: el empate de calidad se resuelve por ubicación,
+    **nunca Milo** (un amigo que copiaba sus temas elegidos y los bajaba con peor calidad) y primero
+    las carpetas mejor clasificadas. Regla en `duplicates.location_rank`: carpetas por año, después el
+    resto, después «copia», Milo al final; coincide con sus 8 elecciones en empates. Lo que decidió
+    el agente por delegación:
+    - Grupo 11: resuelto por la regla (queda `2020 old/old 6`).
+    - Caso B: son distintos, porque sus tags dicen Vocal Mix y Original Mix.
+    - Casos C y D: otro corte, queda la MP3 320.
+    - Techyon / Egorythmia (0.972, tramos de un set continuo): son distintos.
+    - En música nueva se resuelven solas las capas «sonido» y «nombre» (los 5 grupos por nombre que
+      escuchó eran el mismo tema); «parecido» y «corte» quedan como temas separados, sin preguntar.
+    - Se movieron a `Música/_copias/` las copias decididas, con su ruta de carpetas: 25 de 26, en
+      `moved_copies.csv`. `dedupe.py restore-copies` las devuelve. La otra («Hide U» en
+      `2020 new - copia`) se quedó en su lugar porque esa carpeta es `test_20`: nunca se mueven
+      archivos de la carpeta de otro dataset.
+    - Las ≈ 616 copias idénticas que ya ocultaba Phase 0 no se tocan.
+    Resultado: `biblioteca` v11, 1760 temas.
 
 ## 2026-09-27
 

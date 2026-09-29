@@ -661,7 +661,9 @@ function doneDialog(kind, r) {
       ? (c.added ? `Se agregaron ${fmt(c.added)} temas: ${fmt(c.add || 0)} a playlists que ya existían${c["add-new"] ? `, ${fmt(c["add-new"])} en playlists nuevas` : ""}${c["add-far"] ? `, ${fmt(c["add-far"])} sin una playlist parecida (quedaron en la más cercana)` : ""}.`
                  : "No había temas nuevos para agregar: todos ya estaban en tu colección.")
       : "Se reorganizó toda tu colección con los temas nuevos incluidos.";
-    return openDialog("Listo", [el("p", { text: txt })], [btn("Ver en el mapa", () => { sessionStorage.setItem("traktor_show", "new"); location.reload(); }, true)], false);
+    const rep = c.repeated ? el("p", { text: `${c.repeated === 1 ? "1 tema ya estaba" : `${fmt(c.repeated)} temas ya estaban`} en tu colección: quedó la mejor copia y ${c.repeated === 1 ? "la otra se movió" : "las otras se movieron"} a Música/_copias.` }) : null;
+    const pend = c.to_decide ? el("p", { class: "muted", text: `${c.to_decide === 1 ? "Un posible repetido quedó" : `${fmt(c.to_decide)} posibles repetidos quedaron`} como temas separados (no son lo bastante parecidos para decidir solo).` }) : null;
+    return openDialog("Listo", [el("p", { text: txt }), rep, pend].filter(Boolean), [btn("Ver en el mapa", () => { sessionStorage.setItem("traktor_show", "new"); location.reload(); }, true)], false);
   }
   if (kind === "fusions") {
     const txt = r.keep ? `Listo: ${r.moved === 1 ? "se movió 1 tema" : `se movieron ${fmt(r.moved || 0)} temas`} para que las fusiones queden juntas. El resto no cambió.`

@@ -27,6 +27,13 @@ Dub/Instrumental bajó de 30 % a 25 %. Muestras chicas (etiquetas débiles: «fe
 audible y un dub puede tener recortes de voz). Ningún umbral sobre los 90 s arreglaba las dos cosas.
 **Regla:** para la voz, mirar el tema entero antes de ajustar el umbral.
 
+### «2020 new - copia» no es un respaldo: es la carpeta de test_20
+**Contexto (2026-09-29):** `data/raw_audio/test_20` es un enlace (junction) a `Música/2020 new - copia`.
+Las reglas que ven «copia» como respaldo (Phase 0 al elegir entre archivos idénticos, `location_rank`)
+la ponen última. Al mover a `_copias` una copia repetida de esa carpeta, test_20 perdió un tema
+(`test_block1_common` esperaba 243). **Regla:** nunca mover ni borrar archivos de la carpeta de otro
+dataset. `dedupe.move_copies` las protege con `protected_roots`.
+
 ## Entorno HPC (ver también memory/MEMORY.md)
 
 [REEMPLAZADO 2026-09-12 por DECISIONS 2026-09-12, punto 4: Surrey HPC ya no existe; se trabaja en CPU local (AGENTS.md). Se conserva como registro.]

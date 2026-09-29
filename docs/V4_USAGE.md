@@ -131,7 +131,12 @@ python src/v4/pipeline/dedupe.py candidates --org-name biblioteca   # grupos sin
 python src/v4/pipeline/dedupe.py decide --keep "<ruta que se queda>" --drop "<ruta de la copia>"
 python src/v4/pipeline/dedupe.py decide --distinct "<ruta 1>" "<ruta 2>"   # no son el mismo tema
 python src/v4/pipeline/dedupe.py apply --org-name biblioteca        # saca las copias (versión nueva, se deshace)
+python src/v4/pipeline/dedupe.py auto --org-name biblioteca [--scope "<carpeta nueva>"]  # lo que la regla resuelve sola
+python src/v4/pipeline/dedupe.py move-copies [--dry-run]            # copias descartadas a Música/_copias
+python src/v4/pipeline/dedupe.py restore-copies                     # las devuelve a su lugar
 ```
+
+La app hace `auto` + `apply` + `move-copies` sola al agregar música nueva.
 
 **Antes de importar, revisar escuchando:** `python tools/playlist_review/build_review_page.py
 --dataset-name musica` escribe `Música/_revision_playlists.html` (necesita Phase 2 sin `--skip-umap`).

@@ -14,6 +14,8 @@ CHANGELOG:
   - 2026-09-29: Creación inicial.
   - 2026-09-29: Reordenar temas de una playlist a mano (/api/reorder) y eliminar fusiones
                 (/api/remove-fusion), cada uno como versión nueva que se puede deshacer.
+  - 2026-09-29: Agregar música nueva busca temas repetidos (dedupe.py): lo que la regla resuelve queda
+                con una sola copia y las otras se mueven a Música/_copias.
   - 2026-09-29: /cover/<tema>: carátula del archivo (o de su carpeta) para la columna de la tabla.
 """
 from __future__ import annotations
@@ -50,7 +52,7 @@ from tools.playlist_review.build_review_page import history_lines, make_data, re
 AUDIO_TYPES = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".flac": "audio/flac", ".aif": "audio/aiff",
                ".aiff": "audio/aiff", ".m4a": "audio/mp4"}
 ADD_STEPS = ["Copiar a tu biblioteca", "Leer la colección", "BPM y tonalidad", "Analizar el sonido de cada tema",
-             "Detectar voces", "Ubicar los temas en las playlists"]
+             "Detectar voces", "Buscar temas repetidos", "Ubicar los temas en las playlists"]
 _PROGRESS = [re.compile(r"(\d+)/(\d+) temas"), re.compile(r"BPM estimado (\d+)/(\d+)")]
 
 
@@ -234,6 +236,10 @@ class App:
             job.set(step, 0, "")
             if backend == "clap":
                 run_script([str(pipe / "tag_vocals.py"), *ds, "--method", "clap", "--write-tags"], job, step)
+            step = S["Buscar temas repetidos"]
+            job.set(step, 0, "Comparando con tu colección…")
+            from src.v4.pipeline import dedupe
+            dups = dedupe.auto_resolve(self.artifacts, self.library, self.org_name, scope)
             step = S["Ubicar los temas en las playlists"]
             job.set(step, 0, "Esto puede tardar un minuto…")
             lib = organize.Library(self.artifacts, self.store.meta()["params"]["rep"])
@@ -246,6 +252,12 @@ class App:
                     scopes.append(scope)
                 v = organize.build(self.store, lib, meta["params"], scopes, action="build")
                 counts = {"added": None}
+            if dups["resolved"]:  # la copia buena puede ser una que ya estaba: sale la vieja
+                v = dedupe.apply(self.artifacts, self.org_name)
+                dedupe.move_copies(self.artifacts, self.library,
+                                   protected=dedupe.protected_roots(self.config, self.dataset))
+            counts["repeated"] = sum(len(g["tracks"]) - 1 for g in dups["resolved"])
+            counts["to_decide"] = len(dups["pending"])
             job.set(step, 1, "")
             return {"version": v, "counts": counts, "scope": scope, "keep": keep}
         return self.start("add", steps, fn)

@@ -40,7 +40,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `phase4_order.py` | CPU: Ordering greedy NN (cosine + BPM + Camelot key) → ordered_<hash>.parquet |
 | `extract_representations.py` | CPU: representaciones congeladas (EffNet, MAEST, MERT por capas, CLAP, MAEST-HF, AST; full y HPSS) con segmentación V4 → representations/<variante>/ (fase 2 del plan); `--shard`, `--assemble-only`, `--folder`, `--low-priority`, filtros de duración |
 | `organize.py` | Organizaciones estables con versiones (`orgs/<nombre>/`): `ingest` por carpeta, `import` de un config_hash, `build` (por alcance, respetando fusiones), `add` congelado, `link` (fusiones de temas: congelado o `--rebuild`), `show`; fusiones con nombre y color guardadas por versión, borradores y deshacer; `reorder` (orden a mano de una playlist) y `remove_fusion` (quitar una fusión sin mover temas) para la app |
-| `dedupe.py` | Temas repetidos por línea de comandos: `candidates`, `decide`, `import`, `apply` (saca las copias de una organización, versión 'dedupe'), `list`. No mueve ni borra archivos |
+| `dedupe.py` | Temas repetidos: `candidates`, `auto` (lo que la regla resuelve sola), `decide`, `import`, `apply` (saca las copias de una organización, versión 'dedupe'), `move-copies` / `restore-copies` (a `Música/_copias/` y de vuelta), `list`. La app lo usa al agregar música. Nunca borra archivos |
 | `beatport_lookup.py` | Red: busca cada tema del dataset en Beatport → features/beatport.parquet/.csv + beatport_summary.json (nivel, datos de Beatport, tags actuales y propuestos). No escribe tags; caché en artifacts/v4/beatport_cache; `--folder`/`--limit` para la prueba, `--offline`, `--low-priority` |
 | `genre_model.py` | CPU: género en taxonomía Beatport para temas sin match: gate MAEST (estilos Discogs no electrónicos) + regresión logística sobre MAEST capa 7 ‖ CLAP entrenada con los géneros de Beatport confirmados; `--eval` (validación cruzada agrupada por artista → genre_model_eval.json), `--predict` (→ genre_pred.parquet/.csv). No escribe tags |
 | `write_beatport_tags.py` | Escribe Artist, Remixers, Label, Genre y Released de Beatport (A y B confirmado) y el género del modelo con confianza >= 0.6 (C/D), solo MP3/FLAC. Simulación por defecto (→ features/tag_plan.csv); `--write` con respaldo features/tag_backup_<fecha>.csv y verificación del hash de audio; `--revert <csv>`; `--folder` para la prueba |
@@ -119,6 +119,7 @@ En `tests/` (raíz): `test_check_staged.py` (chequeo pre-commit sobre repos git 
 artifacts/v4/datasets/<dataset_name>/
 ├── catalog.parquet                # Phase 0: catálogo de tracks
 ├── duplicate_decisions.json       # dedupe.py: veredictos de temas repetidos (qué copia se queda)
+├── moved_copies.csv               # dedupe.py move-copies: copias movidas a Música/_copias (restore-copies)
 ├── ingest_report.json             # Phase 0: estadísticas de ingesta
 ├── embeddings/
 │   ├── mert_perc.npy              # Phase 1: embeddings percusivos (N, 1024)
