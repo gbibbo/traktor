@@ -1,0 +1,84 @@
+# Detección de voz: protocolo de evaluación
+
+Fecha: 2026-09-29. Pedido de Gabriel: reemplazar la etiqueta Vocal actual por un método validado.
+Código: `src/v4/evaluation/vocal_eval.py`. Resultados: `artifacts/v4/vocal_eval/report_<detector>.json`.
+
+## Pregunta
+
+¿Qué temas tienen voz (canto, rap o habla como parte del tema)? La etiqueta actual (CLAP zero-shot sobre
+90 s del medio, umbral 0.145 elegido con 23 temas) no está validada: marca 31 % de la colección y no
+separa los instrumentales del promedio.
+
+## Definición operativa
+
+- **Por segundo:** hay actividad vocal (canto, rap o habla) en ese segundo.
+- **Por tema:** segundos con voz >= T → «Vocal». Se guardan los segundos y la fracción, así T se
+  cambia sin recalcular. T se calibra con etiquetas humanas por tema (fase 2), no a ojo.
+
+## Datos de evaluación (públicos, etiquetados por personas)
+
+1. **Electrobyte** (Romero-Arenas et al. 2022; Zenodo 6757945, CC BY 4.0; en
+   `data/public/electrobyte/`, MD5 aebbfa243dacbbd53852a4c417f7b815). 90 temas de música electrónica
+   con voz / sin voz por tramos, partición 60/15/15. El umbral se elige en valid y se mide en test.
+   Límite: es electrónica con canción (estilo NCS/Monstercat) y todos los temas tienen voz (≈ 50 % de
+   los segundos). Mide la detección dentro del tema, incluidos los drops con sintes, pero no temas
+   instrumentales enteros.
+2. **Fase 2, MTG-Jamendo `voice_instrumental`**: 2070 temas con 3 anotadores (87 % de acuerdo),
+   filtrados a géneros electrónicos. Es una etiqueta por tema e incluye instrumentales, así que sirve
+   para calibrar T y medir por tema. Hay que bajar el audio de esos temas.
+3. Opcional: corpus Jamendo (Ramona et al. 2008), para comparar con la literatura (exactitud 82 %
+   en 2008, 92 % en 2015).
+
+## Detectores (preentrenados, sin entrenar con la colección)
+
+| Nombre | Qué es | Puntaje |
+|---|---|---|
+| `clap` | El detector actual (zero-shot), pero sobre todo el tema | P(voz) por ventana de 10 s, paso de 5 s |
+| `ast` | Etiquetador AudioSet (Gong et al. 2021) | Máximo de las clases de voz (Singing, Rapping, Speech, Vocal music…) por ventana de 10 s, paso de 5 s |
+| `hdemucs` | Separación de fuentes (Défossez 2021; torchaudio `HDEMUCS_HIGH_MUSDB_PLUS`) | Energía del stem de voz relativa a la mezcla (dB) por segundo |
+
+Si hace falta, después: AST sobre el stem de voz (menos falsos positivos por sintes), PANNs, o los
+clasificadores `voice_instrumental` de Essentia (hay ONNX; requiere conversión).
+Descartado: Silero VAD (es un detector de habla; encontró voz solo en el 13 % de 23 temas con canto).
+
+## Métricas y reglas
+
+- **Por segundo:** AUC (sin umbral). Con el umbral de máxima exactitud balanceada elegido en valid:
+  exactitud, exactitud balanceada, precisión, recall y F1 en test, con IC del 95 % por bootstrap
+  sobre temas.
+- Nada se ajusta mirando test. Una sola variable por comparación.
+- **Riesgos conocidos** (Lee et al. 2018; Schlüter y Lehner 2018; Stoller et al. 2018):
+  - sintes que imitan la voz dan falsos positivos;
+  - el volumen puede funcionar como atajo;
+  - el stem separado puede tener fugas en los tramos instrumentales.
+
+## Costo medido (piloto, CPU de la laptop)
+
+| Detector | Tiempo por tema de Electrobyte (3-4 min) |
+|---|---|
+| clap | 5-10 s |
+| ast | 60-75 s |
+| hdemucs | ≈ 60 s (≈ 0.3 veces la duración) |
+
+Para 1786 temas de unos 7 min, hdemucs serían ≈ 50 h de CPU. Si gana, antes de correrlo se mide en
+Electrobyte cuánto se pierde procesando solo algunos tramos de cada tema.
+
+## Referencias
+
+- Ramona, Richard y David, «Vocal detection in music with support vector machines», ICASSP 2008.
+- Schlüter y Grill, «Exploring data augmentation for improved singing voice detection with neural
+  networks», ISMIR 2015.
+- Lee, Choi y Nam, «Revisiting singing voice detection: a quantitative review and the future
+  outlook», ISMIR 2018.
+- Schlüter y Lehner, «Zero-mean convolutions for level-invariant singing voice detection», ISMIR 2018.
+- Stoller, Ewert y Dixon, «Jointly detecting and separating singing voice: a multi-task approach»,
+  LVA/ICA 2018.
+- Romero-Arenas, Gómez-Espinosa y Valdés-Aguirre, «Singing voice detection in electronic music with a
+  long-term recurrent convolutional network», Applied Sciences 12(15):7405, 2022 (Electrobyte).
+- Gemmeke et al., «Audio Set», ICASSP 2017. Gong, Chung y Glass, «AST», Interspeech 2021.
+- Défossez, «Hybrid spectrogram and waveform source separation», MDX @ ISMIR 2021.
+- Monir, Kostrzewa y Mrozek, «Singing voice detection: a survey», Entropy 24:114, 2022.
+
+## Resultados
+
+(Se completa con la corrida sobre Electrobyte valid/test.)

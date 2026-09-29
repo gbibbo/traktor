@@ -54,6 +54,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `metrics.py` | ARI, NMI, Recall@k, MRR, NDCG, pairwise_auc, transition_score, noise_rate |
 | `eval_runner.py` | Loop de evaluación: carga artifacts, calcula métricas, guarda JSON |
 | `triplet_evidence.py` | Carga respuestas de tripletas del DJ, resuelve a track_uid, baselines clave/BPM |
+| `vocal_eval.py` | Evaluación de detectores de voz (protocolo `docs/plans/20260929_deteccion_voz.md`): Electrobyte por segundo (umbral en valid, métricas en test con IC bootstrap) y MTG-Jamendo `voice_instrumental` por tema (`--fetch-jamendo`, `--track-level`); detectores clap, ast y hdemucs; puntajes en artifacts/v4/vocal_eval/ |
 | `representation_eval.py` | Instrumento de evaluación de representaciones: accuracy de tripletas por fuente con bootstrap pareado vs BPM, coherencia vs carpetas de v1 (fase 1 del plan) |
 | `legacy_crosscheck.py` | Cruza las tripletas del DJ con los clusters versionados de legacy v1/v2, genre_discogs400 y playlists V4_5 (sin re-extraer audio) |
 
@@ -86,6 +87,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_block3_clustering.py` | Unit tests métricas (Parte A) + clustering real (Parte B, skip-safe) |
 | `test_block4_export.py` | Tests export pipeline: Phase 3+4+5, N canónico, transition score, quality report |
 | `test_block5_system.py` | Verificación final: todos los módulos importan, catalog_success, ProjectionHead |
+| `test_vocal_eval.py` | Unit tests de vocal_eval (etiquetas .lab, grilla de 1 s, AUC, umbral por exactitud balanceada) |
 | `test_representation_eval.py` | Unit tests de representation_eval (tripletas, bootstrap pareado, coherencia kNN/MAP) |
 | `test_triplet_evidence.py` | Unit tests de triplet_evidence (dedup, resolución, baselines) |
 | `test_tags_catalog.py` | Unit tests de tags.py y del catálogo recursivo (hash estable al escribir tags, dedup) |
