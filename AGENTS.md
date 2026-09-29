@@ -70,7 +70,8 @@ Rules:
 * Push normal commits to the current branch without asking each time when a valid upstream exists.
 * Do not force push, rewrite shared history, merge branches, delete remote branches, or open or merge pull requests unless Gabriel asks.
 * Never commit datasets, music files, generated stems, embeddings, large artifacts, credentials, `.env` files, API keys, or secrets. The pre-commit check in `tools/git_hooks/` enforces this list (activate once per clone with `git config core.hooksPath tools/git_hooks`). Never bypass it with `--no-verify`; if it flags correct work, fix `tools/git_hooks/check_staged.py` and its tests.
-* Gabriel's parallel work lives in `download_JIJIJI/`: include it in commits and pushes, never its audio files (`.gitignore` covers the audio extensions). The pre-commit check scans staged content for credentials; still look at what you stage.* Do not add AI attribution, generated with trailers, or session links to commits or pull request text.
+* Gabriel's parallel work lives in `download_JIJIJI/`: include it in commits and pushes, never its audio files (`.gitignore` covers the audio extensions). The pre-commit check scans staged content for credentials; still look at what you stage.
+* Do not add AI attribution, generated with trailers, or session links to commits or pull request text.
 * If tests are failing or evidence is incomplete, record that state instead of disguising it as completed work.
 
 Before stopping after substantive project work, report the final Git state with the full HEAD SHA, push status, and whether the working tree is clean. Do not create empty commits merely to manufacture a SHA.
