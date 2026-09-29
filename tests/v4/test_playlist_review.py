@@ -78,3 +78,27 @@ def test_org_payload_flags_new_and_seed_tracks():
     idx = {"a": 0, "b": 1, "c": 2}
     p = org_payload({"hash": "org:x", "ordered": ordered, "names": {}}, idx, "x v2")
     assert p["flags"] == {"1": "nuevo", "2": "semilla"}
+
+
+def test_history_lines_readable():
+    from tools.playlist_review.build_review_page import history_lines
+    meta = {"history": [
+        {"version": 1, "action": "import", "source_hash": "fb78f2f6", "n_tracks": 10, "n_playlists": 2},
+        {"version": 2, "action": "add", "scope": "2026 Octubre", "added": 7, "add": 5, "add-new": 2, "n_tracks": 17, "n_playlists": 3},
+        {"version": 3, "action": "link", "groups": [["a", "b"]], "moved": ["b"], "n_tracks": 17, "n_playlists": 3},
+        {"version": 4, "action": "link-rebuild", "n_tracks": 17, "n_playlists": 4}]}
+    assert history_lines(meta) == [
+        "v1 · importada de fb78f2f6",
+        "v2 · agregada '2026 Octubre': +7 (5 a playlists existentes, 2 en playlists nuevas)",
+        "v3 · semillas: 1 grupo(s), 1 tema(s) movido(s)",
+        "v4 · rehecha desde cero con semillas (4 playlists)"]
+
+
+def test_org_payload_carries_seeds_and_meta():
+    ordered = pd.DataFrame({"track_uid": ["a", "b", "c"], "label_l1": [0, 0, 0], "label_l2": [0, 0, 0],
+                            "position": [0, 1, 2], "umap_x": [0.0, 1.0, 2.0], "umap_y": [0.0, 1.0, 2.0]})
+    org = {"hash": "org:x", "ordered": ordered, "names": {}, "cli": "x", "legacy": ["h1"],
+           "meta": {"name": "x", "version": 2, "current": True, "scopes": [""], "history": []},
+           "seeds": [["a", "c"], ["zz", "b"]]}
+    p = org_payload(org, {"a": 0, "b": 1, "c": 2}, "x v2")
+    assert p["cli"] == "x" and p["legacy"] == ["h1"] and p["seeds"] == [[0, 2], [1]]

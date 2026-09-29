@@ -13,6 +13,8 @@ PURPOSE: Organizaciones estables de la biblioteca (plan docs/plans/20260929_orga
          Export y página de revisión: phase5_export.py / build_review_page.py con --org-name.
 CHANGELOG:
   - 2026-09-29: Creación inicial.
+  - 2026-09-29: link --from-file: aplica las semillas exportadas desde la página de revisión (varios
+                grupos en una sola versión).
 """
 from __future__ import annotations
 
@@ -423,38 +425,67 @@ def resolve_track(query: str, assign: pd.DataFrame, catalog: pd.DataFrame) -> st
 
 def link(store: OrgStore, lib: Library, queries: List[str], rebuild: bool = False) -> Tuple[int, Dict]:
     """Semilla: los temas indicados (y todo lo ya vinculado a ellos) van a una misma playlist."""
+    v, info = link_groups(store, lib, [queries], rebuild)
+    return v, info["groups"][0] if info["mode"] == "frozen" else {"group": info["groups"][0], "mode": "rebuild"}
+
+
+def link_groups(store: OrgStore, lib: Library, query_groups: List[List[str]], rebuild: bool = False) -> Tuple[int, Dict]:
+    """Varias semillas de una vez (una sola versión nueva). Congelado: por cada grupo se mueve solo lo
+    necesario a la playlist, entre las que ya contienen algún miembro, que minimiza la distancia total
+    de los que se mueven (la del primer tema gana empates). rebuild: build desde cero con todas."""
     meta = store.meta()
     assign, names, _ = store.load()
-    uids = [resolve_track(q, assign, lib.catalog) for q in queries]
-    if len(set(uids)) < 2:
-        raise ValueError("Hacen falta al menos dos temas distintos")
-    groups = components(store.constraints() + [uids])
+    new_groups = []
+    for queries in query_groups:
+        uids = list(dict.fromkeys(resolve_track(q, assign, lib.catalog) for q in queries))
+        if len(uids) < 2:
+            raise ValueError(f"Hacen falta al menos dos temas distintos: {queries}")
+        new_groups.append(uids)
+    groups = components(store.constraints() + new_groups)
     store.save_constraints(groups)
-    comp = next(c for c in groups if uids[0] in c)
+    comps = [next(c for c in groups if g[0] in c) for g in new_groups]
     if rebuild:
         v = build(store, lib, meta["params"], org_scopes(meta), action="link-rebuild")
-        return v, {"group": comp, "mode": "rebuild"}
+        return v, {"groups": comps, "mode": "rebuild"}
 
     models = store.models(meta["model_version"])
     playlists = _playlists(assign)
-    where = {u: k for k, order in playlists.items() for u in order}
-    comp_in = [u for u in comp if u in where]
     X = dict(zip(assign["track_uid"], project(models["pca"], features(
         lib, assign["track_uid"].tolist(), meta["params"]["bpm_weight"], models["bpm_stats"]))))
-    cands = list(dict.fromkeys(where[u] for u in [uids[0]] + comp_in))  # la del primer tema gana empates
-    def cost(k):
-        c = np.mean([X[u] for u in playlists[k]], axis=0)
-        return sum(float(np.linalg.norm(X[u] - c)) for u in comp_in if where[u] != k)
-    target = min(cands, key=cost)
-    moved = [u for u in comp_in if where[u] != target]
-    for u in moved:
-        playlists[where[u]] = [x for x in playlists[where[u]] if x != u]
-        playlists[target] = insert_into(lib, playlists[target], u, meta["params"]["ordering_weights"])
-    playlists = {k: v for k, v in playlists.items() if v}
+    results, all_moved = [], []
+    for first, comp in ((g[0], c) for g, c in zip(new_groups, comps)):
+        where = {u: k for k, order in playlists.items() for u in order}
+        comp_in = [u for u in comp if u in where]
+        cands = list(dict.fromkeys(where[u] for u in [first] + comp_in))
+
+        def cost(k):
+            c = np.mean([X[u] for u in playlists[k]], axis=0)
+            return sum(float(np.linalg.norm(X[u] - c)) for u in comp_in if where[u] != k)
+        target = min(cands, key=cost)
+        moved = [u for u in comp_in if where[u] != target]
+        for u in moved:
+            playlists[where[u]] = [x for x in playlists[where[u]] if x != u]
+            playlists[target] = insert_into(lib, playlists[target], u, meta["params"]["ordering_weights"])
+        playlists = {k: v for k, v in playlists.items() if v}
+        results.append({"group": comp, "moved": moved, "target": target})
+        all_moved += moved
     assign = _renumber(assign, playlists)
-    assign.loc[assign["track_uid"].isin(moved), "origin"] = "link"
-    v = store.commit(meta, assign, names, "link", {"group": comp, "moved": moved, "target": list(target)})
-    return v, {"group": comp, "moved": moved, "target": target, "mode": "frozen"}
+    assign.loc[assign["track_uid"].isin(all_moved), "origin"] = "link"
+    v = store.commit(meta, assign, names, "link", {"groups": [r["group"] for r in results], "moved": all_moved,
+                                                     "targets": [list(r["target"]) for r in results]})
+    return v, {"groups": results, "mode": "frozen"}
+
+
+def read_seed_file(path: Path, org_name: str) -> List[List[str]]:
+    """Semillas exportadas por la página de revisión: {"org": ..., "groups": [{"tracks": [uid, ...]}]}."""
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    if data.get("org") and data["org"] != org_name:
+        raise ValueError(f"El archivo es de la organización '{data['org']}', no de '{org_name}'")
+    groups = [g["tracks"] if isinstance(g, dict) else g for g in data.get("groups", [])]
+    groups = [g for g in groups if len(g) >= 2]
+    if not groups:
+        raise ValueError(f"{path}: no hay grupos de al menos dos temas")
+    return groups
 
 
 def load_for_export(artifacts: Path, name: str, version: Optional[int] = None):
@@ -510,6 +541,7 @@ def main() -> int:
     parser.add_argument("--from-hash", default=None, help="import: config_hash de Phase 2-4")
     parser.add_argument("--track", action="append", default=[], help="link: tema (uid, ruta o texto 'artista - título'); repetible")
     parser.add_argument("--rebuild", action="store_true", help="link: rehacer todo desde cero con las semillas")
+    parser.add_argument("--from-file", default=None, help="link: JSON de semillas exportado desde la página de revisión")
     parser.add_argument("--rep", default=DEFAULT_PARAMS["rep"])
     parser.add_argument("--bpm-weight", type=float, default=DEFAULT_PARAMS["bpm_weight"])
     parser.add_argument("--n-l1", type=int, default=None, help="build: carpetas (default N/150)")
@@ -547,8 +579,16 @@ def main() -> int:
         v, info = add(store, Library(artifacts, store.meta()["params"]["rep"]), args.scope)
         print(f"[INFO] Agregados: {info}")
     else:  # link
-        v, info = link(store, Library(artifacts, store.meta()["params"]["rep"]), args.track, args.rebuild)
-        print(f"[INFO] Semilla: {info}")
+        lib = Library(artifacts, store.meta()["params"]["rep"])
+        if args.from_file:
+            v, info = link_groups(store, lib, read_seed_file(Path(args.from_file), args.name), args.rebuild)
+        else:
+            v, info = link_groups(store, lib, [args.track], args.rebuild)
+        if info["mode"] == "frozen":
+            for r in info["groups"]:
+                print(f"[INFO] Semilla de {len(r['group'])} temas → playlist {r['target']}; movidos: {len(r['moved'])}")
+        else:
+            print(f"[INFO] Reconstruida desde cero con {len(store.constraints())} semillas")
     show(store)
     print(f"[INFO] Versión actual: v{v}")
     return 0

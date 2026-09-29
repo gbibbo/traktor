@@ -70,4 +70,4 @@ Formato: - [x] Tarea X.Y — Descripción | Completado: YYYY-MM-DD
 - [x] 7.2 organize.py: import / build (por alcance, semillas) / add congelado / link / show  | Completado: 2026-09-29
 - [x] 7.3 Export y página de revisión por organización (--org-name)                          | Completado: 2026-09-29
 - [x] 7.4 biblioteca v1 = fb78f2f6 (mismo mapa, export idéntico a V4_1)                      | Completado: 2026-09-29
-- [ ] 7.5 Elegir semillas desde la página de revisión (hoy solo por línea de comandos)
+- [x] 7.5 Semillas desde la página de revisión (export JSON → organize.py link --from-file)   | Completado: 2026-09-29

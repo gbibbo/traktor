@@ -11,7 +11,10 @@ PURPOSE: Generar la página autónoma "Revisión de playlists" para que Gabriel 
 CHANGELOG:
   - 2026-09-27: Creación inicial. Veredictos guardados por dataset + config_hash (no por generación).
   - 2026-09-29: --org-name: organizaciones estables (organize.py); marca los temas agregados ('nuevo')
-                y los movidos por una semilla ('semilla').
+                y los movidos por una semilla ('semilla'). Nombre, versión, alcances, historial y
+                semillas aplicadas; 'nombre@N' para una versión anterior; sin argumentos, todas las
+                organizaciones con nombre. La página arma semillas y las exporta para
+                organize.py link --from-file.
 """
 import argparse
 import datetime as dt
@@ -94,11 +97,48 @@ def load_org(artifacts: Path, config_hash: str) -> Dict:
     return {"hash": config_hash, "rep": cfg.get("rep", "mert"), "ordered": ordered, "names": names}
 
 
-def load_named_org(artifacts: Path, name: str) -> Dict:
-    """Organización estable (orgs/<nombre>/) con el mismo formato que load_org."""
-    from src.v4.pipeline.organize import load_for_export
-    df, names, meta, v = load_for_export(artifacts, name)
-    return {"hash": f"org:{name}", "rep": f"{name} v{v}", "ordered": df, "names": names}
+def history_lines(meta: Dict) -> List[str]:
+    """Historial de versiones en castellano, para la barra lateral."""
+    out = []
+    for h in meta.get("history", []):
+        v, a = h["version"], h["action"]
+        if a == "import":
+            txt = f"importada de {h.get('source_hash')}"
+        elif a == "build":
+            txt = f"desde cero ({h['n_tracks']} temas, {h['n_playlists']} playlists)"
+        elif a == "add":
+            scope = h.get("scope")
+            scope = scope if isinstance(scope, str) else ", ".join(x or "toda la biblioteca" for x in scope or [])
+            parts = [f"{h.get('add', 0)} a playlists existentes"]
+            if h.get("add-new"):
+                parts.append(f"{h['add-new']} en playlists nuevas")
+            if h.get("add-far"):
+                parts.append(f"{h['add-far']} lejanos")
+            txt = f"agregada '{scope}': +{h.get('added', 0)} ({', '.join(parts)})"
+        elif a == "link":
+            groups = h.get("groups") or ([h["group"]] if h.get("group") else [])
+            txt = f"semillas: {len(groups)} grupo(s), {len(h.get('moved', []))} tema(s) movido(s)"
+        elif a == "link-rebuild":
+            txt = f"rehecha desde cero con semillas ({h['n_playlists']} playlists)"
+        else:
+            txt = a
+        out.append(f"v{v} · {txt}")
+    return out
+
+
+def load_named_org(artifacts: Path, spec: str) -> Dict:
+    """Organización estable (orgs/<nombre>/, 'nombre@N' = versión N) con el formato de load_org más
+    su meta, semillas aplicadas y el config_hash de origen (para trasladar veredictos)."""
+    from src.v4.pipeline.organize import OrgStore, load_for_export, org_scopes
+    name, _, ver = spec.partition("@")
+    df, names, meta, v = load_for_export(artifacts, name, int(ver.lstrip("v")) if ver else None)
+    current = v == meta["current_version"]
+    return {"hash": f"org:{name}" if current else f"org:{name}@v{v}", "rep": f"{name} v{v}", "ordered": df,
+            "names": names, "cli": name,
+            "meta": {"name": name, "version": v, "current": current, "scopes": org_scopes(meta),
+                     "history": history_lines(meta)},
+            "seeds": OrgStore(artifacts, name).constraints() if current else [],
+            "legacy": [meta["source_hash"]] if current and meta.get("source_hash") else []}
 
 
 FLAG_TEXT = {"add": "nuevo", "add-far": "nuevo", "add-new": "nuevo", "link": "semilla"}
@@ -129,7 +169,11 @@ def org_payload(org: Dict, uid_index: Dict[str, int], label: str, n_suggested: i
     flags = {}
     if "origin" in df.columns:
         flags = {str(uid_index[u]): FLAG_TEXT[o] for u, o in zip(df["track_uid"], df["origin"]) if o in FLAG_TEXT}
-    return {"id": org_id, "label": label, "folders": folders, "flags": flags,
+    extra = {}
+    if org.get("cli"):
+        extra = {"cli": org["cli"], "meta": org["meta"], "legacy": org.get("legacy", []),
+                 "seeds": [[uid_index[u] for u in g if u in uid_index] for g in org.get("seeds", [])]}
+    return {"id": org_id, "label": label, "folders": folders, "flags": flags, **extra,
             "trackIdx": [uid_index[u] for u in order],
             "xy": [[round(float(x), 4), round(float(y), 4)] for x, y in xy_df.to_numpy()]}
 
@@ -148,7 +192,7 @@ def main() -> int:
     parser.add_argument("--org", action="append", default=[],
                         help="config_hash de Phase 2 (repetible). Default: el ordered_*.parquet más reciente.")
     parser.add_argument("--org-name", action="append", default=[],
-                        help="Organización estable de organize.py (repetible; se combina con --org)")
+                        help="Organización estable de organize.py; 'nombre@N' = versión N (repetible; se combina con --org)")
     parser.add_argument("--blind", action="store_true", help="Mostrar las organizaciones como A/B en orden aleatorio")
     parser.add_argument("--seed", type=int, default=None, help="Semilla del orden a ciegas")
     parser.add_argument("--out", default=None, help=f"Default: <carpeta de audio>/{PAGE_NAME}")
@@ -156,7 +200,10 @@ def main() -> int:
 
     config = load_config(Path(args.config) if args.config else None)
     artifacts = resolve_dataset_artifacts(args.dataset_name, config)
-    orgs = [load_named_org(artifacts, n) for n in args.org_name]
+    specs = args.org_name
+    if not specs and not args.org:  # sin argumentos: todas las organizaciones con nombre
+        specs = sorted(p.parent.name for p in (artifacts / "orgs").glob("*/org.json"))
+    orgs = [load_named_org(artifacts, n) for n in specs]
     hashes = args.org or ([] if orgs else [sorted((artifacts / "clustering").glob("ordered_*.parquet"),
                                                   key=lambda p: p.stat().st_mtime)[-1].stem.replace("ordered_", "")])
     orgs += [load_org(artifacts, h) for h in hashes]

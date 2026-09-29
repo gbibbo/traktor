@@ -9,7 +9,7 @@
   color-scheme: light;
   --surface-1: #fcfcfb; --page: #f9f9f7; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
   --grid: #e1e0d9; --baseline: #c3c2b7; --border: rgba(11,11,11,0.10); --wash: rgba(11,11,11,0.05);
-  --series-1: #2a78d6; --series-2: #eb6834;
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
   --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
   --context-dot: #c3c2b7;
 }
@@ -18,14 +18,14 @@
     color-scheme: dark;
     --surface-1: #1a1a19; --page: #0d0d0d; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
     --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10); --wash: rgba(255,255,255,0.06);
-    --series-1: #3987e5; --series-2: #d95926; --context-dot: #4a4a46;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --context-dot: #4a4a46;
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
   --surface-1: #1a1a19; --page: #0d0d0d; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
   --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10); --wash: rgba(255,255,255,0.06);
-  --series-1: #3987e5; --series-2: #d95926; --context-dot: #4a4a46;
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --context-dot: #4a4a46;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
@@ -33,7 +33,9 @@ body { background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, -a
 button, select, textarea, input { font: inherit; color: inherit; }
 button { cursor: pointer; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; }
 button:hover { background: var(--wash); }
+button:disabled { opacity: .45; cursor: default; }
 button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible, .pl:focus-visible { outline: 2px solid var(--series-1); outline-offset: 1px; }
+input[type="search"], select { background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; }
 .app { display: grid; grid-template-columns: 320px 1fr; grid-template-rows: auto 1fr auto; height: 100vh; }
 header { grid-column: 1 / -1; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; padding: 10px 16px; background: var(--surface-1); border-bottom: 1px solid var(--border); }
 header h1 { font-size: 16px; margin: 0 8px 0 0; }
@@ -41,6 +43,9 @@ header h1 { font-size: 16px; margin: 0 8px 0 0; }
 .ink2 { color: var(--ink-2); }
 .spacer { flex: 1; }
 aside { overflow: auto; border-right: 1px solid var(--border); background: var(--surface-1); padding: 8px 0; }
+.orginfo { padding: 4px 14px 10px; border-bottom: 1px solid var(--grid); margin-bottom: 6px; font-size: 13px; }
+.orginfo summary { cursor: pointer; color: var(--ink-2); }
+.orginfo ol { margin: 4px 0 0; padding-left: 18px; color: var(--ink-2); }
 .folder > summary { list-style: none; cursor: pointer; padding: 6px 14px; font-weight: 600; display: flex; gap: 8px; align-items: baseline; }
 .folder > summary::-webkit-details-marker { display: none; }
 .folder > summary .n { font-weight: 400; margin-left: auto; font-variant-numeric: tabular-nums; }
@@ -56,25 +61,33 @@ main { overflow: auto; padding: 12px 16px 16px; }
 .maphead { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
 .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); }
 .legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; background: var(--c); }
+.legend span.ring::before { background: transparent; box-shadow: inset 0 0 0 2px var(--c); }
+.hl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
 #mapWrap { position: relative; }
 #map { width: 100%; height: 380px; display: block; touch-action: none; }
 #tip { position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12); display: none; max-width: 340px; z-index: 5; }
 #tip b { display: block; font-weight: 600; }
 h2 { font-size: 16px; margin: 0; }
+h3 { font-size: 14px; margin: 0; }
 .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
 .chip { background: var(--wash); border-radius: 999px; padding: 2px 10px; font-size: 12px; color: var(--ink-2); }
+.chip button { border: 0; background: none; padding: 0 0 0 6px; color: var(--muted); }
 .verdict { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
 .verdict button[aria-pressed="true"] { border-color: var(--c); box-shadow: inset 0 0 0 1px var(--c); font-weight: 600; }
 .verdict button i { font-style: normal; color: var(--c); margin-right: 4px; font-weight: 700; }
 textarea { width: 100%; min-height: 44px; margin-top: 8px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; resize: vertical; }
-.seq { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.seeds ul { margin: 6px 0 0; padding-left: 18px; }
+.seeds li { margin: 2px 0; }
+.cmd { width: 100%; font: 12px/1.4 ui-monospace, Consolas, monospace; background: var(--wash); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--grid); vertical-align: middle; }
 th { color: var(--muted); font-weight: 500; font-size: 12px; position: sticky; top: 0; background: var(--surface-1); }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 tr.playing td { background: var(--wash); }
 tr.flagged td.title { text-decoration: line-through; color: var(--muted); }
-td .play { padding: 2px 8px; border-radius: 6px; }
+td .play, td .seedbtn { padding: 2px 8px; border-radius: 6px; }
+.seedbtn[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--series-3); font-weight: 600; }
 .title small { display: block; color: var(--muted); font-size: 11px; }
 .flag { display: inline-block; margin-left: 6px; font-size: 11px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--ink-2); }
 footer { grid-column: 1 / -1; display: flex; gap: 12px; align-items: center; padding: 8px 16px; background: var(--surface-1); border-top: 1px solid var(--border); }
@@ -97,7 +110,7 @@ progress { width: 180px; height: 6px; }
     <span id="progress" class="ink2"></span>
     <span class="spacer"></span>
     <button id="helpBtn" aria-expanded="false">Cómo usar</button>
-    <button id="exportBtn">Exportar CSV</button>
+    <button id="exportBtn">Exportar veredictos (CSV)</button>
   </header>
   <aside id="side" aria-label="Carpetas y playlists"></aside>
   <main>
@@ -105,9 +118,10 @@ progress { width: 180px; height: 6px; }
     <div id="help" class="card help" hidden>
       <ul>
         <li><b>Objetivo:</b> decidir si la organización tiene sentido antes de importarla. Con las playlists marcadas con ★ (una por carpeta grande) alcanza.</li>
-        <li><b>Mapa:</b> cada punto es un tema; los cercanos suenan parecido para el modelo. Azul = la carpeta elegida, naranja = la playlist elegida con su orden. Clic en un punto lo reproduce.</li>
+        <li><b>Mapa:</b> cada punto es un tema; los cercanos suenan parecido para el modelo. Azul = la carpeta elegida, naranja = la playlist elegida con su orden, anillo verde = lo resaltado (temas nuevos, semillas o una búsqueda). Clic en un punto lo reproduce.</li>
         <li><b>Escuchar la secuencia:</b> reproduce un fragmento de cada tema en el orden de la playlist, desde la mitad del tema.</li>
-        <li><b>Veredicto:</b> "Tiene sentido", "A medias" o "No", una nota opcional, y "No va acá" en los temas que sobran. Se guarda solo en este navegador; <b>Exportar CSV</b> lo baja para pasármelo.</li>
+        <li><b>Veredicto:</b> "Tiene sentido", "A medias" o "No", una nota opcional, y "No va acá" en los temas que sobran. Se guarda solo en este navegador; <b>Exportar veredictos</b> lo baja en CSV.</li>
+        <li><b>Semillas:</b> con "＋" (en la tabla o abajo, sobre el tema que suena) juntás temas que tienen que ir en la misma playlist, aunque estén en playlists distintas. "Guardar grupo", y al terminar "Exportar semillas": la tarjeta muestra el comando que las aplica (congelado: solo se mueven esos temas; <code>--rebuild</code>: todo desde cero).</li>
         <li>Teclado: espacio = pausa, → = siguiente en la secuencia.</li>
       </ul>
     </div>
@@ -118,15 +132,28 @@ progress { width: 180px; height: 6px; }
           <span style="--c: var(--context-dot)">otros temas</span>
           <span style="--c: var(--series-1)">carpeta elegida</span>
           <span style="--c: var(--series-2)">playlist elegida (en orden)</span>
+          <span class="ring" style="--c: var(--series-3)">resaltados</span>
         </div>
+      </div>
+      <div class="hl">
+        <label class="ink2">Resaltar <select id="hlSel">
+          <option value="">nada</option>
+          <option value="new">temas nuevos</option>
+          <option value="seeds">semillas aplicadas</option>
+          <option value="draft">semillas en armado</option>
+        </select></label>
+        <input id="hlText" type="search" placeholder="o buscar tema, artista o carpeta (p. ej. 2025)" style="width:min(100%, 340px)" aria-label="Buscar para resaltar">
+        <span id="hlCount" class="muted" aria-live="polite"></span>
       </div>
       <div id="mapWrap"><canvas id="map" aria-label="Mapa 2D de los temas; la tabla de abajo tiene los mismos datos"></canvas><div id="tip" role="status"></div></div>
     </section>
+    <section class="card seeds" id="seedCard" aria-label="Semillas"></section>
     <section class="card" id="plCard" aria-live="polite"></section>
   </main>
   <footer>
     <button id="pauseBtn" aria-label="Pausa">Pausa</button>
     <button id="nextBtn" aria-label="Siguiente">Siguiente →</button>
+    <button id="seedNowBtn" disabled title="Agregar el tema que suena a la semilla en armado">＋ Semilla</button>
     <span id="now" class="ink2">Nada sonando.</span>
     <progress id="prog" max="1" value="0"></progress>
   </footer>
@@ -134,7 +161,7 @@ progress { width: 180px; height: 6px; }
 <audio id="audio" preload="none"></audio>
 <script>
 const DATA = /*__DATA__*/null;
-// Guardado por dataset y organización (config_hash): sobrevive a regenerar la página y al orden a ciegas
+// Guardado por dataset y organización: sobrevive a regenerar la página y al orden a ciegas
 const STORE_KEY = "traktor_playlist_review_v1_" + DATA.dataset;
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
@@ -147,11 +174,26 @@ const el = (tag, attrs = {}, ...kids) => {
   return n;
 };
 const T = DATA.tracks;
+const byU = new Map(T.map((t, i) => [t.u, i]));
 let state = {};
 try { state = JSON.parse(localStorage.getItem(STORE_KEY) || "{}"); } catch (e) { state = {}; }
 const firstVisit = !Object.keys(state).length;
+// Veredictos dados sobre la corrida original (config_hash) pasan a la organización importada de ella
+DATA.orgs.forEach(o => (o.legacy || []).forEach(h => {
+  if (!state[o.id] && state[h]) {
+    state[o.id] = {};
+    for (const [pid, j] of Object.entries(state[h])) state[o.id][o.id + pid.slice(h.length)] = j;
+  }
+}));
+// Semillas en armado que ya se aplicaron (todos sus temas en un mismo grupo aplicado) se descartan
+DATA.orgs.forEach(o => {
+  const pend = state._seeds?.[o.id]; if (!pend || !o.seeds?.length) return;
+  const applied = o.seeds.map(g => new Set(g.map(i => T[i].u)));
+  pend.groups = pend.groups.filter(g => !applied.some(a => g.every(u => a.has(u))));
+});
 const save = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} };
 const judg = (orgId, plId) => ((state[orgId] ||= {})[plId] ||= { verdict: "", note: "", notHere: [] });
+const seedState = () => ((state._seeds ||= {})[org.id] ||= { current: [], groups: [] });
 
 let org = DATA.orgs[0], folder = null, playlist = null;
 const VERDICTS = [
@@ -160,6 +202,7 @@ const VERDICTS = [
   { v: "no", label: "No", icon: "✗", c: "var(--critical)" },
 ];
 const vInfo = v => VERDICTS.find(x => x.v === v);
+const label = t => `${t.a ? t.a + " – " : ""}${t.t}`;
 
 // ---------- audio ----------
 const audio = $("#audio");
@@ -173,7 +216,8 @@ function play(idx, startFrac = 0.4) {
     audio.play().catch(() => {});
   }, { once: true });
   audio.load();
-  $("#now").textContent = `${t.a ? t.a + " – " : ""}${t.t}`;
+  $("#now").textContent = label(t);
+  $("#seedNowBtn").disabled = !org.cli;
   markPlaying();
 }
 audio.addEventListener("error", () => { if (audio.src) $("#audioWarn").style.display = "block"; });
@@ -200,6 +244,7 @@ function startSeq(items, fromPos = 0) {
 $("#pauseBtn").onclick = () => { if (audio.paused) audio.play().catch(() => {}); else { audio.pause(); stopSeq(); } };
 $("#nextBtn").onclick = () => { if (seq) { seq.i += 1; seqStep(); } else if (playlist && nowIdx != null) {
   const i = playlist.tracks.indexOf(nowIdx); if (i >= 0 && i + 1 < playlist.tracks.length) play(playlist.tracks[i + 1]); } };
+$("#seedNowBtn").onclick = () => { if (nowIdx != null) toggleSeed(nowIdx, true); };
 document.addEventListener("keydown", e => {
   if (["TEXTAREA", "INPUT", "SELECT"].includes(e.target.tagName)) return;
   if (e.code === "Space") { e.preventDefault(); $("#pauseBtn").click(); }
@@ -217,6 +262,7 @@ function plStats(pl) {
     bpm: bpms.length ? [Math.round(Math.min(...bpms)), Math.round(Math.max(...bpms))] : null,
     genres: count("g").slice(0, 3), folders: count("fs").slice(0, 3),
     vocal: ts.filter(t => t.v).length,
+    fresh: pl.tracks.filter(i => org.flags?.[i] === "nuevo").length,
   };
 }
 function badge(orgId, plId) {
@@ -226,6 +272,17 @@ function badge(orgId, plId) {
 }
 function renderSide() {
   const side = $("#side"); side.replaceChildren();
+  if (org.meta) {
+    const m = org.meta;
+    const info = el("div", { class: "orginfo" },
+      el("div", {}, el("strong", { text: `${m.name} v${m.version}` }), m.current ? null : el("span", { class: "muted", text: " (versión anterior)" })),
+      el("div", { class: "muted", text: "Alcance: " + (m.scopes.map(x => x || "toda la biblioteca").join(", ")) }));
+    if (m.history?.length) {
+      const d = el("details", {}, el("summary", { text: `Historial (${m.history.length} ${m.history.length === 1 ? "versión" : "versiones"})` }));
+      const ol = el("ol"); m.history.forEach(h => ol.append(el("li", { text: h }))); d.append(ol); info.append(d);
+    }
+    side.append(info);
+  }
   org.folders.forEach(f => {
     const det = el("details", { class: "folder" });
     if (folder && f.id === folder.id) det.open = true;
@@ -247,6 +304,58 @@ function renderSide() {
   $("#progress").textContent = `Revisadas ${done} de ${all.length} · sugeridas ★ ${sugDone} de ${sug.length}`;
 }
 
+// ---------- semillas ----------
+function toggleSeed(idx, onlyAdd = false) {
+  if (!org.cli) return;
+  const s = seedState(), u = T[idx].u, has = s.current.includes(u);
+  if (has && onlyAdd) return;
+  s.current = has ? s.current.filter(x => x !== u) : [...s.current, u];
+  save(); renderSeeds(); renderPlaylist(); drawMap();
+}
+function seedFileName() { return `semillas_${org.cli}_${DATA.run_id}.json`; }
+function seedPayload() {
+  const s = seedState();
+  return { org: org.cli, version: org.meta?.version ?? null, created: new Date().toISOString(),
+           groups: s.groups.map(g => ({ tracks: g, labels: g.map(u => byU.has(u) ? label(T[byU.get(u)]) : u) })) };
+}
+function renderSeeds() {
+  const card = $("#seedCard"); card.replaceChildren();
+  card.append(el("h3", { text: "Semillas: temas que van juntos" }));
+  if (!org.cli) {
+    card.append(el("p", { class: "muted", text: "Las semillas se aplican a organizaciones con nombre (organize.py); esta es una corrida de comparación." }));
+    return;
+  }
+  const s = seedState();
+  if (org.seeds?.length) card.append(el("p", { class: "muted",
+    text: `Ya aplicadas en ${org.meta.name} v${org.meta.version}: ${org.seeds.length} grupo(s) · resaltarlas con "semillas aplicadas".` }));
+  const cur = el("div", { class: "chips" });
+  if (!s.current.length) cur.append(el("span", { class: "muted", text: "Grupo en armado vacío: usá ＋ en la tabla o abajo, sobre el tema que suena." }));
+  s.current.forEach(u => { const i = byU.get(u);
+    cur.append(el("span", { class: "chip" }, i != null ? label(T[i]) : u,
+      el("button", { "aria-label": "Quitar", onclick: () => { s.current = s.current.filter(x => x !== u); save(); renderSeeds(); renderPlaylist(); drawMap(); } }, "×"))); });
+  card.append(cur);
+  const saveBtn = el("button", { onclick: () => { s.groups.push(s.current); s.current = []; save(); renderSeeds(); renderPlaylist(); drawMap(); } }, "Guardar grupo");
+  saveBtn.disabled = s.current.length < 2;
+  const clearBtn = el("button", { onclick: () => { s.current = []; save(); renderSeeds(); renderPlaylist(); drawMap(); } }, "Vaciar");
+  clearBtn.disabled = !s.current.length;
+  card.append(el("div", { class: "row" }, saveBtn, clearBtn, el("span", { class: "muted", text: "(mínimo 2 temas)" })));
+  if (s.groups.length) {
+    const ul = el("ul");
+    s.groups.forEach((g, k) => ul.append(el("li", {}, g.map(u => byU.has(u) ? label(T[byU.get(u)]) : u).join("  +  "), " ",
+      el("button", { "aria-label": "Borrar grupo", onclick: () => { s.groups.splice(k, 1); save(); renderSeeds(); } }, "borrar"))));
+    card.append(el("p", { class: "ink2", text: `Grupos listos para exportar: ${s.groups.length}` }), ul);
+    const exp = el("button", { onclick: () => {
+      const blob = new Blob([JSON.stringify(seedPayload(), null, 2)], { type: "application/json" });
+      const a = el("a", { href: URL.createObjectURL(blob), download: seedFileName() }); document.body.append(a); a.click(); a.remove();
+    } }, "Exportar semillas (JSON)");
+    const cmd = `.venv\\Scripts\\python.exe src\\v4\\pipeline\\organize.py link --name ${org.cli} --from-file "$env:USERPROFILE\\Downloads\\${seedFileName()}"`;
+    const box = el("input", { class: "cmd", readonly: "", value: cmd, "aria-label": "Comando para aplicar las semillas" });
+    const copy = el("button", { onclick: () => { box.select(); (navigator.clipboard?.writeText(cmd) || Promise.reject()).catch(() => document.execCommand("copy")); } }, "Copiar comando");
+    card.append(el("div", { class: "row" }, exp, copy), box,
+      el("p", { class: "muted", text: "Congelado: solo se mueven los temas de cada semilla. Para rehacer todo desde cero con las semillas, agregá --rebuild. Después: phase5_export.py --org-name y regenerar esta página." }));
+  }
+}
+
 // ---------- playlist panel ----------
 function renderPlaylist() {
   const card = $("#plCard"); card.replaceChildren();
@@ -257,6 +366,7 @@ function renderPlaylist() {
     el("span", { class: "chip", text: `${s.n} temas` }),
     s.bpm ? el("span", { class: "chip", text: `BPM ${s.bpm[0]}–${s.bpm[1]}` }) : null,
     el("span", { class: "chip", text: `Vocal ${s.vocal} de ${s.n}` }),
+    s.fresh ? el("span", { class: "chip", text: `Nuevos ${s.fresh}` }) : null,
     s.genres.length ? el("span", { class: "chip", text: "Géneros: " + s.genres.map(([g, n]) => `${g} (${n})`).join(", ") }) : null,
     s.folders.length ? el("span", { class: "chip", text: "Tus carpetas: " + s.folders.map(([g, n]) => `${g} (${n})`).join(", ") }) : null);
   card.append(chips);
@@ -270,16 +380,18 @@ function renderPlaylist() {
   const ta = el("textarea", { placeholder: "Nota (opcional): qué sobra, qué falta, cómo la usarías…" });
   ta.value = j.note || ""; ta.addEventListener("input", () => { j.note = ta.value; save(); });
   card.append(ta);
-  const seqRow = el("div", { class: "seq" },
+  const seqRow = el("div", { class: "row" },
     el("button", { id: "seqBtn", onclick: () => seq ? (stopSeq(), audio.pause()) : startSeq(playlist.tracks) }, "▶ Escuchar la secuencia"),
     el("label", { class: "ink2" }, "segundos por tema ",
       (() => { const sel = el("select", { id: "seqSecs" }); [10, 20, 30, 45].forEach(x => sel.append(el("option", { value: String(x), text: String(x) }))); sel.value = "20"; return sel; })()));
   card.append(seqRow);
+  const draft = new Set(org.cli ? seedState().current : []);
   const table = el("table", { style: "margin-top:10px" });
   table.append(el("thead", {}, el("tr", {},
     el("th", { class: "num", text: "#" }), el("th", { text: "" }), el("th", { text: "Tema" }),
     el("th", { class: "num", text: "BPM" }), el("th", { text: "Tono" }), el("th", { class: "num", text: "Energía" }),
-    el("th", { text: "Vocal" }), el("th", { text: "Género (tag)" }), el("th", { text: "Tu carpeta" }), el("th", { text: "No va acá" }))));
+    el("th", { text: "Vocal" }), el("th", { text: "Género (tag)" }), el("th", { text: "Tu carpeta" }),
+    el("th", { text: "No va acá" }), org.cli ? el("th", { text: "Semilla" }) : null)));
   const tb = el("tbody");
   playlist.tracks.forEach((idx, pos) => {
     const t = T[idx];
@@ -297,7 +409,9 @@ function renderPlaylist() {
       el("td", { text: t.v ? "Vocal" : "" }),
       el("td", { class: "ink2", text: t.g || "" }),
       el("td", { class: "ink2", text: t.fs || "" }),
-      el("td", {}, cb)));
+      el("td", {}, cb),
+      org.cli ? el("td", {}, el("button", { class: "seedbtn", "aria-pressed": String(draft.has(t.u)),
+        "aria-label": "Agregar a la semilla", onclick: () => toggleSeed(idx) }, draft.has(t.u) ? "✓" : "＋")) : null));
   });
   table.append(tb); card.append(table);
 }
@@ -306,6 +420,18 @@ function markPlaying() {
   const r = document.querySelector(`tr[data-idx="${nowIdx}"]`); if (r) r.classList.add("playing");
 }
 function select(f, pl) { folder = f; playlist = pl; stopSeq(); renderSide(); renderPlaylist(); drawMap(); }
+
+// ---------- resaltado ----------
+function highlighted() {
+  const mode = $("#hlSel").value, q = $("#hlText").value.trim().toLowerCase();
+  const out = new Set();
+  if (mode === "new") Object.entries(org.flags || {}).forEach(([i, f]) => { if (f === "nuevo") out.add(+i); });
+  if (mode === "seeds") (org.seeds || []).flat().forEach(i => out.add(i));
+  if (mode === "draft" && org.cli) { const s = seedState(); [...s.current, ...s.groups.flat()].forEach(u => byU.has(u) && out.add(byU.get(u))); }
+  if (q.length >= 2) org.trackIdx.forEach(i => { const t = T[i];
+    if (`${t.a} ${t.t} ${t.fs} ${t.p}`.toLowerCase().includes(q)) out.add(i); });
+  return out;
+}
 
 // ---------- map ----------
 const canvas = $("#map"), ctx = canvas.getContext("2d"), tip = $("#tip");
@@ -336,6 +462,11 @@ function drawMap() {
     const first = byTrack.get(playlist.tracks[0]);
     ctx.fillStyle = css("--ink"); ctx.font = "600 12px system-ui, sans-serif"; ctx.fillText("inicio", first.x + 8, first.y - 8);
   }
+  // Resaltados: anillo encima de todo (se ve aunque el punto sea de la carpeta o la playlist)
+  const hl = highlighted();
+  ctx.strokeStyle = css("--series-3"); ctx.lineWidth = 2;
+  hl.forEach(ti => { const p = byTrack.get(ti); if (!p) return; ctx.beginPath(); ctx.arc(p.x, p.y, 6.5, 0, 7); ctx.stroke(); });
+  $("#hlCount").textContent = hl.size ? `${hl.size} resaltado(s)` : "";
 }
 function nearest(mx, my) {
   let best = null, bd = 144; // radio 12 px
@@ -350,7 +481,7 @@ canvas.addEventListener("pointermove", e => {
   const r = canvas.getBoundingClientRect(), p = nearest(e.clientX - r.left, e.clientY - r.top);
   if (!p) { tip.style.display = "none"; canvas.style.cursor = "default"; return; }
   const ti = org.trackIdx[p.i], t = T[ti], [f, pl] = findPlaylist(ti);
-  tip.replaceChildren(el("b", { text: `${t.a ? t.a + " – " : ""}${t.t}` }),
+  tip.replaceChildren(el("b", { text: label(t) }),
     el("div", { class: "ink2", text: [t.b != null ? `${Math.round(t.b)} BPM` : null, t.k, t.g, t.v ? "Vocal" : null].filter(Boolean).join(" · ") }),
     el("div", { class: "muted", text: `${pl ? pl.name : ""}${t.fs ? " · tu carpeta: " + t.fs : ""}${org.flags?.[ti] ? " · " + org.flags[ti] : ""}` }));
   tip.style.display = "block";
@@ -368,8 +499,10 @@ canvas.addEventListener("click", e => {
 });
 window.addEventListener("resize", drawMap);
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawMap);
+$("#hlSel").onchange = drawMap;
+$("#hlText").addEventListener("input", drawMap);
 
-// ---------- export ----------
+// ---------- export de veredictos ----------
 function csvCell(v) { const s = v == null ? "" : String(v); return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }
 $("#exportBtn").onclick = () => {
   const rows = [["organizacion", "org_id", "tipo", "carpeta", "playlist", "veredicto", "nota", "n_temas", "track_uid", "tema", "ruta"]];
@@ -391,10 +524,11 @@ function selectFirstSuggested() {
   folder = null; playlist = null;
   for (const f of org.folders) { const pl = f.playlists.find(p => p.suggested); if (pl) { folder = f; playlist = pl; return; } }
 }
-orgSel.onchange = () => { org = DATA.orgs[+orgSel.value]; selectFirstSuggested(); stopSeq(); renderSide(); renderPlaylist(); drawMap(); };
+orgSel.onchange = () => { org = DATA.orgs[+orgSel.value]; selectFirstSuggested(); stopSeq(); renderSide(); renderSeeds(); renderPlaylist(); drawMap(); };
 if (DATA.orgs.length < 2) orgSel.disabled = true;
 selectFirstSuggested(); // arrancar con la primera playlist sugerida
-renderSide(); renderPlaylist(); drawMap();
+renderSide(); renderSeeds(); renderPlaylist(); drawMap();
+save();
 if (firstVisit) { $("#help").hidden = false; $("#helpBtn").setAttribute("aria-expanded", "true"); }
 // sondear que el audio esté accesible desde esta carpeta
 (() => { const probe = new Audio(); probe.preload = "metadata";

@@ -30,8 +30,9 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 
 1. GABRIEL: importar y validar `V4_1` en Rekordbox (pendrive) y Traktor (TODO 6.7).
 2. GABRIEL: con música nueva, `organize.py ingest --scope <carpeta>` y después `add` (congelado) o
-   `build` (desde cero) sobre `biblioteca`; elegir semillas con `link`. Falta elegirlas desde la
-   página de revisión (hoy por línea de comandos).
+   `build` (desde cero) sobre `biblioteca`. Semillas: armarlas en la página de revisión (＋ en la
+   tabla o sobre el tema que suena), exportarlas y aplicar el comando que muestra la página
+   (`link --from-file`, congelado; `--rebuild` para rehacer).
 3. LOCAL: ajustar el umbral Vocal con la lista de chequeo (`tag_vocals.py --check-list`).
 4. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
    tracklists y descarga del audio se consultan antes de implementar.
@@ -47,7 +48,7 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
   --l2-target-size 35 --pca-dim 50` y después Phases 3 a 5 con `--rep clap_full`.
 - Organizaciones: `organize.py ingest --scope "<carpeta>"` · `build --name X [--scope "<carpeta>"]` ·
   `add --name biblioteca --scope "<carpeta>"` · `link --name biblioteca --track "<texto>" --track
-  "<texto>" [--rebuild]` · `show --name X`. Export: `phase5_export.py --org-name X --formats
+  "<texto>" [--rebuild]` o `link --name X --from-file semillas.json` · `show --name X`. Export: `phase5_export.py --org-name X --formats
   m3u8,rekordbox,traktor --out-root artifacts/v4/datasets/musica/exports`; página: `--org-name X`.
 - Revisar escuchando: `tools/playlist_review/build_review_page.py --dataset-name musica`
   (varias organizaciones a ciegas: `--org <hash> --org <hash> --blind`).

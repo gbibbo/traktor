@@ -149,3 +149,12 @@ def test_extract_assembly_with_folder_uses_full_catalog(tmp_path, monkeypatch):
     monkeypatch.setenv("TRAKTOR_ARTIFACTS_ROOT", str(tmp_path / "artifacts"))
     run("u", {}, ["clap"], ["full"], None, None, Path("."), None, folder="A", assemble_only=True)
     assert json.loads((art / "representations" / "clap_full" / "track_uids.json").read_text()) == ["x1", "x2"]
+
+
+def test_read_seed_file(tmp_path):
+    from src.v4.pipeline.organize import read_seed_file
+    f = tmp_path / "s.json"
+    f.write_text(json.dumps({"org": "biblioteca", "groups": [{"tracks": ["a1", "b2"], "labels": ["A", "B"]}, {"tracks": ["c3"]}]}))
+    assert read_seed_file(f, "biblioteca") == [["a1", "b2"]]
+    with pytest.raises(ValueError, match="organización"):
+        read_seed_file(f, "otra")

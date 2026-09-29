@@ -93,6 +93,8 @@ python src/v4/pipeline/organize.py build --name biblioteca
 python src/v4/pipeline/organize.py build --name octubre --scope "2026 Octubre"
 # semilla: estos temas van juntos (congelado: solo se mueven ellos; --rebuild: todo desde cero)
 python src/v4/pipeline/organize.py link --name biblioteca --track "Artista - Título" --track "Otro tema"
+# o armarlas en la página de revisión (＋ en la tabla), exportarlas y aplicarlas de una vez:
+python src/v4/pipeline/organize.py link --name biblioteca --from-file "$env:USERPROFILE\Downloads\semillas_biblioteca_<fecha>.json"
 python src/v4/pipeline/organize.py show --name biblioteca
 # export y página de la versión actual
 python src/v4/pipeline/phase5_export.py --dataset-name musica --org-name biblioteca --formats m3u8,rekordbox,traktor --out-root artifacts/v4/datasets/musica/exports

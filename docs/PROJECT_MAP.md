@@ -160,7 +160,7 @@ principales y un subdirectorio `diagnostics/` con el detalle técnico.
 
 | Archivo | Descripción |
 | :--- | :--- |
-| `tools/playlist_review/build_review_page.py` | Genera `<carpeta de audio>/_revision_playlists.html`: mapa UMAP, playlists en orden, escucha de la secuencia, veredictos por playlist/tema exportables a CSV; varias organizaciones a ciegas (`--org`, `--blind`) |
+| `tools/playlist_review/build_review_page.py` | Genera `<carpeta de audio>/_revision_playlists.html`: mapa UMAP, playlists en orden, escucha de la secuencia, veredictos exportables a CSV; organizaciones con nombre (`--org-name X`, `X@N`; sin argumentos, todas) con versión, historial, temas nuevos y semillas; armado y export de semillas para `organize.py link --from-file`; corridas por hash a ciegas (`--org`, `--blind`) |
 | `tools/playlist_review/template.html` | Plantilla autónoma (sin servidor ni red; audio por rutas relativas) |
 
 ## Herramienta de feedback del DJ (`tools/dj_feedback/`)
