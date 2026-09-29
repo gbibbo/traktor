@@ -10,6 +10,8 @@ PURPOSE: Generar la página autónoma "Revisión de playlists" para que Gabriel 
          con --blind se muestran como A/B en orden aleatorio y la correspondencia se guarda aparte.
 CHANGELOG:
   - 2026-09-27: Creación inicial. Veredictos guardados por dataset + config_hash (no por generación).
+  - 2026-09-29: --org-name: organizaciones estables (organize.py); marca los temas agregados ('nuevo')
+                y los movidos por una semilla ('semilla').
 """
 import argparse
 import datetime as dt
@@ -92,6 +94,16 @@ def load_org(artifacts: Path, config_hash: str) -> Dict:
     return {"hash": config_hash, "rep": cfg.get("rep", "mert"), "ordered": ordered, "names": names}
 
 
+def load_named_org(artifacts: Path, name: str) -> Dict:
+    """Organización estable (orgs/<nombre>/) con el mismo formato que load_org."""
+    from src.v4.pipeline.organize import load_for_export
+    df, names, meta, v = load_for_export(artifacts, name)
+    return {"hash": f"org:{name}", "rep": f"{name} v{v}", "ordered": df, "names": names}
+
+
+FLAG_TEXT = {"add": "nuevo", "add-far": "nuevo", "add-new": "nuevo", "link": "semilla"}
+
+
 def org_payload(org: Dict, uid_index: Dict[str, int], label: str, n_suggested: int = 8) -> Dict:
     """id = config_hash: los veredictos guardados en el navegador siguen a la organización aunque se
     regenere la página o cambie la letra A/B."""
@@ -114,7 +126,10 @@ def org_payload(org: Dict, uid_index: Dict[str, int], label: str, n_suggested: i
         max(f["playlists"], key=lambda p: len(p["tracks"]))["suggested"] = True
     xy_df = df.set_index("track_uid")[["umap_x", "umap_y"]]
     order = list(xy_df.index)
-    return {"id": org_id, "label": label, "folders": folders,
+    flags = {}
+    if "origin" in df.columns:
+        flags = {str(uid_index[u]): FLAG_TEXT[o] for u, o in zip(df["track_uid"], df["origin"]) if o in FLAG_TEXT}
+    return {"id": org_id, "label": label, "folders": folders, "flags": flags,
             "trackIdx": [uid_index[u] for u in order],
             "xy": [[round(float(x), 4), round(float(y), 4)] for x, y in xy_df.to_numpy()]}
 
@@ -132,6 +147,8 @@ def main() -> int:
     parser.add_argument("--config", default=None)
     parser.add_argument("--org", action="append", default=[],
                         help="config_hash de Phase 2 (repetible). Default: el ordered_*.parquet más reciente.")
+    parser.add_argument("--org-name", action="append", default=[],
+                        help="Organización estable de organize.py (repetible; se combina con --org)")
     parser.add_argument("--blind", action="store_true", help="Mostrar las organizaciones como A/B en orden aleatorio")
     parser.add_argument("--seed", type=int, default=None, help="Semilla del orden a ciegas")
     parser.add_argument("--out", default=None, help=f"Default: <carpeta de audio>/{PAGE_NAME}")
@@ -139,9 +156,10 @@ def main() -> int:
 
     config = load_config(Path(args.config) if args.config else None)
     artifacts = resolve_dataset_artifacts(args.dataset_name, config)
-    hashes = args.org or [sorted((artifacts / "clustering").glob("ordered_*.parquet"),
-                                 key=lambda p: p.stat().st_mtime)[-1].stem.replace("ordered_", "")]
-    orgs = [load_org(artifacts, h) for h in hashes]
+    orgs = [load_named_org(artifacts, n) for n in args.org_name]
+    hashes = args.org or ([] if orgs else [sorted((artifacts / "clustering").glob("ordered_*.parquet"),
+                                                  key=lambda p: p.stat().st_mtime)[-1].stem.replace("ordered_", "")])
+    orgs += [load_org(artifacts, h) for h in hashes]
     catalog = pd.read_parquet(artifacts / "catalog.parquet")
     bpm_key = pd.read_parquet(artifacts / "features" / "bpm_key.parquet")
 
@@ -159,7 +177,8 @@ def main() -> int:
         key_path.write_text(json.dumps(key, indent=2), encoding="utf-8")
         print(f"[INFO] A ciegas: correspondencia en {key_path} (no está en la página)")
     else:
-        labels = [f"{o['rep']} ({o['hash']})" if len(orgs) > 1 else "Organización actual" for o in orgs]
+        labels = [(o["rep"] if o["hash"].startswith("org:") else f"{o['rep']} ({o['hash']})") if len(orgs) > 1
+                  else (o["rep"] if o["hash"].startswith("org:") else "Organización actual") for o in orgs]
 
     data = {"run_id": run_id, "dataset": args.dataset_name,
             "tracks": build_tracks(catalog, bpm_key, uids),

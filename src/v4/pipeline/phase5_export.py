@@ -6,6 +6,8 @@ PURPOSE: Phase 5 — Exportar playlists M3U compatibles con Traktor DJ.
          Formatos (--formats): m3u (histórico: carpeta Windows + nombre de archivo), m3u8 (UTF-8,
          rutas absolutas del catálogo), rekordbox (rekordbox.xml) y traktor (traktor.nml).
 CHANGELOG:
+  - 2026-09-29: --org-name [--org-version]: exporta una organización estable (organize.py) en
+                <out-root>/<nombre>_v<N>/, con carpeta raíz "TRAKTOR ML <nombre> v<N>".
   - 2026-09-27: --formats m3u8,rekordbox,traktor (src/v4/common/dj_export.py) con rutas absolutas
                 de catalog.source_path; --rep para el N canónico de una representación; --out-root;
                 nombres de playlist con rango de BPM de los tags.
@@ -117,6 +119,8 @@ def run_export(
     rep: Optional[str] = None,
     out_root: Optional[Path] = None,
     root_name: Optional[str] = None,
+    org_name: Optional[str] = None,
+    org_version: Optional[int] = None,
 ) -> Path:
     """
     Genera playlists desde ordered_<hash>.parquet y names_<hash>.json.
@@ -138,8 +142,13 @@ def run_export(
             or r"C:\Música\2020 new - copia"
         )
 
+    org_version_used = None
+    if org_name:
+        from src.v4.pipeline.organize import load_for_export
+        df, names, _meta, org_version_used = load_for_export(artifacts_dir, org_name, org_version)
+        print(f"[INFO] Organización '{org_name}' v{org_version_used}: {len(df)} temas")
     # Resolver config_hash
-    if config_hash is None:
+    elif config_hash is None:
         ordered_path = _find_latest_ordered(clustering_dir)
         if ordered_path is None:
             raise FileNotFoundError(
@@ -152,16 +161,17 @@ def run_export(
         if not ordered_path.exists():
             raise FileNotFoundError(f"Ordered results not found: {ordered_path}")
 
-    names_path = _find_latest_names(clustering_dir, config_hash)
-    if names_path is None:
-        print("[WARN] names_<hash>.json not found — using generic names")
-        names = {}
-    else:
-        with open(names_path, encoding="utf-8") as f:
-            names = json.load(f)
+    if not org_name:
+        names_path = _find_latest_names(clustering_dir, config_hash)
+        if names_path is None:
+            print("[WARN] names_<hash>.json not found — using generic names")
+            names = {}
+        else:
+            with open(names_path, encoding="utf-8") as f:
+                names = json.load(f)
 
-    print(f"[INFO] Loading ordered results: {ordered_path.name}")
-    df = pd.read_parquet(ordered_path)
+        print(f"[INFO] Loading ordered results: {ordered_path.name}")
+        df = pd.read_parquet(ordered_path)
 
     # Cargar catalog_success para metadata (artist/title/filename)
     catalog_success_path = artifacts_dir / "catalog_success.parquet"
@@ -180,11 +190,17 @@ def run_export(
     if any(f in DJ_FORMATS for f in formats) and "source_path" not in catalog.columns:
         raise ValueError("Formatos m3u8/rekordbox/traktor necesitan catalog.source_path")
 
-    # N canónico = filas de la representación usada (track_uids.json)
-    N_canonical = len(load_track_embeddings(artifacts_dir, rep=rep)[0])
+    # N canónico = filas de la representación usada (track_uids.json), o los temas de la organización
+    N_canonical = len(df) if org_name else len(load_track_embeddings(artifacts_dir, rep=rep)[0])
 
     # Crear directorio de output versionado
-    out_dir = _next_version_dir(playlists_base)
+    if org_name:  # carpeta estable por versión de la organización (se sobrescribe si se reexporta)
+        out_dir = playlists_base / f"{org_name}_v{org_version_used}"
+        if out_dir.exists():
+            import shutil
+            shutil.rmtree(out_dir)
+    else:
+        out_dir = _next_version_dir(playlists_base)
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f"[INFO] Output directory: {out_dir}")
 
@@ -279,7 +295,7 @@ def run_export(
     # Formatos para software de DJ (rutas absolutas del catálogo)
     if any(f in DJ_FORMATS for f in formats):
         tracks_meta = catalog.drop_duplicates("track_uid").set_index("track_uid")
-        root_label = root_name or f"TRAKTOR ML {out_dir.name}"
+        root_label = root_name or (f"TRAKTOR ML {org_name} v{org_version_used}" if org_name else f"TRAKTOR ML {out_dir.name}")
         if "m3u8" in formats:
             for spec in specs:
                 folder_dir = out_dir / "m3u8" / _sanitize_dirname(spec.folder) if spec.folder else out_dir / "m3u8"
@@ -342,6 +358,8 @@ def main() -> int:
     parser.add_argument("--rep", default=None, help="Variante de representations/ usada en Phases 2-4")
     parser.add_argument("--out-root", default=None, help="Carpeta base de los exports (default: playlists/)")
     parser.add_argument("--root-name", default=None, help="Nombre de la carpeta raíz en Rekordbox/Traktor")
+    parser.add_argument("--org-name", default=None, help="Exportar una organización estable (organize.py)")
+    parser.add_argument("--org-version", type=int, default=None, help="Versión de la organización (default: actual)")
     args = parser.parse_args()
 
     print("=" * 70)
@@ -361,6 +379,8 @@ def main() -> int:
         rep=args.rep,
         out_root=Path(args.out_root) if args.out_root else None,
         root_name=args.root_name,
+        org_name=args.org_name,
+        org_version=args.org_version,
     )
     return 0
 

@@ -76,6 +76,7 @@ tr.playing td { background: var(--wash); }
 tr.flagged td.title { text-decoration: line-through; color: var(--muted); }
 td .play { padding: 2px 8px; border-radius: 6px; }
 .title small { display: block; color: var(--muted); font-size: 11px; }
+.flag { display: inline-block; margin-left: 6px; font-size: 11px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--ink-2); }
 footer { grid-column: 1 / -1; display: flex; gap: 12px; align-items: center; padding: 8px 16px; background: var(--surface-1); border-top: 1px solid var(--border); }
 #now { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 progress { width: 180px; height: 6px; }
@@ -288,7 +289,8 @@ function renderPlaylist() {
     tb.append(el("tr", { "data-idx": String(idx), class: (flagged ? "flagged" : "") + (idx === nowIdx ? " playing" : "") },
       el("td", { class: "num muted", text: String(pos + 1) }),
       el("td", {}, el("button", { class: "play", "aria-label": "Reproducir", onclick: () => { stopSeq(); play(idx); } }, "▶")),
-      el("td", { class: "title" }, t.t, t.a ? el("small", { text: t.a }) : null),
+      el("td", { class: "title" }, t.t, org.flags?.[idx] ? el("span", { class: "flag", text: org.flags[idx] }) : null,
+        t.a ? el("small", { text: t.a }) : null),
       el("td", { class: "num", text: t.b != null ? String(Math.round(t.b)) : "" }),
       el("td", { text: t.k || "" }),
       el("td", { class: "num", text: t.e != null ? String(t.e) : "" }),
@@ -350,7 +352,7 @@ canvas.addEventListener("pointermove", e => {
   const ti = org.trackIdx[p.i], t = T[ti], [f, pl] = findPlaylist(ti);
   tip.replaceChildren(el("b", { text: `${t.a ? t.a + " – " : ""}${t.t}` }),
     el("div", { class: "ink2", text: [t.b != null ? `${Math.round(t.b)} BPM` : null, t.k, t.g, t.v ? "Vocal" : null].filter(Boolean).join(" · ") }),
-    el("div", { class: "muted", text: `${pl ? pl.name : ""}${t.fs ? " · tu carpeta: " + t.fs : ""}` }));
+    el("div", { class: "muted", text: `${pl ? pl.name : ""}${t.fs ? " · tu carpeta: " + t.fs : ""}${org.flags?.[ti] ? " · " + org.flags[ti] : ""}` }));
   tip.style.display = "block";
   const tx = Math.min(p.x + 14, r.width - tip.offsetWidth - 4);
   tip.style.left = tx + "px"; tip.style.top = Math.max(0, p.y - tip.offsetHeight - 10) + "px";

@@ -37,6 +37,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `phase3_name.py` | CPU: Naming semántico de clusters (genre voting + fallback genérico) |
 | `phase4_order.py` | CPU: Ordering greedy NN (cosine + BPM + Camelot key) → ordered_<hash>.parquet |
 | `extract_representations.py` | CPU: representaciones congeladas (EffNet, MAEST, MERT por capas, CLAP, MAEST-HF, AST; full y HPSS) con segmentación V4 → representations/<variante>/ (fase 2 del plan); `--shard`, `--assemble-only`, `--folder`, `--low-priority`, filtros de duración |
+| `organize.py` | Organizaciones estables con versiones (`orgs/<nombre>/`): `ingest` por carpeta, `import` de un config_hash, `build` (por alcance, con semillas), `add` congelado, `link` (congelado o `--rebuild`), `show` |
 | `tag_vocals.py` | CPU: etiqueta Vocal (CLAP zero-shot o AST AudioSet) → features/vocals_<método>.parquet; `--write-tags` agrega " - Vocal" al comentario con respaldo CSV y `--revert` |
 | `phase5_export.py` | CPU: Export M3U Traktor (UTF-8, rutas Windows) → playlists/V4_<N>/; `--formats m3u8,rekordbox,traktor`, `--rep`, `--out-root` |
 
@@ -81,6 +82,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_representation_eval.py` | Unit tests de representation_eval (tripletas, bootstrap pareado, coherencia kNN/MAP) |
 | `test_triplet_evidence.py` | Unit tests de triplet_evidence (dedup, resolución, baselines) |
 | `test_tags_catalog.py` | Unit tests de tags.py y del catálogo recursivo (hash estable al escribir tags, dedup) |
+| `test_organize.py` | Unit tests de organize.py: build por alcance, add congelado, link congelado/rebuild, catálogo por alcance, ensamblado con --folder |
 | `test_playlist_review.py` | Unit tests del generador de la página de revisión |
 | `test_dj_export.py` | Unit tests de rekordbox.xml / NML / M3U8, bpm_key desde tags, orden por energía, ventanas |
 

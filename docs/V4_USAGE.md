@@ -77,6 +77,28 @@ python src/v4/pipeline/phase4_order.py --dataset-name musica --rep clap_full
 python src/v4/pipeline/phase5_export.py --dataset-name musica --rep clap_full --formats m3u8,rekordbox,traktor --out-root artifacts/v4/datasets/musica/exports
 ```
 
+**Organizaciones estables (2026-09-29).** Las playlists para tocar salen de una organización con
+nombre y versiones (`src/v4/pipeline/organize.py`, plan `docs/plans/20260929_organizaciones_estables.md`):
+
+```bash
+# convertir la organización elegida en 'biblioteca' v1 (sin cambios; reproduce el mismo mapa)
+python src/v4/pipeline/organize.py import --name biblioteca --from-hash fb78f2f6
+# música nueva en Música/<carpeta>: catálogo, BPM, CLAP y Vocal solo de esa carpeta
+python src/v4/pipeline/organize.py ingest --scope "2026 Octubre"
+# a) agregarla sin tocar nada de lo existente (congelado)
+python src/v4/pipeline/organize.py add --name biblioteca --scope "2026 Octubre"
+# b) o rehacer todo desde cero (nueva versión)
+python src/v4/pipeline/organize.py build --name biblioteca
+# organizar solo esa carpeta, con su propio mapa
+python src/v4/pipeline/organize.py build --name octubre --scope "2026 Octubre"
+# semilla: estos temas van juntos (congelado: solo se mueven ellos; --rebuild: todo desde cero)
+python src/v4/pipeline/organize.py link --name biblioteca --track "Artista - Título" --track "Otro tema"
+python src/v4/pipeline/organize.py show --name biblioteca
+# export y página de la versión actual
+python src/v4/pipeline/phase5_export.py --dataset-name musica --org-name biblioteca --formats m3u8,rekordbox,traktor --out-root artifacts/v4/datasets/musica/exports
+python tools/playlist_review/build_review_page.py --dataset-name musica --org-name biblioteca
+```
+
 **Antes de importar, revisar escuchando:** `python tools/playlist_review/build_review_page.py
 --dataset-name musica` escribe `Música/_revision_playlists.html` (necesita Phase 2 sin `--skip-umap`).
 Se abre con doble clic; los veredictos se exportan a CSV. Para comparar dos organizaciones a ciegas:

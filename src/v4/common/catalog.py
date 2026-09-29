@@ -3,6 +3,8 @@ PURPOSE: Catálogo central de dataset. Single source of truth para metadata de t
          Soporta dos modos de hashing: full (SHA256 archivo completo, default) y
          fast (SHA256 de primeros N bytes + filesize).
 CHANGELOG:
+  - 2026-09-29: scope: escanear solo una subcarpeta y combinarla con el catálogo existente (el resto
+                se conserva; el deduplicado es global).
   - 2026-09-27: Biblioteca con subcarpetas: recursive, rel_path/folder, lectura de tags
                 (read_tags), hash "audio" estable ante ediciones de tags, y deduplicado por
                 track_uid prefiriendo la copia organizada sobre carpetas "copia"/"old N".
@@ -95,6 +97,11 @@ def _get_duration(filepath: Path) -> Optional[float]:
         return None
 
 
+def scope_prefix(scope: str) -> str:
+    """'2025', '2025/' o '2025/sub' (también con barras de Windows) -> prefijo de rel_path '2025/'."""
+    return str(scope).replace("\\", "/").strip("/") + "/"
+
+
 def _copy_penalty(rel_path: str) -> int:
     """1 si alguna carpeta de la ruta parece una copia de respaldo; 0 si no."""
     parts = Path(rel_path).parts[:-1]
@@ -125,6 +132,7 @@ def build_catalog(
     recursive: bool = False,
     with_tags: bool = False,
     hash_mode: Optional[str] = None,
+    scope: Optional[str] = None,
 ) -> pd.DataFrame:
     """
     Escanear directorio y construir catálogo.
@@ -136,6 +144,8 @@ def build_catalog(
     Si metadata_df está disponible, merge por filename normalizado.
     Duplicados exactos (mismo track_uid) se reducen a una fila; los descartados van a
     duplicates.csv junto al catálogo.
+    scope: subcarpeta relativa a audio_dir. Solo se escanea esa carpeta; sus filas reemplazan a las
+    del catálogo existente bajo ese prefijo y el resto del catálogo se conserva.
     Guarda en artifacts/v4/datasets/<dataset_name>/catalog.parquet.
 
     Returns: DataFrame del catálogo (solo tracks válidos con duration_s no None).
@@ -145,7 +155,10 @@ def build_catalog(
     hash_mode = hash_mode or hashing_cfg.get("mode", "full")
     hash_bytes = hashing_cfg.get("fast_bytes_to_read", TRACK_UID_BYTES_TO_READ)
 
-    audio_files = get_audio_files(audio_dir, recursive=recursive)
+    scan_dir = audio_dir / scope if scope else audio_dir
+    if not scan_dir.is_dir():
+        raise FileNotFoundError(f"No existe la carpeta a catalogar: {scan_dir}")
+    audio_files = get_audio_files(scan_dir, recursive=recursive or bool(scope))
 
     rows = []
     n_failed = 0
@@ -177,6 +190,15 @@ def build_catalog(
         rows.append(row)
 
     catalog = pd.DataFrame(rows)
+    artifacts_dir = resolve_dataset_artifacts(dataset_name, config)
+    if scope:
+        prev_path = artifacts_dir / "catalog.parquet"
+        if prev_path.exists():
+            prev = pd.read_parquet(prev_path)
+            prefix = scope_prefix(scope)
+            keep = prev[~prev["rel_path"].str.startswith(prefix)] if "rel_path" in prev.columns else prev
+            print(f"[INFO] Alcance '{scope}': {len(catalog)} temas escaneados; se conservan {len(keep)} del catálogo previo")
+            catalog = pd.concat([keep, catalog], ignore_index=True)
     catalog, dropped = dedupe_by_uid(catalog)
 
     # Merge con metadata externa si disponible
@@ -184,12 +206,15 @@ def build_catalog(
         catalog = _merge_metadata(catalog, metadata_df)
 
     # Guardar
-    artifacts_dir = resolve_dataset_artifacts(dataset_name, config)
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     out_path = artifacts_dir / "catalog.parquet"
     catalog.to_parquet(out_path, index=False)
     if not dropped.empty:
-        dropped.to_csv(artifacts_dir / "duplicates.csv", index=False)
+        dup_path = artifacts_dir / "duplicates.csv"
+        if scope and dup_path.exists():  # conservar los duplicados ya registrados fuera del alcance
+            old = pd.read_csv(dup_path)
+            dropped = pd.concat([old[~old["rel_path"].str.startswith(scope_prefix(scope))], dropped]).drop_duplicates("rel_path")
+        dropped.to_csv(dup_path, index=False)
 
     print(f"[INFO] Catalog: {len(catalog)} tracks OK, {n_failed} failed, "
           f"{len(dropped)} duplicate files dropped → {out_path}")

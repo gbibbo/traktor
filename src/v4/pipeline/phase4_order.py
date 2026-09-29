@@ -4,6 +4,8 @@ PURPOSE: Phase 4 — Ordenamiento intra-cluster para transiciones suaves entre t
          Normaliza keys de Essentia ('C minor') a Camelot ('5A') antes de calcular compatibilidad.
          Guarda clustering/ordered_<hash>.parquet con columna 'position' por L2 subcluster.
 CHANGELOG:
+  - 2026-09-29: transition_score() y insert_position(): el puntaje de transición del greedy como
+                función, e inserción de menor costo en un orden existente (organize.py add/link).
   - 2026-09-27: --rep (cualquier representación de representations/) y energía de Mixed In Key
                 (bpm_key.energy): arranque por menor energía y término opcional weights.energy.
   - 2026-09-11: key_compatibility y parsing Camelot movidos a src/v4/common/harmonic.py
@@ -46,6 +48,50 @@ def _l2_normalize_rows(matrix: np.ndarray) -> np.ndarray:
     norms = np.linalg.norm(matrix, axis=1, keepdims=True)
     norms = np.where(norms == 0, 1.0, norms)
     return matrix / norms
+
+
+def transition_score(a: int, b: int, emb: np.ndarray, bpm: np.ndarray, keys: List[str], bpm_range: float,
+                     weights: Dict[str, float], energy: Optional[np.ndarray] = None) -> float:
+    """Puntaje (mayor = mejor) de pasar del tema a al b; índices en los arrays dados."""
+    # Similitud de embedding (dot product de vectores L2-normalizados = cosine sim), remapeada a [0,1]
+    emb_score = (float(np.dot(emb[a], emb[b])) + 1.0) / 2.0
+    # BPM score (menor diferencia = mayor score)
+    bpm_score = max(0.0, 1.0 - abs(float(bpm[a]) - float(bpm[b])) / bpm_range)
+    # Key compatibility score
+    key_score = key_compatibility(keys[a], keys[b])
+    score = weights.get("embedding", 0.5) * emb_score + weights.get("bpm", 0.3) * bpm_score + weights.get("key", 0.2) * key_score
+    w_energy = weights.get("energy", 0.0)
+    if energy is not None and w_energy > 0:
+        e_a, e_b = energy[a], energy[b]
+        energy_score = 1.0 - abs(e_a - e_b) / 9.0 if np.isfinite(e_a) and np.isfinite(e_b) else 0.5
+        score += w_energy * energy_score
+    return score
+
+
+def insert_position(order: List[int], new: int, embeddings: np.ndarray, bpm: np.ndarray, camelot_keys: List[str],
+                    weights: Optional[Dict[str, float]] = None, energy: Optional[np.ndarray] = None) -> int:
+    """Posición (0..len(order)) donde insertar `new` en `order` (índices globales) con menor costo,
+    costo = 1 - transition_score (inserción más barata de camino): en el medio suma
+    c(p,new) + c(new,n) - c(p,n); en los extremos, la única arista nueva. No reordena nada."""
+    if not order:
+        return 0
+    weights = weights or dict(ORDERING_WEIGHTS)
+    idx = list(order) + [new]
+    b = bpm[idx]
+    bpm_range = float(np.ptp(b)) if np.ptp(b) > 0 else 1.0
+    local = {g: k for k, g in enumerate(idx)}
+    emb, bb, kk = embeddings[idx], bpm[idx], [camelot_keys[i] for i in idx]
+    en = np.asarray(energy, dtype=float)[idx] if energy is not None else None
+    c = lambda x, y: 1.0 - transition_score(local[x], local[y], emb, bb, kk, bpm_range, weights, en)  # noqa: E731
+    best_pos, best_cost = 0, c(new, order[0])
+    end_cost = c(order[-1], new)
+    if end_cost < best_cost:
+        best_pos, best_cost = len(order), end_cost
+    for k in range(1, len(order)):
+        cost = c(order[k - 1], new) + c(new, order[k]) - c(order[k - 1], order[k])
+        if cost < best_cost:
+            best_pos, best_cost = k, cost
+    return best_pos
 
 
 def order_cluster_tracks(
@@ -116,22 +162,8 @@ def order_cluster_tracks(
         for j in range(n):
             if visited[j]:
                 continue
-            # Similitud de embedding (dot product de vectores L2-normalizados = cosine sim)
-            emb_score = float(np.dot(sub_emb[current], sub_emb[j]))
-            emb_score = (emb_score + 1.0) / 2.0  # Remap [-1,1] → [0,1]
-
-            # BPM score (menor diferencia = mayor score)
-            bpm_diff = abs(float(sub_bpm[current]) - float(sub_bpm[j]))
-            bpm_score = max(0.0, 1.0 - bpm_diff / bpm_range)
-
-            # Key compatibility score
-            key_score = key_compatibility(sub_keys[current], sub_keys[j])
-
-            score = w_emb * emb_score + w_bpm * bpm_score + w_key * key_score
-            if sub_energy is not None and w_energy > 0:
-                e_a, e_b = sub_energy[current], sub_energy[j]
-                energy_score = 1.0 - abs(e_a - e_b) / 9.0 if np.isfinite(e_a) and np.isfinite(e_b) else 0.5
-                score += w_energy * energy_score
+            score = transition_score(current, j, sub_emb, sub_bpm, sub_keys, bpm_range,
+                                     {"embedding": w_emb, "bpm": w_bpm, "key": w_key, "energy": w_energy}, sub_energy)
             if score > best_score:
                 best_score = score
                 best_next = j

@@ -21,6 +21,8 @@ CHANGELOG:
                 y --assemble-only para ensamblar al final. --folder: solo una subcarpeta (pasada de
                 verificación chica antes de una corrida larga; comparte la caché). --low-priority:
                 prioridad baja del proceso (corridas largas sin frenar Rekordbox/Traktor).
+  - 2026-09-29: --folder / --max-tracks limitan solo la extracción: el ensamblado usa siempre el
+                catálogo completo (antes, extraer una carpeta dejaba embeddings.npy solo con ella).
   - 2026-09-12: Creación inicial.
 """
 from __future__ import annotations
@@ -295,6 +297,7 @@ def run(dataset_name: str, config: dict, backends: List[str], sources: List[str]
         hi = max_duration if max_duration is not None else np.inf
         catalog = catalog[catalog["duration_s"].between(lo, hi)]
         print(f"[INFO] Filtro de duración [{lo}, {hi}] s: {len(catalog)}/{n0} temas")
+    assemble_catalog = catalog  # el ensamblado cubre siempre el catálogo completo (solo temas en caché)
     if folder:
         key = catalog["rel_path"] if "rel_path" in catalog.columns else catalog["filename"]
         prefix = folder.replace("\\", "/").rstrip("/") + "/"
@@ -355,7 +358,7 @@ def run(dataset_name: str, config: dict, backends: List[str], sources: List[str]
         for s in sources:
             cache = rep_root / f"{b}_{s}" / "cache"
             uids, per_key = [], {}
-            for row in catalog.itertuples():
+            for row in assemble_catalog.itertuples():
                 f = cache / f"{row.track_uid}.npz"
                 if not f.exists():
                     continue

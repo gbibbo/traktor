@@ -64,3 +64,10 @@ Formato: - [x] Tarea X.Y — Descripción | Completado: YYYY-MM-DD
 - [x] 6.6 Phase 5 --formats m3u8,rekordbox,traktor (dj_export.py)                 | Completado: 2026-09-27
 - [ ] 6.7 Gabriel importa en Rekordbox (pendrive) y Traktor y valida los formatos
 - [x] 6.8 MAEST-HF sobre la biblioteca (noche) y comparación contra CLAP en tripletas/carpetas | Completado: 2026-09-29 (tripletas no concluyentes; escuchando, Gabriel eligió CLAP)
+
+## BLOQUE 7: Organizaciones estables (plan docs/plans/20260929_organizaciones_estables.md)
+- [x] 7.1 Catálogo y extracción por carpeta (phase0 --scope; ensamblado siempre completo)      | Completado: 2026-09-29
+- [x] 7.2 organize.py: import / build (por alcance, semillas) / add congelado / link / show  | Completado: 2026-09-29
+- [x] 7.3 Export y página de revisión por organización (--org-name)                          | Completado: 2026-09-29
+- [x] 7.4 biblioteca v1 = fb78f2f6 (mismo mapa, export idéntico a V4_1)                      | Completado: 2026-09-29
+- [ ] 7.5 Elegir semillas desde la página de revisión (hoy solo por línea de comandos)

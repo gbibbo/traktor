@@ -11,6 +11,9 @@ CHANGELOG:
                 dimensión más tras normalizar (cajones con tempo coherente; decisión de diseño).
                 PCA con random_state=0: con N > 500 sklearn usa el solver randomized y, sin semilla,
                 los grupos cambiaban entre corridas.
+  - 2026-09-29: ward_two_level(): el Ward en dos niveles como función reutilizable (organize.py), con
+                semillas (must-link): cada grupo se colapsa en su centroide antes de Ward en ambos
+                niveles, así sus temas quedan en la misma carpeta y playlist. Sin semillas, idéntico.
                 --method ward: aglomerativo Ward determinista con número de grupos fijado (--n-l1,
                 y L2 con --l2-target-size temas por playlist). En CLAP, HDBSCAN deja ~88 % de ruido
                 y 2-3 grupos gigantes: el espacio no tiene grupos densos, hace falta particionar.
@@ -86,6 +89,105 @@ def _ward_cluster(X: np.ndarray, n_clusters: int) -> np.ndarray:
     if n_clusters == 1:
         return np.zeros(len(X), dtype=int)
     return AgglomerativeClustering(n_clusters=n_clusters, linkage="ward").fit_predict(X).astype(int)
+
+
+def _collapse(X: np.ndarray, groups: Optional[List[np.ndarray]]):
+    """Nodos para Ward: cada grupo (índices de filas de X) se reemplaza por su centroide.
+    Devuelve (matriz de nodos, lista de índices de X por nodo)."""
+    if not groups:
+        return X, [np.array([i]) for i in range(len(X))]
+    in_group = np.zeros(len(X), dtype=bool)
+    rows, members = [], []
+    for g in groups:
+        g = np.asarray(g, dtype=int)
+        rows.append(X[g].mean(axis=0))
+        members.append(g)
+        in_group[g] = True
+    for i in np.flatnonzero(~in_group):
+        rows.append(X[i])
+        members.append(np.array([i]))
+    return np.vstack(rows).astype(X.dtype), members
+
+
+def _expand(node_labels: np.ndarray, members: List[np.ndarray], n: int) -> np.ndarray:
+    out = np.empty(n, dtype=int)
+    for lab, m in zip(node_labels, members):
+        out[m] = lab
+    return out
+
+
+def ward_two_level(F_l1: np.ndarray, F_l2: np.ndarray, n_l1: int, l2_target_size: int, pca_dim: int,
+                   groups: Optional[List[np.ndarray]] = None):
+    """Ward en dos niveles (el de --method ward): L1 sobre PCA(F_l1) con n_l1 grupos; L2 dentro de
+    cada L1 con round(n / l2_target_size) grupos, sobre F_l2 (con PCA propia si n >= 2*pca_dim).
+    groups: listas de índices que deben quedar juntos (se colapsan en su centroide en ambos niveles).
+    Devuelve (labels_l1, labels_l2, ids L1 con menos de L2_MIN_PARENT_SIZE temas)."""
+    N = len(F_l1)
+    groups = [np.asarray(g, dtype=int) for g in (groups or []) if len(g) > 1]
+    X1 = _apply_pca(F_l1, pca_dim, label="L1/perc")
+    nodes, members = _collapse(X1, groups)
+    print(f"[INFO] Running L1 Ward (n_clusters={n_l1}{f', {len(groups)} semillas' if groups else ''}) ...")
+    labels_l1 = _expand(_ward_cluster(nodes, n_l1), members, N)
+    labels_l2 = np.full(N, -1, dtype=int)
+    small = []
+    for cl1 in sorted(set(labels_l1)):
+        idx = np.flatnonzero(labels_l1 == cl1)
+        n_in = len(idx)
+        if n_in < L2_MIN_PARENT_SIZE:
+            labels_l2[idx] = 0
+            small.append(int(cl1))
+            continue
+        sub = F_l2[idx]
+        if pca_dim > 0 and n_in >= 2 * pca_dim:
+            sub = _apply_pca(sub, pca_dim, label=f"L2/cl{cl1}")
+        pos = {g: k for k, g in enumerate(idx)}
+        sub_groups = [np.array([pos[i] for i in g]) for g in groups if pos.get(int(g[0])) is not None]
+        sub_nodes, sub_members = _collapse(sub, sub_groups)
+        labels_l2[idx] = _expand(_ward_cluster(sub_nodes, int(round(n_in / l2_target_size))), sub_members, n_in)
+        print(f"  L1={cl1}: {n_in} tracks → {len(set(labels_l2[idx]))} subclusters")
+    return labels_l1, labels_l2, small
+
+
+def _hdbscan_two_level(perc_norm, full_norm, pca_dim, l1_min_cluster_size, l1_min_samples,
+                       l2_min_cluster_size, l2_min_samples, assign_noise):
+    """HDBSCAN L1 sobre PCA(perc_norm) y L2 dentro de cada L1 sobre full_norm (camino histórico)."""
+    N = len(perc_norm)
+    perc_for_l1 = _apply_pca(perc_norm, pca_dim, label="L1/perc")
+    print(f"[INFO] Running L1 HDBSCAN (min_cluster_size={l1_min_cluster_size}, "
+          f"min_samples={l1_min_samples}) ...")
+    labels_l1 = _hdbscan_cluster(perc_for_l1, l1_min_cluster_size, l1_min_samples)
+    labels_l1_raw = labels_l1.copy()  # conservar para diagnóstico
+    n_clusters_l1 = len(set(labels_l1[labels_l1 != -1]))
+    n_noise_l1 = int(np.sum(labels_l1 == -1))
+    print(f"[INFO] L1 result: {n_clusters_l1} clusters, {n_noise_l1} noise points "
+          f"({n_noise_l1/N:.1%})")
+    if assign_noise:
+        labels_l1 = _reassign_noise(perc_for_l1, labels_l1)
+
+    labels_l2 = np.full(N, -1, dtype=int)
+    labels_l2_raw = np.full(N, -1, dtype=int)  # conservar para diagnóstico
+    l2_small_cluster_ids = []
+    for cl1 in sorted(set(labels_l1[labels_l1 != -1])):
+        mask = labels_l1 == cl1
+        n_in_cluster = int(np.sum(mask))
+        if n_in_cluster < L2_MIN_PARENT_SIZE:
+            # Cluster demasiado pequeño: subgrupo único trivial
+            labels_l2[mask] = 0
+            labels_l2_raw[mask] = 0
+            l2_small_cluster_ids.append(int(cl1))
+            continue
+        sub_emb = full_norm[mask]
+        # PCA L2: solo si hay suficientes tracks (idealmente > 2*pca_dim)
+        if pca_dim > 0 and n_in_cluster >= 2 * pca_dim:
+            sub_emb = _apply_pca(sub_emb, pca_dim, label=f"L2/cl{cl1}")
+        sub_labels = _hdbscan_cluster(sub_emb, l2_min_cluster_size, l2_min_samples)
+        labels_l2_raw[mask] = sub_labels  # conservar raw antes de reassignment
+        if assign_noise:
+            sub_labels = _reassign_noise(sub_emb, sub_labels)
+        labels_l2[mask] = sub_labels
+        n_sub = len(set(sub_labels[sub_labels != -1]))
+        print(f"  L1={cl1}: {n_in_cluster} tracks → {n_sub} subclusters")
+    return labels_l1, labels_l1_raw, labels_l2, labels_l2_raw, l2_small_cluster_ids, n_clusters_l1, n_noise_l1
 
 
 def _apply_pca(X: np.ndarray, pca_dim: int, label: str = "") -> np.ndarray:
@@ -254,57 +356,16 @@ def run_clustering(
         perc_norm = _append_bpm(perc_norm, track_uids, artifacts_dir, bpm_weight)
         full_norm = _append_bpm(full_norm, track_uids, artifacts_dir, bpm_weight)
 
-    # --- PCA L1 (sobre perc_norm) ---
-    perc_for_l1 = _apply_pca(perc_norm, pca_dim, label="L1/perc")
-
-    # --- L1 Clustering (sobre mert_perc) ---
     if method == "ward":
         n_l1 = n_l1 or max(2, int(round(N / 150)))
-        print(f"[INFO] Running L1 Ward (n_clusters={n_l1}) ...")
-        labels_l1 = _ward_cluster(perc_for_l1, n_l1)
+        labels_l1, labels_l2, l2_small_cluster_ids = ward_two_level(perc_norm, full_norm, n_l1, l2_target_size, pca_dim)
+        labels_l1_raw, labels_l2_raw = labels_l1.copy(), labels_l2.copy()
+        n_clusters_l1, n_noise_l1 = len(set(labels_l1)), 0
     else:
-        print(f"[INFO] Running L1 HDBSCAN (min_cluster_size={l1_min_cluster_size}, "
-              f"min_samples={l1_min_samples}) ...")
-        labels_l1 = _hdbscan_cluster(perc_for_l1, l1_min_cluster_size, l1_min_samples)
-    labels_l1_raw = labels_l1.copy()  # conservar para diagnóstico
-
-    n_clusters_l1 = len(set(labels_l1[labels_l1 != -1]))
-    n_noise_l1 = int(np.sum(labels_l1 == -1))
-    print(f"[INFO] L1 result: {n_clusters_l1} clusters, {n_noise_l1} noise points "
-          f"({n_noise_l1/N:.1%})")
-
-    if assign_noise:
-        labels_l1 = _reassign_noise(perc_for_l1, labels_l1)
-
-    # --- L2 Clustering (sobre mert_full, dentro de cada cluster L1) ---
-    labels_l2 = np.full(N, -1, dtype=int)
-    labels_l2_raw = np.full(N, -1, dtype=int)  # conservar para diagnóstico
-    l2_small_cluster_ids = []
-
-    for cl1 in sorted(set(labels_l1[labels_l1 != -1])):
-        mask = labels_l1 == cl1
-        n_in_cluster = int(np.sum(mask))
-
-        if n_in_cluster < L2_MIN_PARENT_SIZE:
-            # Cluster demasiado pequeño: subgrupo único trivial
-            labels_l2[mask] = 0
-            labels_l2_raw[mask] = 0
-            l2_small_cluster_ids.append(int(cl1))
-        else:
-            sub_emb = full_norm[mask]
-            # PCA L2: solo si hay suficientes tracks (idealmente > 2*pca_dim)
-            if pca_dim > 0 and n_in_cluster >= 2 * pca_dim:
-                sub_emb = _apply_pca(sub_emb, pca_dim, label=f"L2/cl{cl1}")
-            if method == "ward":
-                sub_labels = _ward_cluster(sub_emb, int(round(n_in_cluster / l2_target_size)))
-            else:
-                sub_labels = _hdbscan_cluster(sub_emb, l2_min_cluster_size, l2_min_samples)
-            labels_l2_raw[mask] = sub_labels  # conservar raw antes de reassignment
-            if assign_noise:
-                sub_labels = _reassign_noise(sub_emb, sub_labels)
-            labels_l2[mask] = sub_labels
-            n_sub = len(set(sub_labels[sub_labels != -1]))
-            print(f"  L1={cl1}: {n_in_cluster} tracks → {n_sub} subclusters")
+        (labels_l1, labels_l1_raw, labels_l2, labels_l2_raw, l2_small_cluster_ids,
+         n_clusters_l1, n_noise_l1) = _hdbscan_two_level(
+            perc_norm, full_norm, pca_dim, l1_min_cluster_size, l1_min_samples,
+            l2_min_cluster_size, l2_min_samples, assign_noise)
 
     # --- UMAP 2D ---
     if skip_umap:

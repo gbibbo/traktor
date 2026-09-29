@@ -1,7 +1,7 @@
 """
 PURPOSE: Tests de tools/playlist_review/build_review_page.py: carpeta de origen abreviada, datos por tema
          (BPM, tonalidad, energía, Vocal desde el comentario), carpetas/playlists en orden con UMAP y
-         sugeridas, y que el JSON embebido no pueda cerrar el <script>.
+         sugeridas, marcas de temas nuevos/semilla, y que el JSON embebido no pueda cerrar el <script>.
 CHANGELOG:
   - 2026-09-27: Creación inicial.
 """
@@ -69,3 +69,12 @@ def test_render_escapes_script_close():
     payload = re.search(r"const DATA = (\{.*?\});\n", html, re.S).group(1)
     assert "</script>" not in payload
     assert json.loads(payload.replace("<\\/", "</"))["tracks"][0]["t"] == "</script><b>"
+
+
+def test_org_payload_flags_new_and_seed_tracks():
+    ordered = pd.DataFrame({"track_uid": ["a", "b", "c"], "label_l1": [0, 0, 0], "label_l2": [0, 0, 0],
+                            "position": [0, 1, 2], "umap_x": [0.0, 1.0, 2.0], "umap_y": [0.0, 1.0, 2.0],
+                            "origin": ["build", "add-new", "link"]})
+    idx = {"a": 0, "b": 1, "c": 2}
+    p = org_payload({"hash": "org:x", "ordered": ordered, "names": {}}, idx, "x v2")
+    assert p["flags"] == {"1": "nuevo", "2": "semilla"}

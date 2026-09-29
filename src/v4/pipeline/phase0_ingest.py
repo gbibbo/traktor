@@ -3,6 +3,7 @@ PURPOSE: Phase 0 — Ingesta y catálogo del dataset.
          Escanea audio_root, valida archivos, computa track_uids, merge metadata,
          genera catalog.parquet e ingest_report.json. Idempotente.
 CHANGELOG:
+  - 2026-09-29: --scope <subcarpeta>: escanea solo esa carpeta y la combina con el catálogo existente.
   - 2026-09-27: Opciones por dataset recursive / read_tags / hashing_mode (biblioteca completa).
   - 2026-02-28: Creación inicial V4.
 """
@@ -34,6 +35,8 @@ def main() -> int:
     parser.add_argument("--manifest-csv", default=None, help="Optional manifest CSV path")
     parser.add_argument("--metadata-csv", default=None, help="External metadata CSV (Beatport, etc.)")
     parser.add_argument("--config", default=None, help="Path to v4.yaml config file")
+    parser.add_argument("--scope", default=None,
+                        help="Subcarpeta (relativa a la carpeta de audio): solo se escanea esa y se combina con el catálogo existente")
     args = parser.parse_args()
 
     print("=" * 70)
@@ -69,12 +72,13 @@ def main() -> int:
     hash_mode = ds_cfg.get("hashing_mode")
 
     # Escanear archivos
-    all_files = get_audio_files(audio_root, recursive=recursive)
+    scan_root = audio_root / args.scope if args.scope else audio_root
+    all_files = get_audio_files(scan_root, recursive=recursive or bool(args.scope))
     print(f"[INFO] Found {len(all_files)} audio files")
 
     # Verificar expected_n
     expected_n = config.get("datasets", {}).get(args.dataset_name, {}).get("expected_n")
-    if expected_n is not None and len(all_files) != expected_n:
+    if expected_n is not None and len(all_files) != expected_n and not args.scope:
         print(f"[WARN] Expected {expected_n} files, found {len(all_files)}")
 
     # Validar archivos
@@ -106,7 +110,7 @@ def main() -> int:
 
     # Construir catálogo
     catalog = build_catalog(audio_root, args.dataset_name, config, metadata_df=metadata_df,
-                            recursive=recursive, with_tags=with_tags, hash_mode=hash_mode)
+                            recursive=recursive, with_tags=with_tags, hash_mode=hash_mode, scope=args.scope)
 
     # Ingest report
     elapsed = time.time() - t0
