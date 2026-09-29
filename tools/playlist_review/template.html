@@ -38,7 +38,7 @@ body { background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, -a
 button, select, textarea, input { font: inherit; color: inherit; }
 button { cursor: pointer; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; }
 button:hover:not(:disabled) { background: var(--wash); }
-button:disabled { opacity: .45; cursor: default; }
+button:disabled { opacity: .45; cursor: not-allowed; }
 button.primary { background: var(--series-1); border-color: var(--series-1); color: var(--accent-ink); font-weight: 600; }
 button.primary:hover:not(:disabled) { filter: brightness(1.08); background: var(--series-1); }
 button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible, .pl:focus-visible, [role="switch"]:focus-visible, .menu button:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
@@ -115,7 +115,40 @@ td .play, td .more { padding: 2px 8px; border-radius: 6px; }
 .flag { display: inline-block; margin-left: 6px; font-size: 11px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--ink-2); }
 footer { grid-column: 1 / -1; display: flex; gap: 12px; align-items: center; padding: 8px 16px; background: var(--surface-1); border-top: 1px solid var(--border); }
 #now { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-progress { width: 180px; height: 6px; }
+#time { font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: 13px; white-space: nowrap; }
+#seek { width: min(320px, 30vw); accent-color: var(--series-2); cursor: pointer; }
+#seek:disabled { cursor: default; opacity: .5; }
+/* secciones plegables */
+.fold > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::before { content: "▾"; color: var(--muted); width: 12px; flex: none; transition: transform .15s; }
+.fold:not([open]) > summary::before { transform: rotate(-90deg); }
+.fold > summary:hover h2, .fold > summary:hover h3 { text-decoration: underline; text-decoration-color: var(--baseline); }
+.fold > summary h2, .fold > summary h3 { margin: 0; }
+.fold > summary .muted { font-size: 12px; }
+/* botón de ícono (papelera) */
+.iconbtn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border-color: transparent; background: none; color: var(--muted); }
+.iconbtn:hover:not(:disabled) { color: var(--critical); background: var(--wash); border-color: var(--border); }
+.iconbtn svg { width: 16px; height: 16px; }
+.donepill { display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; padding: 6px 12px; background: var(--wash); color: var(--ink-2); font-weight: 600; }
+.donepill i { font-style: normal; color: var(--good); }
+/* filtros de búsqueda */
+.pop { position: fixed; z-index: 50; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.18); padding: 10px 12px; display: none; min-width: 220px; }
+.pop label { display: flex; gap: 8px; align-items: center; padding: 3px 0; cursor: pointer; }
+.pop .phead { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+#filterBtn[aria-pressed="true"] { border-color: var(--series-1); color: var(--series-1); font-weight: 600; }
+/* ordenar temas arrastrando */
+td.grip { width: 34px; }
+.grip button { cursor: grab; padding: 2px 8px; border-radius: 6px; font-size: 15px; line-height: 1.2; touch-action: none; user-select: none; }
+.grip button:active { cursor: grabbing; }
+tr.dragsrc td { background: color-mix(in srgb, var(--series-1) 14%, var(--surface-1)); }
+tr.dragsrc td:first-child { box-shadow: inset 3px 0 0 var(--series-1); }
+tr.dragsrc .grip button { background: var(--series-1); color: var(--accent-ink); border-color: var(--series-1); }
+tr.drop-before td { box-shadow: inset 0 3px 0 var(--series-1); }
+tr.drop-after td { box-shadow: inset 0 -3px 0 var(--series-1); }
+.ghost { position: fixed; z-index: 70; pointer-events: none; background: var(--surface-1); border: 1px solid var(--series-1); border-radius: 8px; padding: 6px 12px; box-shadow: 0 10px 28px rgba(0,0,0,.25); opacity: .92; font-size: 13px; max-width: 420px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transform: rotate(-1deg); }
+body.dragging, body.dragging * { cursor: grabbing !important; user-select: none; }
+.toast { position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); z-index: 80; background: var(--ink); color: var(--page); border-radius: 8px; padding: 8px 14px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.25); display: none; }
 .warn { border-left: 3px solid var(--warning); padding: 6px 10px; background: var(--wash); border-radius: 6px; margin-bottom: 12px; display: none; }
 .help { font-size: 13px; color: var(--ink-2); }
 .help li { margin: 3px 0; }
@@ -178,6 +211,7 @@ progress { width: 180px; height: 6px; }
           <option value="fused">temas en fusiones</option>
         </select></label>
         <input id="hlText" type="search" placeholder="o buscar tema, artista o carpeta" style="width:min(100%, 300px)" aria-label="Buscar en el mapa">
+        <button id="filterBtn" aria-haspopup="true" aria-expanded="false" aria-pressed="false" title="Elegir en qué buscar">Filtros</button>
         <span id="hlCount" class="muted" aria-live="polite"></span>
         <span class="spacer"></span>
         <label class="ink2 mapctl" title="Más angosto o más ancho, sin cambiar la altura">Ancho del mapa
@@ -200,10 +234,13 @@ progress { width: 180px; height: 6px; }
     <button id="nextBtn" aria-label="Siguiente">Siguiente →</button>
     <button id="nowMenuBtn" disabled title="Opciones del tema que está sonando">⋯ Este tema</button>
     <span id="now" class="ink2">Nada sonando.</span>
-    <progress id="prog" max="1" value="0"></progress>
+    <span id="time" aria-live="off">0:00 / 0:00</span>
+    <input id="seek" type="range" min="0" max="1000" step="1" value="0" disabled aria-label="Posición del tema">
   </footer>
 </div>
 <div class="menu" id="menu" role="menu"></div>
+<div class="pop" id="filterPop" role="dialog" aria-label="Buscar en"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div class="overlay" id="overlay"><div class="dialog" id="dialog" role="dialog" aria-modal="true" aria-labelledby="dlgTitle"></div></div>
 <audio id="audio" preload="none"></audio>
 <script>
@@ -281,9 +318,25 @@ function play(idx, startFrac = 0.4) {
 audio.addEventListener("error", () => { if (audio.src) showAudioWarn(); });
 audio.addEventListener("playing", () => { $("#audioWarn").style.display = "none"; $("#pauseBtn").textContent = "Pausa"; });
 audio.addEventListener("pause", () => { $("#pauseBtn").textContent = "Reproducir"; });
+// Barra del tema: muestra la posición y se arrastra para avanzar o retroceder
+const seek = $("#seek");
+let seeking = false;
+const mmss = s => { s = Math.max(0, Math.floor(s || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+function showTime(cur) {
+  const d = isFinite(audio.duration) ? audio.duration : 0;
+  $("#time").textContent = `${mmss(cur)} / ${mmss(d)}`;
+  seek.setAttribute("aria-valuetext", `${mmss(cur)} de ${mmss(d)}`);
+}
 audio.addEventListener("timeupdate", () => {
-  if (seq) $("#prog").value = Math.min(1, (performance.now() - seq.t0) / (seq.secs * 1000));
-  else if (audio.duration) $("#prog").value = audio.currentTime / audio.duration;
+  if (seeking || !isFinite(audio.duration)) return;
+  seek.value = String(Math.round(audio.currentTime / audio.duration * 1000));
+  showTime(audio.currentTime);
+});
+audio.addEventListener("loadedmetadata", () => { seek.disabled = !isFinite(audio.duration); showTime(audio.currentTime); });
+seek.addEventListener("input", () => { seeking = true; if (isFinite(audio.duration)) showTime(seek.value / 1000 * audio.duration); });
+seek.addEventListener("change", () => {
+  if (isFinite(audio.duration)) audio.currentTime = seek.value / 1000 * audio.duration;
+  seeking = false;
 });
 function showAudioWarn() {
   $("#audioWarn").textContent = APP ? "No pude abrir ese archivo de audio (¿se movió o se borró?)."
@@ -308,7 +361,7 @@ $("#nextBtn").onclick = () => { if (seq) { seq.i += 1; seqStep(); } else if (pla
   const i = playlist.tracks.indexOf(nowIdx); if (i >= 0 && i + 1 < playlist.tracks.length) play(playlist.tracks[i + 1]); } };
 $("#nowMenuBtn").onclick = e => { if (nowIdx != null) { const r = e.target.getBoundingClientRect(); openMenu(nowIdx, r.left, r.top - 8, true); } };
 document.addEventListener("keydown", e => {
-  if (e.key === "Escape") { closeMenu(); if (dialogCancelable) closeDialog(); }
+  if (e.key === "Escape") { closeMenu(); closeFilters(); if (rowDrag) endRowDrag(false); if (dialogCancelable) closeDialog(); }
   if (["TEXTAREA", "INPUT", "SELECT"].includes(e.target.tagName) || $("#overlay").style.display === "flex") return;
   if (e.code === "Space") { e.preventDefault(); $("#pauseBtn").click(); }
   if (e.code === "ArrowRight") { e.preventDefault(); $("#nextBtn").click(); }
@@ -401,47 +454,92 @@ async function discardFusion(f) {
   drafts = drafts.filter(x => x.name !== f.name);
   await saveDrafts().catch(e => errorDialog(e.message)); refresh();
 }
+const TRASH_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
+// Sección plegable: el título queda siempre a la vista; abierta o cerrada se recuerda en el navegador
+function fold(card, prefKey, head, note) {
+  const d = el("details", { class: "fold" });
+  d.open = prefs[prefKey] !== false;
+  d.append(el("summary", {}, head, note ? el("span", { class: "muted", text: note }) : null));
+  d.addEventListener("toggle", () => { prefs[prefKey] = d.open; savePrefs(); });
+  card.append(d);
+  return d;
+}
+const isReady = f => f.pending.length && f.applied.length + f.pending.length >= 2;
+const isLonely = f => f.pending.length && f.applied.length + f.pending.length < 2;
 function renderFusions() {
-  const card = $("#fusionCard"); card.replaceChildren(el("h3", { text: "Fusiones de temas" }));
-  const view = fusionsView();
+  const card = $("#fusionCard"); card.replaceChildren();
+  const view = fusionsView(), nPend = view.filter(f => f.pending.length).length;
+  const note = view.length ? `${view.length} ${view.length === 1 ? "fusión" : "fusiones"}${nPend ? ` · ${nPend} sin aplicar` : ""}` : "";
+  const box0 = fold(card, "foldFusions", el("h3", { text: "Fusiones de temas" }), note);
   if (!view.length) {
-    card.append(el("p", { class: "muted", text: APP
+    box0.append(el("p", { class: "muted", text: APP
       ? "¿Querés que dos o más temas queden siempre en la misma playlist? Hacé clic derecho sobre un tema (en el mapa o en la tabla, o tocá ⋯) y elegí «Crear fusión de temas»."
       : "Para crear fusiones de temas, abrí la app (Abrir TRAKTOR ML)." }));
     return;
   }
   view.forEach(f => {
     const members = [...f.applied, ...f.pending];
-    const status = f.pending.length ? (members.length < 2 ? "falta otro tema" : "pendiente de aplicar") : "aplicada";
+    const status = f.pending.length ? (members.length < 2 ? "falta otro tema" : f.applied.length ? "con cambios sin aplicar" : "pendiente de aplicar") : "aplicada";
+    let trash = null;
+    if (APP) {
+      trash = el("button", { class: "iconbtn", title: "Eliminar la fusión", "aria-label": `Eliminar la fusión «${f.name}»`, onclick: () => deleteFusion(f) });
+      trash.innerHTML = TRASH_SVG;  // ícono fijo, sin datos del usuario
+    }
     const box = el("div", { class: "fusion" },
       el("div", { class: "head" }, el("span", { class: "swatch", style: `--c:${fcolor(f.color)}`, title: FUSION_NAMES[f.color % 4] }),
         el("strong", { text: f.name }), el("span", { class: "status", text: status }),
         el("span", { class: "muted", text: `${members.length} ${members.length === 1 ? "tema" : "temas"}` }),
         el("span", { class: "spacer" }),
-        APP && f.pending.length ? btn("Descartar cambios", () => discardFusion(f)) : null));
+        APP && f.applied.length && f.pending.length ? btn("Descartar cambios", () => discardFusion(f)) : null, trash));
     const ul = el("ul");
     members.forEach(m => ul.append(el("li", {}, `«${label(T[m])}» — playlist ${plName(m)}`,
       f.applied.includes(m) ? null : el("span", { class: "muted", text: " (nuevo en la fusión)" }),
       APP && f.pending.includes(m) ? el("button", { "aria-label": "Quitar de la fusión", title: "Quitar", onclick: () => removeFromFusion(m, f) }, "×") : null)));
-    box.append(ul); card.append(box);
+    box.append(ul); box0.append(box);
   });
-  if (APP) {
-    const ready = pendingReady();
-    card.append(el("div", { class: "row" },
-      btn("Rehacer las playlists con las fusiones", applyFusions, true, { disabled: !ready }),
-      el("span", { class: "muted", text: ready ? (prefs.keep
-        ? "Con «Mantener la organización actual» encendido: solo se mueven los temas de las fusiones."
-        : "Con «Mantener la organización actual» apagado: se reorganiza toda la colección.")
-        : view.some(f => f.pending.length) ? "Cada fusión necesita al menos dos temas."
-        : "Todas las fusiones están aplicadas. Para sumar un tema a una, hacé clic derecho sobre él." })));
+  if (!APP) return;
+  const ready = view.filter(isReady), lonely = view.filter(isLonely);
+  if (!ready.length && !lonely.length) {
+    box0.append(el("div", { class: "row" },
+      el("span", { class: "donepill" }, el("i", { text: "✓" }), "Las playlists ya están rehechas con todas las fusiones"),
+      el("span", { class: "muted", text: "No hay nada nuevo para aplicar. Para sumar un tema a una fusión, hacé clic derecho sobre él." })));
+    return;
   }
+  box0.append(el("div", { class: "row" },
+    btn("Rehacer las playlists con las fusiones", applyFusions, true, { disabled: !ready.length,
+      title: ready.length ? null : "Todavía no: cada fusión nueva necesita al menos dos temas" }),
+    ready.length ? el("span", { class: "muted", text: prefs.keep
+      ? "Con «Mantener la organización actual» encendido: solo se mueven los temas de las fusiones."
+      : "Con «Mantener la organización actual» apagado: se reorganiza toda la colección." }) : null));
+  if (lonely.length) {
+    box0.append(el("div", { class: "callout", style: "--c: var(--warning)" },
+      el("strong", { text: ready.length ? "Queda para después: " : "Todavía no se puede rehacer: " }),
+      `${lonely.map(f => `«${f.name}»`).join(", ")} ${lonely.length === 1 ? "tiene" : "tienen"} un solo tema. `,
+      "Hacé clic derecho sobre otro tema y elegí «Agregar a …», o eliminala con la papelera."));
+  }
+}
+function deleteFusion(f) {
+  const members = [...f.applied, ...f.pending], applied = f.applied.length > 0;
+  openDialog(`¿Eliminar «${f.name}»?`, [
+    el("div", { class: "callout", style: `--c:${fcolor(f.color)}` },
+      el("ul", { style: "margin:0" }, members.map(m => el("li", { text: `«${label(T[m])}» — playlist ${plName(m)}` })))),
+    el("p", { text: applied
+      ? "Los temas se quedan en las playlists donde están ahora: solo dejan de estar obligados a ir juntos. Si más adelante reorganizás todo desde cero, pueden separarse."
+      : "Esta fusión todavía no se aplicó: eliminarla no cambia ninguna playlist." }),
+    applied ? el("p", { class: "muted", text: "Si te arrepentís, «Deshacer el último cambio» la trae de vuelta." }) : el("span")],
+    [btn("Cancelar", closeDialog), btn("Eliminar fusión", async () => {
+      try {
+        if (applied) { await api("/api/remove-fusion", { name: f.name }); location.reload(); return; }
+        drafts = drafts.filter(x => x.name !== f.name);
+        await saveDrafts(); closeDialog(); refresh();
+      } catch (e) { errorDialog(e.message); }
+    }, true)]);
 }
 
 // ---------- menú contextual ----------
 function openMenu(i, x, y, above = false) {
   const m = $("#menu"); m.replaceChildren(el("div", { class: "mhead", text: `${label(T[i])} · playlist ${plName(i)}` }));
   const item = (text, onclick, attrs = {}) => el("button", { role: "menuitem", onclick, ...attrs }, text);
-  m.append(item("▶ Escuchar", () => { closeMenu(); stopSeq(); play(i); }));
   if (APP) {
     const f = fusionOf(i);
     if (!f) m.append(item("＋ Crear fusión de temas…", () => createFusion(i)));
@@ -582,7 +680,7 @@ function doneDialog(kind, r) {
 async function applyFusions() {
   openDialog(prefs.keep ? "Rehacer sin mover el resto" : "Rehacer y reorganizar todo", [
     consequence("fusions"),
-    el("ul", {}, fusionsView().filter(f => f.pending.length).map(f => el("li", {}, el("span", { class: "swatch", style: `--c:${fcolor(f.color)}` }),
+    el("ul", {}, fusionsView().filter(isReady).map(f => el("li", {}, el("span", { class: "swatch", style: `--c:${fcolor(f.color)}` }),
       `${f.name}: ${[...f.applied, ...f.pending].map(i => label(T[i])).join(" + ")}`)))],
     [btn("Cancelar", closeDialog), btn("Aceptar y rehacer", async () => {
       try { const job = await api("/api/apply-fusions", { keep: prefs.keep }); watchJob(job, "fusions"); }
@@ -655,8 +753,8 @@ function renderPlaylist() {
   const card = $("#plCard"); card.replaceChildren();
   if (!playlist) { card.append(el("p", { class: "muted", text: "Elegí una playlist a la izquierda (★ = sugeridas para revisar) o un punto del mapa." })); return; }
   const s = plStats(playlist), j = judg(org.id, playlist.id);
-  card.append(el("h2", {}, `${folder.name} › ${playlist.name}`));
-  card.append(el("div", { class: "chips" },
+  const info = fold(card, "foldPlaylist", el("h2", {}, `${folder.name} › ${playlist.name}`));
+  info.append(el("div", { class: "chips" },
     el("span", { class: "chip", text: `${s.n} temas` }),
     s.bpm ? el("span", { class: "chip", text: `BPM ${s.bpm[0]}–${s.bpm[1]}` }) : null,
     el("span", { class: "chip", text: `Con voz: ${s.vocal} de ${s.n}` }),
@@ -669,11 +767,11 @@ function renderPlaylist() {
     b.onclick = () => { j.verdict = j.verdict === v.v ? "" : v.v; save(); renderPlaylist(); renderSide(); };
     vbox.append(b);
   });
-  card.append(vbox);
+  info.append(vbox);
   const ta = el("textarea", { placeholder: "Comentario (opcional): qué sobra, qué falta, para qué momento de la noche…" });
   ta.value = j.note || ""; ta.addEventListener("input", () => { j.note = ta.value; save(); });
-  card.append(ta);
-  card.append(el("div", { class: "row" },
+  info.append(ta);
+  info.append(el("div", { class: "row" },
     el("button", { id: "seqBtn", onclick: () => seq ? (stopSeq(), audio.pause()) : startSeq(playlist.tracks) }, "▶ Escuchar la playlist de corrido"),
     el("label", { class: "ink2" }, "segundos de cada tema ",
       (() => { const sel = el("select", { id: "seqSecs" }); [10, 20, 30, 45].forEach(x => sel.append(el("option", { value: String(x), text: String(x) }))); sel.value = "20"; return sel; })())));
@@ -681,7 +779,8 @@ function renderPlaylist() {
   table.append(el("thead", {}, el("tr", {},
     el("th", { class: "num", text: "#" }), el("th", { text: "" }), el("th", { text: "Tema" }),
     el("th", { class: "num", text: "BPM" }), el("th", { text: "Tono" }), el("th", { class: "num", text: "Energía" }),
-    el("th", { text: "Voz" }), el("th", { text: "Género" }), el("th", { text: "Tu carpeta" }), el("th", { text: "No encaja" }), el("th", { text: "" }))));
+    el("th", { text: "Voz" }), el("th", { text: "Género" }), el("th", { text: "Tu carpeta" }), el("th", { text: "No encaja" }), el("th", { text: "" }),
+    APP ? el("th", { text: "", "aria-label": "Mover" }) : null)));
   const tb = el("tbody");
   playlist.tracks.forEach((idx, pos) => {
     const t = T[idx], fu = fusionOf(idx);
@@ -703,11 +802,105 @@ function renderPlaylist() {
       el("td", { class: "ink2", text: t.fs || "" }),
       el("td", {}, cb),
       el("td", {}, el("button", { class: "more", "aria-label": "Más opciones (fusionar)", title: "Más opciones (también con clic derecho)",
-        onclick: e => { const r = e.target.getBoundingClientRect(); openMenu(idx, r.right - 240, r.bottom + 4); } }, "⋯")));
+        onclick: e => { const r = e.target.getBoundingClientRect(); openMenu(idx, r.right - 240, r.bottom + 4); } }, "⋯")),
+      APP ? el("td", { class: "grip" }, el("button", { "aria-label": `Mover «${label(t)}» (arrastrá, o ↑ ↓ con el teclado)`,
+        title: "Mantené apretado y arrastrá para cambiar el lugar del tema (o ↑ ↓ con el teclado)",
+        onpointerdown: e => startRowDrag(e, idx, tr), onkeydown: e => gripKey(e, idx) }, "◇")) : null);
     tr.addEventListener("contextmenu", e => { e.preventDefault(); openMenu(idx, e.clientX, e.clientY); });
     tb.append(tr);
   });
   table.append(tb); card.append(table);
+}
+
+// ---------- ordenar temas arrastrando ◇ ----------
+let rowDrag = null, saveChain = Promise.resolve(), toastTimer = null;
+const scroller = document.querySelector("main");
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.style.display = "block";
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.style.display = "none"; }, 2800);
+}
+function startRowDrag(e, idx, tr) {
+  if (e.button !== 0 || rowDrag) return;
+  e.preventDefault();
+  const handle = e.currentTarget;
+  handle.setPointerCapture(e.pointerId);
+  const ghost = el("div", { class: "ghost" }, el("strong", { text: `${playlist.tracks.indexOf(idx) + 1}. ` }), label(T[idx]));
+  document.body.append(ghost);
+  tr.classList.add("dragsrc"); document.body.classList.add("dragging");
+  rowDrag = { idx, tr, tbody: tr.parentElement, ghost, handle, target: null, x: e.clientX, y: e.clientY, raf: 0 };
+  handle.addEventListener("pointermove", onRowDragMove);
+  handle.addEventListener("pointerup", onRowDragUp);
+  handle.addEventListener("pointercancel", () => endRowDrag(false), { once: true });
+  onRowDragMove(e);
+  rowDrag.raf = requestAnimationFrame(autoScroll);
+}
+function onRowDragMove(e) {
+  if (!rowDrag) return;
+  rowDrag.x = e.clientX; rowDrag.y = e.clientY;
+  // El fantasma va a la izquierda del cursor (◇ está en el borde derecho); si no entra, a la derecha
+  const gw = rowDrag.ghost.offsetWidth, left = e.clientX - gw - 18;
+  rowDrag.ghost.style.left = (left >= 8 ? left : e.clientX + 14) + "px"; rowDrag.ghost.style.top = (e.clientY - 16) + "px";
+  showDropLine();
+}
+function onRowDragUp() { endRowDrag(true); }
+function showDropLine() {
+  // Lugar de inserción: antes de la primera fila cuyo centro queda debajo del cursor
+  const rows = [...rowDrag.tbody.rows];
+  let pos = rows.length;
+  for (let k = 0; k < rows.length; k++) { const r = rows[k].getBoundingClientRect(); if (rowDrag.y < r.top + r.height / 2) { pos = k; break; } }
+  rows.forEach(r => r.classList.remove("drop-before", "drop-after"));
+  const from = playlist.tracks.indexOf(rowDrag.idx);
+  if (pos === from || pos === from + 1) { rowDrag.target = null; return; }  // quedaría en el mismo lugar
+  rowDrag.target = pos;
+  if (pos < rows.length) rows[pos].classList.add("drop-before"); else rows[rows.length - 1].classList.add("drop-after");
+}
+function autoScroll() {
+  // Cerca del borde de arriba o de abajo, la lista se desplaza sola mientras se arrastra
+  if (!rowDrag) return;
+  const r = scroller.getBoundingClientRect(), edge = 60;
+  const dy = rowDrag.y < r.top + edge ? -Math.ceil((r.top + edge - rowDrag.y) / 4)
+    : rowDrag.y > r.bottom - edge ? Math.ceil((rowDrag.y - r.bottom + edge) / 4) : 0;
+  if (dy) { scroller.scrollTop += dy; showDropLine(); }
+  rowDrag.raf = requestAnimationFrame(autoScroll);
+}
+function endRowDrag(commit) {
+  const d = rowDrag; if (!d) return;
+  rowDrag = null;
+  cancelAnimationFrame(d.raf); d.ghost.remove(); document.body.classList.remove("dragging");
+  d.handle.removeEventListener("pointermove", onRowDragMove); d.handle.removeEventListener("pointerup", onRowDragUp);
+  d.tr.classList.remove("dragsrc");
+  [...d.tbody.rows].forEach(r => r.classList.remove("drop-before", "drop-after"));
+  if (!commit || d.target == null) return;
+  const from = playlist.tracks.indexOf(d.idx);
+  moveTrack(d.idx, d.target > from ? d.target - 1 : d.target);
+}
+function gripKey(e, idx) {
+  if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+  e.preventDefault();
+  const from = playlist.tracks.indexOf(idx);
+  moveTrack(idx, from + (e.key === "ArrowUp" ? -1 : 1), true);
+}
+function moveTrack(idx, to, keepFocus = false) {
+  const pl = playlist, from = pl.tracks.indexOf(idx);
+  if (from < 0 || to === from || to < 0 || to >= pl.tracks.length) return;
+  const before = [...pl.tracks];
+  pl.tracks.splice(to, 0, pl.tracks.splice(from, 1)[0]);
+  renderPlaylist(); drawMap();
+  if (keepFocus) document.querySelector(`tr[data-idx="${idx}"] .grip button`)?.focus();
+  const order = pl.tracks.map(i => T[i].u);
+  // Se guarda en orden (un cambio por versión); si falla, vuelve el orden anterior
+  saveChain = saveChain.then(() => api("/api/reorder", { l1: pl.key[0], l2: pl.key[1], tracks: order }))
+    .then(r => {
+      APP.can_undo = r.can_undo;
+      if (org.meta) { org.meta.version = r.version; org.meta.history = r.history; }
+      renderToolbar(); renderSide();
+      toast(`«${label(T[idx])}» pasó al lugar ${to + 1}. Orden guardado.`);
+    })
+    .catch(err => {
+      pl.tracks.splice(0, pl.tracks.length, ...before);
+      if (playlist === pl) { renderPlaylist(); drawMap(); }
+      errorDialog("No se pudo guardar el orden: " + err.message);
+    });
 }
 function markPlaying() {
   document.querySelectorAll("tr.playing").forEach(r => r.classList.remove("playing"));
@@ -721,9 +914,65 @@ function highlighted() {
   const out = new Set();
   if (mode === "new") Object.entries(org.flags || {}).forEach(([i, f]) => { if (f === "nuevo") out.add(+i); });
   if (mode === "fused") fusionsView().forEach(f => [...f.applied, ...f.pending].forEach(i => out.add(i)));
-  if (q.length >= 2) org.trackIdx.forEach(i => { const t = T[i]; if (`${t.a} ${t.t} ${t.m || ""} ${t.fs} ${t.p}`.toLowerCase().includes(q)) out.add(i); });
+  if (q.length >= 2) {
+    const fs = FILTERS.filter(f => prefs.filters.includes(f.k));
+    const ctx = { fu: new Map() };
+    if (fs.some(f => f.k === "fu")) fusionsView().forEach(f => [...f.applied, ...f.pending].forEach(i => ctx.fu.set(i, f.name)));
+    org.trackIdx.forEach(i => {
+      const t = T[i];
+      // Sin filtros: la búsqueda de siempre (artista, título, mezcla, carpeta y nombre de archivo)
+      const text = fs.length ? fs.map(f => f.get(t, i, ctx)).join(" \u0000 ") : `${t.a} ${t.t} ${t.m || ""} ${t.fs} ${t.p}`;
+      if (text.toLowerCase().includes(q)) out.add(i);
+    });
+  }
   return out;
 }
+// Filtros de búsqueda: en qué campos buscar. Sin ninguno marcado, la búsqueda es la de siempre.
+const FILTERS = [
+  { k: "t", label: "Título", get: t => t.t },
+  { k: "a", label: "Artista", get: t => t.a },
+  { k: "m", label: "Mezcla / remix", get: t => t.m || "" },
+  { k: "g", label: "Género", get: t => t.g },
+  { k: "al", label: "Álbum", get: t => t.al || "" },
+  { k: "dir", label: "Carpeta", get: t => t.p.split("/").slice(0, -1).join("/") },
+  { k: "pl", label: "Playlist", get: (t, i) => plName(i) },
+  { k: "fu", label: "Fusión", get: (t, i, ctx) => ctx.fu.get(i) || "" },
+];
+prefs.filters = Array.isArray(prefs.filters) ? prefs.filters.filter(k => FILTERS.some(f => f.k === k)) : [];
+function renderFilterBtn() {
+  const on = FILTERS.filter(f => prefs.filters.includes(f.k)), b = $("#filterBtn");
+  b.textContent = on.length ? `Filtros · ${on.length}` : "Filtros";
+  b.setAttribute("aria-pressed", String(on.length > 0));
+  b.title = on.length ? "Buscando solo en: " + on.map(f => f.label.toLowerCase()).join(", ") : "Elegir en qué buscar";
+  $("#hlText").placeholder = on.length ? "buscar en " + on.map(f => f.label.toLowerCase()).join(", ") : "o buscar tema, artista o carpeta";
+}
+function openFilters() {
+  const p = $("#filterPop");
+  const all = btn("Buscar en todo", () => {
+    prefs.filters = []; savePrefs(); renderFilterBtn(); drawMap();
+    p.querySelectorAll("input").forEach(x => { x.checked = false; }); all.disabled = true;
+  }, false, { disabled: !prefs.filters.length });
+  p.replaceChildren(el("div", { class: "phead", text: "Buscar solo en… (sin marcar nada, busca en todo como siempre)" }),
+    ...FILTERS.map(f => {
+      const cb = el("input", { type: "checkbox" }); cb.checked = prefs.filters.includes(f.k);
+      cb.onchange = () => {
+        prefs.filters = FILTERS.map(x => x.k).filter(k => k === f.k ? cb.checked : prefs.filters.includes(k));
+        savePrefs(); renderFilterBtn(); drawMap(); all.disabled = !prefs.filters.length;
+      };
+      return el("label", {}, cb, f.label);
+    }),
+    el("div", { class: "row" }, all, btn("Listo", closeFilters, true)));
+  p.style.display = "block";
+  const r = $("#filterBtn").getBoundingClientRect();
+  p.style.left = Math.max(8, Math.min(r.left, innerWidth - p.offsetWidth - 8)) + "px";
+  p.style.top = Math.max(8, Math.min(r.bottom + 6, innerHeight - p.offsetHeight - 8)) + "px";
+  $("#filterBtn").setAttribute("aria-expanded", "true");
+  p.querySelector("input")?.focus();
+}
+function closeFilters() { $("#filterPop").style.display = "none"; $("#filterBtn").setAttribute("aria-expanded", "false"); }
+$("#filterBtn").addEventListener("click", e => { e.stopPropagation(); if ($("#filterPop").style.display === "block") closeFilters(); else openFilters(); });
+document.addEventListener("click", e => { if (!e.target.closest("#filterPop") && !e.target.closest("#filterBtn")) closeFilters(); });
+renderFilterBtn();
 function renderLegend() {
   const lg = $("#legend"); lg.replaceChildren(
     el("span", { style: "--c: var(--context-dot)", text: "otros temas" }),
@@ -893,6 +1142,8 @@ function renderHelp() {
     el("li", {}, el("b", { text: "Mapa: " }), "cada punto es un tema; cerca = suenan parecido. Clic en un punto para escucharlo. Con + y − (o Ctrl + rueda del mouse) te acercás o alejás, arrastrando te movés y ⤢ vuelve a mostrar todo. «Ancho del mapa» lo hace más angosto o más ancho."),
     APP ? el("li", {}, el("b", { text: "Agregar música nueva: " }), "elegís una carpeta, se analiza y los temas se ubican en tus playlists. El interruptor «Mantener la organización actual» decide si lo que ya está se queda quieto (encendido) o se reorganiza todo (apagado).") : null,
     APP ? el("li", {}, el("b", { text: "Fusiones de temas: " }), "si dos o más temas tienen que ir juntos, hacé clic derecho sobre cada uno (o tocá ⋯) y creá una fusión o agregalos a una existente. Después, «Rehacer las playlists con las fusiones».") : null,
+    APP ? el("li", {}, el("b", { text: "Orden de una playlist: " }), "mantené apretado ◇ a la derecha de un tema y arrastralo a su nuevo lugar (o ↑ ↓ con el teclado). Se guarda como un cambio que podés deshacer.") : null,
+    el("li", {}, el("b", { text: "Buscar: " }), "«Filtros» elige en qué buscar (título, artista, género, álbum, carpeta, fusión…). Sin filtros busca en todo."),
     APP ? el("li", {}, el("b", { text: "Para tocar: " }), "«Preparar para Rekordbox y Traktor» genera los archivos y te dice cómo importarlos.") : null,
     el("li", {}, el("b", { text: "Teclado: " }), "espacio = pausa, → = tema siguiente."),
     el("li", {}, "Tus opiniones se guardan en este navegador. ", el("a", { href: "#", onclick: e => { e.preventDefault(); exportOpinions(); } }, "Descargarlas (CSV)"))));

@@ -49,7 +49,7 @@ def test_build_tracks_fields():
     t = build_tracks(_catalog(), _bpm_key(), uids)
     assert [x["t"] for x in t] == ["Three", "One", "Two"]
     assert t[1] == {"u": ("u1" * 8)[:16], "p": "#1 BIBO/PRO/Nuevitas 5/a.mp3", "a": "A", "t": "One", "g": "Techno",
-                    "m": "", "fs": "Nuevitas 5", "b": 128.0, "k": "8A", "e": 6, "v": True}
+                    "m": "", "al": "", "fs": "Nuevitas 5", "b": 128.0, "k": "8A", "e": 6, "v": True}
     assert t[2]["v"] is False and t[2]["b"] is None and t[2]["a"] == ""  # "Vocalstation" no es la marca
 
 
@@ -93,6 +93,7 @@ def test_org_payload_order_and_suggested():
     idx = {u: i for i, u in enumerate("abcde")}
     p = org_payload({"hash": "h1", "ordered": ordered, "names": names}, idx, "Actual", n_suggested=1)
     assert p["id"] == "h1" and p["folders"][0]["playlists"][0]["id"] == "h1:0:0"
+    assert p["folders"][0]["playlists"][1]["key"] == [0, 1]
     f0, f1 = p["folders"]
     assert f0["name"] == "A · Techno" and f1["name"] == "B"
     assert f0["playlists"][0]["tracks"] == [idx["b"], idx["a"]]  # por position
@@ -123,12 +124,16 @@ def test_history_lines_readable():
          "created": "2026-09-29T11:53:10"},
         {"version": 2, "action": "add", "scope": "2026 Octubre", "added": 7, "add": 5, "add-new": 2, "n_tracks": 17, "n_playlists": 3},
         {"version": 3, "action": "link", "groups": [["a", "b"]], "moved": ["b"], "n_tracks": 17, "n_playlists": 3},
-        {"version": 4, "action": "link-rebuild", "n_tracks": 17, "n_playlists": 4}]}
+        {"version": 4, "action": "link-rebuild", "n_tracks": 17, "n_playlists": 4},
+        {"version": 5, "action": "reorder", "playlist": [0, 1], "playlist_name": "A2 House"},
+        {"version": 6, "action": "unlink", "fusion": "Para abrir", "tracks": ["a", "b"]}]}
     assert history_lines(meta) == [
         "Versión 1 · 29/09 11:53 · organización inicial",
         "Versión 2 · se agregaron 7 temas de «2026 Octubre» (5 a playlists que ya existían, 2 en playlists nuevas)",
         "Versión 3 · 1 fusión aplicada (1 tema movido)",
-        "Versión 4 · reorganizada desde cero respetando las fusiones (4 playlists)"]
+        "Versión 4 · reorganizada desde cero respetando las fusiones (4 playlists)",
+        "Versión 5 · orden cambiado a mano en «A2 House»",
+        "Versión 6 · se eliminó la fusión «Para abrir» (sus temas no se movieron)"]
 
 
 def test_org_payload_carries_seeds_and_meta():

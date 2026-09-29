@@ -193,3 +193,45 @@ def test_undo_add_restores_scopes(tmp_path):
     assert store.meta()["added_scopes"] == ["B"]
     store.undo()
     assert store.meta()["added_scopes"] == [] and len(store.load()[0]) == 60
+
+
+def test_reorder_by_hand_survives_add(tmp_path):
+    from src.v4.pipeline.organize import reorder
+    art = _library(tmp_path)
+    store = OrgStore(art, "t")
+    lib = Library(art, "clap_full")
+    v1 = build(store, lib, dict(PARAMS), ["A"])
+    a, _, _ = store.load()
+    key, order = max(_playlists(a).items(), key=lambda kv: len(kv[1]))
+    new = [order[-1]] + order[:-1]  # el último pasa a ser el primero (por prefijo de uid)
+    v2 = reorder(store, key[0], key[1], [u[:16] for u in new])
+    assert v2 == v1 + 1 and _playlists(store.load()[0])[key] == new
+    assert store.meta()["history"][-1]["action"] == "reorder"
+    assert reorder(store, key[0], key[1], new) == v2  # mismo orden: sin versión nueva
+    with pytest.raises(ValueError):
+        reorder(store, key[0], key[1], new[:-1])  # faltan temas
+    # agregar música no rompe el orden a mano: los que ya estaban conservan su orden relativo
+    add(store, lib, "B")
+    after = _playlists(store.load()[0])[key]
+    assert [u for u in after if u in set(new)] == new
+    assert store.undo() == v2 and store.undo() == v1
+
+
+def test_remove_fusion_keeps_tracks_in_place(tmp_path):
+    from src.v4.pipeline.organize import link_groups, remove_fusion
+    art = _library(tmp_path)
+    store = OrgStore(art, "t")
+    lib = Library(art, "clap_full")
+    build(store, lib, dict(PARAMS), [""])
+    p = _playlists(store.load()[0])
+    k = sorted(p)
+    t1, t2 = p[k[0]][0], p[k[-1]][0]
+    v2, _ = link_groups(store, lib, [{"name": "Para abrir", "color": 1, "tracks": [t1, t2]}])
+    before = store.load()[0].set_index("track_uid")[["l1", "l2", "position"]]
+    v3 = remove_fusion(store, "Para abrir")
+    assert v3 == v2 + 1 and store.fusions() == []
+    assert store.load()[0].set_index("track_uid")[["l1", "l2", "position"]].equals(before)
+    assert store.meta()["history"][-1]["action"] == "unlink"
+    with pytest.raises(ValueError):
+        remove_fusion(store, "Para abrir")
+    assert store.undo() == v2 and [f["name"] for f in store.fusions()] == ["Para abrir"]

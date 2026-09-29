@@ -2,9 +2,11 @@
 PURPOSE: Tests de src/v4/ui/review_app.py (app local) con una biblioteca sintética: página con token,
          rechazo de pedidos sin token o con otro Host, audio con rangos y sin salir de la biblioteca,
          fusiones (borradores, aplicación con organización mantenida, las incompletas quedan),
-         deshacer y descripción de carpetas (dentro/fuera de la biblioteca).
+         deshacer, descripción de carpetas (dentro/fuera de la biblioteca), orden a mano y eliminar
+         fusiones.
 CHANGELOG:
   - 2026-09-29: Creación inicial.
+  - 2026-09-29: /api/reorder y /api/remove-fusion.
 """
 import json
 import sys
@@ -113,3 +115,29 @@ def test_describe_folder_inside_and_outside(running_app, tmp_path):
     (outside / "x.mp3").write_bytes(b"0" * 10)
     info = json.loads(_req(base + "/api/describe-folder", {"path": str(outside)})[1])
     assert not info["inside"] and Path(info["dest"]).parent == app.library and Path(info["dest"]).name == "Nueva"
+
+
+def test_reorder_and_remove_fusion(running_app):
+    app, base = running_app
+    a, _, _ = app.store.load()
+    p = _playlists(a)
+    key, order = max(p.items(), key=lambda kv: len(kv[1]))
+    new = order[1:] + order[:1]
+    code, body, _ = _req(base + "/api/reorder", {"l1": int(key[0]), "l2": int(key[1]), "tracks": [u[:16] for u in new]})
+    r = json.loads(body)
+    assert code == 200 and r["can_undo"] and "orden cambiado a mano" in r["history"][-1]
+    assert _playlists(app.store.load()[0])[key] == new
+    assert _req(base + "/api/reorder", {"l1": int(key[0]), "l2": int(key[1]), "tracks": ["zzzz"]})[0] == 400
+    # fusión aplicada: se quita con una versión nueva; un borrador con el mismo nombre también se va
+    k = sorted(p)
+    u1, u2, u3 = p[k[0]][0], p[k[-1]][0], p[k[1]][0]
+    _req(base + "/api/drafts", {"fusions": [{"name": "F", "color": 0, "tracks": [u1[:16], u2[:16]]}]})
+    _wait(base, json.loads(_req(base + "/api/apply-fusions", {"keep": True})[1])["id"])
+    _req(base + "/api/drafts", {"fusions": [{"name": "F", "color": 0, "tracks": [u1[:16], u3[:16]]},
+                                            {"name": "Solo borrador", "color": 1, "tracks": [u3[:16]]}]})
+    code, body, _ = _req(base + "/api/remove-fusion", {"name": "F"})
+    assert code == 200 and json.loads(body)["applied"] and app.store.fusions() == []
+    assert [d["name"] for d in app.store.drafts()] == ["Solo borrador"]
+    code, body, _ = _req(base + "/api/remove-fusion", {"name": "Solo borrador"})
+    assert code == 200 and json.loads(body) == {"version": None, "applied": False} and app.store.drafts() == []
+    assert _req(base + "/api/remove-fusion", {"name": "No existe"})[0] == 400

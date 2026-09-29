@@ -12,6 +12,8 @@ PURPOSE: App local para organizar la colección desde el navegador, pensada para
          Solo biblioteca estándar (http.server): nada nuevo que instalar.
 CHANGELOG:
   - 2026-09-29: Creación inicial.
+  - 2026-09-29: Reordenar temas de una playlist a mano (/api/reorder) y eliminar fusiones
+                (/api/remove-fusion), cada uno como versión nueva que se puede deshacer.
 """
 from __future__ import annotations
 
@@ -41,7 +43,7 @@ from src.v4.common.audio_utils import get_audio_files  # noqa: E402
 from src.v4.common.config_loader import load_config  # noqa: E402
 from src.v4.common.path_resolver import resolve_dataset_artifacts, resolve_dataset_audio_root  # noqa: E402
 from src.v4.pipeline import organize  # noqa: E402
-from tools.playlist_review.build_review_page import make_data, render  # noqa: E402
+from tools.playlist_review.build_review_page import history_lines, make_data, render  # noqa: E402
 
 AUDIO_TYPES = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".flac": "audio/flac", ".aif": "audio/aiff",
                ".aiff": "audio/aiff", ".m4a": "audio/mp4"}
@@ -268,6 +270,28 @@ class App:
             return {"version": v, "keep": keep, "moved": moved, "n_fusions": len(drafts)}
         return self.start("fusions", ["Rehacer las playlists con las fusiones"], fn)
 
+    def reorder(self, l1: int, l2: int, tracks: List[str]) -> Dict:
+        """Orden a mano de una playlist (rápido: sin tarea en segundo plano)."""
+        with self.lock:
+            if self.running():
+                raise RuntimeError("Hay una tarea en curso; esperá a que termine.")
+            v = organize.reorder(self.store, l1, l2, [str(t) for t in tracks])
+        meta = self.store.meta()
+        return {"version": v, "history": history_lines(meta), "can_undo": self._can_undo()}
+
+    def remove_fusion(self, name: str) -> Dict:
+        """Quita la fusión: la aplicada, con una versión nueva (los temas no se mueven), y sus borradores."""
+        with self.lock:
+            if self.running():
+                raise RuntimeError("Hay una tarea en curso; esperá a que termine.")
+            applied = any(f["name"] == name for f in self.store.fusions())
+            v = organize.remove_fusion(self.store, name) if applied else None
+            drafts = self.store.drafts()
+            if not applied and not any(d["name"] == name for d in drafts):
+                raise ValueError(f"No hay una fusión llamada «{name}»")
+            self.store.save_drafts([d for d in drafts if d["name"] != name])
+        return {"version": v, "applied": applied}
+
     def export(self) -> Job:
         def fn(job: Job) -> Dict:
             from src.v4.pipeline.phase5_export import run_export
@@ -398,6 +422,10 @@ def make_handler(app: App):
                     return self._json(200, {"ok": True})
                 if path == "/api/apply-fusions":
                     return self._json(200, app.apply_fusions(bool(body.get("keep", True))).public())
+                if path == "/api/reorder":
+                    return self._json(200, app.reorder(int(body["l1"]), int(body["l2"]), list(body["tracks"])))
+                if path == "/api/remove-fusion":
+                    return self._json(200, app.remove_fusion(str(body["name"])))
                 if path == "/api/export":
                     return self._json(200, app.export().public())
                 if path == "/api/undo":

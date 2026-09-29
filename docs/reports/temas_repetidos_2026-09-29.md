@@ -108,3 +108,41 @@ tiene 85 s de diferencia de duración y está sin decidir.
   aparece, se agrega `Remixer` al XML y `REMIXER` al NML.
 - Decisión de Gabriel sobre la propuesta de duplicados. Con eso se implementa la detección de tres
   capas y el punto único.
+
+## Candidatos para el veredicto de Gabriel (2026-09-29)
+
+Capas 1 y 2 (grupos 1 a 16) y capa 3 (17 a 21): 21 grupos, 44 archivos, 23 copias de más, todas en
+la misma playlist que su original. ★ = la copia que se quedaría con la regla propuesta (mejor calidad;
+si empatan, fuera de «copia»/«old»; si no, la ruta más corta). Similitud = coseno CLAP; Δ = diferencia
+máxima de duración. Veredicto: pendiente.
+
+| # | Capa | Similitud | Δ | Archivos (calidad) |
+| ---: | :--- | ---: | ---: | :--- |
+| 1 | sonido | 1.000 | 0.0 s | `Nuevitas 12 (cachengue)/Sandy Rivera, Rae - Hide U (Chicola Extended Remix).wav` (WAV 16bit/44k, 7:38)<br>`Parte 2 - Misterio Melódico/Sandy Rivera, Rae - Hide U (Chicola Extended Remix).wav` (WAV 16bit/44k, 7:38)<br>`2020 new - copia/Sandy Rivera, Rae - Hide U (Chicola Extended Remix).wav` (WAV 16bit/44k, 7:38)<br>★ `Vocal/Sandy Rivera, Rae - Hide U (Chicola Extended Remix).wav` (WAV 16bit/44k, 7:38) |
+| 2 | sonido | 1.000 | 0.0 s | `Parte 4 - Techno Comercial/Der Dritte Raum - Trommelmaschine (Martin Landsky Remix).mp3` (MP3 320k, 6:22)<br>★ `Nuevitas 6/Der Dritte Raum - Trommel Machine (Martin Landsky remix).mp3` (MP3 320k, 6:22) |
+| 3 | sonido | 0.999 | 0.0 s | `Parte 3 - Solomun Explota/Fiberroot - Roccodrillo (Shall Ocin Remix).mp3` (MP3 320k, 6:11)<br>★ `Nuevitas 5/Fiberroot - Roccodrillo (Shall Ocin Remix).wav` (WAV 16bit/44k, 6:11) |
+| 4 | sonido | 0.997 | 1.4 s | `Milo 5/dubfire-oliver-huntemann-terra-joseph-capriati-remix-senso-sounds.mp3` (MP3 259k, 7:34)<br>★ `John Digweed - Live at Music is Revolution Space Ibiza 2016/03. (6A) Dubfire & Oliver Huntemann - Terra (Joseph Capriati Remix).mp3` (MP3 320k, 7:32) |
+| 5 | sonido | 0.996 | 0.3 s | ★ `TROPICALES/Floyd Lavine - Masala.mp3` (MP3 320k, 6:58)<br>`Milo 8/Floyd Lavine - Masala (Pablo Fierro Remix).mp3` (MP3 320k, 6:59) |
+| 6 | sonido | 0.996 | 0.1 s | `Milo 13/Forever (Original Mix).mp3` (MP3 192k, 6:44)<br>★ `Milo 13/forever-original-mix.mp3` (MP3 265k, 6:44) |
+| 7 | sonido | 0.995 | 3.6 s | `Parte 1 - Tech House/Barbatuques - Baianá (Jack Back Club Remix).mp3` (MP3 320k, 5:37)<br>★ `Nuevitas 9/Barbatuques - Baianá (Jack Back Club Remix).mp3` (MP3 320k, 5:33) |
+| 8 | sonido | 0.993 | 1.6 s | `Milo 6/Rodrigo Gallardo feat. Fernando Milagros — El Abuelo (Los Suruba  Marcelo Burlon Remix).mp3` (MP3 192k, 5:14)<br>★ `Nuevitas 6/Rodrigo Gallardo feat. Fernando Milagro - El Abuelo (Los Suruba & Marcelo Burlon Remix).mp3` (MP3 320k, 5:12) |
+| 9 | sonido | 0.992 | 1.7 s | ★ `Milo 6/Syap - Moving on.mp3` (MP3 258k, 6:13)<br>`Milo 4/SYAP - Moving On.mp3` (MP3 192k, 6:14) |
+| 10 | sonido | 0.992 | 1.8 s | `Milo 6/Benoit  Sergio - The Way You Get.mp3` (MP3 192k, 7:21)<br>★ `Parte 1 - House/Benoit & Sergio - The Way You Get.mp3` (MP3 320k, 7:20) |
+| 11 | sonido | 0.991 | 1.4 s | `old 6/Joris Voorn - Goodbye Fly.mp3` (MP3 320k, 6:56)<br>★ `Milo 10/Joris Voorn - Goodbye Fly (Original Mix).mp3` (MP3 320k, 6:57) |
+| 12 | sonido | 0.990 | 2.4 s | `Milo 3/Inaky Garcia - Afrovita (Original Mix).mp3` (MP3 192k, 6:30)<br>★ `Parte 1 - Afro House/Iñaky Garcia - Afrovita.mp3` (MP3 192k, 6:27) |
+| 13 | sonido | 0.989 | 0.4 s | `Milo 6/Flashmob- The lone brazilian.mp3` (MP3 264k, 6:36)<br>★ `Parte 1 - Tech House/Flashmob - The Lone Brazilian.flac` (FLAC 16bit/44k, 6:36) |
+| 14 | sonido | 0.988 | 0.5 s | `NEW/Victor Ruiz - Never Mind (Oliver Huntemann Remix).mp3` (MP3 192k, 7:11)<br>★ `Parte 4 - Techno Comercial/Victor Ruiz - Nevermind (Oliver Huntemann Remix).mp3` (MP3 320k, 7:10) |
+| 15 | sonido | 0.987 | 4.1 s | ★ `EGIPTO/Flight Of Birds - Bedouin.mp3` (MP3 320k, 9:13)<br>`Milo 6/Bedouin - Flight of the birds.mp3` (MP3 128k, 9:09) |
+| 16 | sonido | 0.986 | 2.1 s | ★ `Parte 3 - Solomun Explota/Oliver Koletzki - Iyéwaye.mp3` (MP3 320k, 7:40)<br>`Milo 3/Oliver Koletzki - Iyewaye (Original Mix).mp3` (MP3 192k, 7:42) |
+| 17 | nombre | 0.966 | 0.1 s | `Milo 15/Dennis Cruz - Bad Behaviour (Original Mix).mp3` (MP3 128k, 6:46)<br>★ `Milo 11/Dennis Cruz - Bad Behaviour (Original Mix).mp3` (MP3 320k, 6:46) |
+| 18 | nombre | 0.957 | 1.5 s | ★ `MELODICAS _ HOUSE/Jacob Mikesh Filburt - Philipp Dolphia.mp3` (MP3 320k, 7:14)<br>`Milo 3/Jacob Mikesh Filburt - Philipp Dolphia.mp3` (MP3 192k, 7:16) |
+| 19 | nombre | 0.954 | 0.1 s | `old 2/Jaydee - Plastic Dreams (Nicole Moudaber Renaissance Remix).mp3` (MP3 320k, 9:07)<br>★ `Milo 11/Jaydee - Plastic Dreams (Nicole Moudaber Renaissance Remix).mp3` (MP3 320k, 9:07) |
+| 20 | nombre | 0.941 | 1.3 s | ★ `Techno Trance/nthng - Untitled (Human Pt. II).mp3` (MP3 320k, 8:50)<br>`(1A) nthng - Untitled (Human Pt.II) [LT029.5].mp3` (MP3 192k, 8:52) |
+| 21 | nombre | 0.928 | 0.1 s | `Nuevitas 6/Wally Lopez - American Icon (Original Mix).mp3` (MP3 320k, 9:25)<br>★ `Milo 7/Wally Lopez - American Icon.mp3` (MP3 320k, 9:25) |
+
+Casos límite, fuera de los grupos: Benno Blome «Abotha» / «Abotha - Mihai Popoviciu Rmx» (0.979, 2 s:
+probable duplicado con otro nombre); otro corte del mismo tema: Boris Brejcha «I am a Maschine» (6:13) /
+«(Original Mix)» (7:45) y Markus Homm «Dance With Me» (7:35 / 6:10); versiones con nombre propio:
+Circulation «Lemon» Mix 1/Mix 2, Kotelett Bonus Mix / Unconditional Love Version, Chus & Ceballos «The Sun» /
+«(Algarve Mix)», Alex Dimou / Cevin Fisher Remix, Kevin De Vries «Sciamachy» / Konstantin Sibold Remix;
+temas distintos: Joe Red «Orange» / «Blue» y dos pares de tramos de un set continuo de psytrance.

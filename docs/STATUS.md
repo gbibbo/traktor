@@ -36,9 +36,9 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 
 1. GABRIEL: importar y validar `V4_1` en Rekordbox (pendrive) y Traktor (TODO 6.7).
 2. GABRIEL: probar la app local (`Abrir TRAKTOR ML.bat`): agregar música nueva, fusiones de temas
-   (clic derecho), preparar para Rekordbox/Traktor y deshacer. Plan `docs/plans/20260929_app_local.md`.
-3. GABRIEL: decidir cómo tratar los temas repetidos: ≈ 18 copias de más en 16 grupos, todas en la
-   misma playlist que el original (propuesta en `docs/reports/temas_repetidos_2026-09-29.md`).
+   (clic derecho, papelera), orden a mano (◇), preparar para Rekordbox/Traktor y deshacer.
+3. GABRIEL: veredicto sobre los 21 grupos de temas repetidos (23 copias de más, todas en la misma
+   playlist que su original); después LOCAL escribe la regla (`docs/reports/temas_repetidos_2026-09-29.md`).
 4. GABRIEL: autorizar la escritura de tags (`write_beatport_tags.py --write`, primero `--folder`) y
    decidir el género de los 110 matches sin confirmar (35 tienen género; DECISIONS 2026-09-29).
 5. LOCAL: ajustar el umbral Vocal con la lista de chequeo (`tag_vocals.py --check-list`).

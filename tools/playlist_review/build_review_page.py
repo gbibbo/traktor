@@ -19,6 +19,8 @@ CHANGELOG:
                 nombre y color en vez de "semillas".
   - 2026-09-29: Mezcla de cada tema (campo "m"): tag Remixer del archivo o el paréntesis del título o
                 del nombre que nombra una versión, para distinguir dos versiones del mismo tema.
+  - 2026-09-29: Álbum por tema (campo "al", para los filtros de búsqueda), clave l1/l2 de cada playlist
+                (orden a mano desde la app) y el historial de reorder / unlink.
 """
 import argparse
 import datetime as dt
@@ -140,6 +142,7 @@ def build_tracks(catalog: pd.DataFrame, bpm_key: pd.DataFrame, uids: List[str]) 
             "t": title,
             "m": version_label(tag, title, Path(str(r["rel_path"])).name),
             "g": "" if pd.isna(r.get("tag_genre")) else str(r.get("tag_genre")),
+            "al": "" if pd.isna(r.get("tag_album")) else str(r.get("tag_album")),
             "fs": short_folder(r.get("folder", "")),
             "b": _num(b["bpm"], 1) if b is not None else None,
             "k": None if b is None or pd.isna(b["key"]) else str(b["key"]),
@@ -199,6 +202,10 @@ def history_lines(meta: Dict) -> List[str]:
             groups = h.get("groups") or ([h["group"]] if h.get("group") else [])
             moved = len(h.get("moved", []))
             txt = f"{_n(len(groups), 'fusión aplicada', 'fusiones aplicadas')} ({_n(moved, 'tema movido', 'temas movidos')})"
+        elif a == "reorder":
+            txt = f"orden cambiado a mano en «{h.get('playlist_name') or 'una playlist'}»"
+        elif a == "unlink":
+            txt = f"se eliminó la fusión «{h.get('fusion', '')}» (sus temas no se movieron)"
         elif a == "link-rebuild":
             txt = f"reorganizada desde cero respetando las fusiones ({h['n_playlists']} playlists)"
         else:
@@ -240,7 +247,7 @@ def org_payload(org: Dict, uid_index: Dict[str, int], label: str, n_suggested: i
         pls = []
         for l2, g2 in g1.groupby("label_l2", sort=True):
             pname = org["names"].get(f"l1_{l1}_l2_{l2}", f"{letter}{int(l2) + 1}" if l2 >= 0 else f"{letter} varios")
-            pls.append({"id": f"{org_id}:{l1}:{l2}", "name": pname,
+            pls.append({"id": f"{org_id}:{l1}:{l2}", "key": [int(l1), int(l2)], "name": pname,
                         "tracks": [uid_index[u] for u in g2["track_uid"]], "suggested": False})
         folders.append({"id": f"{org_id}:{l1}", "name": fname, "playlists": pls})
     # Sugeridas: la playlist más grande de cada una de las n carpetas más grandes

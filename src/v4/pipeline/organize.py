@@ -9,7 +9,8 @@ PURPOSE: Organizaciones estables de la biblioteca (plan docs/plans/20260929_orga
              orden relativo ni de lugar en el mapa);
            - link: exigir que dos o más temas vayan en la misma playlist, moviendo solo ese grupo
              (congelado) o rehaciendo todo con las semillas (--rebuild);
-           - show: resumen de versiones, playlists y semillas.
+           - show: resumen de versiones, playlists y semillas;
+           - reorder / remove_fusion (desde la app): orden a mano de una playlist y quitar una fusión.
          Export y página de revisión: phase5_export.py / build_review_page.py con --org-name.
 CHANGELOG:
   - 2026-09-29: Creación inicial.
@@ -18,6 +19,8 @@ CHANGELOG:
   - 2026-09-29: Fusiones (antes "semillas") con nombre y color, guardadas dentro de cada versión
                 (v<N>/constraints.json): deshacer una versión deshace sus fusiones. Borradores de
                 fusiones (fusion_drafts.json) para la app, set_current/undo, y parent en el historial.
+  - 2026-09-29: reorder (orden a mano de una playlist) y remove_fusion (quitar una fusión aplicada sin
+                mover temas), cada uno como versión nueva, para la app.
 """
 from __future__ import annotations
 
@@ -558,6 +561,44 @@ def link_groups(store: OrgStore, lib: Library, query_groups: List, rebuild: bool
                                                      "targets": [list(r["target"]) for r in results]},
                      fusions=fusions)
     return v, {"groups": results, "mode": "frozen"}
+
+
+def reorder(store: OrgStore, l1: int, l2: int, order: List[str]) -> int:
+    """Orden a mano de una playlist: los mismos temas (uid o prefijo) en otro orden. Versión nueva
+    ('reorder'); add y link congelado insertan después sin romper este orden relativo."""
+    meta = store.meta()
+    assign, names, _ = store.load()
+    playlists = _playlists(assign)
+    key = (int(l1), int(l2))
+    if key not in playlists:
+        raise ValueError(f"No existe la playlist {key}")
+    current = playlists[key]
+    new = []
+    for q in order:
+        hits = [u for u in current if u.startswith(str(q))]
+        if len(hits) != 1:
+            raise ValueError(f"'{q}' no identifica un tema de esa playlist")
+        new.append(hits[0])
+    if sorted(new) != sorted(current):
+        raise ValueError("El orden nuevo tiene que tener exactamente los temas de la playlist")
+    if new == current:
+        return meta["current_version"]
+    playlists[key] = new
+    return store.commit(meta, _renumber(assign, playlists), names, "reorder",
+                        {"playlist": list(key), "playlist_name": names.get(f"l1_{key[0]}_l2_{key[1]}", "")})
+
+
+def remove_fusion(store: OrgStore, name: str) -> int:
+    """Quita una fusión aplicada. Sus temas quedan en las playlists donde están; solo dejan de estar
+    obligados a ir juntos (un build posterior puede separarlos). Versión nueva ('unlink')."""
+    meta = store.meta()
+    assign, names, _ = store.load()
+    fusions = store.fusions()
+    idx = next((i for i, f in enumerate(fusions) if f["name"] == name), None)
+    if idx is None:
+        raise ValueError(f"No hay una fusión aplicada llamada «{name}»")
+    gone = fusions.pop(idx)
+    return store.commit(meta, assign, names, "unlink", {"fusion": name, "tracks": gone["tracks"]}, fusions=fusions)
 
 
 def read_seed_file(path: Path, org_name: str) -> List[Dict]:
