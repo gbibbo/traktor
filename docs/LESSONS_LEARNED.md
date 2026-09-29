@@ -11,6 +11,22 @@
 ### Separabilidad del espacio MERT-v1-330M con test_20
 Para N≤300 tracks de techno/tech house, esperar noise rates de 40-60% en L1. Esto es estructural del dataset pequeño, no un bug. Los tracks asignados (~116 de 239) sí tienen estructura musical real.
 
+## Detección de voz
+
+### Silero VAD no detecta canto sobre la mezcla completa
+**Contexto (2026-09-29):** Silero VAD v5.1.2 (TorchScript, 16 kHz) sobre el tema entero, en 63 temas de
+`musica`: en las carpetas «Vocal» de Gabriel (23 temas, todos con voz) encontró voz en >= 1 % del tema
+solo en el 13 % y nunca llegó al 5 %; CLAP zero-shot marcó el 87 %. Es un detector de habla entrenado
+para ignorar música, y el canto sobre la base cuenta como música.
+**Regla:** no usarlo sobre la mezcla. Solo tendría sentido sobre la voz separada (Demucs).
+
+### CLAP zero-shot sobre 90 s del medio pierde voces
+**Contexto (2026-09-29):** con 3 tramos de 30 s del medio (≈ 20 % de un tema de 7 min) el detector marcó
+55 % de 20 temas con «feat.»; con ventanas de 10 s cada 20 s sobre todo el tema, 75 %, y en 20 temas
+Dub/Instrumental bajó de 30 % a 25 %. Muestras chicas (etiquetas débiles: «feat.» no garantiza voz
+audible y un dub puede tener recortes de voz). Ningún umbral sobre los 90 s arreglaba las dos cosas.
+**Regla:** para la voz, mirar el tema entero antes de ajustar el umbral.
+
 ## Entorno HPC (ver también memory/MEMORY.md)
 
 [REEMPLAZADO 2026-09-12 por DECISIONS 2026-09-12, punto 4: Surrey HPC ya no existe; se trabaja en CPU local (AGENTS.md). Se conserva como registro.]

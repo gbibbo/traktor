@@ -26,8 +26,9 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 5. **Género del modelo solo con confianza** (clasificador >= 0.6: 171 temas). Donde no hay género
    confiable (confianza baja, gate MAEST sin validar, sin representaciones), el género que ya tiene
    el archivo se conserva (50 casos); si no tiene, queda vacío.
-6. **Los matches B sin confirmar (110) no reciben datos de Beatport.** Qué hacer con el género que
-   ya tienen 35 de ellos está pendiente: Gabriel pidió ver los ejemplos antes de decidir.
+6. **Los matches B sin confirmar (110) no reciben datos de Beatport** y conservan el género que ya
+   tienen (35 casos): Gabriel vio los ejemplos y lo juzgó razonable. La escritura de tags la corre
+   Gabriel con `write_beatport_tags.py` (primero `--folder`), cuando el agente le avisa.
 7. **WAV y AIFF no se escriben**: su track_uid incluye los tags y cambiaría (31 archivos).
 8. **Temas repetidos: una sola copia por tema en las playlists** (Gabriel, escuchando los 24 grupos
    de `Música/_duplicados_para_escuchar.html`). 21 grupos son el mismo tema (1 a 10, 12 a 21 y el

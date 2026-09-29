@@ -21,13 +21,15 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
   pyarrow 16.1 (`requirements_v4.txt`). CLAP da lo mismo que con torch 2.14.
 - **Tripletas (n = 57): ninguna representación supera al BPM de forma concluyente.** Entre
   representaciones decide la escucha de playlists enteras, no el puntaje.
-- **Etiqueta Vocal** escrita en el comentario de 542 archivos (CLAP zero-shot, umbral 0.145).
+- **Etiqueta Vocal** escrita en 542 archivos (CLAP zero-shot sobre 90 s del medio, umbral 0.145).
+  Detecta poco: marca 55 % de 20 temas con «feat.»; CLAP sobre el tema entero, 75 %, sin marcar más
+  Dub/Instrumental (30 % → 25 %). Silero VAD no sirve (LESSONS_LEARNED, detección de voz).
 - **Beatport (tabla aparte, tags todavía sin escribir)**: `beatport_lookup.py` encontró 1455 de 1823
   temas (115 por ISRC, 1340 misma versión, 1230 de ellos confirmados por sello, fecha o duración);
   103 solo tienen otro remix y 265 no están. `genre_model.py` (MAEST capa 7 + CLAP, 15 géneros):
   38 % de acierto, 72 % en el top 3 (18 % la clase más frecuente); con confianza >= 0.6, 50 %.
   `write_beatport_tags.py` simula 1087 archivos a cambiar (1338 con datos de Beatport, 171 con
-  género del modelo); la escritura real la bloqueó el permiso de auto mode y espera a Gabriel.
+  género del modelo); lo corre Gabriel (al agente se lo bloquea el permiso de auto mode).
 - **`download_JIJIJI/`**: descarga de playlists de Spotify por Soulseek, con grabación por loopback
   como respaldo; punto de entrada `spotify_soulseek_orchestrator.py`.
 - **Chequeo pre-commit** en `tools/git_hooks/` (audio, arrays, pesos, credenciales, archivos > 5 MB).
@@ -39,9 +41,9 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    (clic derecho, papelera), orden a mano (⇅), preparar para Rekordbox/Traktor y deshacer.
 3. GABRIEL: temas repetidos (DECISIONS 2026-09-29, 8-12): grupo 11, casos B y C, «Enjoy The
    Silence», desempate por carpeta y alcance de mover copias a `_copias`. LOCAL: pregunta en la app.
-4. GABRIEL: autorizar la escritura de tags (`write_beatport_tags.py --write`, primero `--folder`) y
-   decidir el género de los 110 matches sin confirmar (35 tienen género; DECISIONS 2026-09-29).
-5. LOCAL: ajustar el umbral Vocal con la lista de chequeo (`tag_vocals.py --check-list`).
+4. GABRIEL: correr la escritura de tags (`write_beatport_tags.py --folder ... --write`, después sin
+   `--folder`; comandos en V4_USAGE). Los 110 sin confirmar conservan su género.
+5. LOCAL, si Gabriel aprueba: Vocal con CLAP sobre el tema entero (~3 h de CPU) y reescribir la etiqueta.
 6. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
    tracklists y descarga del audio se consultan antes de implementar.
 7. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
