@@ -42,3 +42,10 @@ def test_auc_and_metrics_and_threshold():
     assert m["precision"] == 2 / 3 and m["recall"] == 2 / 3 and abs(m["balanced_accuracy"] - 2 / 3) < 1e-9
     t = best_threshold(y, s)
     assert binary_metrics(y, (s >= t).astype(int))["balanced_accuracy"] == 1.0
+
+
+def test_window_voice_fraction():
+    from src.v4.evaluation.vocal_eval import window_voice_fraction
+    segs = [(0.0, 4.0, "nosing"), (4.0, 12.0, "sing"), (12.0, 20.0, "nosing")]
+    f = window_voice_fraction(segs, np.array([0.0, 5.0, 10.0]), 10.0)
+    assert np.allclose(f, [0.6, 0.7, 0.2])

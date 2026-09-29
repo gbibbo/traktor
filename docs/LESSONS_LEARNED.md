@@ -11,6 +11,15 @@
 ### Separabilidad del espacio MERT-v1-330M con test_20
 Para N≤300 tracks de techno/tech house, esperar noise rates de 40-60% en L1. Esto es estructural del dataset pequeño, no un bug. Los tracks asignados (~116 de 239) sí tienen estructura musical real.
 
+## Tags de audio
+
+### Guardar un ID3 v2.3 une con «/» los campos que traían varios valores
+**Contexto (2026-09-29):** al escribir los tags de Beatport, mutagen conserva la versión ID3 del archivo.
+Un archivo v2.3 («Len Faki - BX 3») traía un título con dos valores ("BX 3", "BX 3 (original mix)"), algo
+que v2.3 no admite; al guardarlo quedó "BX 3/BX 3 (original mix)". Fue 1 de 1087 archivos escritos: los
+demás campos no cambiaron (verificado contra el catálogo).
+**Regla:** después de escribir tags, comparar todos los campos contra el catálogo, no solo los escritos.
+
 ## Detección de voz
 
 ### Silero VAD no detecta canto sobre la mezcla completa

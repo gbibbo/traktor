@@ -15,6 +15,8 @@ PURPOSE: Evaluación de detectores de voz contra datos públicos etiquetados (pr
          artifacts/v4/vocal_eval/<detector>/ para no recalcular.
 CHANGELOG:
   - 2026-09-29: Creación inicial.
+  - 2026-09-29: Detector 'clap_probe' (lineal sobre CLAP, entrenado con Electrobyte train); el último
+                pedazo de HDemucs se rellena con silencio (el modelo exige largo fijo).
 """
 import argparse
 import json
@@ -165,6 +167,22 @@ class ClapDetector:
         return p[:, 0] / p.sum(axis=1)
 
     def score(self, path: Path):
+        starts, win, emb = self.embed(path)
+        return starts, win, self.probs(emb)
+
+    def embed(self, path: Path):
+        """Embeddings CLAP por ventana (con caché en vocal_eval/clap_emb/)."""
+        cdir = CACHE / "clap_emb"
+        cdir.mkdir(parents=True, exist_ok=True)
+        f = cdir / f"{Path(path).stem}.npz"
+        if f.exists():
+            z = np.load(f)
+            return z["starts"], float(z["win"]), z["emb"]
+        starts, win, emb = self._embed(path)
+        np.savez(f, starts=starts, win=win, emb=emb)
+        return starts, win, emb
+
+    def _embed(self, path: Path):
         wav = decode(path, self.sr)
         starts = np.arange(0, max(1, len(wav) - int(self.win * self.sr) + 1), int(self.hop * self.sr))
         wins = [wav[a:a + int(self.win * self.sr)] for a in starts]
@@ -176,7 +194,7 @@ class ClapDetector:
             if not self.torch.is_tensor(f):
                 f = f.audio_embeds if getattr(f, "audio_embeds", None) is not None else f.pooler_output
             mats.append(f.numpy().astype(np.float32))
-        return starts / self.sr, self.win, self.probs(np.vstack(mats))
+        return starts / self.sr, self.win, np.vstack(mats)
 
 
 class AstDetector:
@@ -232,8 +250,11 @@ class HDemucsDetector:
         vi = self.sources.index("vocals")
         for a in range(0, n, step):
             b = min(n, a + step + ov)
+            seg = x[:, a:b]
+            if seg.shape[1] < step + ov:  # el modelo exige largo fijo: el último pedazo se rellena con silencio
+                seg = torch.nn.functional.pad(seg, (0, step + ov - seg.shape[1]))
             with torch.no_grad():
-                out = self.model(x[None, :, a:b])[0, vi].mean(0)
+                out = self.model(seg[None])[0, vi].mean(0)[: b - a]
             f = fade[: b - a].clone()
             if a == 0:
                 f[:ov] = 1
@@ -250,7 +271,53 @@ class HDemucsDetector:
         return np.arange(nf) * self.hop, self.win, 10 * np.log10((ev + 1e-10) / (em + 1e-10))
 
 
-DETECTORS = {"clap": ClapDetector, "ast": AstDetector, "hdemucs": HDemucsDetector}
+def window_voice_fraction(segs: List[Tuple[float, float, str]], starts: np.ndarray, win: float) -> np.ndarray:
+    """Fracción de cada ventana [a, a + win) marcada como voz."""
+    out = np.zeros(len(starts))
+    for i, a in enumerate(starts):
+        out[i] = sum(max(0.0, min(e, a + win) - max(b, a)) for b, e, lab in segs if lab == "sing") / win
+    return out
+
+
+class ClapProbeDetector:
+    """Clasificador lineal (StandardScaler + regresión logística balanceada) sobre los embeddings CLAP
+    por ventana, entrenado con Electrobyte train (ventana = voz si más de la mitad tiene voz). C se elige
+    por AUC de ventanas en valid; el umbral por segundo se elige después, también en valid."""
+    name, win, hop = "clap_probe", 10.0, 5.0
+    cache_scores = False
+
+    def __init__(self):
+        from sklearn.linear_model import LogisticRegression
+        from sklearn.pipeline import make_pipeline
+        from sklearn.preprocessing import StandardScaler
+        self.clap = ClapDetector()
+
+        def xy(split):
+            X, y = [], []
+            for name, audio, lab in electrobyte_split(split):
+                starts, win, emb = self.clap.embed(audio)
+                X.append(emb)
+                y.append((window_voice_fraction(read_lab(lab), np.asarray(starts), win) > 0.5).astype(int))
+                print(f"[clap_probe] embeddings {split} {name[:40]}", flush=True)
+            return np.vstack(X), np.concatenate(y)
+        Xtr, ytr = xy("train")
+        Xva, yva = xy("valid")
+        best = None
+        for C in (0.001, 0.01, 0.1, 1.0):
+            clf = make_pipeline(StandardScaler(), LogisticRegression(C=C, max_iter=5000, class_weight="balanced")).fit(Xtr, ytr)
+            a = auc(yva, clf.predict_proba(Xva)[:, 1])
+            if best is None or a > best[0]:
+                best = (a, C, clf)
+        self.info = {"C": best[1], "auc_valid_windows": round(best[0], 3), "train_windows": int(len(ytr)),
+                     "train_voice_share": round(float(ytr.mean()), 3)}
+        self.clf = best[2]
+
+    def score(self, path: Path):
+        starts, win, emb = self.clap.embed(path)
+        return starts, win, self.clf.predict_proba(emb)[:, 1]
+
+
+DETECTORS = {"clap": ClapDetector, "ast": AstDetector, "hdemucs": HDemucsDetector, "clap_probe": ClapProbeDetector}
 
 
 # ---------------------------------------------------------------------------
@@ -344,6 +411,8 @@ def track_level(det_name: str, frame_thr: float) -> dict:
 # ---------------------------------------------------------------------------
 
 def track_scores(det, name: str, path: Path) -> Tuple[np.ndarray, float, np.ndarray]:
+    if not getattr(det, "cache_scores", True):   # depende de un modelo entrenado: no se guarda
+        return det.score(path)
     cdir = CACHE / det.name
     cdir.mkdir(parents=True, exist_ok=True)
     f = cdir / f"{name}.npz"
@@ -382,6 +451,8 @@ def evaluate(det_name: str, limit: int = 0) -> dict:
            "auc_valid": round(auc(yv, sv), 3), "auc_test": round(auc(yt, st), 3),
            "test": {k: round(v, 3) for k, v in binary_metrics(yt, (st >= thr).astype(int)).items()},
            "test_ci95": bootstrap_ci(test, thr)}
+    if hasattr(det, "info"):
+        rep["model"] = det.info
     return rep
 
 

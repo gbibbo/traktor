@@ -36,6 +36,7 @@ separa los instrumentales del promedio.
 | `clap` | El detector actual (zero-shot), pero sobre todo el tema | P(voz) por ventana de 10 s, paso de 5 s |
 | `ast` | Etiquetador AudioSet (Gong et al. 2021) | Máximo de las clases de voz (Singing, Rapping, Speech, Vocal music…) por ventana de 10 s, paso de 5 s |
 | `hdemucs` | Separación de fuentes (Défossez 2021; torchaudio `HDEMUCS_HIGH_MUSDB_PLUS`) | Energía del stem de voz relativa a la mezcla (dB) por segundo |
+| `clap_probe` | Clasificador lineal (regresión logística) sobre los embeddings CLAP, entrenado con Electrobyte train | P(voz) por ventana de 10 s, paso de 5 s; C elegido por AUC en valid |
 
 Si hace falta, después: AST sobre el stem de voz (menos falsos positivos por sintes), PANNs, o los
 clasificadores `voice_instrumental` de Essentia (hay ONNX; requiere conversión).
@@ -81,4 +82,23 @@ Electrobyte cuánto se pierde procesando solo algunos tramos de cada tema.
 
 ## Resultados
 
-(Se completa con la corrida sobre Electrobyte valid/test.)
+### Electrobyte, por segundo (umbral elegido en valid, métricas en test; IC 95 % por bootstrap sobre temas)
+
+Test: 15 temas, 3245 segundos, 49.5 % con voz.
+
+| Detector | AUC | Exactitud balanceada | Precisión | Recall | F1 | Umbral (de valid) |
+|---|---|---|---|---|---|---|
+| hdemucs | 0.913 (0.872–0.947) | 0.842 (0.792–0.885) | 0.850 | 0.824 | 0.837 | −10.4 dB |
+| clap_probe | 0.876 (0.838–0.909) | 0.816 (0.765–0.855) | 0.790 | 0.854 | 0.821 | 0.49 |
+| ast | 0.824 (0.760–0.874) | 0.771 (0.712–0.813) | 0.732 | 0.847 | 0.785 | 0.022 |
+| clap (zero-shot, tema entero) | 0.807 (0.734–0.868) | 0.735 (0.662–0.797) | 0.734 | 0.729 | 0.731 | 0.27 |
+
+Lectura: HDemucs, sin entrenar con estos datos, es el mejor y su intervalo no se superpone con el de
+CLAP zero-shot. El clasificador lineal sobre CLAP mejora mucho al zero-shot (AUC 0.95 por ventana en
+valid). Las ventanas de 10 s tienen menos resolución en los bordes que la grilla de 1 s de HDemucs, y
+eso favorece a HDemucs en esta métrica por segundo.
+
+### MTG-Jamendo, por tema (en curso)
+
+238 temas de baile (119 con voz y 119 instrumentales, etiqueta unánime de 3 anotadores), mitad dev
+para elegir T y mitad test.
