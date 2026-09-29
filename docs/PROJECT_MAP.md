@@ -127,12 +127,12 @@ por loopback (`playlist_loopback_recorder.py`) y los reportes JSON/TXT de una pr
 (`soulseek_prueba_descarga/`).
 
 `spotify_soulseek_orchestrator.py` es el punto de entrada único: recibe una URL,
-coordina el preflight y la descarga de Soulseek, espera el JSON/playlist de faltantes,
-sincroniza el inicio del grabador con Spotify y reúne los resultados bajo
+coordina el preflight y la descarga de Soulseek, divide los faltantes en playlists
+privadas de hasta 10 temas, las reproduce y graba secuencialmente, y reúne los resultados bajo
 `download_JIJIJI/runs/` (git-ignorado). `download_JIJIJI/README.md` documenta la
 configuración inicial y el uso. La grabación crea checkpoints por tema en
 `recording_progress.json`; una ejecución posterior conserva los MP3 terminados y
-reanuda Spotify desde la primera pista pendiente. El grabador reutiliza el
+reanuda el lote correcto desde la primera pista pendiente. El grabador reutiliza el
 escritor canónico de metadata y cover de `spotify_soulseek_download.py`, por lo
 que ambos orígenes producen MP3 con el mismo criterio de nombres y etiquetas.
 Al completar ambas ramas, el orquestador mueve todo el audio sin duplicados a

@@ -11,10 +11,11 @@ El orquestador:
 
 1. ejecuta el preflight de Soulseek sobre toda la playlist;
 2. pausa la descarga de los temas disponibles en una barrera de sincronización;
-3. espera el JSON definitivo y la URL de la playlist privada de faltantes;
-4. abre el grabador WASAPI loopback;
-5. cuando el grabador confirma que está listo, inicia esa playlist en Spotify;
-6. libera la descarga de Soulseek y espera a que terminen ambas ramas;
+3. divide los faltantes en playlists privadas de Spotify de hasta 10 temas;
+4. abre el grabador WASAPI loopback para el primer lote pendiente;
+5. cuando el grabador confirma que está listo, reproduce ese lote en Spotify;
+6. libera la descarga de Soulseek y procesa secuencialmente los demás lotes,
+   creando un proceso nuevo de reproducción y grabación para cada grupo de 10;
 7. mueve todos los MP3 a `Playlists_DOWNLOAD/<nombre de playlist>/`, elimina
    duplicados por Spotify Track ID y limpia los intermedios del run.
 
@@ -28,7 +29,9 @@ el Reproductor multimedia actual de Windows.
 ## Reanudación después de una interrupción
 
 El grabador codifica y registra cada MP3 apenas termina el tema, sin esperar al
-final de toda la playlist. El estado durable queda en
+final de toda la playlist. Además, cada proceso de captura termina al completar
+su lote de hasta 10 temas; el siguiente lote comienza con procesos nuevos. El
+estado durable global queda en
 `recorded_missing/recording_progress.json`.
 
 Un watchdog consulta el estado real de Spotify y detecta una pausa sostenida;
@@ -39,8 +42,8 @@ Al ejecutar nuevamente exactamente el mismo comando, el orquestador:
 
 1. encuentra la sesión incompleta más reciente para esa playlist fuente;
 2. valida los MP3 ya terminados y no los sobrescribe;
-3. abre la playlist de faltantes anterior;
-4. inicia Spotify desde la primera pista pendiente y desde el segundo cero.
+3. selecciona la playlist de 10 temas que contiene la primera pista pendiente;
+4. inicia Spotify desde esa pista dentro del lote y desde el segundo cero.
 
 El fragmento del tema interrumpido no se reutiliza: solo se conservan temas
 completos, y por eso la captura WAV parcial se elimina. Para ignorar

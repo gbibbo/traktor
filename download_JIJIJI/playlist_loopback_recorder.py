@@ -3,6 +3,7 @@
 PURPOSE: Record a Spotify playlist through Windows WASAPI loopback and split it.
 
 CHANGELOG:
+- 2026-09-29: Support bounded recording batches while keeping global checkpoints.
 - 2026-09-27: Remove partial WAV captures that are not used by resume.
 - 2026-09-27: Reuse the Soulseek finalizer's Spotify tags, cover, and filenames.
 - 2026-09-27: Add an optional ready-file handshake for process orchestration.
@@ -603,6 +604,15 @@ def check_ffmpeg() -> str:
     return ffmpeg
 
 
+def recording_target(completed: int, total: int, max_tracks: int | None) -> int:
+    """Return the exclusive global checkpoint target for this recorder process."""
+    if max_tracks is None:
+        return total
+    if max_tracks <= 0:
+        raise ValueError("max_tracks must be greater than zero")
+    return min(total, completed + max_tracks)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -640,6 +650,12 @@ def main() -> int:
         help="Resume from recording_progress.json and keep completed MP3 files",
     )
     parser.add_argument(
+        "--max-tracks",
+        type=int,
+        default=None,
+        help="Stop successfully after recording this many pending tracks",
+    )
+    parser.add_argument(
         "--stall-timeout",
         type=float,
         default=DEFAULT_STALL_TIMEOUT,
@@ -669,6 +685,8 @@ def main() -> int:
         parser.error("--search-before and --search-after must be > 0")
     if args.stall_timeout <= 0 or args.start_timeout <= 0:
         parser.error("--stall-timeout and --start-timeout must be > 0")
+    if args.max_tracks is not None and args.max_tracks <= 0:
+        parser.error("--max-tracks must be > 0")
 
     manifest, tracks = load_manifest(args.json_file)
     ffmpeg = check_ffmpeg()
@@ -683,6 +701,7 @@ def main() -> int:
     progress = load_resume_progress(progress_path, args.json_file, tracks)
     completed_before = int(progress["completed_count"])
     total_tracks = len(tracks)
+    target_completed = recording_target(completed_before, total_tracks, args.max_tracks)
     spotify_tracks = [
         track_from_report(track.get("spotify"))
         for track in tracks
@@ -758,6 +777,7 @@ def main() -> int:
         print(f"Format   : {rate} Hz, stereo, PCM 16 bit")
         print(f"Tracks   : {total_tracks}")
         print(f"Completed: {completed_before}")
+        print(f"This run : {target_completed - completed_before}")
         print(f"Pending  : {total_tracks - completed_before}")
         print(f"Output   : {args.output_dir.resolve()}")
         print()
@@ -773,6 +793,8 @@ def main() -> int:
                         "tracks": total_tracks,
                         "completed_count": completed_before,
                         "start_position": completed_before,
+                        "batch_end_position": target_completed,
+                        "batch_tracks": target_completed - completed_before,
                         "remaining_tracks": total_tracks - completed_before,
                     },
                     ensure_ascii=False,
@@ -900,7 +922,7 @@ def main() -> int:
             )
 
             next_track_index += 1
-            if next_track_index >= total_tracks:
+            if next_track_index >= target_completed:
                 capture_finished = True
                 break
 
@@ -988,11 +1010,16 @@ def main() -> int:
             print("Captura WAV parcial eliminada; no se usa al reanudar.", file=sys.stderr)
         return exit_code
 
-    if playlist_start is None or int(progress["completed_count"]) != total_tracks:
+    if playlist_start is None or int(progress["completed_count"]) != target_completed:
         raise RuntimeError("La captura terminó sin completar todos los checkpoints.")
 
-    progress["status"] = "completed"
-    progress["completed_at"] = datetime.now().isoformat(timespec="seconds")
+    all_completed = target_completed == total_tracks
+    progress["status"] = "completed" if all_completed else "batch_completed"
+    timestamp = datetime.now().isoformat(timespec="seconds")
+    if all_completed:
+        progress["completed_at"] = timestamp
+    else:
+        progress["last_batch_completed_at"] = timestamp
     progress.pop("last_error", None)
     write_json_atomic(progress_path, progress)
 
@@ -1003,6 +1030,8 @@ def main() -> int:
         "search_before_sec": args.search_before,
         "search_after_sec": args.search_after,
         "attempts": progress["attempt"],
+        "batch_start_position": completed_before,
+        "batch_end_position": target_completed,
         "completed_count": progress["completed_count"],
         "tracks": progress["tracks"],
     }
@@ -1014,7 +1043,10 @@ def main() -> int:
     else:
         print(f"Temporary WAV kept: {temp_wav}")
 
-    print(f"\nDone. {progress['completed_count']} MP3 files available.")
+    print(
+        f"\nDone. Batch {completed_before + 1}-{target_completed}; "
+        f"{progress['completed_count']}/{total_tracks} MP3 files available."
+    )
     print(f"Report: {report_path}")
     return 0
 

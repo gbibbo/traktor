@@ -6,6 +6,7 @@ spotify_soulseek_download.py
 PURPOSE: Reconcile a Spotify playlist against Soulseek and download matches.
 
 CHANGELOG:
+- 2026-09-29: Split missing tracks into private Spotify playlists of 10 tracks.
 - 2026-09-27: Match the Windows Media-compatible Soulseek ID3 frame profile.
 - 2026-09-27: Expose the canonical Spotify metadata/cover writer for recordings.
 - 2026-09-27: Add an optional pre-download gate for external orchestration.
@@ -106,6 +107,7 @@ API_ROOT = "https://api.spotify.com/v1"
 DEFAULT_REDIRECT = "http://127.0.0.1:48721/callback"
 SCOPES = "playlist-read-private playlist-read-collaborative playlist-modify-private"
 REQUIRED_SCOPES = set(SCOPES.split())
+DEFAULT_MISSING_PLAYLIST_BATCH_SIZE = 10
 
 
 def token_cache_path() -> Path:
@@ -471,6 +473,51 @@ class Spotify:
             or f"https://open.spotify.com/playlist/{playlist_id}"
         )
         return {"id": playlist_id, "name": playlist_name, "url": url}
+
+    def create_missing_playlists(
+        self,
+        source_playlist_name: str,
+        tracks: list[Track],
+        *,
+        name: str | None = None,
+        batch_size: int = DEFAULT_MISSING_PLAYLIST_BATCH_SIZE,
+    ) -> list[dict[str, Any]]:
+        """Create ordered private playlists small enough for bounded recordings."""
+        if batch_size <= 0:
+            raise ValueError("batch_size debe ser mayor que cero")
+        if not tracks:
+            raise ValueError("No hay tracks para crear playlists de faltantes")
+
+        total_batches = (len(tracks) + batch_size - 1) // batch_size
+        base_name = name or (
+            f"No disponibles en Soulseek - {source_playlist_name} - "
+            + time.strftime("%Y-%m-%d %H%M")
+        )
+        playlists: list[dict[str, Any]] = []
+        for batch_index, start in enumerate(range(0, len(tracks), batch_size)):
+            end = min(start + batch_size, len(tracks))
+            batch_name = (
+                base_name
+                if total_batches == 1
+                else f"{base_name} [{batch_index + 1:02d}/{total_batches:02d}]"
+            )
+            created = self.create_missing_playlist(
+                source_playlist_name,
+                tracks[start:end],
+                name=batch_name,
+            )
+            playlists.append(
+                {
+                    **created,
+                    "batch_index": batch_index,
+                    "batch_number": batch_index + 1,
+                    "batch_count": total_batches,
+                    "start_index": start,
+                    "end_index": end,
+                    "track_count": end - start,
+                }
+            )
+        return playlists
 
     def _album_details(self, album_id: str | None) -> dict[str, Any]:
         if not album_id:
@@ -1170,7 +1217,9 @@ def write_missing_json(
     source_playlist_name: str,
     source_playlist: str,
     missing: list[tuple[int, Track]],
-    generated_playlist: dict[str, str] | None = None,
+    generated_playlist: dict[str, Any] | None = None,
+    generated_playlists: list[dict[str, Any]] | None = None,
+    playlist_batch_size: int = DEFAULT_MISSING_PLAYLIST_BATCH_SIZE,
 ) -> None:
     """Write missing tracks in original playlist order with full Spotify metadata."""
     tracks = []
@@ -1186,12 +1235,18 @@ def write_missing_json(
             }
         )
 
+    playlists = generated_playlists
+    if playlists is None and generated_playlist is not None:
+        playlists = [generated_playlist]
+    legacy_playlist = playlists[0] if playlists and len(playlists) == 1 else None
     payload = {
         "source_playlist": {
             "name": source_playlist_name,
             "source": source_playlist,
         },
-        "generated_missing_playlist": generated_playlist,
+        "generated_missing_playlist": legacy_playlist,
+        "generated_missing_playlists": playlists,
+        "playlist_batch_size": playlist_batch_size,
         "missing_count": len(tracks),
         "order": "source_playlist_order",
         "tracks": tracks,
@@ -1754,6 +1809,15 @@ def main() -> int:
         help="Nombre personalizado para la playlist Spotify de faltantes",
     )
     ap.add_argument(
+        "--missing-playlist-batch-size",
+        type=int,
+        default=DEFAULT_MISSING_PLAYLIST_BATCH_SIZE,
+        help=(
+            "Cantidad maxima de temas por playlist Spotify de faltantes "
+            f"(default {DEFAULT_MISSING_PLAYLIST_BATCH_SIZE})"
+        ),
+    )
+    ap.add_argument(
         "--preflight-timeout",
         type=float,
         default=600.0,
@@ -1794,6 +1858,8 @@ def main() -> int:
             file=sys.stderr,
         )
         return 2
+    if args.missing_playlist_batch_size <= 0:
+        ap.error("--missing-playlist-batch-size debe ser mayor que cero")
 
     if not args.client_id:
         print(
@@ -1915,6 +1981,7 @@ def main() -> int:
         source_playlist=args.playlist,
         missing=missing_tracks,
         generated_playlist=None,
+        playlist_batch_size=args.missing_playlist_batch_size,
     )
 
     preflight_summary = {
@@ -1939,24 +2006,30 @@ def main() -> int:
     print(f"JSON faltantes:  {missing_json_path}")
     print(f"Reporte:         {availability_report_path}")
 
-    missing_playlist: dict[str, str] | None = None
+    missing_playlists: list[dict[str, Any]] | None = None
     if missing_tracks and not args.dry_run and not args.no_missing_playlist:
-        print("\nCreando playlist privada de Spotify con los temas no disponibles…")
+        print("\nCreando playlists privadas de Spotify con los temas no disponibles…")
         try:
-            missing_playlist = sp.create_missing_playlist(
+            missing_playlists = sp.create_missing_playlists(
                 pl_name,
                 [track for _, track in missing_tracks],
                 name=args.missing_playlist_name,
+                batch_size=args.missing_playlist_batch_size,
             )
-            print("\n=== PLAYLIST SPOTIFY DE FALTANTES ===")
-            print(f"Nombre: {missing_playlist['name']}")
-            print(f"URL:    {missing_playlist['url']}")
-            print("=======================================")
+            print("\n=== PLAYLISTS SPOTIFY DE FALTANTES ===")
+            for batch in missing_playlists:
+                print(
+                    f"[{batch['batch_number']}/{batch['batch_count']}] "
+                    f"{batch['track_count']} tema(s): {batch['url']}"
+                )
+            print("========================================")
         except Exception as exc:
             # No impedir la descarga de los disponibles porque Spotify no haya podido
             # crear la playlist auxiliar. El fallo queda auditado.
-            print(f"No se pudo crear la playlist de faltantes: {exc}", file=sys.stderr)
-            missing_playlist = {"id": "", "name": "", "url": "", "error": str(exc)}
+            print(f"No se pudieron crear las playlists de faltantes: {exc}", file=sys.stderr)
+            missing_playlists = [
+                {"id": "", "name": "", "url": "", "error": str(exc)}
+            ]
 
     # Reescribir el JSON de faltantes para incluir la playlist auxiliar creada
     # (o el error de creación), manteniendo el mismo orden de la playlist fuente.
@@ -1965,7 +2038,8 @@ def main() -> int:
         source_playlist_name=pl_name,
         source_playlist=args.playlist,
         missing=missing_tracks,
-        generated_playlist=missing_playlist,
+        generated_playlists=missing_playlists,
+        playlist_batch_size=args.missing_playlist_batch_size,
     )
 
     if args.dry_run:
@@ -1983,8 +2057,9 @@ def main() -> int:
 
     if args.preflight_only:
         print("\nPreflight-only: preflight terminado. No se descargó audio.")
-        if missing_playlist and missing_playlist.get("url"):
-            print(f"Playlist Spotify de faltantes: {missing_playlist['url']}")
+        if missing_playlists and all(batch.get("url") for batch in missing_playlists):
+            for batch in missing_playlists:
+                print(f"Playlist Spotify de faltantes: {batch['url']}")
         elif missing_tracks and args.no_missing_playlist:
             print("Playlist Spotify de faltantes: deshabilitada por --no-missing-playlist")
         elif missing_tracks:
@@ -2148,7 +2223,12 @@ def main() -> int:
                     "availability_report": str(availability_report_path),
                     "missing_list": str(missing_list_path),
                     "missing_json": str(missing_json_path),
-                    "missing_playlist": missing_playlist,
+                    "missing_playlist": (
+                        missing_playlists[0]
+                        if missing_playlists and len(missing_playlists) == 1
+                        else None
+                    ),
+                    "missing_playlists": missing_playlists,
                 },
                 "output": str(out),
                 "staging": str(staging),
@@ -2179,7 +2259,12 @@ def main() -> int:
             "availability_report": str(availability_report_path),
             "missing_list": str(missing_list_path),
             "missing_json": str(missing_json_path),
-            "missing_playlist": missing_playlist,
+            "missing_playlist": (
+                missing_playlists[0]
+                if missing_playlists and len(missing_playlists) == 1
+                else None
+            ),
+            "missing_playlists": missing_playlists,
         },
         "output": str(out),
         "staging": str(staging),
@@ -2197,8 +2282,10 @@ def main() -> int:
     print(f"\nListo. {ok}/{len(available_tracks)} disponibles finalizados en {out}")
     print(f"No disponibles según preflight: {len(missing_tracks)}")
     print(f"JSON de faltantes: {missing_json_path}")
-    if missing_playlist and missing_playlist.get("url"):
-        print(f"Playlist Spotify de faltantes: {missing_playlist['url']}")
+    if missing_playlists:
+        for batch in missing_playlists:
+            if batch.get("url"):
+                print(f"Playlist Spotify de faltantes: {batch['url']}")
     print(f"Reporte final: {report_path}")
 
     # Éxito significa: todos los que estaban disponibles fueron finalizados y no hubo

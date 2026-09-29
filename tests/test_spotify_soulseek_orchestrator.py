@@ -120,6 +120,66 @@ class ManifestHandshakeTests(unittest.TestCase):
         )
         self.assertIsNotNone(ORCHESTRATOR.final_missing_manifest(path))
 
+    def test_rewrite_with_multiple_playlist_urls_is_final(self) -> None:
+        path = self.write_payload(
+            {
+                "missing_count": 11,
+                "tracks": [{} for _ in range(11)],
+                "generated_missing_playlist": None,
+                "generated_missing_playlists": [
+                    {
+                        "url": "https://open.spotify.com/playlist/first",
+                        "start_index": 0,
+                        "end_index": 10,
+                        "track_count": 10,
+                    },
+                    {
+                        "url": "https://open.spotify.com/playlist/second",
+                        "start_index": 10,
+                        "end_index": 11,
+                        "track_count": 1,
+                    },
+                ],
+            }
+        )
+        manifest = ORCHESTRATOR.final_missing_manifest(path)
+
+        self.assertIsNotNone(manifest)
+        assert manifest is not None
+        batches = ORCHESTRATOR.missing_playlist_batches(manifest)
+        self.assertEqual([batch["track_count"] for batch in batches], [10, 1])
+        self.assertEqual(ORCHESTRATOR.batch_for_completed(batches, 10), batches[1])
+
+
+class PlaylistBatchTests(unittest.TestCase):
+    def test_downloader_creates_ordered_batches_of_ten(self) -> None:
+        client = object.__new__(DOWNLOADER.Spotify)
+        tracks = [mock.Mock(uri=f"spotify:track:{index}") for index in range(23)]
+
+        def create(_source: str, selected: list, *, name: str | None = None) -> dict:
+            return {
+                "id": f"playlist-{len(selected)}-{selected[0].uri}",
+                "name": name,
+                "url": f"https://open.spotify.com/playlist/{selected[0].uri[-1]}",
+            }
+
+        client.create_missing_playlist = mock.Mock(side_effect=create)
+
+        batches = client.create_missing_playlists("Source", tracks, batch_size=10)
+
+        self.assertEqual([batch["track_count"] for batch in batches], [10, 10, 3])
+        self.assertEqual(
+            [(batch["start_index"], batch["end_index"]) for batch in batches],
+            [(0, 10), (10, 20), (20, 23)],
+        )
+        self.assertTrue(batches[0]["name"].endswith("[01/03]"))
+        self.assertTrue(batches[2]["name"].endswith("[03/03]"))
+
+    def test_recorder_target_is_limited_to_current_batch(self) -> None:
+        self.assertEqual(RECORDER.recording_target(20, 100, 10), 30)
+        self.assertEqual(RECORDER.recording_target(95, 100, 10), 100)
+        self.assertEqual(RECORDER.recording_target(20, 100, None), 100)
+
 
 class RecordedMetadataTests(unittest.TestCase):
     @staticmethod
