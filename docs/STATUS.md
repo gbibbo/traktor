@@ -22,10 +22,12 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 - **Tripletas (n = 57): ninguna representación supera al BPM de forma concluyente.** Entre
   representaciones decide la escucha de playlists enteras, no el puntaje.
 - **Etiqueta Vocal** escrita en el comentario de 542 archivos (CLAP zero-shot, umbral 0.145).
-- **Beatport (tabla aparte, sin escribir tags)**: `beatport_lookup.py` encontró 1456 de 1823 temas
-  (115 por ISRC, 1341 misma versión, 1229 de ellos confirmados por sello, fecha o duración);
-  101 solo tienen otro remix y 266 no están. `genre_model.py` (MAEST capa 7 + CLAP, 15 géneros):
-  39 % de acierto, 72 % en el top 3, contra 18 % de la clase más frecuente.
+- **Beatport (tabla aparte, tags todavía sin escribir)**: `beatport_lookup.py` encontró 1455 de 1823
+  temas (115 por ISRC, 1340 misma versión, 1230 de ellos confirmados por sello, fecha o duración);
+  103 solo tienen otro remix y 265 no están. `genre_model.py` (MAEST capa 7 + CLAP, 15 géneros):
+  38 % de acierto, 72 % en el top 3 (18 % la clase más frecuente); con confianza >= 0.6, 50 %.
+  `write_beatport_tags.py` simula 1087 archivos a cambiar (1338 con datos de Beatport, 171 con
+  género del modelo); la escritura real la bloqueó el permiso de auto mode y espera a Gabriel.
 - **`download_JIJIJI/`**: descarga de playlists de Spotify por Soulseek, con grabación por loopback
   como respaldo; punto de entrada `spotify_soulseek_orchestrator.py`.
 - **Chequeo pre-commit** en `tools/git_hooks/` (audio, arrays, pesos, credenciales, archivos > 5 MB).
@@ -37,8 +39,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    (clic derecho), preparar para Rekordbox/Traktor y deshacer. Plan `docs/plans/20260929_app_local.md`.
 3. GABRIEL: decidir cómo tratar los temas repetidos: ≈ 18 copias de más en 16 grupos, todas en la
    misma playlist que el original (propuesta en `docs/reports/temas_repetidos_2026-09-29.md`).
-4. GABRIEL: revisar `features/beatport.csv` y `genre_pred.csv` antes de escribir Artist, Remixers,
-   Label, Genre y Released en los archivos (DECISIONS 2026-09-29, punto 4).
+4. GABRIEL: autorizar la escritura de tags (`write_beatport_tags.py --write`, primero `--folder`) y
+   decidir el género de los 110 matches sin confirmar (35 tienen género; DECISIONS 2026-09-29).
 5. LOCAL: ajustar el umbral Vocal con la lista de chequeo (`tag_vocals.py --check-list`).
 6. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
    tracklists y descarga del audio se consultan antes de implementar.

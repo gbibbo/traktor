@@ -75,6 +75,11 @@ python src/v4/pipeline/beatport_lookup.py --dataset-name musica --folder "2024/T
 python src/v4/pipeline/beatport_lookup.py --dataset-name musica --low-priority
 #     Modelo de género para lo que Beatport no tiene: evaluación y predicción (tampoco escribe tags)
 python src/v4/pipeline/genre_model.py --dataset-name musica --eval --predict
+#     Escritura de tags: simulación (features/tag_plan.csv), prueba en una carpeta, todo, y reversión
+python src/v4/pipeline/write_beatport_tags.py --dataset-name musica
+python src/v4/pipeline/write_beatport_tags.py --dataset-name musica --folder "2024/Tech-Disco" --write
+python src/v4/pipeline/write_beatport_tags.py --dataset-name musica --write --low-priority
+python src/v4/pipeline/write_beatport_tags.py --dataset-name musica --revert artifacts/v4/datasets/musica/features/tag_backup_<fecha>.csv
 # 2-5. Grupos (Ward sobre CLAP + BPM), nombres (género de los tags), orden (embedding + BPM +
 #      tonalidad + energía), export
 python src/v4/pipeline/phase2_cluster.py --dataset-name musica --rep clap_full --bpm-weight 0.3 --method ward --n-l1 15 --l2-target-size 35 --pca-dim 50

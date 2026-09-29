@@ -90,6 +90,8 @@ def strip_feat(s: Optional[str]) -> str:
 
 def clean_text(s: Optional[str]) -> str:
     s = (s or "").replace(" | ", " - ")
+    # "[Peter Kruder Remix]" es la mezcla, no basura: pasa a paréntesis antes de limpiar corchetes
+    s = re.sub(r"\[([^\]]*)\]", lambda m: f"({m.group(1)})" if is_version_text(m.group(1)) else m.group(0), s)
     for rx in _JUNK:
         s = rx.sub(" ", s)
     return re.sub(r"\s+", " ", s).strip(" -_")
@@ -270,8 +272,12 @@ def _artist_score(q: TrackQuery, c: dict) -> float:
     local = split_local_artists(q.artists)
     if not bp or not local:
         return 0.0
-    context = f"{q.artists} {q.mix}"  # sin el título: "The Light" no es el artista de "The Light"
-    bp_cover = len(artist_names_in(bp, context)) / len(bp)
+    # Un artista de Beatport cuenta si es uno de los artistas del archivo (nombre entero: "Loud" no es
+    # "Andrey Loud") o si aparece en la mezcla (el remixer). El título no cuenta: "The Light" no es
+    # el artista de "The Light".
+    items = {norm(x) for x in local} | {norm(y) for x in local for y in re.split(r"\s*&\s*|\s+and\s+", x)}
+    mix = f" {norm(q.mix)} "
+    bp_cover = sum(1 for n in bp if norm(n) and (norm(n) in items or f" {norm(n)} " in mix)) / len(bp)
     local_cover = len(artist_names_in(local, " ".join(bp))) / len(local)
     return (bp_cover + local_cover) / 2
 

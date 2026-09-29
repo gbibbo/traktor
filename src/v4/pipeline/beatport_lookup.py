@@ -19,6 +19,7 @@ CHANGELOG:
 """
 import argparse
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -48,6 +49,11 @@ def _s(v) -> str:
 
 
 def _split_artist_title(text: str) -> Tuple[str, str]:
+    # "Nu  Jo Ke - ...": el "&" quitado del nombre de archivo deja un espacio doble entre artistas;
+    # se marca antes de que la limpieza junte los espacios (solo en la parte del artista)
+    head, sep, tail = (text or "").partition(" - ")
+    if sep:
+        text = re.sub(r"(?<=\S) {2,}(?=\S)", " & ", head) + sep + tail
     text = clean_text(text)
     if " - " in text:
         artist, title = text.split(" - ", 1)
@@ -80,11 +86,18 @@ def build_queries(row: pd.Series, rel: Dict[str, Optional[str]]) -> List[Tuple[T
     seen = set()
     for artist, title, fetch in pairs:
         base, mix_in_title = split_title_mix(title)
+        # "Nu  Jo Ke": el "&" quitado del nombre de archivo deja un espacio doble entre artistas
+        artist = re.sub(r"(?<=\S) {2,}(?=\S)", " & ", artist)
+        # "Foals (Solomun remix)": la mezcla puede venir pegada al artista
+        m = re.match(r"^(.*?)\s*\(([^()]+)\)\s*$", clean_text(artist))
+        mix_in_artist = ""
+        if m and m.group(1).strip() and is_version_text(m.group(2)):
+            artist, mix_in_artist = m.group(1).strip(), m.group(2).strip()
         key = (norm(artist), norm(base))
         if not base or key in seen:
             continue
         seen.add(key)
-        mix = mix_tag or mix_in_title or split_title_mix(stem_title)[1]
+        mix = mix_tag or mix_in_title or mix_in_artist or split_title_mix(stem_title)[1]
         out.append((TrackQuery(artists=clean_text(artist), title=base, mix=mix, **common), fetch))
     return out
 

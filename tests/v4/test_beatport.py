@@ -251,3 +251,34 @@ def test_lookup_reports_candidates_when_unmatched(tmp_path):
                      "tag_title": "Four Twenty", "duration_s": None})
     res, _, _ = lookup(client, build_queries(row, {}))
     assert res.level == "D" and res.n_candidates == 1
+
+
+def test_version_in_square_brackets_is_kept():
+    assert split_title_mix("Tanto Tempo [Peter Kruder Remix]") == ("Tanto Tempo", "Peter Kruder Remix")
+    assert clean_text("Zodiac Talking [DA09]") == "Zodiac Talking"
+
+
+def test_partial_artist_name_is_not_a_match():
+    # "Loud" no es "Andrey Loud"; "Hernan Cattaneo & Soundexile" sí contiene a los dos
+    q = TrackQuery(artists="Andrey Loud", title="Solid", mix="Original Mix")
+    assert match(q, [cand(1, "Solid", "Original Mix", ["Loud"], genre="Psy-Trance")]).level == "D"
+    q = TrackQuery(artists="Hernan Cattaneo & Soundexile", title="Astral Projection", mix="Guy J Remix")
+    res = match(q, [cand(2, "Astral Projection", "Guy J Remix", ["Hernan Cattaneo", "Soundexile"], remixers=["Guy J"])])
+    assert res.level == "B"
+    q = TrackQuery(artists="Fisher", title="Crowd Control")
+    assert match(q, [cand(3, "Crowd Control", "Original Mix", ["FISHER (OZ)"])]).level == "B"
+
+
+def test_mix_attached_to_artist():
+    row = pd.Series({"track_uid": "u", "filename": "Foals (Solomun remix) - Late Night.mp3",
+                     "tag_artist": "Foals (Solomun remix)", "tag_title": "Late Night", "duration_s": None})
+    q, _ = build_queries(row, {})[0]
+    assert (q.artists, q.title, q.mix) == ("Foals", "Late Night", "Solomun remix")
+
+
+def test_double_space_separates_artists():
+    row = pd.Series({"track_uid": "u", "filename": "Nu  Jo Ke - Who Loves The Sun (Original Mix).mp3",
+                     "duration_s": None})
+    q, _ = build_queries(row, {})[0]
+    assert q.artists == "Nu & Jo Ke"
+    assert match(q, [cand(1, "Who Loves The Sun", "Original Mix", ["Nu", "Jo.Ke"])]).level == "B"

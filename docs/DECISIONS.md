@@ -23,6 +23,12 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 4. **Nada se escribe en los archivos de la colección antes de que Gabriel vea números y
    resultados.** Primero una tabla aparte (`features/beatport.parquet`) y el modelo entrenado con
    esos géneros; la escritura de tags queda para después de su visto bueno.
+5. **Género del modelo solo con confianza** (clasificador >= 0.6: 171 temas). Donde no hay género
+   confiable (confianza baja, gate MAEST sin validar, sin representaciones), el género que ya tiene
+   el archivo se conserva (50 casos); si no tiene, queda vacío.
+6. **Los matches B sin confirmar (110) no reciben datos de Beatport.** Qué hacer con el género que
+   ya tienen 35 de ellos está pendiente: Gabriel pidió ver los ejemplos antes de decidir.
+7. **WAV y AIFF no se escriben**: su track_uid incluye los tags y cambiaría (31 archivos).
 
 ## 2026-09-27
 
