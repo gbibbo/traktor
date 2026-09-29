@@ -4,6 +4,14 @@ Registro fechado de decisiones de Gabriel que condicionan el trabajo. Cada entra
 decidió y qué implica para el código. Las decisiones más recientes prevalecen sobre planes
 anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_implementation_plan_v6.md`).
 
+## 2026-09-29
+
+1. **Organización elegida: CLAP.** En la página de revisión, Gabriel eligió "claramente" la
+   organización B frente a la A. B = CLAP + BPM (peso 0.3), Ward 15 carpetas / ~35 temas por
+   playlist (config `fb78f2f6`, la de `exports/V4_1/`); A = MAEST-HF capa 7 con los mismos
+   parámetros (`9e5784c3`). Salvedad: la comparación no fue del todo a ciegas (B ya la había
+   escuchado y se reconocía por su número de playlists). No se exportó el CSV de veredictos.
+
 ## 2026-09-27
 
 1. **La copia fiel es `main` de GitHub.** Lo que quedó en la laptop sin subir (4 commits locales de

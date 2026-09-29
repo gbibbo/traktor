@@ -92,7 +92,13 @@ Mismo evaluador y mismas 57 tripletas uniformes; MAEST-HF capa 7, media de token
 | MAEST estilos (400) | 0.684 | 0.229 | 0.258 |
 
 MAEST queda a la par o algo por encima de CLAP; frente al BPM en tripletas la diferencia es +0.053
-con IC pareado −0.105 a 0.219: no concluyente con n = 57. Corrida sobre la biblioteca en curso.
+con IC pareado −0.105 a 0.219: no concluyente con n = 57.
+
+La corrida sobre la biblioteca terminó (1786 temas, sin fallas). Con los mismos parámetros de
+agrupamiento, Gabriel comparó en la página de revisión las dos organizaciones (A = MAEST, B = CLAP)
+y eligió claramente B (2026-09-29). La comparación no fue del todo a ciegas: B ya la conocía. Queda
+CLAP para el MVP; las tripletas no alcanzaban para decidirlo y el juicio escuchando playlists
+enteras lo decidió.
 
 ## Pendiente
 
