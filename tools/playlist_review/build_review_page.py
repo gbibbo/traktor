@@ -21,6 +21,8 @@ CHANGELOG:
                 del nombre que nombra una versión, para distinguir dos versiones del mismo tema.
   - 2026-09-29: Álbum por tema (campo "al", para los filtros de búsqueda), clave l1/l2 de cada playlist
                 (orden a mano desde la app) y el historial de reorder / unlink.
+  - 2026-09-29: Copias de cada tema fuera de las playlists (campo "cp": temas repetidos decididos y
+                copias idénticas de Phase 0) y el historial de dedupe.
 """
 import argparse
 import datetime as dt
@@ -37,14 +39,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.v4.common.config_loader import load_config  # noqa: E402
+from src.v4.common.duplicates import bracket_mix, load_decisions  # noqa: E402
 from src.v4.common.path_resolver import resolve_dataset_artifacts, resolve_dataset_audio_root  # noqa: E402
 
 TEMPLATE = Path(__file__).with_name("template.html")
 PAGE_NAME = "_revision_playlists.html"
 _VOCAL = re.compile(r"(?<!\w)Vocal(?!\w)", re.IGNORECASE)
-_VERSION = re.compile(r"\b(mix|remix|rmx|edit|dub|version|rework|remaster(ed)?|vip|bootleg|instrumental|variation)\b",
-                      re.IGNORECASE)
-_BRACKETS = re.compile(r"[(\[]([^()\[\]]+)[)\]]")
 _PLAIN_MIX = {"original mix", "original", "original version"}  # la versión por defecto no se muestra
 _MIX_CACHE: Dict[tuple, str] = {}
 
@@ -110,13 +110,7 @@ def version_label(tag: Optional[str], title: str, filename: str) -> str:
     """Mezcla que distingue versiones del mismo tema ('Adana Twins Remix Two'): el tag Remixer o, si falta,
     el primer paréntesis o corchete del título o del nombre de archivo que nombra una versión.
     '' si es la original o si el título ya la dice."""
-    mix = (tag or "").strip()
-    if not mix:
-        for text in (title, Path(filename).stem if filename else ""):
-            found = [m.strip() for m in _BRACKETS.findall(text or "") if _VERSION.search(m)]
-            if found:
-                mix = found[0]
-                break
+    mix = (tag or "").strip() or bracket_mix(title, Path(filename).stem if filename else "")
     if not mix or mix.lower() in _PLAIN_MIX or mix.lower() in (title or "").lower():
         return ""
     return mix
@@ -204,6 +198,9 @@ def history_lines(meta: Dict) -> List[str]:
             txt = f"{_n(len(groups), 'fusión aplicada', 'fusiones aplicadas')} ({_n(moved, 'tema movido', 'temas movidos')})"
         elif a == "reorder":
             txt = f"orden cambiado a mano en «{h.get('playlist_name') or 'una playlist'}»"
+        elif a == "dedupe":
+            n = len(h.get("removed", []))
+            txt = f"se {'quitó' if n == 1 else 'quitaron'} {_n(n, 'copia', 'copias')} de temas repetidos"
         elif a == "unlink":
             txt = f"se eliminó la fusión «{h.get('fusion', '')}» (sus temas no se movieron)"
         elif a == "link-rebuild":
@@ -277,6 +274,26 @@ def render(data: Dict) -> str:
     return html.replace("/*__DATA__*/null", payload)
 
 
+def copies_of(artifacts: Path, catalog: pd.DataFrame) -> Dict[str, List[str]]:
+    """{track_uid que se queda: rutas de sus copias fuera de las playlists}: las decididas como temas
+    repetidos (duplicate_decisions.json) y las idénticas que descartó Phase 0 (duplicates.csv)."""
+    exact: Dict[str, List[str]] = {}
+    dup = Path(artifacts) / "duplicates.csv"
+    if dup.exists():
+        for rel, kept in zip(*[pd.read_csv(dup)[c].astype(str) for c in ("rel_path", "kept_rel_path")]):
+            exact.setdefault(kept, []).append(rel)
+    out: Dict[str, List[str]] = {}
+    for rel, u in zip(catalog["rel_path"], catalog["track_uid"]):
+        if rel in exact:
+            out.setdefault(u, []).extend(exact[rel])
+    for d in load_decisions(artifacts):
+        if d["verdict"] == "mismo":
+            for tr in d["tracks"]:
+                if tr["track_uid"] != d["keep"]:
+                    out.setdefault(d["keep"], []).extend([tr["rel_path"], *exact.get(tr["rel_path"], [])])
+    return {u: sorted(set(v)) for u, v in out.items()}
+
+
 def make_data(artifacts: Path, dataset: str, specs: List[str], hashes: List[str], blind: bool = False,
               seed: Optional[int] = None) -> Dict:
     """Datos de la página: organizaciones con nombre (specs) y corridas por hash (hashes)."""
@@ -286,6 +303,11 @@ def make_data(artifacts: Path, dataset: str, specs: List[str], hashes: List[str]
     bpm_key = pd.read_parquet(artifacts / "features" / "bpm_key.parquet")
     uids = list(dict.fromkeys(u for o in orgs for u in o["ordered"]["track_uid"]))
     uid_index = {u: i for i, u in enumerate(uids)}
+    tracks = build_tracks(catalog, bpm_key, uids)
+    cps = copies_of(artifacts, catalog)
+    for u, t in zip(uids, tracks):
+        if u in cps:
+            t["cp"] = cps[u]
     run_id = dt.datetime.now().strftime("%Y%m%d_%H%M")
 
     if blind and len(orgs) > 1:
@@ -301,7 +323,7 @@ def make_data(artifacts: Path, dataset: str, specs: List[str], hashes: List[str]
         labels = [(o["rep"] if o["hash"].startswith("org:") else f"{o['rep']} ({o['hash']})") if len(orgs) > 1
                   else (o["rep"] if o["hash"].startswith("org:") else "Organización actual") for o in orgs]
     return {"run_id": run_id, "dataset": dataset, "app": None,
-            "tracks": build_tracks(catalog, bpm_key, uids),
+            "tracks": tracks,
             "orgs": [org_payload(o, uid_index, lab) for o, lab in zip(orgs, labels)]}
 
 

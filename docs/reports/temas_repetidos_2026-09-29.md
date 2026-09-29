@@ -112,9 +112,11 @@ tiene 85 s de diferencia de duración y está sin decidir.
 ## Candidatos para el veredicto de Gabriel (2026-09-29)
 
 Capas 1 y 2 (grupos 1 a 16) y capa 3 (17 a 21): 21 grupos, 44 archivos, 23 copias de más, todas en
-la misma playlist que su original. ★ = la copia que se quedaría con la regla propuesta (mejor calidad;
-si empatan, fuera de «copia»/«old»; si no, la ruta más corta). Similitud = coseno CLAP; Δ = diferencia
-máxima de duración. Veredicto: pendiente.
+la misma playlist que su original. [REEMPLAZADO 2026-09-29 por la regla de Gabriel (DECISIONS
+2026-09-29, punto 9): se queda la MP3 de 320; si no, la de mejor calidad; empate, se pregunta] ★ = la
+copia que se quedaría con la regla propuesta (mejor calidad; si empatan, fuera de «copia»/«old»; si no,
+la ruta más corta). Similitud = coseno CLAP; Δ = diferencia máxima de duración. [REEMPLAZADO 2026-09-29
+por el veredicto de Gabriel, sección siguiente] Veredicto: pendiente.
 
 | # | Capa | Similitud | Δ | Archivos (calidad) |
 | ---: | :--- | ---: | ---: | :--- |
@@ -146,3 +148,24 @@ probable duplicado con otro nombre); otro corte del mismo tema: Boris Brejcha «
 Circulation «Lemon» Mix 1/Mix 2, Kotelett Bonus Mix / Unconditional Love Version, Chus & Ceballos «The Sun» /
 «(Algarve Mix)», Alex Dimou / Cevin Fisher Remix, Kevin De Vries «Sciamachy» / Konstantin Sibold Remix;
 temas distintos: Joe Red «Orange» / «Blue» y dos pares de tramos de un set continuo de psytrance.
+
+## Veredicto de Gabriel y regla (2026-09-29)
+
+Gabriel escuchó los 24 grupos en `Música/_duplicados_para_escuchar.html` (página local con ▶ por copia
+y veredicto por grupo). Decisiones y regla: `docs/DECISIONS.md`, 2026-09-29, puntos 8 a 12.
+
+| Afirmación | Etiqueta | Evidencia |
+| :--- | :--- | :--- |
+| 21 grupos son el mismo tema (1-10, 12-21, A) | EVIDENCIA OBSERVADA | veredicto de Gabriel escuchando |
+| La regla de calidad elige la misma copia que Gabriel en los 10 grupos donde la calidad difiere | EVIDENCIA OBSERVADA | `dedupe.py candidates` antes de importar: 10 «se resuelve sola», las 10 iguales a su elección |
+| En los empates prefiere carpetas de año, después Nuevitas, después Milo | HIPÓTESIS | 7 de 7 empates (4 elegidos a mano, 3 aceptados); se confirma preguntándole |
+| El código reproduce los 21 grupos revisados | EVIDENCIA OBSERVADA | `dedupe.py candidates`: grupos 1-21 con los mismos miembros |
+| Abotha (0.979) queda en la franja «parecido» (0.97-0.98), que se pregunta | EVIDENCIA OBSERVADA | en esta biblioteca la franja trae 2 pares: Abotha (el mismo) y dos tramos de un set continuo (0.972, distintos por nombre) |
+| `biblioteca` v10: 1786 → 1763 temas, 51 playlists, orden relativo intacto | EVIDENCIA OBSERVADA | comparación de v9 y v10 en esta sesión |
+
+Código: `src/v4/common/duplicates.py` (regla, decisiones y detección por capas: sonido, nombre,
+parecido, corte), `src/v4/pipeline/dedupe.py` (candidates / decide / import / apply / list),
+`organize.remove_tracks` y `Library` sin las copias descartadas (un build desde cero no las vuelve a
+meter). Decisiones en `artifacts/v4/datasets/musica/duplicate_decisions.json`. La app muestra en el
+tooltip y en la tabla las copias de cada tema que quedaron fuera de las playlists.
+

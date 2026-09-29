@@ -22,6 +22,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `logging_utils.py` | Logger JSONL + run manifests |
 | `harmonic.py` | Compatibilidad armónica Camelot con transposición ±2 st (regla 2026-09-11) |
 | `tags.py` | Tags con mutagen: BPM, tonalidad, género, sello, energía de Mixed In Key; hash de audio sin tags; comentario idempotente; `read_release_tags` (Remixer, ISRC, fecha, ID de Spotify) |
+| `duplicates.py` | Temas repetidos: qué copia se queda (MP3 320, si no la mejor calidad), decisiones de Gabriel (`duplicate_decisions.json`) y detección por capas (sonido, nombre, parecido, corte) |
 | `beatport.py` | Beatport sin API oficial (JSON de la búsqueda pública, caché por consulta): match por niveles A ISRC / B misma versión / C solo otras versiones / D nada, y tags propuestos con la convención de Beatport (Artist sin remixers, Remixers = mezcla u "Original Mix", Label, Genre, Released) |
 | `tempo.py` | Estimación de BPM (flujo espectral + autocorrelación) para temas sin BPM en tags |
 | `dj_export.py` | Escritores rekordbox.xml, NML de Traktor y M3U8 con rutas absolutas |
@@ -39,6 +40,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `phase4_order.py` | CPU: Ordering greedy NN (cosine + BPM + Camelot key) → ordered_<hash>.parquet |
 | `extract_representations.py` | CPU: representaciones congeladas (EffNet, MAEST, MERT por capas, CLAP, MAEST-HF, AST; full y HPSS) con segmentación V4 → representations/<variante>/ (fase 2 del plan); `--shard`, `--assemble-only`, `--folder`, `--low-priority`, filtros de duración |
 | `organize.py` | Organizaciones estables con versiones (`orgs/<nombre>/`): `ingest` por carpeta, `import` de un config_hash, `build` (por alcance, respetando fusiones), `add` congelado, `link` (fusiones de temas: congelado o `--rebuild`), `show`; fusiones con nombre y color guardadas por versión, borradores y deshacer; `reorder` (orden a mano de una playlist) y `remove_fusion` (quitar una fusión sin mover temas) para la app |
+| `dedupe.py` | Temas repetidos por línea de comandos: `candidates`, `decide`, `import`, `apply` (saca las copias de una organización, versión 'dedupe'), `list`. No mueve ni borra archivos |
 | `beatport_lookup.py` | Red: busca cada tema del dataset en Beatport → features/beatport.parquet/.csv + beatport_summary.json (nivel, datos de Beatport, tags actuales y propuestos). No escribe tags; caché en artifacts/v4/beatport_cache; `--folder`/`--limit` para la prueba, `--offline`, `--low-priority` |
 | `genre_model.py` | CPU: género en taxonomía Beatport para temas sin match: gate MAEST (estilos Discogs no electrónicos) + regresión logística sobre MAEST capa 7 ‖ CLAP entrenada con los géneros de Beatport confirmados; `--eval` (validación cruzada agrupada por artista → genre_model_eval.json), `--predict` (→ genre_pred.parquet/.csv). No escribe tags |
 | `write_beatport_tags.py` | Escribe Artist, Remixers, Label, Genre y Released de Beatport (A y B confirmado) y el género del modelo con confianza >= 0.6 (C/D), solo MP3/FLAC. Simulación por defecto (→ features/tag_plan.csv); `--write` con respaldo features/tag_backup_<fecha>.csv y verificación del hash de audio; `--revert <csv>`; `--folder` para la prueba |
@@ -91,6 +93,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_genre_model.py` | Unit tests de genre_model.py (gate, etiquetas confirmadas alineadas por track_uids, validación cruzada) |
 | `test_write_beatport_tags.py` | Unit tests de write_beatport_tags.py (reglas del plan, escritura real en MP3 ID3 2.3 y FLAC, hash estable, reversión) |
 | `test_organize.py` | Unit tests de organize.py: build por alcance, add congelado, link congelado/rebuild, catálogo por alcance, ensamblado con --folder, orden a mano y quitar fusiones |
+| `test_duplicates.py` | Unit tests de la regla de temas repetidos, la detección por capas, las decisiones, remove_tracks y la exclusión en Library |
 | `test_playlist_review.py` | Unit tests del generador de la página de revisión |
 | `test_review_app.py` | Unit tests de la app local: token y Host/Origin, audio con rangos, fusiones (aplicar, eliminar y deshacer), orden a mano, carpetas dentro/fuera de la biblioteca, carátulas |
 | `test_dj_export.py` | Unit tests de rekordbox.xml / NML / M3U8, bpm_key desde tags, orden por energía, ventanas |
@@ -115,6 +118,7 @@ En `tests/` (raíz): `test_check_staged.py` (chequeo pre-commit sobre repos git 
 ```
 artifacts/v4/datasets/<dataset_name>/
 ├── catalog.parquet                # Phase 0: catálogo de tracks
+├── duplicate_decisions.json       # dedupe.py: veredictos de temas repetidos (qué copia se queda)
 ├── ingest_report.json             # Phase 0: estadísticas de ingesta
 ├── embeddings/
 │   ├── mert_perc.npy              # Phase 1: embeddings percusivos (N, 1024)

@@ -6,6 +6,7 @@ PURPOSE: Tests de tools/playlist_review/build_review_page.py: carpeta de origen 
 CHANGELOG:
   - 2026-09-27: Creación inicial.
   - 2026-09-29: Mezcla/remixer (version_label, tag_mix y el campo "m").
+  - 2026-09-29: Copias fuera de las playlists (copies_of: temas repetidos decididos y duplicates.csv).
 """
 import json
 import re
@@ -155,3 +156,17 @@ def test_history_marks_undone_versions():
         {"version": 2, "action": "add", "scope": "X", "added": 2, "add": 2, "n_tracks": 5, "n_playlists": 1, "parent": 1}]}
     lines = history_lines(meta)
     assert not lines[0].endswith("(deshecho)") and lines[1].endswith("(deshecho)")
+
+
+def test_copies_of_decisions_and_exact(tmp_path):
+    from src.v4.common.duplicates import add_decision
+    from tools.playlist_review.build_review_page import copies_of
+    cat = pd.DataFrame({"track_uid": ["k", "c"], "rel_path": ["A/keep.mp3", "B/copy.mp3"]})
+    pd.DataFrame({"track_uid": ["x", "y"], "rel_path": ["A - copia/keep.mp3", "B - copia/copy.mp3"],
+                  "kept_rel_path": ["A/keep.mp3", "B/copy.mp3"]}).to_csv(tmp_path / "duplicates.csv", index=False)
+    assert copies_of(tmp_path, cat) == {"k": ["A - copia/keep.mp3"], "c": ["B - copia/copy.mp3"]}
+    add_decision(tmp_path, "mismo", [{"track_uid": "k", "rel_path": "A/keep.mp3"}, {"track_uid": "c", "rel_path": "B/copy.mp3"}],
+                 keep="k", layer="sonido")
+    # la copia descartada y su propia copia idéntica pasan al tema que se queda
+    assert copies_of(tmp_path, cat)["k"] == ["A - copia/keep.mp3", "B - copia/copy.mp3", "B/copy.mp3"]
+

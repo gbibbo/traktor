@@ -124,6 +124,15 @@ python src/v4/pipeline/phase5_export.py --dataset-name musica --org-name bibliot
 python tools/playlist_review/build_review_page.py --dataset-name musica --org-name biblioteca
 ```
 
+**Temas repetidos (2026-09-29).** Regla en `src/v4/common/duplicates.py` (DECISIONS 2026-09-29, 8-12):
+
+```bash
+python src/v4/pipeline/dedupe.py candidates --org-name biblioteca   # grupos sin decisión, capa y copia que se queda
+python src/v4/pipeline/dedupe.py decide --keep "<ruta que se queda>" --drop "<ruta de la copia>"
+python src/v4/pipeline/dedupe.py decide --distinct "<ruta 1>" "<ruta 2>"   # no son el mismo tema
+python src/v4/pipeline/dedupe.py apply --org-name biblioteca        # saca las copias (versión nueva, se deshace)
+```
+
 **Antes de importar, revisar escuchando:** `python tools/playlist_review/build_review_page.py
 --dataset-name musica` escribe `Música/_revision_playlists.html` (necesita Phase 2 sin `--skip-umap`).
 Se abre con doble clic; los veredictos se exportan a CSV. Para comparar dos organizaciones a ciegas:

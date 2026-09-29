@@ -800,6 +800,8 @@ function renderPlaylist() {
       el("td", { class: "title" }, t.t, t.m ? el("span", { class: "muted", text: ` (${t.m})` }) : null,
         org.flags?.[idx] === "nuevo" ? el("span", { class: "flag", text: "agregado recientemente" }) : null,
         fu ? el("span", { class: "flag", title: `En la fusión «${fu.name}»` }, el("span", { class: "swatch", style: `--c:${fcolor(fu.color)}` }), fu.name) : null,
+        t.cp ? el("span", { class: "flag", title: "Copias repetidas, fuera de las playlists:\n" + t.cp.map(p => "Música/" + p).join("\n"),
+          text: t.cp.length === 1 ? "1 copia" : `${t.cp.length} copias` }) : null,
         t.a ? el("small", { text: t.a }) : null),
       el("td", { class: "num", text: t.b != null ? String(Math.round(t.b)) : "" }),
       el("td", { text: t.k || "" }),
@@ -1107,6 +1109,7 @@ canvas.addEventListener("pointermove", e => {
   tip.replaceChildren(el("b", { text: label(t) }),
     el("div", { class: "ink2", text: [t.b != null ? `${Math.round(t.b)} BPM` : null, t.k, t.g, t.v ? "con voz" : null].filter(Boolean).join(" · ") }),
     el("div", { class: "muted", text: `Playlist ${plName(ti)}${t.fs ? " · tu carpeta: " + t.fs : ""}${fu ? " · " + fu.name : ""}` }),
+    t.cp ? el("div", { class: "muted", text: `${t.cp.length === 1 ? "1 copia" : t.cp.length + " copias"} fuera de las playlists: ${[...new Set(t.cp.map(p => p.split("/").slice(-2, -1)[0] || "Música"))].join(", ")}` }) : null,
     el("div", { class: "muted", text: APP ? "Clic: escuchar · Clic derecho: fusionar" : "Clic: escuchar" }));
   tip.style.display = "block";
   tip.style.left = Math.min(p.x + 14, r.width - tip.offsetWidth - 4) + "px"; tip.style.top = Math.max(0, p.y - tip.offsetHeight - 10) + "px";

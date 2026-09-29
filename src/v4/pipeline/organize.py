@@ -10,7 +10,8 @@ PURPOSE: Organizaciones estables de la biblioteca (plan docs/plans/20260929_orga
            - link: exigir que dos o más temas vayan en la misma playlist, moviendo solo ese grupo
              (congelado) o rehaciendo todo con las semillas (--rebuild);
            - show: resumen de versiones, playlists y semillas;
-           - reorder / remove_fusion (desde la app): orden a mano de una playlist y quitar una fusión.
+           - reorder / remove_fusion (desde la app): orden a mano de una playlist y quitar una fusión;
+           - remove_tracks: sacar las copias de temas repetidos (dedupe.py apply).
          Export y página de revisión: phase5_export.py / build_review_page.py con --org-name.
 CHANGELOG:
   - 2026-09-29: Creación inicial.
@@ -21,6 +22,8 @@ CHANGELOG:
                 fusiones (fusion_drafts.json) para la app, set_current/undo, y parent en el historial.
   - 2026-09-29: reorder (orden a mano de una playlist) y remove_fusion (quitar una fusión aplicada sin
                 mover temas), cada uno como versión nueva, para la app.
+  - 2026-09-29: Temas repetidos (src/v4/common/duplicates.py): Library excluye las copias descartadas
+                y remove_tracks las saca de la organización (versión 'dedupe').
 """
 from __future__ import annotations
 
@@ -41,6 +44,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from src.v4.common.catalog import load_catalog, scope_prefix  # noqa: E402
 from src.v4.common.config_loader import load_config  # noqa: E402
+from src.v4.common.duplicates import dropped  # noqa: E402
 from src.v4.common.embedding_utils import load_track_embeddings  # noqa: E402
 from src.v4.common.path_resolver import resolve_dataset_artifacts  # noqa: E402
 from src.v4.pipeline.phase2_cluster import _l2_normalize, _ward_cluster, ward_two_level  # noqa: E402
@@ -173,7 +177,8 @@ class OrgStore:
 # ---------------------------------------------------------------------------
 
 class Library:
-    """Catálogo, BPM/tonalidad/energía y embeddings de la representación, alineados por track_uid."""
+    """Catálogo, BPM/tonalidad/energía y embeddings de la representación, alineados por track_uid.
+    Las copias descartadas de temas repetidos (duplicate_decisions.json) no entran a in_scope."""
 
     def __init__(self, artifacts: Path, rep: str):
         self.catalog = pd.read_parquet(artifacts / "catalog.parquet").drop_duplicates("track_uid").set_index("track_uid")
@@ -182,6 +187,7 @@ class Library:
         self.rep_index = {u: i for i, u in enumerate(uids)}
         self.M = M
         self.rep_uids = uids
+        self.excluded = set(dropped(artifacts))
 
     def in_scope(self, scopes) -> List[str]:
         """Temas con embedding y en el catálogo bajo alguno de los prefijos ('' o lista vacía = todos)."""
@@ -192,7 +198,7 @@ class Library:
         else:
             prefixes = tuple(scope_prefix(x) for x in scopes)
             ok = set(rel.index[rel.str.startswith(prefixes)])
-        return [u for u in self.rep_uids if u in ok]
+        return [u for u in self.rep_uids if u in ok and u not in self.excluded]
 
     def emb(self, uids: List[str]) -> np.ndarray:
         return self.M[[self.rep_index[u] for u in uids]]
@@ -586,6 +592,25 @@ def reorder(store: OrgStore, l1: int, l2: int, order: List[str]) -> int:
     playlists[key] = new
     return store.commit(meta, _renumber(assign, playlists), names, "reorder",
                         {"playlist": list(key), "playlist_name": names.get(f"l1_{key[0]}_l2_{key[1]}", "")})
+
+
+def remove_tracks(store: OrgStore, replace: Dict[str, str], action: str = "dedupe", detail: Optional[Dict] = None) -> int:
+    """Saca temas de la organización sin mover al resto (copias de temas repetidos). replace = {tema que
+    sale: tema que se queda}; en las fusiones, la copia que sale se reemplaza por la que se queda."""
+    meta = store.meta()
+    assign, names, _ = store.load()
+    gone = [u for u in assign["track_uid"] if u in replace]
+    if not gone:
+        return meta["current_version"]
+    playlists = {k: [u for u in order if u not in replace] for k, order in _playlists(assign).items()}
+    playlists = {k: order for k, order in playlists.items() if order}
+    assign = _renumber(assign[~assign["track_uid"].isin(gone)], playlists)
+    fusions = []
+    for f in store.fusions():
+        tracks = list(dict.fromkeys(replace.get(u, u) for u in f["tracks"]))
+        if len(tracks) >= 2:
+            fusions.append({**f, "tracks": tracks})
+    return store.commit(meta, assign, names, action, {"removed": gone, **(detail or {})}, fusions=fusions)
 
 
 def remove_fusion(store: OrgStore, name: str) -> int:
