@@ -7,8 +7,10 @@ PURPOSE: Tags de audio para V4 (mutagen), para correr sin Essentia en Windows.
            invalide las cachés de embeddings.
          - with_token / write_comment: marca idempotente en el comentario (etiqueta "Vocal"),
            que Rekordbox y Traktor muestran en la columna Comments.
+         - read_release_tags: mezcla (Remixer), ISRC, fecha e ID de Spotify, para buscar en Beatport.
 CHANGELOG:
   - 2026-09-27: Creación inicial (MVP de biblioteca completa en Windows).
+  - 2026-09-29: read_release_tags (búsqueda en Beatport), sin cambiar read_tags ni el catálogo.
 """
 from __future__ import annotations
 
@@ -147,6 +149,35 @@ def read_tags(path: Path) -> Dict[str, object]:
     key_cam = to_camelot(out["tag_key"]) if out["tag_key"] else "?"
     out["tag_camelot"] = key_cam if key_cam != "?" else mik_cam
     out["mik_energy"] = energy
+    return out
+
+
+def read_release_tags(path: Path) -> Dict[str, Optional[str]]:
+    """Tags para buscar el tema en Beatport: mezcla (Remixer/TPE4), ISRC, fecha e ID de Spotify
+    (TXXX que escribe el descargador de playlists). Nunca lanza."""
+    out: Dict[str, Optional[str]] = {"tag_remixer": None, "tag_isrc": None, "tag_date": None,
+                                     "tag_spotify_id": None}
+    try:
+        import mutagen
+        audio = mutagen.File(str(path))
+    except Exception:  # noqa: BLE001
+        return out
+    tags = getattr(audio, "tags", None) if audio is not None else None
+    if tags is None:
+        return out
+    cls = type(tags).__name__
+    if cls == "ID3" or hasattr(tags, "getall"):
+        out.update(tag_remixer=_id3_text(tags, "TPE4"), tag_isrc=_id3_text(tags, "TSRC"),
+                   tag_date=_id3_text(tags, "TDRC") or _id3_text(tags, "TDRL") or _id3_text(tags, "TYER"))
+        for frame in tags.getall("TXXX"):
+            if str(getattr(frame, "desc", "")).lower() == "spotify track id" and frame.text:
+                out["tag_spotify_id"] = str(frame.text[0]).strip() or None
+    elif cls == "MP4Tags":
+        out.update(tag_remixer=_mp4(tags, "----:com.apple.iTunes:REMIXER"),
+                   tag_isrc=_mp4(tags, "----:com.apple.iTunes:ISRC"), tag_date=_mp4(tags, "\xa9day"))
+    else:  # Vorbis (FLAC/OGG)
+        out.update(tag_remixer=_vorbis(tags, "remixer", "mixartist"), tag_isrc=_vorbis(tags, "isrc"),
+                   tag_date=_vorbis(tags, "date", "year"))
     return out
 
 

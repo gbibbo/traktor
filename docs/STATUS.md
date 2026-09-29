@@ -22,6 +22,10 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 - **Tripletas (n = 57): ninguna representación supera al BPM de forma concluyente.** Entre
   representaciones decide la escucha de playlists enteras, no el puntaje.
 - **Etiqueta Vocal** escrita en el comentario de 542 archivos (CLAP zero-shot, umbral 0.145).
+- **Beatport (tabla aparte, sin escribir tags)**: `beatport_lookup.py` encontró 1456 de 1823 temas
+  (115 por ISRC, 1341 misma versión, 1229 de ellos confirmados por sello, fecha o duración);
+  101 solo tienen otro remix y 266 no están. `genre_model.py` (MAEST capa 7 + CLAP, 15 géneros):
+  39 % de acierto, 72 % en el top 3, contra 18 % de la clase más frecuente.
 - **`download_JIJIJI/`**: descarga de playlists de Spotify por Soulseek, con grabación por loopback
   como respaldo; punto de entrada `spotify_soulseek_orchestrator.py`.
 - **Chequeo pre-commit** en `tools/git_hooks/` (audio, arrays, pesos, credenciales, archivos > 5 MB).
@@ -31,10 +35,12 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 1. GABRIEL: importar y validar `V4_1` en Rekordbox (pendrive) y Traktor (TODO 6.7).
 2. GABRIEL: probar la app local (`Abrir TRAKTOR ML.bat`): agregar música nueva, fusiones de temas
    (clic derecho), preparar para Rekordbox/Traktor y deshacer. Plan `docs/plans/20260929_app_local.md`.
-3. LOCAL: ajustar el umbral Vocal con la lista de chequeo (`tag_vocals.py --check-list`).
-4. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
+3. GABRIEL: revisar `features/beatport.csv` y `genre_pred.csv` antes de escribir Artist, Remixers,
+   Label, Genre y Released en los archivos (DECISIONS 2026-09-29, punto 4).
+4. LOCAL: ajustar el umbral Vocal con la lista de chequeo (`tag_vocals.py --check-list`).
+5. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
    tracklists y descarga del audio se consultan antes de implementar.
-5. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
+6. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
 
 ## RUN RECIPES

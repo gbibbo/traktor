@@ -21,7 +21,8 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `embedding_utils.py` | MERTEmbedder: embeddings MERT-v1-330M; load_track_embeddings (Phase 1 o representations/) |
 | `logging_utils.py` | Logger JSONL + run manifests |
 | `harmonic.py` | Compatibilidad armónica Camelot con transposición ±2 st (regla 2026-09-11) |
-| `tags.py` | Tags con mutagen: BPM, tonalidad, género, sello, energía de Mixed In Key; hash de audio sin tags; comentario idempotente |
+| `tags.py` | Tags con mutagen: BPM, tonalidad, género, sello, energía de Mixed In Key; hash de audio sin tags; comentario idempotente; `read_release_tags` (Remixer, ISRC, fecha, ID de Spotify) |
+| `beatport.py` | Beatport sin API oficial (JSON de la búsqueda pública, caché por consulta): match por niveles A ISRC / B misma versión / C solo otras versiones / D nada, y tags propuestos con la convención de Beatport (Artist sin remixers, Remixers = mezcla u "Original Mix", Label, Genre, Released) |
 | `tempo.py` | Estimación de BPM (flujo espectral + autocorrelación) para temas sin BPM en tags |
 | `dj_export.py` | Escritores rekordbox.xml, NML de Traktor y M3U8 con rutas absolutas |
 
@@ -38,6 +39,8 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `phase4_order.py` | CPU: Ordering greedy NN (cosine + BPM + Camelot key) → ordered_<hash>.parquet |
 | `extract_representations.py` | CPU: representaciones congeladas (EffNet, MAEST, MERT por capas, CLAP, MAEST-HF, AST; full y HPSS) con segmentación V4 → representations/<variante>/ (fase 2 del plan); `--shard`, `--assemble-only`, `--folder`, `--low-priority`, filtros de duración |
 | `organize.py` | Organizaciones estables con versiones (`orgs/<nombre>/`): `ingest` por carpeta, `import` de un config_hash, `build` (por alcance, respetando fusiones), `add` congelado, `link` (fusiones de temas: congelado o `--rebuild`), `show`; fusiones con nombre y color guardadas por versión, borradores y deshacer |
+| `beatport_lookup.py` | Red: busca cada tema del dataset en Beatport → features/beatport.parquet/.csv + beatport_summary.json (nivel, datos de Beatport, tags actuales y propuestos). No escribe tags; caché en artifacts/v4/beatport_cache; `--folder`/`--limit` para la prueba, `--offline`, `--low-priority` |
+| `genre_model.py` | CPU: género en taxonomía Beatport para temas sin match: gate MAEST (estilos Discogs no electrónicos) + regresión logística sobre MAEST capa 7 ‖ CLAP entrenada con los géneros de Beatport confirmados; `--eval` (validación cruzada agrupada por artista → genre_model_eval.json), `--predict` (→ genre_pred.parquet/.csv). No escribe tags |
 | `tag_vocals.py` | CPU: etiqueta Vocal (CLAP zero-shot o AST AudioSet) → features/vocals_<método>.parquet; `--write-tags` agrega " - Vocal" al comentario con respaldo CSV y `--revert` |
 | `phase5_export.py` | CPU: Export M3U Traktor (UTF-8, rutas Windows) → playlists/V4_<N>/; `--formats m3u8,rekordbox,traktor`, `--rep`, `--out-root` |
 
@@ -83,6 +86,8 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_representation_eval.py` | Unit tests de representation_eval (tripletas, bootstrap pareado, coherencia kNN/MAP) |
 | `test_triplet_evidence.py` | Unit tests de triplet_evidence (dedup, resolución, baselines) |
 | `test_tags_catalog.py` | Unit tests de tags.py y del catálogo recursivo (hash estable al escribir tags, dedup) |
+| `test_beatport.py` | Unit tests sin red de beatport.py y de las consultas de beatport_lookup (niveles A-D, alias de artista, sellos, convención de tags, caché) |
+| `test_genre_model.py` | Unit tests de genre_model.py (gate, etiquetas confirmadas alineadas por track_uids, validación cruzada) |
 | `test_organize.py` | Unit tests de organize.py: build por alcance, add congelado, link congelado/rebuild, catálogo por alcance, ensamblado con --folder |
 | `test_playlist_review.py` | Unit tests del generador de la página de revisión |
 | `test_review_app.py` | Unit tests de la app local: token y Host/Origin, audio con rangos, fusiones (aplicar y deshacer), carpetas dentro/fuera de la biblioteca |
@@ -115,7 +120,11 @@ artifacts/v4/datasets/<dataset_name>/
 │   ├── track_uids.json            # Phase 1: UIDs en orden (fuente de verdad de alineación)
 │   └── shards/                    # Shards temporales Phase 1
 ├── features/
-│   └── bpm_key.parquet            # Phase 1: BPM, key, beat_confidence (también vía --essentia-only en CPU)
+│   ├── bpm_key.parquet            # Phase 1: BPM, key, beat_confidence (también vía --essentia-only en CPU)
+│   ├── beatport.parquet/.csv      # beatport_lookup: match A-D, datos de Beatport, tags actuales y propuestos
+│   ├── beatport_summary.json      # beatport_lookup: conteos por nivel y cambios que se propondrían
+│   ├── genre_model_eval.json      # genre_model --eval: validación cruzada y gate
+│   └── genre_pred.parquet/.csv    # genre_model --predict: género final (Beatport o modelo) con top-3
 ├── evidence/
 │   └── manual_triplets.csv        # triplet_evidence: respuestas resueltas a track_uid
 ├── catalog_success.parquet        # Phase 1 merge: catalog filtrado a N canónico (track_uids.json)

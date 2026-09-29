@@ -14,6 +14,16 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    parámetros (`9e5784c3`). Salvedad: la comparación no fue del todo a ciegas (B ya la había
    escuchado y se reconocía por su número de playlists). No se exportó el CSV de veredictos.
 
+2. **Metadatos de Beatport en los tags** (Artist, Remixers, Label, Genre, Released), con su
+   convención: el remixer sale de Artist; Remixers = nombre de la mezcla si es un remix, "Extended
+   Mix" si el archivo es la Extended, si no "Original Mix". El género de Beatport sobrescribe el
+   que tenga el archivo.
+3. **Si Beatport solo tiene otro remix, el tema va al modelo de género** (no hereda el género de
+   otra versión: Beatport lo asigna por versión y por lanzamiento).
+4. **Nada se escribe en los archivos de la colección antes de que Gabriel vea números y
+   resultados.** Primero una tabla aparte (`features/beatport.parquet`) y el modelo entrenado con
+   esos géneros; la escritura de tags queda para después de su visto bueno.
+
 ## 2026-09-27
 
 1. **La copia fiel es `main` de GitHub.** Lo que quedó en la laptop sin subir (4 commits locales de

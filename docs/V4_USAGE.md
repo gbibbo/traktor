@@ -69,6 +69,12 @@ python src/v4/pipeline/extract_representations.py --dataset-name musica --models
 #     " - Vocal" al comentario (respaldo CSV en features/; --revert <csv> lo deshace)
 python src/v4/pipeline/tag_vocals.py --dataset-name musica --method clap --check-list 12
 python src/v4/pipeline/tag_vocals.py --dataset-name musica --method clap --write-tags
+# 1d. Género, sello, fecha y remixers de Beatport, como tabla aparte (no escribe tags). Primero una
+#     carpeta chica; la corrida entera (~1.5 h, 1 pedido cada ~1.2 s) retoma desde la caché
+python src/v4/pipeline/beatport_lookup.py --dataset-name musica --folder "2024/Tech-Disco" --output beatport_pilot
+python src/v4/pipeline/beatport_lookup.py --dataset-name musica --low-priority
+#     Modelo de género para lo que Beatport no tiene: evaluación y predicción (tampoco escribe tags)
+python src/v4/pipeline/genre_model.py --dataset-name musica --eval --predict
 # 2-5. Grupos (Ward sobre CLAP + BPM), nombres (género de los tags), orden (embedding + BPM +
 #      tonalidad + energía), export
 python src/v4/pipeline/phase2_cluster.py --dataset-name musica --rep clap_full --bpm-weight 0.3 --method ward --n-l1 15 --l2-target-size 35 --pca-dim 50
