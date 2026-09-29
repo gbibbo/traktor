@@ -155,6 +155,41 @@ def test_read_seed_file(tmp_path):
     from src.v4.pipeline.organize import read_seed_file
     f = tmp_path / "s.json"
     f.write_text(json.dumps({"org": "biblioteca", "groups": [{"tracks": ["a1", "b2"], "labels": ["A", "B"]}, {"tracks": ["c3"]}]}))
-    assert read_seed_file(f, "biblioteca") == [["a1", "b2"]]
+    assert read_seed_file(f, "biblioteca") == [{"tracks": ["a1", "b2"]}]
     with pytest.raises(ValueError, match="organización"):
         read_seed_file(f, "otra")
+
+
+
+def test_fusions_versioned_named_and_undo(tmp_path):
+    from src.v4.pipeline.organize import link_groups, merge_fusions
+    art = _library(tmp_path)
+    store = OrgStore(art, "t")
+    lib = Library(art, "clap_full")
+    build(store, lib, dict(PARAMS), [""])
+    a, _, _ = store.load()
+    p = _playlists(a)
+    k = sorted(p)
+    t1, t2, t3 = p[k[0]][0], p[k[-1]][0], p[k[1]][0]
+    v2, _ = link_groups(store, lib, [{"name": "Para abrir", "color": 2, "tracks": [t1, t2]}])
+    assert store.fusions() == [{"name": "Para abrir", "color": 2, "tracks": sorted([t1, t2])}]
+    # una fusión nueva que comparte un tema se une a la existente y conserva su nombre y color
+    v3, _ = link_groups(store, lib, [{"name": "Otra", "color": 5, "tracks": [t2, t3]}])
+    assert [(f["name"], f["color"], len(f["tracks"])) for f in store.fusions()] == [("Para abrir", 2, 3)]
+    # deshacer vuelve a v2 con su fusión de 2 temas; v3 no se borra
+    assert store.undo() == v2 and store.meta()["current_version"] == v2
+    assert len(store.fusions()[0]["tracks"]) == 2 and (store.dir / f"v{v3}").exists()
+    assert merge_fusions([], [{"name": "A", "color": 0, "tracks": ["x", "y"]}, {"name": "B", "color": 1, "tracks": ["z", "w"]}]) == [
+        {"name": "A", "color": 0, "tracks": ["x", "y"]}, {"name": "B", "color": 1, "tracks": ["w", "z"]}]
+
+
+
+def test_undo_add_restores_scopes(tmp_path):
+    art = _library(tmp_path)
+    store = OrgStore(art, "t")
+    lib = Library(art, "clap_full")
+    build(store, lib, dict(PARAMS), ["A"])
+    add(store, lib, "B")
+    assert store.meta()["added_scopes"] == ["B"]
+    store.undo()
+    assert store.meta()["added_scopes"] == [] and len(store.load()[0]) == 60

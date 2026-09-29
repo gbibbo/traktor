@@ -15,6 +15,9 @@ CHANGELOG:
   - 2026-09-29: Creación inicial.
   - 2026-09-29: link --from-file: aplica las semillas exportadas desde la página de revisión (varios
                 grupos en una sola versión).
+  - 2026-09-29: Fusiones (antes "semillas") con nombre y color, guardadas dentro de cada versión
+                (v<N>/constraints.json): deshacer una versión deshace sus fusiones. Borradores de
+                fusiones (fusion_drafts.json) para la app, set_current/undo, y parent en el historial.
 """
 from __future__ import annotations
 
@@ -53,7 +56,8 @@ DEFAULT_PARAMS = {
 # ---------------------------------------------------------------------------
 
 class OrgStore:
-    """Carpeta de una organización: org.json, constraints.json, models_v<N>/ y v<N>/."""
+    """Carpeta de una organización: org.json, models_v<N>/, v<N>/ (con constraints.json: las fusiones
+    de esa versión) y fusion_drafts.json (fusiones en armado, aún no aplicadas)."""
 
     def __init__(self, artifacts: Path, name: str):
         self.artifacts = Path(artifacts)
@@ -70,13 +74,50 @@ class OrgStore:
         self.dir.mkdir(parents=True, exist_ok=True)
         (self.dir / "org.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    def constraints(self) -> List[List[str]]:
-        p = self.dir / "constraints.json"
-        return json.loads(p.read_text(encoding="utf-8"))["groups"] if p.exists() else []
+    def fusions(self, version: Optional[int] = None) -> List[Dict]:
+        """Fusiones aplicadas en la versión (actual por defecto): [{name, color, tracks}]."""
+        if not self.exists():
+            return []
+        v = version or self.meta()["current_version"]
+        p = self.dir / f"v{v}" / "constraints.json"
+        if not p.exists():
+            p = self.dir / "constraints.json"  # formato anterior (una sola lista para todas las versiones)
+        if not p.exists():
+            return []
+        return normalize_fusions(json.loads(p.read_text(encoding="utf-8")))
 
-    def save_constraints(self, groups: List[List[str]]) -> None:
+    def constraints(self, version: Optional[int] = None) -> List[List[str]]:
+        return [f["tracks"] for f in self.fusions(version)]
+
+    def drafts(self) -> List[Dict]:
+        p = self.dir / "fusion_drafts.json"
+        return normalize_fusions(json.loads(p.read_text(encoding="utf-8"))) if p.exists() else []
+
+    def save_drafts(self, drafts: List[Dict]) -> None:
         self.dir.mkdir(parents=True, exist_ok=True)
-        (self.dir / "constraints.json").write_text(json.dumps({"groups": groups}, indent=2), encoding="utf-8")
+        (self.dir / "fusion_drafts.json").write_text(json.dumps({"fusions": drafts}, indent=2, ensure_ascii=False),
+                                                     encoding="utf-8")
+
+    def set_current(self, version: int) -> None:
+        meta = self.meta()
+        entry = next(h for h in meta["history"] if h["version"] == version)
+        meta["current_version"], meta["model_version"] = version, entry["model_version"]
+        if "org_scopes" in entry:  # deshacer un 'add' también saca su carpeta de los alcances
+            meta["scope"], meta["added_scopes"] = entry["org_scopes"][0], entry["org_scopes"][1:]
+        self.save_meta(meta)
+
+    def undo(self) -> Optional[int]:
+        """Vuelve a la versión de la que salió la actual (ninguna versión se borra)."""
+        meta = self.meta()
+        cur = next(h for h in meta["history"] if h["version"] == meta["current_version"])
+        parent = cur.get("parent")
+        if parent is None:
+            earlier = [h["version"] for h in meta["history"] if h["version"] < cur["version"]]
+            parent = max(earlier) if earlier else None
+        if parent is None:
+            return None
+        self.set_current(parent)
+        return parent
 
     def load(self, version: Optional[int] = None) -> Tuple[pd.DataFrame, Dict, int]:
         meta = self.meta()
@@ -100,18 +141,24 @@ class OrgStore:
         (md / "bpm_stats.json").write_text(json.dumps(bpm_stats, indent=2), encoding="utf-8")
 
     def commit(self, meta: Dict, assign: pd.DataFrame, names: Dict, action: str, detail: Dict,
-               model_version: Optional[int] = None) -> int:
-        """Escribe una versión nueva y la deja como actual."""
+               model_version: Optional[int] = None, fusions: Optional[List[Dict]] = None) -> int:
+        """Escribe una versión nueva y la deja como actual. fusions=None conserva las de la versión actual."""
+        parent = meta.get("current_version")
+        if fusions is None:
+            fusions = self.fusions(parent) if parent else []
         v = max([h["version"] for h in meta.get("history", [])], default=0) + 1
         vd = self.dir / f"v{v}"
         vd.mkdir(parents=True, exist_ok=True)
+        (vd / "constraints.json").write_text(json.dumps({"fusions": fusions}, indent=2, ensure_ascii=False),
+                                             encoding="utf-8")
         assign = assign.sort_values(["l1", "l2", "position"]).reset_index(drop=True)
         assign.to_parquet(vd / "assignments.parquet", index=False)
         (vd / "names.json").write_text(json.dumps(names, indent=2, ensure_ascii=False), encoding="utf-8")
         mv = model_version if model_version is not None else meta.get("model_version", v)
         meta.setdefault("history", []).append({
             "version": v, "created": dt.datetime.now().isoformat(timespec="seconds"), "action": action,
-            "model_version": mv, "n_tracks": int(len(assign)),
+            "model_version": mv, "parent": parent,
+            "org_scopes": [meta.get("scope", "")] + list(meta.get("added_scopes", [])), "n_tracks": int(len(assign)),
             "n_playlists": int(assign.groupby(["l1", "l2"]).ngroups), **detail})
         meta["current_version"], meta["model_version"] = v, mv
         self.save_meta(meta)
@@ -190,6 +237,33 @@ def fit_space(F: np.ndarray, pca_dim: int):
 
 def project(pca, F: np.ndarray) -> np.ndarray:
     return (pca.transform(F) if pca is not None else F).astype(np.float32)
+
+
+FUSION_COLORS = 8  # la interfaz asigna violeta, amarillo, verde, … por índice
+
+
+def normalize_fusions(data) -> List[Dict]:
+    """{'fusions': [...]}, {'groups': [[...]]} o una lista -> [{name, color, tracks}]."""
+    items = data.get("fusions", data.get("groups", [])) if isinstance(data, dict) else data
+    out = []
+    for i, it in enumerate(items):
+        if isinstance(it, dict):
+            out.append({"name": it.get("name") or f"Fusión {i + 1}", "color": int(it.get("color", i)) % FUSION_COLORS,
+                        "tracks": list(it["tracks"])})
+        else:
+            out.append({"name": f"Fusión {i + 1}", "color": i % FUSION_COLORS, "tracks": list(it)})
+    return out
+
+
+def merge_fusions(existing: List[Dict], new: List[Dict]) -> List[Dict]:
+    """Une fusiones que comparten temas (transitivo). La fusionada toma el nombre y color de la
+    primera que aparece; las que no se tocan quedan igual."""
+    groups = components([f["tracks"] for f in existing + new] + [[t, t] for f in existing + new for t in f["tracks"]])
+    out = []
+    for g in groups:
+        first = next(f for f in existing + new if set(f["tracks"]) & set(g))
+        out.append({"name": first["name"], "color": first["color"], "tracks": g})
+    return out
 
 
 def components(groups: List[List[str]]) -> List[List[str]]:
@@ -274,15 +348,17 @@ def org_scopes(meta: Dict) -> List[str]:
     return [meta.get("scope", "")] + meta.get("added_scopes", [])
 
 
-def build(store: OrgStore, lib: Library, params: Dict, scopes: List[str], action: str = "build") -> int:
-    """Organización desde cero sobre los alcances, con todas las semillas guardadas."""
+def build(store: OrgStore, lib: Library, params: Dict, scopes: List[str], action: str = "build",
+          fusions: Optional[List[Dict]] = None) -> int:
+    """Organización desde cero sobre los alcances, respetando las fusiones (las actuales si no se pasan)."""
     uids = lib.in_scope(scopes)
     if len(uids) < 2:
         raise ValueError(f"Alcance {scopes}: {len(uids)} temas con embedding; correr 'ingest' primero")
     stats = bpm_stats(lib.bpm_raw(uids))
     F = features(lib, uids, params["bpm_weight"], stats)
     pos = {u: i for i, u in enumerate(uids)}
-    groups = [[pos[u] for u in c if u in pos] for c in components(store.constraints())]
+    fusions = store.fusions() if fusions is None else fusions
+    groups = [[pos[u] for u in c if u in pos] for c in components([f["tracks"] for f in fusions])]
     groups = [np.array(g) for g in groups if len(g) > 1]
     n_l1 = params["n_l1"] or max(1, int(round(len(uids) / 150)))
     l1, l2, _ = ward_two_level(F, F, n_l1, params["l2_target_size"], params["pca_dim"], groups)
@@ -297,7 +373,8 @@ def build(store: OrgStore, lib: Library, params: Dict, scopes: List[str], action
     store.save_models(next_v, pca, reducer, stats)
     names = name_playlists(assign, lib.catalog)
     return store.commit(meta, assign, names, action,
-                        {"scopes": scopes, "n_l1": n_l1, "n_seed_groups": len(groups)}, model_version=next_v)
+                        {"scopes": scopes, "n_l1": n_l1, "n_seed_groups": len(groups)}, model_version=next_v,
+                        fusions=fusions)
 
 
 def import_hash(store: OrgStore, lib: Library, artifacts: Path, config_hash: str) -> int:
@@ -429,23 +506,29 @@ def link(store: OrgStore, lib: Library, queries: List[str], rebuild: bool = Fals
     return v, info["groups"][0] if info["mode"] == "frozen" else {"group": info["groups"][0], "mode": "rebuild"}
 
 
-def link_groups(store: OrgStore, lib: Library, query_groups: List[List[str]], rebuild: bool = False) -> Tuple[int, Dict]:
+def link_groups(store: OrgStore, lib: Library, query_groups: List, rebuild: bool = False) -> Tuple[int, Dict]:
     """Varias semillas de una vez (una sola versión nueva). Congelado: por cada grupo se mueve solo lo
     necesario a la playlist, entre las que ya contienen algún miembro, que minimiza la distancia total
     de los que se mueven (la del primer tema gana empates). rebuild: build desde cero con todas."""
     meta = store.meta()
     assign, names, _ = store.load()
-    new_groups = []
-    for queries in query_groups:
+    current = store.fusions()
+    new_groups, new_fusions = [], []
+    for k, item in enumerate(query_groups):
+        queries = item["tracks"] if isinstance(item, dict) else item
         uids = list(dict.fromkeys(resolve_track(q, assign, lib.catalog) for q in queries))
         if len(uids) < 2:
             raise ValueError(f"Hacen falta al menos dos temas distintos: {queries}")
         new_groups.append(uids)
-    groups = components(store.constraints() + new_groups)
-    store.save_constraints(groups)
+        idx = len(current) + k
+        new_fusions.append({"name": (item.get("name") if isinstance(item, dict) else None) or f"Fusión {idx + 1}",
+                            "color": int(item.get("color", idx)) % FUSION_COLORS if isinstance(item, dict) else idx % FUSION_COLORS,
+                            "tracks": uids})
+    fusions = merge_fusions(current, new_fusions)
+    groups = [f["tracks"] for f in fusions]
     comps = [next(c for c in groups if g[0] in c) for g in new_groups]
     if rebuild:
-        v = build(store, lib, meta["params"], org_scopes(meta), action="link-rebuild")
+        v = build(store, lib, meta["params"], org_scopes(meta), action="link-rebuild", fusions=fusions)
         return v, {"groups": comps, "mode": "rebuild"}
 
     models = store.models(meta["model_version"])
@@ -472,17 +555,20 @@ def link_groups(store: OrgStore, lib: Library, query_groups: List[List[str]], re
     assign = _renumber(assign, playlists)
     assign.loc[assign["track_uid"].isin(all_moved), "origin"] = "link"
     v = store.commit(meta, assign, names, "link", {"groups": [r["group"] for r in results], "moved": all_moved,
-                                                     "targets": [list(r["target"]) for r in results]})
+                                                     "targets": [list(r["target"]) for r in results]},
+                     fusions=fusions)
     return v, {"groups": results, "mode": "frozen"}
 
 
-def read_seed_file(path: Path, org_name: str) -> List[List[str]]:
-    """Semillas exportadas por la página de revisión: {"org": ..., "groups": [{"tracks": [uid, ...]}]}."""
+def read_seed_file(path: Path, org_name: str) -> List[Dict]:
+    """Fusiones exportadas por la página de revisión: {"org": ..., "groups"|"fusions": [{name?, color?, tracks}]}."""
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     if data.get("org") and data["org"] != org_name:
         raise ValueError(f"El archivo es de la organización '{data['org']}', no de '{org_name}'")
-    groups = [g["tracks"] if isinstance(g, dict) else g for g in data.get("groups", [])]
-    groups = [g for g in groups if len(g) >= 2]
+    items = data.get("fusions", data.get("groups", []))
+    groups = [{"name": g.get("name"), "color": g.get("color"), "tracks": g["tracks"]} if isinstance(g, dict)
+              else {"tracks": g} for g in items]
+    groups = [{k: v for k, v in g.items() if v is not None} for g in groups if len(g["tracks"]) >= 2]
     if not groups:
         raise ValueError(f"{path}: no hay grupos de al menos dos temas")
     return groups
@@ -527,8 +613,8 @@ def show(store: OrgStore) -> None:
         print(f"  v{h['version']}  {h['created']}  {h['action']:<13} {extra}")
     print(f"  {len(assign)} temas, {assign.groupby(['l1', 'l2']).ngroups} playlists, origen: "
           f"{assign['origin'].value_counts().to_dict()}")
-    for g in store.constraints():
-        print(f"  semilla: {', '.join(u[:12] for u in g)}")
+    for f in store.fusions():
+        print(f"  {f['name']}: {', '.join(u[:12] for u in f['tracks'])}")
 
 
 def main() -> int:
@@ -588,7 +674,7 @@ def main() -> int:
             for r in info["groups"]:
                 print(f"[INFO] Semilla de {len(r['group'])} temas → playlist {r['target']}; movidos: {len(r['moved'])}")
         else:
-            print(f"[INFO] Reconstruida desde cero con {len(store.constraints())} semillas")
+            print(f"[INFO] Reconstruida desde cero con {len(store.fusions())} fusiones")
     show(store)
     print(f"[INFO] Versión actual: v{v}")
     return 0

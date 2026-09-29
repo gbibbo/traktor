@@ -15,6 +15,8 @@ CHANGELOG:
                 semillas aplicadas; 'nombre@N' para una versión anterior; sin argumentos, todas las
                 organizaciones con nombre. La página arma semillas y las exporta para
                 organize.py link --from-file.
+  - 2026-09-29: make_data() reutilizable por la app local (src/v4/ui/review_app.py); fusiones con
+                nombre y color en vez de "semillas".
 """
 import argparse
 import datetime as dt
@@ -97,32 +99,52 @@ def load_org(artifacts: Path, config_hash: str) -> Dict:
     return {"hash": config_hash, "rep": cfg.get("rep", "mert"), "ordered": ordered, "names": names}
 
 
+def _when(created: str) -> str:
+    try:
+        d = dt.datetime.fromisoformat(created)
+        return d.strftime("%d/%m %H:%M")
+    except (TypeError, ValueError):
+        return ""
+
+
+def _n(k: int, one: str, many: str) -> str:
+    return f"{k} {one if k == 1 else many}"
+
+
 def history_lines(meta: Dict) -> List[str]:
-    """Historial de versiones en castellano, para la barra lateral."""
+    """Cambios de la organización en palabras simples, con fecha, para la barra lateral."""
     out = []
+    by_v = {h["version"]: h for h in meta.get("history", [])}
+    lineage, cur = set(), meta.get("current_version")
+    while cur is not None and cur in by_v and cur not in lineage:  # versiones vigentes: la actual y sus padres
+        lineage.add(cur)
+        cur = by_v[cur].get("parent")
     for h in meta.get("history", []):
         v, a = h["version"], h["action"]
         if a == "import":
-            txt = f"importada de {h.get('source_hash')}"
+            txt = "organización inicial"
         elif a == "build":
-            txt = f"desde cero ({h['n_tracks']} temas, {h['n_playlists']} playlists)"
+            txt = f"reorganizada desde cero ({h['n_tracks']} temas, {h['n_playlists']} playlists)"
         elif a == "add":
             scope = h.get("scope")
             scope = scope if isinstance(scope, str) else ", ".join(x or "toda la biblioteca" for x in scope or [])
-            parts = [f"{h.get('add', 0)} a playlists existentes"]
+            parts = [f"{h.get('add', 0)} a playlists que ya existían"]
             if h.get("add-new"):
                 parts.append(f"{h['add-new']} en playlists nuevas")
             if h.get("add-far"):
-                parts.append(f"{h['add-far']} lejanos")
-            txt = f"agregada '{scope}': +{h.get('added', 0)} ({', '.join(parts)})"
+                parts.append(f"{h['add-far']} sin una playlist parecida")
+            txt = f"se agregaron {_n(h.get('added', 0), 'tema', 'temas')} de «{scope}» ({', '.join(parts)})"
         elif a == "link":
             groups = h.get("groups") or ([h["group"]] if h.get("group") else [])
-            txt = f"semillas: {len(groups)} grupo(s), {len(h.get('moved', []))} tema(s) movido(s)"
+            moved = len(h.get("moved", []))
+            txt = f"{_n(len(groups), 'fusión aplicada', 'fusiones aplicadas')} ({_n(moved, 'tema movido', 'temas movidos')})"
         elif a == "link-rebuild":
-            txt = f"rehecha desde cero con semillas ({h['n_playlists']} playlists)"
+            txt = f"reorganizada desde cero respetando las fusiones ({h['n_playlists']} playlists)"
         else:
             txt = a
-        out.append(f"v{v} · {txt}")
+        when = _when(h.get("created", ""))
+        undone = lineage and v not in lineage
+        out.append(f"Versión {v}{' · ' + when if when else ''} · {txt}{' (deshecho)' if undone else ''}")
     return out
 
 
@@ -137,7 +159,7 @@ def load_named_org(artifacts: Path, spec: str) -> Dict:
             "names": names, "cli": name,
             "meta": {"name": name, "version": v, "current": current, "scopes": org_scopes(meta),
                      "history": history_lines(meta)},
-            "seeds": OrgStore(artifacts, name).constraints() if current else [],
+            "fusions": OrgStore(artifacts, name).fusions(v),
             "legacy": [meta["source_hash"]] if current and meta.get("source_hash") else []}
 
 
@@ -172,7 +194,9 @@ def org_payload(org: Dict, uid_index: Dict[str, int], label: str, n_suggested: i
     extra = {}
     if org.get("cli"):
         extra = {"cli": org["cli"], "meta": org["meta"], "legacy": org.get("legacy", []),
-                 "seeds": [[uid_index[u] for u in g if u in uid_index] for g in org.get("seeds", [])]}
+                 "fusions": [{"name": f["name"], "color": f["color"],
+                              "tracks": [uid_index[u] for u in f["tracks"] if u in uid_index]}
+                             for f in org.get("fusions", [])]}
     return {"id": org_id, "label": label, "folders": folders, "flags": flags, **extra,
             "trackIdx": [uid_index[u] for u in order],
             "xy": [[round(float(x), 4), round(float(y), 4)] for x, y in xy_df.to_numpy()]}
@@ -183,6 +207,34 @@ def render(data: Dict) -> str:
     html = TEMPLATE.read_text(encoding="utf-8")
     assert "/*__DATA__*/null" in html
     return html.replace("/*__DATA__*/null", payload)
+
+
+def make_data(artifacts: Path, dataset: str, specs: List[str], hashes: List[str], blind: bool = False,
+              seed: Optional[int] = None) -> Dict:
+    """Datos de la página: organizaciones con nombre (specs) y corridas por hash (hashes)."""
+    orgs = [load_named_org(artifacts, n) for n in specs]
+    orgs += [load_org(artifacts, h) for h in hashes]
+    catalog = pd.read_parquet(artifacts / "catalog.parquet")
+    bpm_key = pd.read_parquet(artifacts / "features" / "bpm_key.parquet")
+    uids = list(dict.fromkeys(u for o in orgs for u in o["ordered"]["track_uid"]))
+    uid_index = {u: i for i, u in enumerate(uids)}
+    run_id = dt.datetime.now().strftime("%Y%m%d_%H%M")
+
+    if blind and len(orgs) > 1:
+        rng = random.Random(seed)
+        rng.shuffle(orgs)
+        labels = [f"Organización {_letter(i)}" for i in range(len(orgs))]
+        key = {lab: {"config_hash": o["hash"], "rep": o["rep"]} for lab, o in zip(labels, orgs)}
+        key_path = artifacts / "evaluation" / f"review_key_{run_id}.json"
+        key_path.parent.mkdir(parents=True, exist_ok=True)
+        key_path.write_text(json.dumps(key, indent=2), encoding="utf-8")
+        print(f"[INFO] A ciegas: correspondencia en {key_path} (no está en la página)")
+    else:
+        labels = [(o["rep"] if o["hash"].startswith("org:") else f"{o['rep']} ({o['hash']})") if len(orgs) > 1
+                  else (o["rep"] if o["hash"].startswith("org:") else "Organización actual") for o in orgs]
+    return {"run_id": run_id, "dataset": dataset, "app": None,
+            "tracks": build_tracks(catalog, bpm_key, uids),
+            "orgs": [org_payload(o, uid_index, lab) for o, lab in zip(orgs, labels)]}
 
 
 def main() -> int:
@@ -203,33 +255,11 @@ def main() -> int:
     specs = args.org_name
     if not specs and not args.org:  # sin argumentos: todas las organizaciones con nombre
         specs = sorted(p.parent.name for p in (artifacts / "orgs").glob("*/org.json"))
-    orgs = [load_named_org(artifacts, n) for n in specs]
-    hashes = args.org or ([] if orgs else [sorted((artifacts / "clustering").glob("ordered_*.parquet"),
-                                                  key=lambda p: p.stat().st_mtime)[-1].stem.replace("ordered_", "")])
-    orgs += [load_org(artifacts, h) for h in hashes]
-    catalog = pd.read_parquet(artifacts / "catalog.parquet")
-    bpm_key = pd.read_parquet(artifacts / "features" / "bpm_key.parquet")
-
-    uids = list(dict.fromkeys(u for o in orgs for u in o["ordered"]["track_uid"]))
-    uid_index = {u: i for i, u in enumerate(uids)}
-    run_id = dt.datetime.now().strftime("%Y%m%d_%H%M")
-
-    if args.blind and len(orgs) > 1:
-        rng = random.Random(args.seed)
-        rng.shuffle(orgs)
-        labels = [f"Organización {_letter(i)}" for i in range(len(orgs))]
-        key = {lab: {"config_hash": o["hash"], "rep": o["rep"]} for lab, o in zip(labels, orgs)}
-        key_path = artifacts / "evaluation" / f"review_key_{run_id}.json"
-        key_path.parent.mkdir(parents=True, exist_ok=True)
-        key_path.write_text(json.dumps(key, indent=2), encoding="utf-8")
-        print(f"[INFO] A ciegas: correspondencia en {key_path} (no está en la página)")
-    else:
-        labels = [(o["rep"] if o["hash"].startswith("org:") else f"{o['rep']} ({o['hash']})") if len(orgs) > 1
-                  else (o["rep"] if o["hash"].startswith("org:") else "Organización actual") for o in orgs]
-
-    data = {"run_id": run_id, "dataset": args.dataset_name,
-            "tracks": build_tracks(catalog, bpm_key, uids),
-            "orgs": [org_payload(o, uid_index, lab) for o, lab in zip(orgs, labels)]}
+    hashes = args.org or ([] if specs else [sorted((artifacts / "clustering").glob("ordered_*.parquet"),
+                                                   key=lambda p: p.stat().st_mtime)[-1].stem.replace("ordered_", "")])
+    data = make_data(artifacts, args.dataset_name, specs, hashes, args.blind, args.seed)
+    uids = data["tracks"]
+    orgs = data["orgs"]
     out = Path(args.out) if args.out else resolve_dataset_audio_root(args.dataset_name, config) / PAGE_NAME
     out.write_text(render(data), encoding="utf-8")
     n_pl = sum(len(f["playlists"]) for o in data["orgs"] for f in o["folders"])

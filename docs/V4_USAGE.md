@@ -77,6 +77,13 @@ python src/v4/pipeline/phase4_order.py --dataset-name musica --rep clap_full
 python src/v4/pipeline/phase5_export.py --dataset-name musica --rep clap_full --formats m3u8,rekordbox,traktor --out-root artifacts/v4/datasets/musica/exports
 ```
 
+**App local (2026-09-29): la forma de uso para cualquier persona.** Doble clic en
+`Abrir TRAKTOR ML.bat` (o `python src/v4/ui/review_app.py`): abre el navegador con el mapa, las
+playlists y una barra con «Agregar música nueva» (elegir carpeta → analizar con progreso), el
+interruptor «Mantener la organización actual», «Preparar para Rekordbox y Traktor» y «Deshacer el
+último cambio». Clic derecho sobre un tema (o ⋯) crea fusiones de temas: van siempre en la misma
+playlist. Plan: `docs/plans/20260929_app_local.md`. Lo de abajo es lo mismo por línea de comandos.
+
 **Organizaciones estables (2026-09-29).** Las playlists para tocar salen de una organización con
 nombre y versiones (`src/v4/pipeline/organize.py`, plan `docs/plans/20260929_organizaciones_estables.md`):
 

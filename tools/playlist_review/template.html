@@ -3,45 +3,60 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Revisión de playlists</title>
+<title>TRAKTOR ML</title>
 <style>
 :root {
   color-scheme: light;
   --surface-1: #fcfcfb; --page: #f9f9f7; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
   --grid: #e1e0d9; --baseline: #c3c2b7; --border: rgba(11,11,11,0.10); --wash: rgba(11,11,11,0.05);
   --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
+  --fusion-0: #4a3aa7; --fusion-1: #eda100; --fusion-2: #008300; --fusion-3: #e87ba4;
   --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
-  --context-dot: #c3c2b7;
+  --context-dot: #c3c2b7; --accent-ink: #ffffff;
 }
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
     color-scheme: dark;
     --surface-1: #1a1a19; --page: #0d0d0d; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
     --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10); --wash: rgba(255,255,255,0.06);
-    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --context-dot: #4a4a46;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+    --fusion-0: #9085e9; --fusion-1: #c98500; --fusion-2: #008300; --fusion-3: #d55181;
+    --context-dot: #4a4a46;
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
   --surface-1: #1a1a19; --page: #0d0d0d; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
   --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10); --wash: rgba(255,255,255,0.06);
-  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --context-dot: #4a4a46;
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+  --fusion-0: #9085e9; --fusion-1: #c98500; --fusion-2: #008300; --fusion-3: #d55181;
+  --context-dot: #4a4a46;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body { background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
 button, select, textarea, input { font: inherit; color: inherit; }
-button { cursor: pointer; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; }
-button:hover { background: var(--wash); }
+button { cursor: pointer; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; }
+button:hover:not(:disabled) { background: var(--wash); }
 button:disabled { opacity: .45; cursor: default; }
-button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible, .pl:focus-visible { outline: 2px solid var(--series-1); outline-offset: 1px; }
-input[type="search"], select { background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; }
+button.primary { background: var(--series-1); border-color: var(--series-1); color: var(--accent-ink); font-weight: 600; }
+button.primary:hover:not(:disabled) { filter: brightness(1.08); background: var(--series-1); }
+button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible, .pl:focus-visible, [role="switch"]:focus-visible, .menu button:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
+input[type="search"], input[type="text"], select { background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 5px 9px; }
 .app { display: grid; grid-template-columns: 320px 1fr; grid-template-rows: auto 1fr auto; height: 100vh; }
-header { grid-column: 1 / -1; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; padding: 10px 16px; background: var(--surface-1); border-bottom: 1px solid var(--border); }
-header h1 { font-size: 16px; margin: 0 8px 0 0; }
+header { grid-column: 1 / -1; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 10px 16px; background: var(--surface-1); border-bottom: 1px solid var(--border); }
+header h1 { font-size: 16px; margin: 0; }
+.summary { color: var(--ink-2); }
 .muted { color: var(--muted); }
 .ink2 { color: var(--ink-2); }
 .spacer { flex: 1; }
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px 4px 6px; background: var(--surface-1); }
+.switch .track { width: 34px; height: 20px; border-radius: 999px; background: var(--baseline); position: relative; transition: background .15s; flex: none; }
+.switch .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface-1); box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: left .15s; }
+.switch[aria-checked="true"] .track { background: var(--series-1); }
+.switch[aria-checked="true"] .track::after { left: 16px; }
+.switch small { display: block; color: var(--muted); font-size: 11px; line-height: 1.2; }
 aside { overflow: auto; border-right: 1px solid var(--border); background: var(--surface-1); padding: 8px 0; }
 .orginfo { padding: 4px 14px 10px; border-bottom: 1px solid var(--grid); margin-bottom: 6px; font-size: 13px; }
 .orginfo summary { cursor: pointer; color: var(--ink-2); }
@@ -55,7 +70,7 @@ aside { overflow: auto; border-right: 1px solid var(--border); background: var(-
 .pl .n { margin-left: auto; font-variant-numeric: tabular-nums; }
 .star { color: var(--ink-2); font-size: 12px; }
 .badge { font-size: 12px; white-space: nowrap; }
-.badge i { font-style: normal; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: 0; }
+.badge i { font-style: normal; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
 main { overflow: auto; padding: 12px 16px 16px; }
 .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
 .maphead { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
@@ -64,30 +79,32 @@ main { overflow: auto; padding: 12px 16px 16px; }
 .legend span.ring::before { background: transparent; box-shadow: inset 0 0 0 2px var(--c); }
 .hl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
 #mapWrap { position: relative; }
-#map { width: 100%; height: 380px; display: block; touch-action: none; }
+#map { width: 100%; height: 400px; display: block; touch-action: none; }
 #tip { position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12); display: none; max-width: 340px; z-index: 5; }
 #tip b { display: block; font-weight: 600; }
 h2 { font-size: 16px; margin: 0; }
-h3 { font-size: 14px; margin: 0; }
+h3 { font-size: 14px; margin: 0 0 4px; }
 .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
 .chip { background: var(--wash); border-radius: 999px; padding: 2px 10px; font-size: 12px; color: var(--ink-2); }
-.chip button { border: 0; background: none; padding: 0 0 0 6px; color: var(--muted); }
 .verdict { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
 .verdict button[aria-pressed="true"] { border-color: var(--c); box-shadow: inset 0 0 0 1px var(--c); font-weight: 600; }
 .verdict button i { font-style: normal; color: var(--c); margin-right: 4px; font-weight: 700; }
-textarea { width: 100%; min-height: 44px; margin-top: 8px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; resize: vertical; }
+textarea { width: 100%; min-height: 40px; margin-top: 8px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; resize: vertical; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
-.seeds ul { margin: 6px 0 0; padding-left: 18px; }
-.seeds li { margin: 2px 0; }
-.cmd { width: 100%; font: 12px/1.4 ui-monospace, Consolas, monospace; background: var(--wash); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; }
+.swatch { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: var(--c); flex: none; box-shadow: 0 0 0 2px var(--surface-1), 0 0 0 3px var(--c); margin: 0 4px 0 2px; }
+.fusion { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; margin-top: 8px; }
+.fusion .head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.fusion ul { margin: 6px 0 0; padding-left: 22px; }
+.fusion li { margin: 2px 0; }
+.fusion li button { padding: 0 6px; border: 0; background: none; color: var(--muted); }
+.status { font-size: 12px; border-radius: 999px; padding: 1px 8px; border: 1px solid var(--border); color: var(--ink-2); }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--grid); vertical-align: middle; }
 th { color: var(--muted); font-weight: 500; font-size: 12px; position: sticky; top: 0; background: var(--surface-1); }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 tr.playing td { background: var(--wash); }
 tr.flagged td.title { text-decoration: line-through; color: var(--muted); }
-td .play, td .seedbtn { padding: 2px 8px; border-radius: 6px; }
-.seedbtn[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--series-3); font-weight: 600; }
+td .play, td .more { padding: 2px 8px; border-radius: 6px; }
 .title small { display: block; color: var(--muted); font-size: 11px; }
 .flag { display: inline-block; margin-left: 6px; font-size: 11px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--ink-2); }
 footer { grid-column: 1 / -1; display: flex; gap: 12px; align-items: center; padding: 8px 16px; background: var(--surface-1); border-top: 1px solid var(--border); }
@@ -95,7 +112,31 @@ footer { grid-column: 1 / -1; display: flex; gap: 12px; align-items: center; pad
 progress { width: 180px; height: 6px; }
 .warn { border-left: 3px solid var(--warning); padding: 6px 10px; background: var(--wash); border-radius: 6px; margin-bottom: 12px; display: none; }
 .help { font-size: 13px; color: var(--ink-2); }
-.help li { margin: 2px 0; }
+.help li { margin: 3px 0; }
+/* menú contextual */
+.menu { position: fixed; z-index: 50; min-width: 240px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.18); padding: 6px; display: none; }
+.menu .mhead { padding: 4px 8px 6px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--grid); margin-bottom: 4px; max-width: 320px; }
+.menu button { display: flex; gap: 8px; align-items: center; width: 100%; text-align: left; border: 0; border-radius: 6px; padding: 7px 10px; background: none; }
+.menu button:hover:not(:disabled) { background: var(--wash); }
+.menu .note { padding: 6px 10px; font-size: 12px; color: var(--muted); }
+/* ventanas */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.42); display: none; align-items: center; justify-content: center; z-index: 60; padding: 16px; }
+.dialog { background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px; width: min(560px, 100%); max-height: 90vh; overflow: auto; padding: 18px 20px; box-shadow: 0 20px 50px rgba(0,0,0,.3); }
+.dialog h2 { margin-bottom: 8px; }
+.dialog p { margin: 8px 0; color: var(--ink-2); }
+.dialog .actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 16px; }
+.dialog .path { font: 12px/1.4 ui-monospace, Consolas, monospace; background: var(--wash); border-radius: 6px; padding: 6px 8px; word-break: break-all; }
+.dialog ol, .dialog ul { color: var(--ink-2); padding-left: 20px; }
+.callout { border-left: 3px solid var(--c, var(--series-1)); background: var(--wash); border-radius: 6px; padding: 8px 10px; margin: 10px 0; }
+.steps { list-style: none; padding: 0; margin: 10px 0; }
+.steps li { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; color: var(--muted); }
+.steps li.done { color: var(--ink-2); }
+.steps li.cur { color: var(--ink); font-weight: 600; }
+.steps li .ic { width: 16px; text-align: center; flex: none; }
+.bar { height: 8px; border-radius: 999px; background: var(--wash); overflow: hidden; margin: 6px 0; }
+.bar > div { height: 100%; background: var(--series-1); width: 0; transition: width .4s; }
+.bar.indet > div { width: 30%; animation: indet 1.4s infinite ease-in-out; }
+@keyframes indet { 0% { margin-left: -30%; } 100% { margin-left: 100%; } }
 @media (max-width: 900px) {
   .app { grid-template-columns: 1fr; grid-template-rows: auto 240px 1fr auto; }
   aside { border-right: 0; border-bottom: 1px solid var(--border); }
@@ -105,108 +146,109 @@ progress { width: 180px; height: 6px; }
 <body>
 <div class="app">
   <header>
-    <h1>Revisión de playlists</h1>
-    <label class="ink2">Organización <select id="orgSel"></select></label>
-    <span id="progress" class="ink2"></span>
+    <h1>TRAKTOR ML</h1>
+    <span id="summary" class="summary"></span>
+    <label class="ink2" id="orgSelWrap" hidden>Organización <select id="orgSel"></select></label>
     <span class="spacer"></span>
-    <button id="helpBtn" aria-expanded="false">Cómo usar</button>
-    <button id="exportBtn">Exportar veredictos (CSV)</button>
+    <div class="toolbar" id="toolbar"></div>
+    <button id="helpBtn" aria-expanded="false">Ayuda</button>
   </header>
   <aside id="side" aria-label="Carpetas y playlists"></aside>
   <main>
-    <div id="audioWarn" class="warn">No encuentro los archivos de audio. Esta página tiene que estar dentro de la carpeta <b>Música</b> (junto a las carpetas de temas) y abrirse desde ahí con doble clic.</div>
-    <div id="help" class="card help" hidden>
-      <ul>
-        <li><b>Objetivo:</b> decidir si la organización tiene sentido antes de importarla. Con las playlists marcadas con ★ (una por carpeta grande) alcanza.</li>
-        <li><b>Mapa:</b> cada punto es un tema; los cercanos suenan parecido para el modelo. Azul = la carpeta elegida, naranja = la playlist elegida con su orden, anillo verde = lo resaltado (temas nuevos, semillas o una búsqueda). Clic en un punto lo reproduce.</li>
-        <li><b>Escuchar la secuencia:</b> reproduce un fragmento de cada tema en el orden de la playlist, desde la mitad del tema.</li>
-        <li><b>Veredicto:</b> "Tiene sentido", "A medias" o "No", una nota opcional, y "No va acá" en los temas que sobran. Se guarda solo en este navegador; <b>Exportar veredictos</b> lo baja en CSV.</li>
-        <li><b>Semillas:</b> con "＋" (en la tabla o abajo, sobre el tema que suena) juntás temas que tienen que ir en la misma playlist, aunque estén en playlists distintas. "Guardar grupo", y al terminar "Exportar semillas": la tarjeta muestra el comando que las aplica (congelado: solo se mueven esos temas; <code>--rebuild</code>: todo desde cero).</li>
-        <li>Teclado: espacio = pausa, → = siguiente en la secuencia.</li>
-      </ul>
-    </div>
+    <div id="audioWarn" class="warn">No puedo reproducir los temas desde acá.</div>
+    <div id="help" class="card help" hidden></div>
     <section class="card" aria-label="Mapa de temas">
       <div class="maphead">
-        <strong>Mapa</strong>
-        <div class="legend">
-          <span style="--c: var(--context-dot)">otros temas</span>
-          <span style="--c: var(--series-1)">carpeta elegida</span>
-          <span style="--c: var(--series-2)">playlist elegida (en orden)</span>
-          <span class="ring" style="--c: var(--series-3)">resaltados</span>
-        </div>
+        <strong>Mapa de tu música</strong>
+        <span class="muted">(cada punto es un tema; los que están cerca suenan parecido)</span>
+      </div>
+      <div class="maphead">
+        <div class="legend" id="legend"></div>
       </div>
       <div class="hl">
-        <label class="ink2">Resaltar <select id="hlSel">
-          <option value="">nada</option>
-          <option value="new">temas nuevos</option>
-          <option value="seeds">semillas aplicadas</option>
-          <option value="draft">semillas en armado</option>
+        <label class="ink2">Mostrar en el mapa <select id="hlSel">
+          <option value="">—</option>
+          <option value="new">temas agregados recientemente</option>
+          <option value="fused">temas en fusiones</option>
         </select></label>
-        <input id="hlText" type="search" placeholder="o buscar tema, artista o carpeta (p. ej. 2025)" style="width:min(100%, 340px)" aria-label="Buscar para resaltar">
+        <input id="hlText" type="search" placeholder="o buscar tema, artista o carpeta" style="width:min(100%, 300px)" aria-label="Buscar en el mapa">
         <span id="hlCount" class="muted" aria-live="polite"></span>
       </div>
-      <div id="mapWrap"><canvas id="map" aria-label="Mapa 2D de los temas; la tabla de abajo tiene los mismos datos"></canvas><div id="tip" role="status"></div></div>
+      <div id="mapWrap"><canvas id="map" aria-label="Mapa 2D de los temas; las tablas tienen los mismos datos"></canvas><div id="tip" role="status"></div></div>
     </section>
-    <section class="card seeds" id="seedCard" aria-label="Semillas"></section>
+    <section class="card" id="fusionCard" aria-label="Fusiones de temas"></section>
     <section class="card" id="plCard" aria-live="polite"></section>
   </main>
   <footer>
     <button id="pauseBtn" aria-label="Pausa">Pausa</button>
     <button id="nextBtn" aria-label="Siguiente">Siguiente →</button>
-    <button id="seedNowBtn" disabled title="Agregar el tema que suena a la semilla en armado">＋ Semilla</button>
+    <button id="nowMenuBtn" disabled title="Opciones del tema que está sonando">⋯ Este tema</button>
     <span id="now" class="ink2">Nada sonando.</span>
     <progress id="prog" max="1" value="0"></progress>
   </footer>
 </div>
+<div class="menu" id="menu" role="menu"></div>
+<div class="overlay" id="overlay"><div class="dialog" id="dialog" role="dialog" aria-modal="true" aria-labelledby="dlgTitle"></div></div>
 <audio id="audio" preload="none"></audio>
 <script>
 const DATA = /*__DATA__*/null;
-// Guardado por dataset y organización: sobrevive a regenerar la página y al orden a ciegas
+const APP = DATA.app || null;   // null = página suelta (solo revisar); con la app se pueden hacer cambios
 const STORE_KEY = "traktor_playlist_review_v1_" + DATA.dataset;
+const PREFS_KEY = "traktor_prefs_v1";
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
   const n = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
     if (k === "class") n.className = v; else if (k === "text") n.textContent = v;
-    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v);
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v === true ? "" : v);
   }
-  for (const c of kids) if (c != null) n.append(c);
+  for (const c of kids.flat()) if (c != null && c !== false) n.append(c);
   return n;
 };
+const fmt = n => n.toLocaleString("es");
 const T = DATA.tracks;
 const byU = new Map(T.map((t, i) => [t.u, i]));
 let state = {};
 try { state = JSON.parse(localStorage.getItem(STORE_KEY) || "{}"); } catch (e) { state = {}; }
+let prefs = { keep: true };
+try { prefs = Object.assign(prefs, JSON.parse(localStorage.getItem(PREFS_KEY) || "{}")); } catch (e) {}
 const firstVisit = !Object.keys(state).length;
-// Veredictos dados sobre la corrida original (config_hash) pasan a la organización importada de ella
+// Opiniones dadas sobre la corrida original pasan a la organización importada de ella
 DATA.orgs.forEach(o => (o.legacy || []).forEach(h => {
   if (!state[o.id] && state[h]) {
     state[o.id] = {};
     for (const [pid, j] of Object.entries(state[h])) state[o.id][o.id + pid.slice(h.length)] = j;
   }
 }));
-// Semillas en armado que ya se aplicaron (todos sus temas en un mismo grupo aplicado) se descartan
-DATA.orgs.forEach(o => {
-  const pend = state._seeds?.[o.id]; if (!pend || !o.seeds?.length) return;
-  const applied = o.seeds.map(g => new Set(g.map(i => T[i].u)));
-  pend.groups = pend.groups.filter(g => !applied.some(a => g.every(u => a.has(u))));
-});
 const save = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} };
+const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) {} };
 const judg = (orgId, plId) => ((state[orgId] ||= {})[plId] ||= { verdict: "", note: "", notHere: [] });
-const seedState = () => ((state._seeds ||= {})[org.id] ||= { current: [], groups: [] });
 
 let org = DATA.orgs[0], folder = null, playlist = null;
 const VERDICTS = [
-  { v: "si", label: "Tiene sentido", icon: "✓", c: "var(--good)" },
-  { v: "medias", label: "A medias", icon: "~", c: "var(--warning)" },
+  { v: "si", label: "Sí", icon: "✓", c: "var(--good)" },
+  { v: "medias", label: "Más o menos", icon: "~", c: "var(--warning)" },
   { v: "no", label: "No", icon: "✗", c: "var(--critical)" },
 ];
 const vInfo = v => VERDICTS.find(x => x.v === v);
 const label = t => `${t.a ? t.a + " – " : ""}${t.t}`;
+const FUSION_NAMES = ["violeta", "amarillo", "verde", "rosa"];
+const fcolor = c => `var(--fusion-${c % 4})`;
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const fcss = c => css(`--fusion-${c % 4}`);
+
+// ---------- playlists ----------
+let plOf = new Map();
+function indexPlaylists() {
+  plOf = new Map();
+  org.folders.forEach(f => f.playlists.forEach(pl => pl.tracks.forEach(i => plOf.set(i, [f, pl]))));
+}
+const plName = i => { const x = plOf.get(i); return x ? x[1].name : "—"; };
 
 // ---------- audio ----------
 const audio = $("#audio");
-const srcOf = t => t.p.split("/").map(encodeURIComponent).join("/");
+const srcOf = t => (APP ? "/audio/" : "") + t.p.split("/").map(encodeURIComponent).join("/");
 let nowIdx = null, seq = null, seqTimer = null;
 function play(idx, startFrac = 0.4) {
   const t = T[idx]; nowIdx = idx;
@@ -217,17 +259,22 @@ function play(idx, startFrac = 0.4) {
   }, { once: true });
   audio.load();
   $("#now").textContent = label(t);
-  $("#seedNowBtn").disabled = !org.cli;
+  $("#nowMenuBtn").disabled = false;
   markPlaying();
 }
-audio.addEventListener("error", () => { if (audio.src) $("#audioWarn").style.display = "block"; });
+audio.addEventListener("error", () => { if (audio.src) showAudioWarn(); });
 audio.addEventListener("playing", () => { $("#audioWarn").style.display = "none"; $("#pauseBtn").textContent = "Pausa"; });
 audio.addEventListener("pause", () => { $("#pauseBtn").textContent = "Reproducir"; });
 audio.addEventListener("timeupdate", () => {
   if (seq) $("#prog").value = Math.min(1, (performance.now() - seq.t0) / (seq.secs * 1000));
   else if (audio.duration) $("#prog").value = audio.currentTime / audio.duration;
 });
-function stopSeq() { seq = null; clearTimeout(seqTimer); $("#seqBtn") && ($("#seqBtn").textContent = "▶ Escuchar la secuencia"); }
+function showAudioWarn() {
+  $("#audioWarn").textContent = APP ? "No pude abrir ese archivo de audio (¿se movió o se borró?)."
+    : "No encuentro los archivos de audio: esta página tiene que estar dentro de tu carpeta de música y abrirse desde ahí.";
+  $("#audioWarn").style.display = "block";
+}
+function stopSeq() { seq = null; clearTimeout(seqTimer); $("#seqBtn") && ($("#seqBtn").textContent = "▶ Escuchar la playlist de corrido"); }
 function seqStep() {
   if (!seq) return;
   if (seq.i >= seq.items.length) { stopSeq(); audio.pause(); return; }
@@ -235,62 +282,345 @@ function seqStep() {
   clearTimeout(seqTimer);
   seqTimer = setTimeout(() => { if (seq) { seq.i += 1; seqStep(); } }, seq.secs * 1000);
 }
-function startSeq(items, fromPos = 0) {
-  const secs = +($("#seqSecs")?.value || 20);
-  seq = { items, i: fromPos, secs, t0: performance.now() };
-  $("#seqBtn").textContent = "■ Detener secuencia";
+function startSeq(items) {
+  seq = { items, i: 0, secs: +($("#seqSecs")?.value || 20), t0: performance.now() };
+  $("#seqBtn").textContent = "■ Detener";
   seqStep();
 }
 $("#pauseBtn").onclick = () => { if (audio.paused) audio.play().catch(() => {}); else { audio.pause(); stopSeq(); } };
 $("#nextBtn").onclick = () => { if (seq) { seq.i += 1; seqStep(); } else if (playlist && nowIdx != null) {
   const i = playlist.tracks.indexOf(nowIdx); if (i >= 0 && i + 1 < playlist.tracks.length) play(playlist.tracks[i + 1]); } };
-$("#seedNowBtn").onclick = () => { if (nowIdx != null) toggleSeed(nowIdx, true); };
+$("#nowMenuBtn").onclick = e => { if (nowIdx != null) { const r = e.target.getBoundingClientRect(); openMenu(nowIdx, r.left, r.top - 8, true); } };
 document.addEventListener("keydown", e => {
-  if (["TEXTAREA", "INPUT", "SELECT"].includes(e.target.tagName)) return;
+  if (e.key === "Escape") { closeMenu(); if (dialogCancelable) closeDialog(); }
+  if (["TEXTAREA", "INPUT", "SELECT"].includes(e.target.tagName) || $("#overlay").style.display === "flex") return;
   if (e.code === "Space") { e.preventDefault(); $("#pauseBtn").click(); }
   if (e.code === "ArrowRight") { e.preventDefault(); $("#nextBtn").click(); }
 });
 
-// ---------- sidebar ----------
+// ---------- API de la app ----------
+async function api(path, body = {}) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", "X-App-Token": APP.token }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({ error: "Respuesta inválida" }));
+  if (!r.ok) throw new Error(j.error || `Error ${r.status}`);
+  return j;
+}
+
+// ---------- ventanas ----------
+let dialogCancelable = true;
+function openDialog(title, body, actions, cancelable = true) {
+  dialogCancelable = cancelable;
+  const d = $("#dialog"); d.replaceChildren(el("h2", { id: "dlgTitle", text: title }), ...[].concat(body));
+  if (actions?.length) d.append(el("div", { class: "actions" }, actions));
+  $("#overlay").style.display = "flex";
+  (d.querySelector("input, button.primary") || d.querySelector("button"))?.focus();
+}
+function closeDialog() { $("#overlay").style.display = "none"; }
+$("#overlay").addEventListener("click", e => { if (e.target.id === "overlay" && dialogCancelable) closeDialog(); });
+const btn = (text, onclick, primary = false, attrs = {}) => el("button", { class: primary ? "primary" : null, onclick, ...attrs }, text);
+function errorDialog(msg) { openDialog("Algo salió mal", [el("p", { text: msg })], [btn("Cerrar", closeDialog, true)]); }
+
+// ---------- fusiones ----------
+let drafts = APP ? (APP.drafts || []) : [];
+async function saveDrafts() { if (APP) await api("/api/drafts", { fusions: drafts }); }
+function fusionsView() {
+  // Fusiones aplicadas (con posibles agregados pendientes) y fusiones nuevas pendientes
+  const out = (org.fusions || []).map(f => ({ name: f.name, color: f.color, applied: [...f.tracks], pending: [] }));
+  drafts.forEach(d => {
+    const idxs = d.tracks.map(u => byU.get(u)).filter(i => i != null);
+    const target = out.find(f => f.name === d.name && f.applied.length);
+    if (target) idxs.forEach(i => { if (!target.applied.includes(i) && !target.pending.includes(i)) target.pending.push(i); });
+    else out.push({ name: d.name, color: d.color, applied: [], pending: idxs });
+  });
+  return out;
+}
+const fusionOf = i => fusionsView().find(f => f.applied.includes(i) || f.pending.includes(i));
+const nextColor = () => { const used = fusionsView().map(f => f.color); for (let c = 0; ; c++) if (!used.includes(c) || c >= 64) return c % 8; };
+const pendingReady = () => fusionsView().some(f => f.pending.length && f.applied.length + f.pending.length >= 2);
+
+function createFusion(i) {
+  closeMenu();
+  const n = fusionsView().length + 1;
+  const input = el("input", { type: "text", value: `Fusión ${n}`, "aria-label": "Nombre de la fusión", style: "width:100%" });
+  const color = nextColor();
+  openDialog("Crear fusión de temas", [
+    el("p", { text: "Los temas de una fusión quedan siempre juntos, en la misma playlist." }),
+    el("div", { class: "callout", style: `--c:${fcolor(color)}` }, el("span", { class: "swatch", style: `--c:${fcolor(color)}` }),
+      ` Empieza con «${label(T[i])}» (playlist ${plName(i)}).`),
+    el("label", { class: "ink2" }, "Nombre", input),
+    el("p", { class: "muted", text: "Después hacé clic derecho en otro tema (en el mapa o en la tabla) y elegí «Agregar a …». Podés sumar temas de otras playlists." })],
+    [btn("Cancelar", closeDialog), btn("Crear fusión", async () => {
+      drafts.push({ name: input.value.trim() || `Fusión ${n}`, color, tracks: [T[i].u] });
+      await saveDrafts().catch(e => errorDialog(e.message)); closeDialog(); refresh();
+    }, true)]);
+}
+function addToFusion(i, f) {
+  closeMenu();
+  const members = [...f.applied, ...f.pending];
+  openDialog(`¿Agregar este tema a «${f.name}»?`, [
+    el("div", { class: "callout", style: `--c:${fcolor(f.color)}` }, el("strong", { text: "Tema a agregar: " }), `«${label(T[i])}» — playlist ${plName(i)}`),
+    el("p", { text: `«${f.name}» tiene ahora:` }),
+    el("ul", {}, members.map(m => el("li", { text: `«${label(T[m])}» — playlist ${plName(m)}` }))),
+    el("p", { class: "muted", text: "El cambio se aplica cuando toques «Rehacer las playlists con las fusiones»." })],
+    [btn("Cancelar", closeDialog), btn("Agregar", async () => {
+      let d = drafts.find(x => x.name === f.name);
+      if (!d) { d = { name: f.name, color: f.color, tracks: f.applied.length ? [T[f.applied[0]].u] : [] }; drafts.push(d); }
+      if (!d.tracks.includes(T[i].u)) d.tracks.push(T[i].u);
+      await saveDrafts().catch(e => errorDialog(e.message)); closeDialog(); refresh();
+    }, true)]);
+}
+async function removeFromFusion(i, f) {
+  closeMenu();
+  const d = drafts.find(x => x.name === f.name); if (!d) return;
+  d.tracks = d.tracks.filter(u => u !== T[i].u);
+  const onlyAnchor = f.applied.length && d.tracks.every(u => f.applied.includes(byU.get(u)));
+  if (!d.tracks.length || onlyAnchor) drafts = drafts.filter(x => x !== d);
+  await saveDrafts().catch(e => errorDialog(e.message)); refresh();
+}
+async function discardFusion(f) {
+  drafts = drafts.filter(x => x.name !== f.name);
+  await saveDrafts().catch(e => errorDialog(e.message)); refresh();
+}
+function renderFusions() {
+  const card = $("#fusionCard"); card.replaceChildren(el("h3", { text: "Fusiones de temas" }));
+  const view = fusionsView();
+  if (!view.length) {
+    card.append(el("p", { class: "muted", text: APP
+      ? "¿Querés que dos o más temas queden siempre en la misma playlist? Hacé clic derecho sobre un tema (en el mapa o en la tabla, o tocá ⋯) y elegí «Crear fusión de temas»."
+      : "Para crear fusiones de temas, abrí la app (Abrir TRAKTOR ML)." }));
+    return;
+  }
+  view.forEach(f => {
+    const members = [...f.applied, ...f.pending];
+    const status = f.pending.length ? (members.length < 2 ? "falta otro tema" : "pendiente de aplicar") : "aplicada";
+    const box = el("div", { class: "fusion" },
+      el("div", { class: "head" }, el("span", { class: "swatch", style: `--c:${fcolor(f.color)}`, title: FUSION_NAMES[f.color % 4] }),
+        el("strong", { text: f.name }), el("span", { class: "status", text: status }),
+        el("span", { class: "muted", text: `${members.length} ${members.length === 1 ? "tema" : "temas"}` }),
+        el("span", { class: "spacer" }),
+        APP && f.pending.length ? btn("Descartar cambios", () => discardFusion(f)) : null));
+    const ul = el("ul");
+    members.forEach(m => ul.append(el("li", {}, `«${label(T[m])}» — playlist ${plName(m)}`,
+      f.applied.includes(m) ? null : el("span", { class: "muted", text: " (nuevo en la fusión)" }),
+      APP && f.pending.includes(m) ? el("button", { "aria-label": "Quitar de la fusión", title: "Quitar", onclick: () => removeFromFusion(m, f) }, "×") : null)));
+    box.append(ul); card.append(box);
+  });
+  if (APP) {
+    const ready = pendingReady();
+    card.append(el("div", { class: "row" },
+      btn("Rehacer las playlists con las fusiones", applyFusions, true, { disabled: !ready }),
+      el("span", { class: "muted", text: ready ? (prefs.keep
+        ? "Con «Mantener la organización actual» encendido: solo se mueven los temas de las fusiones."
+        : "Con «Mantener la organización actual» apagado: se reorganiza toda la colección.")
+        : view.some(f => f.pending.length) ? "Cada fusión necesita al menos dos temas."
+        : "Todas las fusiones están aplicadas. Para sumar un tema a una, hacé clic derecho sobre él." })));
+  }
+}
+
+// ---------- menú contextual ----------
+function openMenu(i, x, y, above = false) {
+  const m = $("#menu"); m.replaceChildren(el("div", { class: "mhead", text: `${label(T[i])} · playlist ${plName(i)}` }));
+  const item = (text, onclick, attrs = {}) => el("button", { role: "menuitem", onclick, ...attrs }, text);
+  m.append(item("▶ Escuchar", () => { closeMenu(); stopSeq(); play(i); }));
+  if (APP) {
+    const f = fusionOf(i);
+    if (!f) m.append(item("＋ Crear fusión de temas…", () => createFusion(i)));
+    fusionsView().forEach(g => {
+      const inG = g.applied.includes(i) || g.pending.includes(i);
+      if (!inG) m.append(item([el("span", { class: "swatch", style: `--c:${fcolor(g.color)}` }), `Agregar a «${g.name}»`], () => addToFusion(i, g)));
+      else if (g.pending.includes(i)) m.append(item([el("span", { class: "swatch", style: `--c:${fcolor(g.color)}` }), `Quitar de «${g.name}»`], () => removeFromFusion(i, g)));
+      else m.append(el("div", { class: "note", text: `Está en «${g.name}» (ya aplicada). Para sacarlo, «Deshacer el último cambio».` }));
+    });
+  } else {
+    m.append(el("div", { class: "note", text: "Para fusionar temas, abrí la app (Abrir TRAKTOR ML)." }));
+  }
+  m.style.display = "block";
+  const w = m.offsetWidth, h = m.offsetHeight;
+  m.style.left = Math.max(8, Math.min(x, innerWidth - w - 8)) + "px";
+  m.style.top = Math.max(8, Math.min(above ? y - h : y, innerHeight - h - 8)) + "px";
+  m.querySelector("button")?.focus();
+}
+function closeMenu() { $("#menu").style.display = "none"; }
+document.addEventListener("click", e => { if (!e.target.closest("#menu") && !e.target.closest(".more") && !e.target.closest("#nowMenuBtn")) closeMenu(); });
+window.addEventListener("scroll", closeMenu, true);
+
+// ---------- barra superior (app) ----------
+function renderToolbar() {
+  const tb = $("#toolbar"); tb.replaceChildren();
+  if (!APP) { tb.append(el("span", { class: "muted", text: "Vista de solo lectura" })); return; }
+  const sw = el("span", { class: "switch", role: "switch", tabindex: "0", "aria-checked": String(prefs.keep),
+    title: "Encendido: lo que agregues o fusiones se acomoda sin mover el resto. Apagado: se reorganiza toda la colección." },
+    el("span", { class: "track" }),
+    el("span", {}, "Mantener la organización actual",
+      el("small", { text: prefs.keep ? "encendido: no se mueve lo que ya está" : "apagado: se reorganiza todo" })));
+  const toggle = () => { prefs.keep = !prefs.keep; savePrefs(); renderToolbar(); renderFusions(); };
+  sw.addEventListener("click", toggle);
+  sw.addEventListener("keydown", e => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggle(); } });
+  tb.append(btn("＋ Agregar música nueva", addMusic, true), sw,
+    btn("Preparar para Rekordbox y Traktor", exportDj),
+    btn("↶ Deshacer el último cambio", undoLast, false, { disabled: !APP.can_undo }));
+}
+
+// ---------- agregar música nueva ----------
+async function addMusic() {
+  openDialog("Elegí la carpeta", [el("p", { text: "Se abrió una ventana de Windows para elegir la carpeta con la música nueva (si no la ves, puede estar detrás del navegador)." })], [], false);
+  let info;
+  try { info = await api("/api/pick-folder"); } catch (e) { return errorDialog(e.message); }
+  if (info.cancelled) return closeDialog();
+  showFolder(info);
+}
+function showFolder(info) {
+  const body = [el("div", { class: "path", text: info.path })];
+  if (info.is_library) {
+    body.push(el("p", { text: "Esa es tu biblioteca entera. Elegí la subcarpeta con la música nueva." }));
+    return openDialog("Agregar música nueva", body, [btn("Cancelar", closeDialog), btn("Elegir otra carpeta", addMusic, true)]);
+  }
+  if (!info.n_audio) {
+    body.push(el("p", { text: "No encontré archivos de música en esa carpeta (MP3, WAV, FLAC, AIFF o M4A)." }));
+    return openDialog("Agregar música nueva", body, [btn("Cancelar", closeDialog), btn("Elegir otra carpeta", addMusic, true)]);
+  }
+  body.push(el("p", {}, el("strong", { text: `${fmt(info.n_audio)} ${info.n_audio === 1 ? "tema" : "temas"}` }),
+    info.n_known ? ` (${fmt(info.n_known)} ya están organizados; se agregan los otros ${fmt(info.n_audio - info.n_known)})` : "", ` · ${fmt(info.size_mb)} MB`));
+  if (!info.inside) body.push(el("div", { class: "callout", style: "--c: var(--warning)" },
+    "La carpeta está fuera de tu biblioteca: se va a copiar a ", el("div", { class: "path", text: info.dest })));
+  openDialog("Agregar música nueva", body, [btn("Cancelar", closeDialog), btn("Elegir otra carpeta", addMusic), btn("Analizar", () => confirmAdd(info), true)]);
+}
+function consequence(what) {
+  return prefs.keep
+    ? el("div", { class: "callout", style: "--c: var(--series-1)" },
+        el("strong", { text: "«Mantener la organización actual» está encendido." }),
+        el("p", { text: what === "add"
+          ? "Los temas nuevos se suman a las playlists que ya tenés, en la que mejor encaja cada uno. Ninguna playlist cambia de orden y ningún tema que ya estaba se mueve. Si algunos temas no se parecen a nada de lo que tenés, van a formar playlists nuevas."
+          : "Solo se mueven los temas de las fusiones, a la playlist donde mejor quedan juntos. Todo lo demás queda igual." }),
+        el("p", { class: "muted", text: "Si preferís reorganizar todo, cancelá y apagá el interruptor." }))
+    : el("div", { class: "callout", style: "--c: var(--warning)" },
+        el("strong", { text: "«Mantener la organización actual» está apagado." }),
+        el("p", { text: what === "add"
+          ? "Toda tu colección se va a reorganizar desde cero, con los temas nuevos incluidos. Las playlists actuales pueden cambiar mucho: temas que se mueven de playlist y nombres nuevos."
+          : "Toda tu colección se va a reorganizar desde cero, respetando las fusiones. Las playlists actuales pueden cambiar mucho." }),
+        el("p", { class: "muted", text: "La versión actual queda guardada y podés volver a ella con «Deshacer el último cambio». Si preferís no mover nada, cancelá y encendé el interruptor." }));
+}
+function confirmAdd(info) {
+  const mins = Math.max(1, Math.round(info.n_audio * 2.2 / 60));
+  openDialog(prefs.keep ? "Agregar sin mover lo que ya está" : "Agregar y reorganizar todo", [
+    consequence("add"),
+    el("p", { text: `El análisis tarda unos 2 segundos por tema (≈ ${mins} min para ${fmt(info.n_audio)} temas). A los temas con voz se les agrega «Vocal» en el comentario.` })],
+    [btn("Cancelar", closeDialog), btn("Aceptar y analizar", async () => {
+      try { const job = await api("/api/add-collection", { path: info.path, keep: prefs.keep }); watchJob(job, "add"); }
+      catch (e) { errorDialog(e.message); }
+    }, true)]);
+}
+
+// ---------- tareas con progreso ----------
+function renderJob(job, title) {
+  const steps = el("ul", { class: "steps" }, job.steps.map((s, k) => el("li", { class: k < job.step ? "done" : k === job.step ? "cur" : "" },
+    el("span", { class: "ic", text: k < job.step ? "✓" : k === job.step ? "●" : "○" }), s)));
+  const indet = job.frac === 0;
+  const bar = el("div", { class: "bar" + (indet ? " indet" : "") }, el("div", { style: indet ? null : `width:${Math.round(job.frac * 100)}%` }));
+  const eta = job.eta_s != null ? ` · faltan ≈ ${job.eta_s < 90 ? job.eta_s + " s" : Math.round(job.eta_s / 60) + " min"}` : "";
+  openDialog(title, [steps, bar, el("p", { class: "muted", text: (job.detail || "") + eta }),
+    el("p", { class: "muted", text: "Podés seguir escuchando mientras tanto; no cierres esta pestaña ni la ventana negra de la app." })], [], false);
+}
+function watchJob(job, kind) {
+  const titles = { add: "Analizando la música nueva", fusions: "Rehaciendo las playlists", export: "Preparando las playlists" };
+  const tick = async () => {
+    let j;
+    try { j = await (await fetch(`/api/job/${job.id}`)).json(); } catch (e) { return setTimeout(tick, 1500); }
+    if (j.status === "running") { renderJob(j, titles[kind]); return setTimeout(tick, 800); }
+    if (j.status === "error") return errorDialog(j.error);
+    doneDialog(kind, j.result);
+  };
+  renderJob(job, titles[kind]); setTimeout(tick, 500);
+}
+function doneDialog(kind, r) {
+  if (kind === "add") {
+    const c = r.counts || {};
+    const txt = r.keep
+      ? (c.added ? `Se agregaron ${fmt(c.added)} temas: ${fmt(c.add || 0)} a playlists que ya existían${c["add-new"] ? `, ${fmt(c["add-new"])} en playlists nuevas` : ""}${c["add-far"] ? `, ${fmt(c["add-far"])} sin una playlist parecida (quedaron en la más cercana)` : ""}.`
+                 : "No había temas nuevos para agregar: todos ya estaban en tu colección.")
+      : "Se reorganizó toda tu colección con los temas nuevos incluidos.";
+    return openDialog("Listo", [el("p", { text: txt })], [btn("Ver en el mapa", () => { sessionStorage.setItem("traktor_show", "new"); location.reload(); }, true)], false);
+  }
+  if (kind === "fusions") {
+    const txt = r.keep ? `Listo: ${r.moved === 1 ? "se movió 1 tema" : `se movieron ${fmt(r.moved || 0)} temas`} para que las fusiones queden juntas. El resto no cambió.`
+                       : "Listo: se reorganizó toda la colección respetando las fusiones.";
+    return openDialog("Listo", [el("p", { text: txt })], [btn("Ver en el mapa", () => { sessionStorage.setItem("traktor_show", "fused"); location.reload(); }, true)], false);
+  }
+  if (kind === "export") {
+    return openDialog("Listo para Rekordbox y Traktor", [
+      el("p", { text: "Las playlists quedaron en esta carpeta:" }), el("div", { class: "path", text: r.folder }),
+      el("h3", { text: "Rekordbox (y el pendrive)" }),
+      el("ol", {}, el("li", { text: "Preferencias → Avanzado → Base de datos → rekordbox xml: elegí el archivo rekordbox.xml de esa carpeta." }),
+        el("li", { text: "Preferencias → Vista → Diseño: activá «rekordbox xml»." }),
+        el("li", { text: "En la columna izquierda: rekordbox xml → Playlists → clic derecho sobre «TRAKTOR ML …» → Importar playlist." }),
+        el("li", { text: "Conectá el pendrive y arrastrá esa carpeta de playlists hasta él." })),
+      el("h3", { text: "Traktor" }),
+      el("ol", {}, el("li", { text: "En el Browser, clic derecho sobre Playlists → Import Playlist → elegí traktor.nml de esa carpeta." }))],
+      [btn("Abrir la carpeta", () => api("/api/open-folder", { path: r.folder }).catch(e => errorDialog(e.message))), btn("Cerrar", closeDialog, true)]);
+  }
+}
+async function applyFusions() {
+  openDialog(prefs.keep ? "Rehacer sin mover el resto" : "Rehacer y reorganizar todo", [
+    consequence("fusions"),
+    el("ul", {}, fusionsView().filter(f => f.pending.length).map(f => el("li", {}, el("span", { class: "swatch", style: `--c:${fcolor(f.color)}` }),
+      `${f.name}: ${[...f.applied, ...f.pending].map(i => label(T[i])).join(" + ")}`)))],
+    [btn("Cancelar", closeDialog), btn("Aceptar y rehacer", async () => {
+      try { const job = await api("/api/apply-fusions", { keep: prefs.keep }); watchJob(job, "fusions"); }
+      catch (e) { errorDialog(e.message); }
+    }, true)]);
+}
+async function exportDj() {
+  try { const job = await api("/api/export"); watchJob(job, "export"); } catch (e) { errorDialog(e.message); }
+}
+function undoLast() {
+  const cur = (org.meta?.history || []).find(h => h.startsWith(`Versión ${org.meta.version} `)) || "";
+  openDialog("¿Deshacer el último cambio?", [
+    el("p", { text: "Tu colección vuelve a como estaba antes de este cambio:" }),
+    el("div", { class: "callout" }, cur),
+    el("p", { class: "muted", text: "No se borra nada: la versión actual queda guardada." })],
+    [btn("Cancelar", closeDialog), btn("Deshacer", async () => {
+      try { await api("/api/undo"); location.reload(); } catch (e) { errorDialog(e.message); }
+    }, true)]);
+}
+
+// ---------- barra lateral ----------
 function plStats(pl) {
   const ts = pl.tracks.map(i => T[i]);
   const bpms = ts.map(t => t.b).filter(b => b != null);
   const count = key => { const m = new Map(); ts.forEach(t => { const k = t[key]; if (k) m.set(k, (m.get(k) || 0) + 1); });
     return [...m.entries()].sort((a, b) => b[1] - a[1]); };
-  return {
-    n: ts.length,
-    bpm: bpms.length ? [Math.round(Math.min(...bpms)), Math.round(Math.max(...bpms))] : null,
-    genres: count("g").slice(0, 3), folders: count("fs").slice(0, 3),
-    vocal: ts.filter(t => t.v).length,
-    fresh: pl.tracks.filter(i => org.flags?.[i] === "nuevo").length,
-  };
+  return { n: ts.length, bpm: bpms.length ? [Math.round(Math.min(...bpms)), Math.round(Math.max(...bpms))] : null,
+    genres: count("g").slice(0, 3), folders: count("fs").slice(0, 3), vocal: ts.filter(t => t.v).length,
+    fresh: pl.tracks.filter(i => org.flags?.[i] === "nuevo").length };
 }
 function badge(orgId, plId) {
   const j = state[orgId]?.[plId]; const v = j && vInfo(j.verdict);
   if (!v) return null;
-  return el("span", { class: "badge" }, el("i", { style: `background:${v.c}` }), v.label);
+  return el("span", { class: "badge", title: "Tu opinión" }, el("i", { style: `background:${v.c}` }), v.label);
 }
 function renderSide() {
   const side = $("#side"); side.replaceChildren();
+  const all = org.folders.flatMap(f => f.playlists);
+  const nTr = all.reduce((s, p) => s + p.tracks.length, 0);
+  $("#summary").textContent = `${fmt(nTr)} temas en ${all.length} playlists`;
   if (org.meta) {
-    const m = org.meta;
+    const m = org.meta, hist = m.history || [];
     const info = el("div", { class: "orginfo" },
-      el("div", {}, el("strong", { text: `${m.name} v${m.version}` }), m.current ? null : el("span", { class: "muted", text: " (versión anterior)" })),
-      el("div", { class: "muted", text: "Alcance: " + (m.scopes.map(x => x || "toda la biblioteca").join(", ")) }));
-    if (m.history?.length) {
-      const d = el("details", {}, el("summary", { text: `Historial (${m.history.length} ${m.history.length === 1 ? "versión" : "versiones"})` }));
-      const ol = el("ol"); m.history.forEach(h => ol.append(el("li", { text: h }))); d.append(ol); info.append(d);
+      el("div", {}, el("strong", { text: `Versión ${m.version}` }), m.current ? null : el("span", { class: "muted", text: " (anterior)" })),
+      el("div", { class: "muted", text: "Carpetas incluidas: " + m.scopes.map(x => x || "toda la biblioteca").join(", ") }));
+    if (hist.length) {
+      const d = el("details", {}, el("summary", { text: `Cambios (${hist.length})` }));
+      d.append(el("ol", {}, hist.map(h => el("li", { text: h })))); info.append(d);
     }
     side.append(info);
   }
   org.folders.forEach(f => {
     const det = el("details", { class: "folder" });
     if (folder && f.id === folder.id) det.open = true;
-    const nTracks = f.playlists.reduce((s, p) => s + p.tracks.length, 0);
-    det.append(el("summary", {}, f.name, el("span", { class: "n muted", text: String(nTracks) })));
+    det.append(el("summary", {}, f.name, el("span", { class: "n muted", text: String(f.playlists.reduce((s, p) => s + p.tracks.length, 0)) })));
     f.playlists.forEach(pl => {
       const row = el("div", { class: "pl" + (playlist && pl.id === playlist.id ? " sel" : ""), tabindex: "0", role: "button" },
-        pl.suggested ? el("span", { class: "star", title: "sugerida", text: "★" }) : null,
+        pl.suggested ? el("span", { class: "star", title: "Sugerida para revisar", text: "★" }) : null,
         el("span", { text: pl.name }), badge(org.id, pl.id), el("span", { class: "n muted", text: String(pl.tracks.length) }));
       row.addEventListener("click", () => select(f, pl));
       row.addEventListener("keydown", e => { if (e.key === "Enter") select(f, pl); });
@@ -298,120 +628,64 @@ function renderSide() {
     });
     side.append(det);
   });
-  const all = org.folders.flatMap(f => f.playlists);
-  const done = all.filter(p => state[org.id]?.[p.id]?.verdict).length;
-  const sug = all.filter(p => p.suggested); const sugDone = sug.filter(p => state[org.id]?.[p.id]?.verdict).length;
-  $("#progress").textContent = `Revisadas ${done} de ${all.length} · sugeridas ★ ${sugDone} de ${sug.length}`;
 }
 
-// ---------- semillas ----------
-function toggleSeed(idx, onlyAdd = false) {
-  if (!org.cli) return;
-  const s = seedState(), u = T[idx].u, has = s.current.includes(u);
-  if (has && onlyAdd) return;
-  s.current = has ? s.current.filter(x => x !== u) : [...s.current, u];
-  save(); renderSeeds(); renderPlaylist(); drawMap();
-}
-function seedFileName() { return `semillas_${org.cli}_${DATA.run_id}.json`; }
-function seedPayload() {
-  const s = seedState();
-  return { org: org.cli, version: org.meta?.version ?? null, created: new Date().toISOString(),
-           groups: s.groups.map(g => ({ tracks: g, labels: g.map(u => byU.has(u) ? label(T[byU.get(u)]) : u) })) };
-}
-function renderSeeds() {
-  const card = $("#seedCard"); card.replaceChildren();
-  card.append(el("h3", { text: "Semillas: temas que van juntos" }));
-  if (!org.cli) {
-    card.append(el("p", { class: "muted", text: "Las semillas se aplican a organizaciones con nombre (organize.py); esta es una corrida de comparación." }));
-    return;
-  }
-  const s = seedState();
-  if (org.seeds?.length) card.append(el("p", { class: "muted",
-    text: `Ya aplicadas en ${org.meta.name} v${org.meta.version}: ${org.seeds.length} grupo(s) · resaltarlas con "semillas aplicadas".` }));
-  const cur = el("div", { class: "chips" });
-  if (!s.current.length) cur.append(el("span", { class: "muted", text: "Grupo en armado vacío: usá ＋ en la tabla o abajo, sobre el tema que suena." }));
-  s.current.forEach(u => { const i = byU.get(u);
-    cur.append(el("span", { class: "chip" }, i != null ? label(T[i]) : u,
-      el("button", { "aria-label": "Quitar", onclick: () => { s.current = s.current.filter(x => x !== u); save(); renderSeeds(); renderPlaylist(); drawMap(); } }, "×"))); });
-  card.append(cur);
-  const saveBtn = el("button", { onclick: () => { s.groups.push(s.current); s.current = []; save(); renderSeeds(); renderPlaylist(); drawMap(); } }, "Guardar grupo");
-  saveBtn.disabled = s.current.length < 2;
-  const clearBtn = el("button", { onclick: () => { s.current = []; save(); renderSeeds(); renderPlaylist(); drawMap(); } }, "Vaciar");
-  clearBtn.disabled = !s.current.length;
-  card.append(el("div", { class: "row" }, saveBtn, clearBtn, el("span", { class: "muted", text: "(mínimo 2 temas)" })));
-  if (s.groups.length) {
-    const ul = el("ul");
-    s.groups.forEach((g, k) => ul.append(el("li", {}, g.map(u => byU.has(u) ? label(T[byU.get(u)]) : u).join("  +  "), " ",
-      el("button", { "aria-label": "Borrar grupo", onclick: () => { s.groups.splice(k, 1); save(); renderSeeds(); } }, "borrar"))));
-    card.append(el("p", { class: "ink2", text: `Grupos listos para exportar: ${s.groups.length}` }), ul);
-    const exp = el("button", { onclick: () => {
-      const blob = new Blob([JSON.stringify(seedPayload(), null, 2)], { type: "application/json" });
-      const a = el("a", { href: URL.createObjectURL(blob), download: seedFileName() }); document.body.append(a); a.click(); a.remove();
-    } }, "Exportar semillas (JSON)");
-    const cmd = `.venv\\Scripts\\python.exe src\\v4\\pipeline\\organize.py link --name ${org.cli} --from-file "$env:USERPROFILE\\Downloads\\${seedFileName()}"`;
-    const box = el("input", { class: "cmd", readonly: "", value: cmd, "aria-label": "Comando para aplicar las semillas" });
-    const copy = el("button", { onclick: () => { box.select(); (navigator.clipboard?.writeText(cmd) || Promise.reject()).catch(() => document.execCommand("copy")); } }, "Copiar comando");
-    card.append(el("div", { class: "row" }, exp, copy), box,
-      el("p", { class: "muted", text: "Congelado: solo se mueven los temas de cada semilla. Para rehacer todo desde cero con las semillas, agregá --rebuild. Después: phase5_export.py --org-name y regenerar esta página." }));
-  }
-}
-
-// ---------- playlist panel ----------
+// ---------- playlist ----------
 function renderPlaylist() {
   const card = $("#plCard"); card.replaceChildren();
-  if (!playlist) { card.append(el("p", { class: "muted", text: "Elegí una playlist a la izquierda (★ = sugeridas) o un punto del mapa." })); return; }
+  if (!playlist) { card.append(el("p", { class: "muted", text: "Elegí una playlist a la izquierda (★ = sugeridas para revisar) o un punto del mapa." })); return; }
   const s = plStats(playlist), j = judg(org.id, playlist.id);
   card.append(el("h2", {}, `${folder.name} › ${playlist.name}`));
-  const chips = el("div", { class: "chips" },
+  card.append(el("div", { class: "chips" },
     el("span", { class: "chip", text: `${s.n} temas` }),
     s.bpm ? el("span", { class: "chip", text: `BPM ${s.bpm[0]}–${s.bpm[1]}` }) : null,
-    el("span", { class: "chip", text: `Vocal ${s.vocal} de ${s.n}` }),
-    s.fresh ? el("span", { class: "chip", text: `Nuevos ${s.fresh}` }) : null,
+    el("span", { class: "chip", text: `Con voz: ${s.vocal} de ${s.n}` }),
+    s.fresh ? el("span", { class: "chip", text: `Agregados recientemente: ${s.fresh}` }) : null,
     s.genres.length ? el("span", { class: "chip", text: "Géneros: " + s.genres.map(([g, n]) => `${g} (${n})`).join(", ") }) : null,
-    s.folders.length ? el("span", { class: "chip", text: "Tus carpetas: " + s.folders.map(([g, n]) => `${g} (${n})`).join(", ") }) : null);
-  card.append(chips);
-  const vbox = el("div", { class: "verdict", role: "group", "aria-label": "Veredicto" }, el("span", { class: "ink2", text: "¿Tiene sentido esta playlist?" }));
+    s.folders.length ? el("span", { class: "chip", text: "De tus carpetas: " + s.folders.map(([g, n]) => `${g} (${n})`).join(", ") }) : null));
+  const vbox = el("div", { class: "verdict", role: "group", "aria-label": "Tu opinión" }, el("span", { class: "ink2", text: "¿Te convence esta playlist?" }));
   VERDICTS.forEach(v => {
     const b = el("button", { "aria-pressed": String(j.verdict === v.v), style: `--c:${v.c}` }, el("i", { text: v.icon }), v.label);
     b.onclick = () => { j.verdict = j.verdict === v.v ? "" : v.v; save(); renderPlaylist(); renderSide(); };
     vbox.append(b);
   });
   card.append(vbox);
-  const ta = el("textarea", { placeholder: "Nota (opcional): qué sobra, qué falta, cómo la usarías…" });
+  const ta = el("textarea", { placeholder: "Comentario (opcional): qué sobra, qué falta, para qué momento de la noche…" });
   ta.value = j.note || ""; ta.addEventListener("input", () => { j.note = ta.value; save(); });
   card.append(ta);
-  const seqRow = el("div", { class: "row" },
-    el("button", { id: "seqBtn", onclick: () => seq ? (stopSeq(), audio.pause()) : startSeq(playlist.tracks) }, "▶ Escuchar la secuencia"),
-    el("label", { class: "ink2" }, "segundos por tema ",
-      (() => { const sel = el("select", { id: "seqSecs" }); [10, 20, 30, 45].forEach(x => sel.append(el("option", { value: String(x), text: String(x) }))); sel.value = "20"; return sel; })()));
-  card.append(seqRow);
-  const draft = new Set(org.cli ? seedState().current : []);
+  card.append(el("div", { class: "row" },
+    el("button", { id: "seqBtn", onclick: () => seq ? (stopSeq(), audio.pause()) : startSeq(playlist.tracks) }, "▶ Escuchar la playlist de corrido"),
+    el("label", { class: "ink2" }, "segundos de cada tema ",
+      (() => { const sel = el("select", { id: "seqSecs" }); [10, 20, 30, 45].forEach(x => sel.append(el("option", { value: String(x), text: String(x) }))); sel.value = "20"; return sel; })())));
   const table = el("table", { style: "margin-top:10px" });
   table.append(el("thead", {}, el("tr", {},
     el("th", { class: "num", text: "#" }), el("th", { text: "" }), el("th", { text: "Tema" }),
     el("th", { class: "num", text: "BPM" }), el("th", { text: "Tono" }), el("th", { class: "num", text: "Energía" }),
-    el("th", { text: "Vocal" }), el("th", { text: "Género (tag)" }), el("th", { text: "Tu carpeta" }),
-    el("th", { text: "No va acá" }), org.cli ? el("th", { text: "Semilla" }) : null)));
+    el("th", { text: "Voz" }), el("th", { text: "Género" }), el("th", { text: "Tu carpeta" }), el("th", { text: "No encaja" }), el("th", { text: "" }))));
   const tb = el("tbody");
   playlist.tracks.forEach((idx, pos) => {
-    const t = T[idx];
+    const t = T[idx], fu = fusionOf(idx);
     const flagged = j.notHere.includes(t.u);
-    const cb = el("input", { type: "checkbox", "aria-label": "No va acá" }); cb.checked = flagged;
+    const cb = el("input", { type: "checkbox", "aria-label": "No encaja en esta playlist" }); cb.checked = flagged;
     cb.onchange = () => { j.notHere = cb.checked ? [...new Set([...j.notHere, t.u])] : j.notHere.filter(u => u !== t.u); save(); renderPlaylist(); };
-    tb.append(el("tr", { "data-idx": String(idx), class: (flagged ? "flagged" : "") + (idx === nowIdx ? " playing" : "") },
+    const tr = el("tr", { "data-idx": String(idx), class: (flagged ? "flagged" : "") + (idx === nowIdx ? " playing" : "") },
       el("td", { class: "num muted", text: String(pos + 1) }),
-      el("td", {}, el("button", { class: "play", "aria-label": "Reproducir", onclick: () => { stopSeq(); play(idx); } }, "▶")),
-      el("td", { class: "title" }, t.t, org.flags?.[idx] ? el("span", { class: "flag", text: org.flags[idx] }) : null,
+      el("td", {}, el("button", { class: "play", "aria-label": "Escuchar", onclick: () => { stopSeq(); play(idx); } }, "▶")),
+      el("td", { class: "title" }, t.t,
+        org.flags?.[idx] === "nuevo" ? el("span", { class: "flag", text: "agregado recientemente" }) : null,
+        fu ? el("span", { class: "flag", title: `En la fusión «${fu.name}»` }, el("span", { class: "swatch", style: `--c:${fcolor(fu.color)}` }), fu.name) : null,
         t.a ? el("small", { text: t.a }) : null),
       el("td", { class: "num", text: t.b != null ? String(Math.round(t.b)) : "" }),
       el("td", { text: t.k || "" }),
       el("td", { class: "num", text: t.e != null ? String(t.e) : "" }),
-      el("td", { text: t.v ? "Vocal" : "" }),
+      el("td", { text: t.v ? "sí" : "" }),
       el("td", { class: "ink2", text: t.g || "" }),
       el("td", { class: "ink2", text: t.fs || "" }),
       el("td", {}, cb),
-      org.cli ? el("td", {}, el("button", { class: "seedbtn", "aria-pressed": String(draft.has(t.u)),
-        "aria-label": "Agregar a la semilla", onclick: () => toggleSeed(idx) }, draft.has(t.u) ? "✓" : "＋")) : null));
+      el("td", {}, el("button", { class: "more", "aria-label": "Más opciones (fusionar)", title: "Más opciones (también con clic derecho)",
+        onclick: e => { const r = e.target.getBoundingClientRect(); openMenu(idx, r.right - 240, r.bottom + 4); } }, "⋯")));
+    tr.addEventListener("contextmenu", e => { e.preventDefault(); openMenu(idx, e.clientX, e.clientY); });
+    tb.append(tr);
   });
   table.append(tb); card.append(table);
 }
@@ -421,119 +695,152 @@ function markPlaying() {
 }
 function select(f, pl) { folder = f; playlist = pl; stopSeq(); renderSide(); renderPlaylist(); drawMap(); }
 
-// ---------- resaltado ----------
+// ---------- mapa ----------
 function highlighted() {
   const mode = $("#hlSel").value, q = $("#hlText").value.trim().toLowerCase();
   const out = new Set();
   if (mode === "new") Object.entries(org.flags || {}).forEach(([i, f]) => { if (f === "nuevo") out.add(+i); });
-  if (mode === "seeds") (org.seeds || []).flat().forEach(i => out.add(i));
-  if (mode === "draft" && org.cli) { const s = seedState(); [...s.current, ...s.groups.flat()].forEach(u => byU.has(u) && out.add(byU.get(u))); }
-  if (q.length >= 2) org.trackIdx.forEach(i => { const t = T[i];
-    if (`${t.a} ${t.t} ${t.fs} ${t.p}`.toLowerCase().includes(q)) out.add(i); });
+  if (mode === "fused") fusionsView().forEach(f => [...f.applied, ...f.pending].forEach(i => out.add(i)));
+  if (q.length >= 2) org.trackIdx.forEach(i => { const t = T[i]; if (`${t.a} ${t.t} ${t.fs} ${t.p}`.toLowerCase().includes(q)) out.add(i); });
   return out;
 }
-
-// ---------- map ----------
+function renderLegend() {
+  const lg = $("#legend"); lg.replaceChildren(
+    el("span", { style: "--c: var(--context-dot)", text: "otros temas" }),
+    el("span", { style: "--c: var(--series-1)", text: "carpeta elegida" }),
+    el("span", { style: "--c: var(--series-2)", text: "playlist elegida (unidas en orden)" }),
+    el("span", { class: "ring", style: "--c: var(--series-3)", text: "lo que pediste mostrar" }));
+  fusionsView().forEach(f => lg.append(el("span", { style: `--c:${fcolor(f.color)}`, text: f.name + (f.pending.length ? " (sin aplicar)" : "") })));
+}
 const canvas = $("#map"), ctx = canvas.getContext("2d"), tip = $("#tip");
 let pts = [];
-const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 function drawMap() {
   const dpr = window.devicePixelRatio || 1, W = canvas.clientWidth, H = canvas.clientHeight;
   canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.fillStyle = css("--surface-1"); ctx.fillRect(0, 0, W, H);
-  const xy = org.xy, pad = 14;
+  const xy = org.xy, pad = 18;
   const xs = xy.map(p => p[0]), ys = xy.map(p => p[1]);
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
   const sx = x => pad + (x - x0) / (x1 - x0 || 1) * (W - 2 * pad), sy = y => H - pad - (y - y0) / (y1 - y0 || 1) * (H - 2 * pad);
   pts = xy.map((p, i) => ({ i, x: sx(p[0]), y: sy(p[1]) }));
+  const byTrack = new Map(pts.map(p => [org.trackIdx[p.i], p]));
   const inFolder = new Set(folder ? folder.playlists.flatMap(p => p.tracks) : []);
   const inPl = new Set(playlist ? playlist.tracks : []);
   ctx.fillStyle = css("--context-dot");
   pts.forEach(p => { if (!inFolder.has(org.trackIdx[p.i])) { ctx.beginPath(); ctx.arc(p.x, p.y, 2.2, 0, 7); ctx.fill(); } });
   const ring = css("--surface-1");
   const dot = (p, r, c) => { ctx.beginPath(); ctx.arc(p.x, p.y, r + 2, 0, 7); ctx.fillStyle = ring; ctx.fill(); ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 7); ctx.fillStyle = c; ctx.fill(); };
-  const byTrack = new Map(pts.map(p => [org.trackIdx[p.i], p]));
   inFolder.forEach(ti => { if (!inPl.has(ti)) dot(byTrack.get(ti), 3, css("--series-1")); });
   if (playlist) {
-    ctx.strokeStyle = css("--series-2"); ctx.lineWidth = 2; ctx.globalAlpha = 0.55; ctx.beginPath();
+    ctx.strokeStyle = css("--series-2"); ctx.lineWidth = 2; ctx.globalAlpha = 0.5; ctx.beginPath();
     playlist.tracks.forEach((ti, k) => { const p = byTrack.get(ti); if (k) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); });
     ctx.stroke(); ctx.globalAlpha = 1;
     playlist.tracks.forEach(ti => dot(byTrack.get(ti), 4.5, css("--series-2")));
+  }
+  // Fusiones: unidas por una línea de su color (punteada si falta aplicarla), puntos grandes y el nombre al lado
+  fusionsView().forEach(f => {
+    const mem = [...f.applied, ...f.pending].map(i => byTrack.get(i)).filter(Boolean);
+    if (!mem.length) return;
+    const c = fcss(f.color);
+    ctx.strokeStyle = c; ctx.lineWidth = 2.5; ctx.setLineDash(f.pending.length ? [6, 4] : []);
+    ctx.beginPath(); mem.forEach((p, k) => k ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.stroke(); ctx.setLineDash([]);
+    mem.forEach(p => dot(p, 6, c));
+    const cx = mem.reduce((s, p) => s + p.x, 0) / mem.length, cy = Math.min(...mem.map(p => p.y)) - 14;
+    ctx.font = "600 12px system-ui, sans-serif";
+    const text = f.name + (f.pending.length ? " · sin aplicar" : ""), w = ctx.measureText(text).width + 22;
+    const lx = Math.max(4, Math.min(cx - w / 2, W - w - 4)), ly = Math.max(4, cy - 18);
+    ctx.fillStyle = css("--surface-1"); ctx.strokeStyle = css("--baseline"); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(lx, ly, w, 20, 6); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = c; ctx.beginPath(); ctx.arc(lx + 10, ly + 10, 4.5, 0, 7); ctx.fill();
+    ctx.fillStyle = css("--ink"); ctx.fillText(text, lx + 18, ly + 14);
+  });
+  if (playlist) {
     const first = byTrack.get(playlist.tracks[0]);
     ctx.fillStyle = css("--ink"); ctx.font = "600 12px system-ui, sans-serif"; ctx.fillText("inicio", first.x + 8, first.y - 8);
   }
-  // Resaltados: anillo encima de todo (se ve aunque el punto sea de la carpeta o la playlist)
   const hl = highlighted();
   ctx.strokeStyle = css("--series-3"); ctx.lineWidth = 2;
-  hl.forEach(ti => { const p = byTrack.get(ti); if (!p) return; ctx.beginPath(); ctx.arc(p.x, p.y, 6.5, 0, 7); ctx.stroke(); });
-  $("#hlCount").textContent = hl.size ? `${hl.size} resaltado(s)` : "";
+  hl.forEach(ti => { const p = byTrack.get(ti); if (!p) return; ctx.beginPath(); ctx.arc(p.x, p.y, 8, 0, 7); ctx.stroke(); });
+  $("#hlCount").textContent = hl.size ? `${fmt(hl.size)} ${hl.size === 1 ? "tema" : "temas"}` : "";
 }
 function nearest(mx, my) {
-  let best = null, bd = 144; // radio 12 px
+  let best = null, bd = 144;
   pts.forEach(p => { const d = (p.x - mx) ** 2 + (p.y - my) ** 2; if (d < bd) { bd = d; best = p; } });
   return best;
-}
-function findPlaylist(ti) {
-  for (const f of org.folders) for (const pl of f.playlists) if (pl.tracks.includes(ti)) return [f, pl];
-  return [null, null];
 }
 canvas.addEventListener("pointermove", e => {
   const r = canvas.getBoundingClientRect(), p = nearest(e.clientX - r.left, e.clientY - r.top);
   if (!p) { tip.style.display = "none"; canvas.style.cursor = "default"; return; }
-  const ti = org.trackIdx[p.i], t = T[ti], [f, pl] = findPlaylist(ti);
+  const ti = org.trackIdx[p.i], t = T[ti], fu = fusionOf(ti);
   tip.replaceChildren(el("b", { text: label(t) }),
-    el("div", { class: "ink2", text: [t.b != null ? `${Math.round(t.b)} BPM` : null, t.k, t.g, t.v ? "Vocal" : null].filter(Boolean).join(" · ") }),
-    el("div", { class: "muted", text: `${pl ? pl.name : ""}${t.fs ? " · tu carpeta: " + t.fs : ""}${org.flags?.[ti] ? " · " + org.flags[ti] : ""}` }));
+    el("div", { class: "ink2", text: [t.b != null ? `${Math.round(t.b)} BPM` : null, t.k, t.g, t.v ? "con voz" : null].filter(Boolean).join(" · ") }),
+    el("div", { class: "muted", text: `Playlist ${plName(ti)}${t.fs ? " · tu carpeta: " + t.fs : ""}${fu ? " · " + fu.name : ""}` }),
+    el("div", { class: "muted", text: APP ? "Clic: escuchar · Clic derecho: fusionar" : "Clic: escuchar" }));
   tip.style.display = "block";
-  const tx = Math.min(p.x + 14, r.width - tip.offsetWidth - 4);
-  tip.style.left = tx + "px"; tip.style.top = Math.max(0, p.y - tip.offsetHeight - 10) + "px";
+  tip.style.left = Math.min(p.x + 14, r.width - tip.offsetWidth - 4) + "px"; tip.style.top = Math.max(0, p.y - tip.offsetHeight - 10) + "px";
   canvas.style.cursor = "pointer";
 });
 canvas.addEventListener("pointerleave", () => { tip.style.display = "none"; });
 canvas.addEventListener("click", e => {
   const r = canvas.getBoundingClientRect(), p = nearest(e.clientX - r.left, e.clientY - r.top);
   if (!p) return;
-  const ti = org.trackIdx[p.i], [f, pl] = findPlaylist(ti);
-  if (pl && pl !== playlist) select(f, pl);
+  const ti = org.trackIdx[p.i], x = plOf.get(ti);
+  if (x && x[1] !== playlist) select(x[0], x[1]);
   stopSeq(); play(ti);
+});
+canvas.addEventListener("contextmenu", e => {
+  const r = canvas.getBoundingClientRect(), p = nearest(e.clientX - r.left, e.clientY - r.top);
+  if (!p) return;
+  e.preventDefault(); tip.style.display = "none";
+  openMenu(org.trackIdx[p.i], e.clientX, e.clientY);
 });
 window.addEventListener("resize", drawMap);
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawMap);
 $("#hlSel").onchange = drawMap;
 $("#hlText").addEventListener("input", drawMap);
 
-// ---------- export de veredictos ----------
+// ---------- ayuda y opiniones ----------
 function csvCell(v) { const s = v == null ? "" : String(v); return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }
-$("#exportBtn").onclick = () => {
-  const rows = [["organizacion", "org_id", "tipo", "carpeta", "playlist", "veredicto", "nota", "n_temas", "track_uid", "tema", "ruta"]];
+function exportOpinions() {
+  const rows = [["organizacion", "org_id", "tipo", "carpeta", "playlist", "opinion", "comentario", "n_temas", "track_uid", "tema", "ruta"]];
   DATA.orgs.forEach(o => o.folders.forEach(f => f.playlists.forEach(pl => {
     const j = state[o.id]?.[pl.id]; if (!j || (!j.verdict && !j.note && !j.notHere.length)) return;
     rows.push([o.label, o.id, "playlist", f.name, pl.name, j.verdict, j.note, pl.tracks.length, "", "", ""]);
-    j.notHere.forEach(u => { const t = T.find(x => x.u === u); rows.push([o.label, o.id, "no_va_aca", f.name, pl.name, "", "", "", u, t ? `${t.a} - ${t.t}` : "", t ? t.p : ""]); });
+    j.notHere.forEach(u => { const t = T.find(x => x.u === u); rows.push([o.label, o.id, "no_encaja", f.name, pl.name, "", "", "", u, t ? `${t.a} - ${t.t}` : "", t ? t.p : ""]); });
   })));
   const blob = new Blob(["﻿" + rows.map(r => r.map(csvCell).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8" });
-  const a = el("a", { href: URL.createObjectURL(blob), download: `revision_playlists_${DATA.run_id}.csv` });
+  const a = el("a", { href: URL.createObjectURL(blob), download: `opiniones_playlists_${DATA.run_id}.csv` });
   document.body.append(a); a.click(); a.remove();
-};
+}
+function renderHelp() {
+  const h = $("#help"); h.replaceChildren(el("ul", {},
+    el("li", {}, el("b", { text: "Para qué sirve: " }), "tu música quedó ordenada en carpetas y playlists por cómo suena. Escuchá algunas (★ = sugeridas) y decí si te convencen."),
+    el("li", {}, el("b", { text: "Mapa: " }), "cada punto es un tema; cerca = suenan parecido. Clic en un punto para escucharlo."),
+    APP ? el("li", {}, el("b", { text: "Agregar música nueva: " }), "elegís una carpeta, se analiza y los temas se ubican en tus playlists. El interruptor «Mantener la organización actual» decide si lo que ya está se queda quieto (encendido) o se reorganiza todo (apagado).") : null,
+    APP ? el("li", {}, el("b", { text: "Fusiones de temas: " }), "si dos o más temas tienen que ir juntos, hacé clic derecho sobre cada uno (o tocá ⋯) y creá una fusión o agregalos a una existente. Después, «Rehacer las playlists con las fusiones».") : null,
+    APP ? el("li", {}, el("b", { text: "Para tocar: " }), "«Preparar para Rekordbox y Traktor» genera los archivos y te dice cómo importarlos.") : null,
+    el("li", {}, el("b", { text: "Teclado: " }), "espacio = pausa, → = tema siguiente."),
+    el("li", {}, "Tus opiniones se guardan en este navegador. ", el("a", { href: "#", onclick: e => { e.preventDefault(); exportOpinions(); } }, "Descargarlas (CSV)"))));
+}
 $("#helpBtn").onclick = () => { const h = $("#help"); h.hidden = !h.hidden; $("#helpBtn").setAttribute("aria-expanded", String(!h.hidden)); };
 
-// ---------- init ----------
-const orgSel = $("#orgSel");
-DATA.orgs.forEach((o, i) => orgSel.append(el("option", { value: String(i), text: o.label })));
+// ---------- inicio ----------
 function selectFirstSuggested() {
   folder = null; playlist = null;
   for (const f of org.folders) { const pl = f.playlists.find(p => p.suggested); if (pl) { folder = f; playlist = pl; return; } }
 }
-orgSel.onchange = () => { org = DATA.orgs[+orgSel.value]; selectFirstSuggested(); stopSeq(); renderSide(); renderSeeds(); renderPlaylist(); drawMap(); };
-if (DATA.orgs.length < 2) orgSel.disabled = true;
-selectFirstSuggested(); // arrancar con la primera playlist sugerida
-renderSide(); renderSeeds(); renderPlaylist(); drawMap();
-save();
+function refresh() { renderToolbar(); renderSide(); renderFusions(); renderLegend(); renderPlaylist(); drawMap(); }
+const orgSel = $("#orgSel");
+DATA.orgs.forEach((o, i) => orgSel.append(el("option", { value: String(i), text: o.label })));
+if (DATA.orgs.length > 1) $("#orgSelWrap").hidden = false;
+orgSel.onchange = () => { org = DATA.orgs[+orgSel.value]; indexPlaylists(); selectFirstSuggested(); stopSeq(); refresh(); };
+indexPlaylists();
+selectFirstSuggested();
+const show = sessionStorage.getItem("traktor_show");
+if (show) { $("#hlSel").value = show; sessionStorage.removeItem("traktor_show"); }
+renderHelp(); refresh(); save();
 if (firstVisit) { $("#help").hidden = false; $("#helpBtn").setAttribute("aria-expanded", "true"); }
-// sondear que el audio esté accesible desde esta carpeta
-(() => { const probe = new Audio(); probe.preload = "metadata";
-  probe.onerror = () => { $("#audioWarn").style.display = "block"; };
-  probe.src = srcOf(T[0]); })();
+(() => { const probe = new Audio(); probe.preload = "metadata"; probe.onerror = showAudioWarn; probe.src = srcOf(T[0]); })();
 </script>
 </body>
 </html>

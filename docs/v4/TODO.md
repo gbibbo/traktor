@@ -71,3 +71,10 @@ Formato: - [x] Tarea X.Y — Descripción | Completado: YYYY-MM-DD
 - [x] 7.3 Export y página de revisión por organización (--org-name)                          | Completado: 2026-09-29
 - [x] 7.4 biblioteca v1 = fb78f2f6 (mismo mapa, export idéntico a V4_1)                      | Completado: 2026-09-29
 - [x] 7.5 Semillas desde la página de revisión (export JSON → organize.py link --from-file)   | Completado: 2026-09-29
+
+## BLOQUE 8: App local para cualquier persona (plan docs/plans/20260929_app_local.md)
+- [x] 8.1 review_app.py: servidor local con token, audio con rangos, tareas con progreso        | Completado: 2026-09-29
+- [x] 8.2 Agregar música nueva: selector de carpetas, copia, análisis, mantener o reorganizar | Completado: 2026-09-29
+- [x] 8.3 Fusiones de temas (clic derecho), colores y nombres, aplicar, deshacer              | Completado: 2026-09-29
+- [x] 8.4 Preparar para Rekordbox y Traktor desde la app; lanzador Abrir TRAKTOR ML.bat        | Completado: 2026-09-29
+- [ ] 8.5 Gabriel prueba la app con música nueva real

@@ -83,15 +83,16 @@ def test_org_payload_flags_new_and_seed_tracks():
 def test_history_lines_readable():
     from tools.playlist_review.build_review_page import history_lines
     meta = {"history": [
-        {"version": 1, "action": "import", "source_hash": "fb78f2f6", "n_tracks": 10, "n_playlists": 2},
+        {"version": 1, "action": "import", "source_hash": "fb78f2f6", "n_tracks": 10, "n_playlists": 2,
+         "created": "2026-09-29T11:53:10"},
         {"version": 2, "action": "add", "scope": "2026 Octubre", "added": 7, "add": 5, "add-new": 2, "n_tracks": 17, "n_playlists": 3},
         {"version": 3, "action": "link", "groups": [["a", "b"]], "moved": ["b"], "n_tracks": 17, "n_playlists": 3},
         {"version": 4, "action": "link-rebuild", "n_tracks": 17, "n_playlists": 4}]}
     assert history_lines(meta) == [
-        "v1 · importada de fb78f2f6",
-        "v2 · agregada '2026 Octubre': +7 (5 a playlists existentes, 2 en playlists nuevas)",
-        "v3 · semillas: 1 grupo(s), 1 tema(s) movido(s)",
-        "v4 · rehecha desde cero con semillas (4 playlists)"]
+        "Versión 1 · 29/09 11:53 · organización inicial",
+        "Versión 2 · se agregaron 7 temas de «2026 Octubre» (5 a playlists que ya existían, 2 en playlists nuevas)",
+        "Versión 3 · 1 fusión aplicada (1 tema movido)",
+        "Versión 4 · reorganizada desde cero respetando las fusiones (4 playlists)"]
 
 
 def test_org_payload_carries_seeds_and_meta():
@@ -99,6 +100,17 @@ def test_org_payload_carries_seeds_and_meta():
                             "position": [0, 1, 2], "umap_x": [0.0, 1.0, 2.0], "umap_y": [0.0, 1.0, 2.0]})
     org = {"hash": "org:x", "ordered": ordered, "names": {}, "cli": "x", "legacy": ["h1"],
            "meta": {"name": "x", "version": 2, "current": True, "scopes": [""], "history": []},
-           "seeds": [["a", "c"], ["zz", "b"]]}
+           "fusions": [{"name": "Fusión 1", "color": 0, "tracks": ["a", "c"]}, {"name": "B", "color": 1, "tracks": ["zz", "b"]}]}
     p = org_payload(org, {"a": 0, "b": 1, "c": 2}, "x v2")
-    assert p["cli"] == "x" and p["legacy"] == ["h1"] and p["seeds"] == [[0, 2], [1]]
+    assert p["cli"] == "x" and p["legacy"] == ["h1"]
+    assert p["fusions"] == [{"name": "Fusión 1", "color": 0, "tracks": [0, 2]}, {"name": "B", "color": 1, "tracks": [1]}]
+
+
+
+def test_history_marks_undone_versions():
+    from tools.playlist_review.build_review_page import history_lines
+    meta = {"current_version": 1, "history": [
+        {"version": 1, "action": "import", "n_tracks": 3, "n_playlists": 1, "parent": None},
+        {"version": 2, "action": "add", "scope": "X", "added": 2, "add": 2, "n_tracks": 5, "n_playlists": 1, "parent": 1}]}
+    lines = history_lines(meta)
+    assert not lines[0].endswith("(deshecho)") and lines[1].endswith("(deshecho)")

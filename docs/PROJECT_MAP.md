@@ -37,7 +37,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `phase3_name.py` | CPU: Naming semántico de clusters (genre voting + fallback genérico) |
 | `phase4_order.py` | CPU: Ordering greedy NN (cosine + BPM + Camelot key) → ordered_<hash>.parquet |
 | `extract_representations.py` | CPU: representaciones congeladas (EffNet, MAEST, MERT por capas, CLAP, MAEST-HF, AST; full y HPSS) con segmentación V4 → representations/<variante>/ (fase 2 del plan); `--shard`, `--assemble-only`, `--folder`, `--low-priority`, filtros de duración |
-| `organize.py` | Organizaciones estables con versiones (`orgs/<nombre>/`): `ingest` por carpeta, `import` de un config_hash, `build` (por alcance, con semillas), `add` congelado, `link` (congelado o `--rebuild`), `show` |
+| `organize.py` | Organizaciones estables con versiones (`orgs/<nombre>/`): `ingest` por carpeta, `import` de un config_hash, `build` (por alcance, respetando fusiones), `add` congelado, `link` (fusiones de temas: congelado o `--rebuild`), `show`; fusiones con nombre y color guardadas por versión, borradores y deshacer |
 | `tag_vocals.py` | CPU: etiqueta Vocal (CLAP zero-shot o AST AudioSet) → features/vocals_<método>.parquet; `--write-tags` agrega " - Vocal" al comentario con respaldo CSV y `--revert` |
 | `phase5_export.py` | CPU: Export M3U Traktor (UTF-8, rutas Windows) → playlists/V4_<N>/; `--formats m3u8,rekordbox,traktor`, `--rep`, `--out-root` |
 
@@ -66,6 +66,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | Archivo | Descripción |
 | :--- | :--- |
 | `ui/app.py` | Streamlit dashboard: scatter UMAP, filtros L1/L2, re-clustering local, export |
+| `ui/review_app.py` | App local (http.server, solo 127.0.0.1 y con token) para cualquier persona: sirve la interfaz de revisión y ejecuta agregar música nueva (selector de carpetas, análisis con progreso, mantener o reorganizar), fusiones de temas, export para Rekordbox/Traktor y deshacer. Se abre con `Abrir TRAKTOR ML.bat` |
 | `adaptation/projection_head.py` | MLP projection head: 1024→512→256 L2-normalizado (stub fine-tuning) |
 | `adaptation/contrastive_trainer.py` | Entrenador contrastivo (stub — interfaz definida, NotImplementedError) |
 
@@ -84,6 +85,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_tags_catalog.py` | Unit tests de tags.py y del catálogo recursivo (hash estable al escribir tags, dedup) |
 | `test_organize.py` | Unit tests de organize.py: build por alcance, add congelado, link congelado/rebuild, catálogo por alcance, ensamblado con --folder |
 | `test_playlist_review.py` | Unit tests del generador de la página de revisión |
+| `test_review_app.py` | Unit tests de la app local: token y Host/Origin, audio con rangos, fusiones (aplicar y deshacer), carpetas dentro/fuera de la biblioteca |
 | `test_dj_export.py` | Unit tests de rekordbox.xml / NML / M3U8, bpm_key desde tags, orden por energía, ventanas |
 
 En `tests/` (raíz): `test_check_staged.py` (chequeo pre-commit sobre repos git temporales),
