@@ -1,9 +1,11 @@
 """
 PURPOSE: Tests de tools/playlist_review/build_review_page.py: carpeta de origen abreviada, datos por tema
          (BPM, tonalidad, energía, Vocal desde el comentario), carpetas/playlists en orden con UMAP y
-         sugeridas, marcas de temas nuevos/semilla, y que el JSON embebido no pueda cerrar el <script>.
+         sugeridas, marcas de temas nuevos/semilla, mezcla de cada tema (tag Remixer o nombre) y que el
+         JSON embebido no pueda cerrar el <script>.
 CHANGELOG:
   - 2026-09-27: Creación inicial.
+  - 2026-09-29: Mezcla/remixer (version_label, tag_mix y el campo "m").
 """
 import json
 import re
@@ -15,7 +17,9 @@ import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from tools.playlist_review.build_review_page import build_tracks, org_payload, render, short_folder  # noqa: E402
+from tools.playlist_review.build_review_page import (  # noqa: E402
+    build_tracks, org_payload, render, short_folder, tag_mix, version_label,
+)
 
 
 def _catalog():
@@ -45,8 +49,40 @@ def test_build_tracks_fields():
     t = build_tracks(_catalog(), _bpm_key(), uids)
     assert [x["t"] for x in t] == ["Three", "One", "Two"]
     assert t[1] == {"u": ("u1" * 8)[:16], "p": "#1 BIBO/PRO/Nuevitas 5/a.mp3", "a": "A", "t": "One", "g": "Techno",
-                    "fs": "Nuevitas 5", "b": 128.0, "k": "8A", "e": 6, "v": True}
+                    "m": "", "fs": "Nuevitas 5", "b": 128.0, "k": "8A", "e": 6, "v": True}
     assert t[2]["v"] is False and t[2]["b"] is None and t[2]["a"] == ""  # "Vocalstation" no es la marca
+
+
+def test_version_label_tag_then_name():
+    # Los dos Josh Wink de la biblioteca: el tag Remixer (TPE4) manda
+    assert version_label("Adana Twins Remix Two", "Higher State Of Consciousness", "x.mp3") == "Adana Twins Remix Two"
+    # Sin tag: el paréntesis o corchete del título o del nombre que nombra una versión
+    assert version_label(None, "Higher State of Consciousness",
+                         "Josh Wink - Higher State of Consciousness [Tweekin Acid Funk Mix] 1998.mp3") == "Tweekin Acid Funk Mix"
+    assert version_label("", "Untitled (Human Pt.II) [LT029.5]", "a.mp3") == ""  # paréntesis que no son versiones
+    assert version_label("", "Battleships", "Battleships (feat X) (Sasha Beatless Mix).mp3") == "Sasha Beatless Mix"
+    # La original no se muestra, ni lo que el título ya dice
+    assert version_label("Original Mix", "One", "One (Original Mix).mp3") == ""
+    assert version_label(None, "One (Extended Mix)", "One (Extended Mix).mp3") == ""
+
+
+def test_build_tracks_reads_remixer_tag(tmp_path):
+    from mutagen.id3 import ID3, TIT2, TPE4
+    f = tmp_path / "Josh Wink - Higher State Of Consciousness.mp3"
+    f.write_bytes(b"")
+    tags = ID3()
+    tags.add(TIT2(encoding=3, text=["Higher State Of Consciousness"]))
+    tags.add(TPE4(encoding=3, text=["Adana Twins Remix Two"]))
+    tags.save(str(f))
+    assert tag_mix(f) == "Adana Twins Remix Two"
+    assert tag_mix(tmp_path / "no-existe.mp3") == ""
+    cat = _catalog().assign(source_path=[str(f), None, str(tmp_path / "c.mp3")],
+                            rel_path=["a.mp3", "b (Dub Mix).mp3", "c.mp3"])
+    t = build_tracks(cat, _bpm_key(), ["u1" * 8, "u2" * 8, "u3" * 8])
+    assert [x["m"] for x in t] == ["Adana Twins Remix Two", "Dub Mix", ""]
+    # Una columna tag_remixer del catálogo evita leer el archivo
+    t = build_tracks(cat.assign(tag_remixer=["Catálogo Remix", None, None]), _bpm_key(), ["u1" * 8])
+    assert t[0]["m"] == "Catálogo Remix"
 
 
 def test_org_payload_order_and_suggested():

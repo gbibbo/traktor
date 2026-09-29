@@ -78,8 +78,14 @@ main { overflow: auto; padding: 12px 16px 16px; }
 .legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; background: var(--c); }
 .legend span.ring::before { background: transparent; box-shadow: inset 0 0 0 2px var(--c); }
 .hl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
-#mapWrap { position: relative; }
-#map { width: 100%; height: 400px; display: block; touch-action: none; }
+#mapWrap { position: relative; overflow: hidden; }
+#map { width: 100%; height: 400px; display: block; touch-action: none; cursor: grab; }
+.zoom { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 4px; align-items: center; z-index: 4; }
+.zoom button { width: 32px; height: 32px; padding: 0; font-size: 18px; line-height: 1; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.zoom .lvl { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; background: var(--surface-1); border-radius: 4px; padding: 0 3px; }
+.mapctl { display: inline-flex; gap: 8px; align-items: center; }
+.mapctl input[type="range"] { width: 140px; accent-color: var(--series-1); }
+.mapctl .muted { min-width: 3.5em; font-variant-numeric: tabular-nums; }
 #tip { position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12); display: none; max-width: 340px; z-index: 5; }
 #tip b { display: block; font-weight: 600; }
 h2 { font-size: 16px; margin: 0; }
@@ -173,8 +179,18 @@ progress { width: 180px; height: 6px; }
         </select></label>
         <input id="hlText" type="search" placeholder="o buscar tema, artista o carpeta" style="width:min(100%, 300px)" aria-label="Buscar en el mapa">
         <span id="hlCount" class="muted" aria-live="polite"></span>
+        <span class="spacer"></span>
+        <label class="ink2 mapctl" title="Más angosto o más ancho, sin cambiar la altura">Ancho del mapa
+          <input id="mapWidth" type="range" min="20" max="200" step="5" value="100">
+          <span id="mapWidthVal" class="muted">100 %</span></label>
       </div>
-      <div id="mapWrap"><canvas id="map" aria-label="Mapa 2D de los temas; las tablas tienen los mismos datos"></canvas><div id="tip" role="status"></div></div>
+      <div id="mapWrap"><canvas id="map" aria-label="Mapa 2D de los temas; las tablas tienen los mismos datos"></canvas><div id="tip" role="status"></div>
+        <div class="zoom" role="group" aria-label="Zoom del mapa">
+          <button id="zoomIn" title="Acercar (tecla +, o Ctrl + rueda del mouse)" aria-label="Acercar">+</button>
+          <button id="zoomOut" title="Alejar (tecla −)" aria-label="Alejar">−</button>
+          <button id="zoomFit" title="Ver todo el mapa (tecla 0)" aria-label="Ver todo el mapa">⤢</button>
+          <span id="zoomLvl" class="lvl" aria-live="polite"></span>
+        </div></div>
     </section>
     <section class="card" id="fusionCard" aria-label="Fusiones de temas"></section>
     <section class="card" id="plCard" aria-live="polite"></section>
@@ -211,7 +227,7 @@ const T = DATA.tracks;
 const byU = new Map(T.map((t, i) => [t.u, i]));
 let state = {};
 try { state = JSON.parse(localStorage.getItem(STORE_KEY) || "{}"); } catch (e) { state = {}; }
-let prefs = { keep: true };
+let prefs = { keep: true, mapWidth: 1 };
 try { prefs = Object.assign(prefs, JSON.parse(localStorage.getItem(PREFS_KEY) || "{}")); } catch (e) {}
 const firstVisit = !Object.keys(state).length;
 // Opiniones dadas sobre la corrida original pasan a la organización importada de ella
@@ -232,7 +248,7 @@ const VERDICTS = [
   { v: "no", label: "No", icon: "✗", c: "var(--critical)" },
 ];
 const vInfo = v => VERDICTS.find(x => x.v === v);
-const label = t => `${t.a ? t.a + " – " : ""}${t.t}`;
+const label = t => `${t.a ? t.a + " – " : ""}${t.t}${t.m ? ` (${t.m})` : ""}`;  // m = mezcla/remixer
 const FUSION_NAMES = ["violeta", "amarillo", "verde", "rosa"];
 const fcolor = c => `var(--fusion-${c % 4})`;
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -296,6 +312,10 @@ document.addEventListener("keydown", e => {
   if (["TEXTAREA", "INPUT", "SELECT"].includes(e.target.tagName) || $("#overlay").style.display === "flex") return;
   if (e.code === "Space") { e.preventDefault(); $("#pauseBtn").click(); }
   if (e.code === "ArrowRight") { e.preventDefault(); $("#nextBtn").click(); }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;  // Ctrl + / − es el zoom del navegador
+  if (e.key === "+" || e.key === "=") { e.preventDefault(); zoomAt(ZSTEP); }
+  if (e.key === "-" || e.key === "_") { e.preventDefault(); zoomAt(1 / ZSTEP); }
+  if (e.key === "0") { e.preventDefault(); fitMap(); }
 });
 
 // ---------- API de la app ----------
@@ -671,7 +691,7 @@ function renderPlaylist() {
     const tr = el("tr", { "data-idx": String(idx), class: (flagged ? "flagged" : "") + (idx === nowIdx ? " playing" : "") },
       el("td", { class: "num muted", text: String(pos + 1) }),
       el("td", {}, el("button", { class: "play", "aria-label": "Escuchar", onclick: () => { stopSeq(); play(idx); } }, "▶")),
-      el("td", { class: "title" }, t.t,
+      el("td", { class: "title" }, t.t, t.m ? el("span", { class: "muted", text: ` (${t.m})` }) : null,
         org.flags?.[idx] === "nuevo" ? el("span", { class: "flag", text: "agregado recientemente" }) : null,
         fu ? el("span", { class: "flag", title: `En la fusión «${fu.name}»` }, el("span", { class: "swatch", style: `--c:${fcolor(fu.color)}` }), fu.name) : null,
         t.a ? el("small", { text: t.a }) : null),
@@ -701,7 +721,7 @@ function highlighted() {
   const out = new Set();
   if (mode === "new") Object.entries(org.flags || {}).forEach(([i, f]) => { if (f === "nuevo") out.add(+i); });
   if (mode === "fused") fusionsView().forEach(f => [...f.applied, ...f.pending].forEach(i => out.add(i)));
-  if (q.length >= 2) org.trackIdx.forEach(i => { const t = T[i]; if (`${t.a} ${t.t} ${t.fs} ${t.p}`.toLowerCase().includes(q)) out.add(i); });
+  if (q.length >= 2) org.trackIdx.forEach(i => { const t = T[i]; if (`${t.a} ${t.t} ${t.m || ""} ${t.fs} ${t.p}`.toLowerCase().includes(q)) out.add(i); });
   return out;
 }
 function renderLegend() {
@@ -714,6 +734,10 @@ function renderLegend() {
 }
 const canvas = $("#map"), ctx = canvas.getContext("2d"), tip = $("#tip");
 let pts = [];
+// Vista: zoom k y centro (cx, cy) en coordenadas del mapa (null = centro de los datos). El ancho
+// (prefs.mapWidth) estira o angosta solo el eje horizontal; 100 % = el mapa ocupa todo el recuadro.
+const view = { k: 1, cx: null, cy: null }, ZMIN = 0.5, ZMAX = 40, ZSTEP = 1.5;
+let frame = null;  // escala y centro del último dibujo (para zoom con el mouse y arrastre)
 function drawMap() {
   const dpr = window.devicePixelRatio || 1, W = canvas.clientWidth, H = canvas.clientHeight;
   canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -721,7 +745,11 @@ function drawMap() {
   const xy = org.xy, pad = 18;
   const xs = xy.map(p => p[0]), ys = xy.map(p => p[1]);
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-  const sx = x => pad + (x - x0) / (x1 - x0 || 1) * (W - 2 * pad), sy = y => H - pad - (y - y0) / (y1 - y0 || 1) * (H - 2 * pad);
+  const fx = (W - 2 * pad) / (x1 - x0 || 1) * prefs.mapWidth * view.k, fy = (H - 2 * pad) / (y1 - y0 || 1) * view.k;
+  const cx = view.cx ?? (x0 + x1) / 2, cy = view.cy ?? (y0 + y1) / 2;
+  frame = { W, H, fx, fy, cx, cy };
+  const sx = x => W / 2 + (x - cx) * fx, sy = y => H / 2 - (y - cy) * fy;
+  $("#zoomLvl").textContent = Math.abs(view.k - 1) < 1e-6 ? "" : `×${view.k < 10 ? view.k.toFixed(1) : Math.round(view.k)}`;
   pts = xy.map((p, i) => ({ i, x: sx(p[0]), y: sy(p[1]) }));
   const byTrack = new Map(pts.map(p => [org.trackIdx[p.i], p]));
   const inFolder = new Set(folder ? folder.playlists.flatMap(p => p.tracks) : []);
@@ -745,6 +773,7 @@ function drawMap() {
     ctx.strokeStyle = c; ctx.lineWidth = 2.5; ctx.setLineDash(f.pending.length ? [6, 4] : []);
     ctx.beginPath(); mem.forEach((p, k) => k ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.stroke(); ctx.setLineDash([]);
     mem.forEach(p => dot(p, 6, c));
+    if (!mem.some(p => p.x >= 0 && p.x <= W && p.y >= 0 && p.y <= H)) return;  // fuera de la vista (zoom): sin cartel
     const cx = mem.reduce((s, p) => s + p.x, 0) / mem.length, cy = Math.min(...mem.map(p => p.y)) - 14;
     ctx.font = "600 12px system-ui, sans-serif";
     const text = f.name + (f.pending.length ? " · sin aplicar" : ""), w = ctx.measureText(text).width + 22;
@@ -768,9 +797,54 @@ function nearest(mx, my) {
   pts.forEach(p => { const d = (p.x - mx) ** 2 + (p.y - my) ** 2; if (d < bd) { bd = d; best = p; } });
   return best;
 }
+function zoomAt(factor, mx, my) {
+  // Acerca o aleja dejando quieto el punto del mapa que está bajo (mx, my); sin posición, el centro
+  if (!frame) return;
+  const k = Math.min(ZMAX, Math.max(ZMIN, view.k * factor)), r = k / view.k;
+  if (mx == null) { mx = frame.W / 2; my = frame.H / 2; }
+  const dx = frame.cx + (mx - frame.W / 2) / frame.fx, dy = frame.cy - (my - frame.H / 2) / frame.fy;
+  view.cx = dx - (mx - frame.W / 2) / (frame.fx * r);
+  view.cy = dy + (my - frame.H / 2) / (frame.fy * r);
+  view.k = k;
+  tip.style.display = "none";
+  drawMap();
+}
+function fitMap() { view.k = 1; view.cx = view.cy = null; drawMap(); }
+$("#zoomIn").onclick = () => zoomAt(ZSTEP);
+$("#zoomOut").onclick = () => zoomAt(1 / ZSTEP);
+$("#zoomFit").onclick = fitMap;
+canvas.addEventListener("wheel", e => {
+  if (!e.ctrlKey && !e.metaKey) return;  // la rueda sola sigue bajando por la página
+  e.preventDefault();
+  const r = canvas.getBoundingClientRect();
+  zoomAt(Math.exp(-e.deltaY * 0.002), e.clientX - r.left, e.clientY - r.top);
+}, { passive: false });
+const mapWidth = $("#mapWidth");
+function showMapWidth() { const v = `${mapWidth.value} %`; $("#mapWidthVal").textContent = v; mapWidth.setAttribute("aria-valuetext", v); }
+mapWidth.value = String(Math.round(Math.min(2, Math.max(0.2, +prefs.mapWidth || 1)) * 100));
+prefs.mapWidth = +mapWidth.value / 100;
+mapWidth.addEventListener("input", () => { prefs.mapWidth = +mapWidth.value / 100; savePrefs(); showMapWidth(); drawMap(); });
+showMapWidth();
+// Arrastrar mueve el mapa; un clic sin arrastre sigue siendo "escuchar"
+let drag = null, dragged = false;
+canvas.addEventListener("pointerdown", e => {
+  if (e.button !== 0 || !frame) return;
+  drag = { x: e.clientX, y: e.clientY, cx: frame.cx, cy: frame.cy, id: e.pointerId }; dragged = false;
+});
+const endDrag = () => { drag = null; canvas.style.cursor = ""; };
+canvas.addEventListener("pointerup", endDrag);
+canvas.addEventListener("pointercancel", endDrag);
 canvas.addEventListener("pointermove", e => {
+  if (drag && (e.buttons & 1)) {
+    const mx = e.clientX - drag.x, my = e.clientY - drag.y;
+    if (!dragged && mx * mx + my * my < 25) return;
+    if (!dragged) { dragged = true; canvas.setPointerCapture(drag.id); tip.style.display = "none"; }
+    view.cx = drag.cx - mx / frame.fx; view.cy = drag.cy + my / frame.fy;
+    canvas.style.cursor = "grabbing";
+    drawMap(); return;
+  }
   const r = canvas.getBoundingClientRect(), p = nearest(e.clientX - r.left, e.clientY - r.top);
-  if (!p) { tip.style.display = "none"; canvas.style.cursor = "default"; return; }
+  if (!p) { tip.style.display = "none"; canvas.style.cursor = ""; return; }
   const ti = org.trackIdx[p.i], t = T[ti], fu = fusionOf(ti);
   tip.replaceChildren(el("b", { text: label(t) }),
     el("div", { class: "ink2", text: [t.b != null ? `${Math.round(t.b)} BPM` : null, t.k, t.g, t.v ? "con voz" : null].filter(Boolean).join(" · ") }),
@@ -782,6 +856,7 @@ canvas.addEventListener("pointermove", e => {
 });
 canvas.addEventListener("pointerleave", () => { tip.style.display = "none"; });
 canvas.addEventListener("click", e => {
+  if (dragged) { dragged = false; return; }  // fin de un arrastre, no un clic
   const r = canvas.getBoundingClientRect(), p = nearest(e.clientX - r.left, e.clientY - r.top);
   if (!p) return;
   const ti = org.trackIdx[p.i], x = plOf.get(ti);
@@ -806,7 +881,7 @@ function exportOpinions() {
   DATA.orgs.forEach(o => o.folders.forEach(f => f.playlists.forEach(pl => {
     const j = state[o.id]?.[pl.id]; if (!j || (!j.verdict && !j.note && !j.notHere.length)) return;
     rows.push([o.label, o.id, "playlist", f.name, pl.name, j.verdict, j.note, pl.tracks.length, "", "", ""]);
-    j.notHere.forEach(u => { const t = T.find(x => x.u === u); rows.push([o.label, o.id, "no_encaja", f.name, pl.name, "", "", "", u, t ? `${t.a} - ${t.t}` : "", t ? t.p : ""]); });
+    j.notHere.forEach(u => { const t = T.find(x => x.u === u); rows.push([o.label, o.id, "no_encaja", f.name, pl.name, "", "", "", u, t ? `${t.a} - ${t.t}${t.m ? ` (${t.m})` : ""}` : "", t ? t.p : ""]); });
   })));
   const blob = new Blob(["﻿" + rows.map(r => r.map(csvCell).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8" });
   const a = el("a", { href: URL.createObjectURL(blob), download: `opiniones_playlists_${DATA.run_id}.csv` });
@@ -815,7 +890,7 @@ function exportOpinions() {
 function renderHelp() {
   const h = $("#help"); h.replaceChildren(el("ul", {},
     el("li", {}, el("b", { text: "Para qué sirve: " }), "tu música quedó ordenada en carpetas y playlists por cómo suena. Escuchá algunas (★ = sugeridas) y decí si te convencen."),
-    el("li", {}, el("b", { text: "Mapa: " }), "cada punto es un tema; cerca = suenan parecido. Clic en un punto para escucharlo."),
+    el("li", {}, el("b", { text: "Mapa: " }), "cada punto es un tema; cerca = suenan parecido. Clic en un punto para escucharlo. Con + y − (o Ctrl + rueda del mouse) te acercás o alejás, arrastrando te movés y ⤢ vuelve a mostrar todo. «Ancho del mapa» lo hace más angosto o más ancho."),
     APP ? el("li", {}, el("b", { text: "Agregar música nueva: " }), "elegís una carpeta, se analiza y los temas se ubican en tus playlists. El interruptor «Mantener la organización actual» decide si lo que ya está se queda quieto (encendido) o se reorganiza todo (apagado).") : null,
     APP ? el("li", {}, el("b", { text: "Fusiones de temas: " }), "si dos o más temas tienen que ir juntos, hacé clic derecho sobre cada uno (o tocá ⋯) y creá una fusión o agregalos a una existente. Después, «Rehacer las playlists con las fusiones».") : null,
     APP ? el("li", {}, el("b", { text: "Para tocar: " }), "«Preparar para Rekordbox y Traktor» genera los archivos y te dice cómo importarlos.") : null,
@@ -833,7 +908,7 @@ function refresh() { renderToolbar(); renderSide(); renderFusions(); renderLegen
 const orgSel = $("#orgSel");
 DATA.orgs.forEach((o, i) => orgSel.append(el("option", { value: String(i), text: o.label })));
 if (DATA.orgs.length > 1) $("#orgSelWrap").hidden = false;
-orgSel.onchange = () => { org = DATA.orgs[+orgSel.value]; indexPlaylists(); selectFirstSuggested(); stopSeq(); refresh(); };
+orgSel.onchange = () => { org = DATA.orgs[+orgSel.value]; view.k = 1; view.cx = view.cy = null; indexPlaylists(); selectFirstSuggested(); stopSeq(); refresh(); };
 indexPlaylists();
 selectFirstSuggested();
 const show = sessionStorage.getItem("traktor_show");

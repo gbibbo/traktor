@@ -171,8 +171,8 @@ principales y un subdirectorio `diagnostics/` con el detalle técnico.
 
 | Archivo | Descripción |
 | :--- | :--- |
-| `tools/playlist_review/build_review_page.py` | Genera `<carpeta de audio>/_revision_playlists.html`: mapa UMAP, playlists en orden, escucha de la secuencia, veredictos exportables a CSV; organizaciones con nombre (`--org-name X`, `X@N`; sin argumentos, todas) con versión, historial, temas nuevos y semillas; armado y export de semillas para `organize.py link --from-file`; corridas por hash a ciegas (`--org`, `--blind`) |
-| `tools/playlist_review/template.html` | Plantilla autónoma (sin servidor ni red; audio por rutas relativas) |
+| `tools/playlist_review/build_review_page.py` | Genera `<carpeta de audio>/_revision_playlists.html`: mapa UMAP, playlists en orden, escucha de la secuencia, veredictos exportables a CSV; organizaciones con nombre (`--org-name X`, `X@N`; sin argumentos, todas) con versión, historial, temas nuevos y semillas; armado y export de semillas para `organize.py link --from-file`; corridas por hash a ciegas (`--org`, `--blind`); mezcla de cada tema (tag Remixer o nombre del archivo) |
+| `tools/playlist_review/template.html` | Plantilla autónoma (sin servidor ni red; audio por rutas relativas); mapa con zoom (+/−, Ctrl + rueda, arrastre) y ancho ajustable |
 
 ## Herramienta de feedback del DJ (`tools/dj_feedback/`)
 
@@ -200,6 +200,6 @@ principales y un subdirectorio `diagnostics/` con el detalle técnico.
 | `docs/HARMONIC_COMPATIBILITY.md` | Regla de compatibilidad armónica aprobada (relaciones, transposición, ejemplo 12A) |
 | `docs/plans/representation_model_plan.md` | Plan operativo vigente: evaluación, tabla de representaciones, 1001Tracklists, entrenamiento en Kaggle, MVP |
 | `docs/DECISIONS.md` | Registro fechado de decisiones de Gabriel que condicionan el trabajo (prevalecen sobre planes anteriores) |
-| `docs/reports/` | Informes fechados de resultados (baselines de tripletas; `scientific_review_2026-09-12.md` compara todas las versiones y fija el plan; `mvp_biblioteca_2026-09-27.md` biblioteca completa, CLAP, Vocal y export) |
+| `docs/reports/` | Informes fechados de resultados (baselines de tripletas; `scientific_review_2026-09-12.md` compara todas las versiones y fija el plan; `mvp_biblioteca_2026-09-27.md` biblioteca completa, CLAP, Vocal y export; `temas_repetidos_2026-09-29.md` versiones frente a duplicados y cómo detectarlos) |
 | `v4_implementation_plan.md` | Plan de implementación completo (rev.5) |
 | `docs/DJ_FEEDBACK_TOOL.md` | Herramienta de escucha y anotación del DJ (tripletas con cola fija) |

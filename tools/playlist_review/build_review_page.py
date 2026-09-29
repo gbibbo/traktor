@@ -17,6 +17,8 @@ CHANGELOG:
                 organize.py link --from-file.
   - 2026-09-29: make_data() reutilizable por la app local (src/v4/ui/review_app.py); fusiones con
                 nombre y color en vez de "semillas".
+  - 2026-09-29: Mezcla de cada tema (campo "m"): tag Remixer del archivo o el paréntesis del título o
+                del nombre que nombra una versión, para distinguir dos versiones del mismo tema.
 """
 import argparse
 import datetime as dt
@@ -38,6 +40,11 @@ from src.v4.common.path_resolver import resolve_dataset_artifacts, resolve_datas
 TEMPLATE = Path(__file__).with_name("template.html")
 PAGE_NAME = "_revision_playlists.html"
 _VOCAL = re.compile(r"(?<!\w)Vocal(?!\w)", re.IGNORECASE)
+_VERSION = re.compile(r"\b(mix|remix|rmx|edit|dub|version|rework|remaster(ed)?|vip|bootleg|instrumental|variation)\b",
+                      re.IGNORECASE)
+_BRACKETS = re.compile(r"[(\[]([^()\[\]]+)[)\]]")
+_PLAIN_MIX = {"original mix", "original", "original version"}  # la versión por defecto no se muestra
+_MIX_CACHE: Dict[tuple, str] = {}
 
 
 def _letter(n: int) -> str:
@@ -64,6 +71,55 @@ def _num(v, nd: Optional[int] = None):
     return round(float(v), nd) if nd is not None else int(v)
 
 
+def tag_mix(path) -> str:
+    """Remixer del tag (ID3 TPE4, MP4 REMIXER, Vorbis REMIXER/MIXARTIST), '' si no hay o no se puede leer.
+    Cacheado por ruta, fecha y tamaño: la app arma la página en cada visita."""
+    try:
+        st = Path(path).stat()
+    except (OSError, TypeError):
+        return ""
+    key = (str(path), st.st_mtime_ns, st.st_size)
+    if key not in _MIX_CACHE:
+        out = ""
+        try:
+            import mutagen
+            from mutagen.id3 import ID3
+            try:
+                tags = ID3(str(path))  # MP3: solo el bloque de tags, sin recorrer el audio
+            except Exception:  # noqa: BLE001 (WAV/AIFF con ID3 en un chunk, MP4, FLAC)
+                tags = getattr(mutagen.File(str(path)), "tags", None)
+            if tags is not None and hasattr(tags, "getall"):  # ID3 (MP3, WAV, AIFF)
+                frame = tags.get("TPE4")
+                out = str(frame.text[0]) if frame is not None and frame.text else ""
+            elif tags is not None:  # MP4 o Vorbis
+                for k in ("----:com.apple.iTunes:REMIXER", "remixer", "mixartist"):
+                    vals = tags.get(k)
+                    if vals:
+                        v = vals[0]
+                        out = v.decode("utf-8", "ignore") if isinstance(v, bytes) else str(v)
+                        break
+        except Exception:  # noqa: BLE001 (un archivo raro no frena la página)
+            out = ""
+        _MIX_CACHE[key] = out.strip()
+    return _MIX_CACHE[key]
+
+
+def version_label(tag: Optional[str], title: str, filename: str) -> str:
+    """Mezcla que distingue versiones del mismo tema ('Adana Twins Remix Two'): el tag Remixer o, si falta,
+    el primer paréntesis o corchete del título o del nombre de archivo que nombra una versión.
+    '' si es la original o si el título ya la dice."""
+    mix = (tag or "").strip()
+    if not mix:
+        for text in (title, Path(filename).stem if filename else ""):
+            found = [m.strip() for m in _BRACKETS.findall(text or "") if _VERSION.search(m)]
+            if found:
+                mix = found[0]
+                break
+    if not mix or mix.lower() in _PLAIN_MIX or mix.lower() in (title or "").lower():
+        return ""
+    return mix
+
+
 def build_tracks(catalog: pd.DataFrame, bpm_key: pd.DataFrame, uids: List[str]) -> List[Dict]:
     """Un registro compacto por tema, en el orden de uids."""
     cat = catalog.drop_duplicates("track_uid").set_index("track_uid")
@@ -73,11 +129,16 @@ def build_tracks(catalog: pd.DataFrame, bpm_key: pd.DataFrame, uids: List[str]) 
         r = cat.loc[u]
         b = bk.loc[u] if u in bk.index else None
         comment = r.get("tag_comment")
+        title = "" if pd.isna(r.get("title")) else str(r.get("title"))
+        tag = r.get("tag_remixer")  # columna del catálogo si existe; si no, el tag del archivo
+        if tag is None or pd.isna(tag):
+            tag = tag_mix(r["source_path"]) if "source_path" in r.index and not pd.isna(r["source_path"]) else ""
         out.append({
             "u": u[:16],
             "p": str(r["rel_path"]),
             "a": "" if pd.isna(r.get("artist")) else str(r.get("artist")),
-            "t": "" if pd.isna(r.get("title")) else str(r.get("title")),
+            "t": title,
+            "m": version_label(tag, title, Path(str(r["rel_path"])).name),
             "g": "" if pd.isna(r.get("tag_genre")) else str(r.get("tag_genre")),
             "fs": short_folder(r.get("folder", "")),
             "b": _num(b["bpm"], 1) if b is not None else None,

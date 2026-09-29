@@ -35,12 +35,14 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 1. GABRIEL: importar y validar `V4_1` en Rekordbox (pendrive) y Traktor (TODO 6.7).
 2. GABRIEL: probar la app local (`Abrir TRAKTOR ML.bat`): agregar música nueva, fusiones de temas
    (clic derecho), preparar para Rekordbox/Traktor y deshacer. Plan `docs/plans/20260929_app_local.md`.
-3. GABRIEL: revisar `features/beatport.csv` y `genre_pred.csv` antes de escribir Artist, Remixers,
+3. GABRIEL: decidir cómo tratar los temas repetidos: ≈ 18 copias de más en 16 grupos, todas en la
+   misma playlist que el original (propuesta en `docs/reports/temas_repetidos_2026-09-29.md`).
+4. GABRIEL: revisar `features/beatport.csv` y `genre_pred.csv` antes de escribir Artist, Remixers,
    Label, Genre y Released en los archivos (DECISIONS 2026-09-29, punto 4).
-4. LOCAL: ajustar el umbral Vocal con la lista de chequeo (`tag_vocals.py --check-list`).
-5. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
+5. LOCAL: ajustar el umbral Vocal con la lista de chequeo (`tag_vocals.py --check-list`).
+6. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
    tracklists y descarga del audio se consultan antes de implementar.
-6. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
+7. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
 
 ## RUN RECIPES

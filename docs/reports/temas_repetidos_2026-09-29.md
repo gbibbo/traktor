@@ -1,0 +1,110 @@
+# Temas repetidos en la biblioteca (2026-09-29)
+
+Disparador: en la app, «Josh Wink – Higher State Of Consciousness» aparecía dos veces, en dos puntos
+distintos del mapa. Protocolo `auditar`.
+
+**Coordenadas de todos los datos:** organización `biblioteca` v2 (1786 temas, `clap_full` + BPM
+peso 0.3, `orgs/biblioteca/`), catálogo `musica` (1823 filas), commit base `034a969`. Coseno =
+producto de embeddings CLAP normalizados, alineados por `representations/clap_full/track_uids.json`.
+Los números salen de un script exploratorio (fuera del repo) que corrió en esta sesión.
+
+## Veredicto
+
+Los dos Josh Wink son **versiones distintas**, y los dos archivos ya traen la mezcla en el tag
+Remixer (ID3 TPE4). La app no la mostraba. Desde este cambio la muestra: «Josh Wink – Higher State Of
+Consciousness (Adana Twins Remix Two)». Quedan en puntos distintos porque, para CLAP, suenan bastante
+distinto. Aparte, el análisis encontró **duplicados**: el mismo tema en dos o más archivos. La regla
+acústica (capa 2, más abajo) da 16 grupos, 34 temas y 18 copias de más. Por el nombre, los 16 grupos
+son el mismo tema, pero solo «Hide U» está verificado byte a byte; el resto es INFERENCIA por nombre,
+coseno y duración. Todas las copias caen en la misma playlist que su original, así que los exports
+repiten el tema (N1 trae «Hide U» cuatro veces).
+
+## Josh Wink
+
+| | Tweekin Acid Funk Mix | Adana Twins Remix Two |
+| :--- | :--- | :--- |
+| Archivo | `#1 BIBO/PRO/Nuevitas/TECHNO/… [Tweekin Acid Funk Mix] 1998.mp3` | `2020 old/old 5/… (Adana Twins Remix Two).mp3` |
+| Tag Remixer (TPE4) | Tweekin Acid Funk Mix | Adana Twins Remix Two |
+| Duración / BPM del tag | 375 s / 126 | 416 s / 123 |
+| Sello y fecha (tags) | Nervous Dog, 1996 | Strictly Rhythm, 2020-01-17 |
+| ISRC del match en `features/beatport.csv` | USSR30764005 | QMRSZ1901716 |
+| Playlist | J2 Techno / Tech House (122-129) | D1 Techno / Indie Dance (120-128) |
+
+La tercera copia (`2020 new - copia/…Adana Twins Remix Two.mp3`) tiene el mismo audio byte a byte.
+Phase 0 ya la descartó (`duplicates.csv`).
+
+| Afirmación | Etiqueta | Evidencia |
+| :--- | :--- | :--- |
+| Son grabaciones distintas | EVIDENCIA OBSERVADA | TPE4, duración, ISRC y track_uid distintos (tabla de arriba) |
+| Coseno CLAP entre ambos 0.825, por debajo del vecino más cercano del 95 % de la biblioteca | EVIDENCIA OBSERVADA | vecino más cercano de cada tema: p5 0.886, mediana 0.936 |
+| Para el Tweekin, el Adana es el vecino más parecido (#1). Para el Adana, el Tweekin es el #6 | EVIDENCIA OBSERVADA | el #1 del Adana es RDNK - Guess the Number (0.858) |
+| En el mapa están a 0.37. El vecino típico está a 0.06 y el mapa mide ≈ 7.5 de ancho | EVIDENCIA OBSERVADA | UMAP de `biblioteca` v2 |
+| La separación viene del sonido, no del tempo | INFERENCIA | en el espacio del agrupamiento la distancia es 0.61. CLAP solo da √(2 − 2·0.825) = 0.59, así que el BPM aporta ≈ 0.16 |
+| Que suenen distinto para CLAP no dice si en una fecha se usan igual | HIPÓTESIS | lo decide Gabriel escuchando las dos |
+
+## Duplicados reales
+
+**Causa 1, WAV/AIFF.** `tags.payload_range` quita los tags de MP3 y FLAC, pero en WAV/AIFF hashea el
+archivo entero. Si dos copias del mismo audio tienen distintos chunks `LIST`, reciben track_uid
+distintos. Hoy afecta a un solo tema: «Sandy Rivera, Rae - Hide U (Chicola Extended Remix).wav», con
+cuatro copias con el mismo chunk `data` y cuatro uid (EVIDENCIA OBSERVADA: se hasheó el chunk `data`
+de los 32 WAV/AIFF).
+
+**Causa 2, el mismo tema en otro archivo** (otra descarga u otra codificación). El hash no lo
+detecta, y a veces el nombre tampoco: «Trommelmaschine» / «Trommel Machine», «Flight Of Birds -
+Bedouin» / «Bedouin - Flight of the birds». También «Floyd Lavine - Masala.mp3», que por dentro es el
+Pablo Fierro Remix: su TPE4 lo dice, el coseno es 0.996 y la diferencia de duración, 0.3 s.
+
+### Cómo detectarlos (tres capas)
+
+1. **Hash de audio exacto** (ya existe). Falta que en WAV/AIFF hashee solo el chunk de audio
+   (`data` / `SSND`). Cambiar el track_uid de esos 31 archivos invalida sus embeddings y sus lugares
+   en la organización. La alternativa es una columna aparte, solo para duplicados, que deje el uid
+   intacto.
+2. **Acústica: coseno CLAP ≥ 0.98 y diferencia de duración ≤ 5 s.** Da 21 pares (16 grupos) y, por el
+   nombre, los 21 son el mismo tema. El umbral se eligió mirando estos mismos datos, así que es
+   exploratorio. Justo por debajo aparecen falsos positivos: Techyon / Egorythmia (0.972, tramos de
+   un mismo set continuo) y Joe Red «Orange» / «Blue» (0.964). **La duración es imprescindible:**
+   Circulation «Lemon» Mix 1 / Mix 2 tienen coseno 0.989 pero 65 s de diferencia, y son dos versiones.
+3. **Nombre: mismo artista, título y mezcla, con diferencia de duración ≤ 2 s.** Atrapa lo que CLAP
+   deja pasar: Dennis Cruz «Bad Behaviour» (0.966), Jaydee «Plastic Dreams» (0.954), Wally Lopez
+   «American Icon» (0.928), nthng «Untitled» (0.941) y Jacob Mikesh «Philipp Dolphia» (0.957).
+   HIPÓTESIS: mismo audio con otro master o bitrate. Lo decide escuchar, o una huella de audio
+   (Chromaprint).
+
+Las versiones distintas no son duplicados. Hay 35 pares con el mismo artista y título pero otra
+mezcla: coseno mediano 0.884, diferencia de duración mediana 58 s, y solo el 31 % cae en la misma
+playlist. Con la mezcla en la etiqueta, en la app quedan 4 grupos de nombres idénticos (10 temas):
+Hide U ×4, Barbatuques «Baianá», Jaydee «Plastic Dreams» y Markus Homm «Dance With Me». Este último
+tiene 85 s de diferencia de duración y está sin decidir.
+
+### Cómo manejarlos en el mapa (propuesta, decide Gabriel)
+
+- **Duplicado (mismo audio): un solo punto.** Se queda una copia, primero por calidad (WAV/FLAC, luego
+  MP3 320, luego el resto) y, entre iguales, la que está fuera de las carpetas «copia» u «old», como
+  ya hace Phase 0. Las otras copias aparecen en el tooltip como «copias», sin entrar en playlists ni
+  exports. No se borra ningún archivo. Antes de aplicarlo, Gabriel confirma los grupos de la capa 3.
+- **Versión (otra mezcla): un punto por versión**, con la mezcla en la etiqueta (ya está). Si hace
+  falta, al pasar el mouse se traza una línea fina hacia las otras versiones. Cuando dos versiones
+  caen en la misma playlist, se decide si está bien o si hay que separarlas.
+
+## Cambios de esta sesión
+
+- `tools/playlist_review/build_review_page.py`: campo `m` con la mezcla de cada tema. Sale del tag
+  Remixer; si falta, del paréntesis del título o del nombre del archivo que nombra una versión. No se
+  muestra «Original Mix». Hoy 406 de los 1786 temas muestran una mezcla. Leer los tags suma ≈ 1.4 s
+  a la primera carga de la app (de 0.6 a 2.0 s). Después se usa la caché. Si el catálogo trae una
+  columna `tag_remixer`, se usa esa y no se leen los archivos.
+- `tools/playlist_review/template.html`: la mezcla en el tooltip, la tabla, el menú y la búsqueda.
+  Zoom con + / −, con Ctrl + rueda o con las teclas + / − / 0, y arrastre para moverse. ⤢ vuelve a
+  mostrar todo. «Ancho del mapa» (20 a 200 %) angosta o ensancha solo el eje horizontal y queda
+  guardado en el navegador. Se probó en Chrome headless: zoom, arrastre sin reproducir, clic que
+  reproduce, Ctrl + rueda (la rueda sola no hace zoom) y ancho, sin errores de página.
+
+## Pendiente
+
+- `rekordbox.xml` y `traktor.nml` no llevan el Remixer, aunque los archivos sí lo tienen. HIPÓTESIS:
+  Rekordbox y Traktor lo leen del archivo. Se verifica al validar el import (STATUS, ítem 1). Si no
+  aparece, se agrega `Remixer` al XML y `REMIXER` al NML.
+- Decisión de Gabriel sobre la propuesta de duplicados. Con eso se implementa la detección de tres
+  capas y el punto único.
