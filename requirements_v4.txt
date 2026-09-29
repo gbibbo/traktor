@@ -1,8 +1,8 @@
 transformers
-torchaudio
+torchaudio==2.7.1  # Windows con Smart App Control: 2.11+ bloqueado (DLL sin reputación)
 scikit-learn
 pandas
-pyarrow
+pyarrow==16.1.0  # pyarrow 25 (parquet) bloqueado por Smart App Control en la laptop
 soundfile
 tqdm
 plotly
@@ -13,5 +13,5 @@ umap-learn
 pyyaml
 essentia
 nnAudio
-torch
+torch==2.7.1  # >=2.6 lo exige transformers para cargar CLAP; 2.14 lo bloquea Smart App Control
 mutagen
