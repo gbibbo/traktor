@@ -13,6 +13,12 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
   config `fb78f2f6`, 1786 temas. Export en `artifacts/v4/datasets/musica/exports/V4_1/`
   (`m3u8/`, `rekordbox.xml`, `traktor.nml`). Gabriel la eligió escuchando frente a MAEST-HF capa 7
   (`9e5784c3`), con la salvedad de que no fue del todo a ciegas (DECISIONS 2026-09-29).
+- **Organizaciones estables** (`src/v4/pipeline/organize.py`, `orgs/<nombre>/` con versiones): la
+  elegida es `biblioteca` v1 (importada de `fb78f2f6`, mismo mapa; su export `exports/biblioteca_v1/`
+  es idéntico a `V4_1`). `add` agrega música con lo existente congelado; `link` exige temas juntos
+  (congelado o `--rebuild`); `build --scope` organiza una carpeta sola con su propio mapa.
+- **Smart App Control activo en la laptop**: bloquea DLLs nuevas; `.venv` fijado en torch 2.7.1 y
+  pyarrow 16.1 (`requirements_v4.txt`). CLAP da lo mismo que con torch 2.14.
 - **Tripletas (n = 57): ninguna representación supera al BPM de forma concluyente.** Entre
   representaciones decide la escucha de playlists enteras, no el puntaje.
 - **Etiqueta Vocal** escrita en el comentario de 542 archivos (CLAP zero-shot, umbral 0.145).
@@ -23,8 +29,9 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 ## OPEN ITEMS (por prioridad; LOCAL = trabajo del agente, GABRIEL = lo hace o decide Gabriel)
 
 1. GABRIEL: importar y validar `V4_1` en Rekordbox (pendrive) y Traktor (TODO 6.7).
-2. LOCAL, en curso: organizaciones estables (por carpeta, incrementales y con semillas), plan
-   `docs/plans/20260929_organizaciones_estables.md`.
+2. GABRIEL: con música nueva, `organize.py ingest --scope <carpeta>` y después `add` (congelado) o
+   `build` (desde cero) sobre `biblioteca`; elegir semillas con `link`. Falta elegirlas desde la
+   página de revisión (hoy por línea de comandos).
 3. LOCAL: ajustar el umbral Vocal con la lista de chequeo (`tag_vocals.py --check-list`).
 4. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
    tracklists y descarga del audio se consultan antes de implementar.
@@ -38,6 +45,10 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 - Pipeline del MVP, comandos exactos: `docs/V4_USAGE.md`, sección 0b. La organización elegida sale de
   `phase2_cluster.py --dataset-name musica --rep clap_full --bpm-weight 0.3 --method ward --n-l1 15
   --l2-target-size 35 --pca-dim 50` y después Phases 3 a 5 con `--rep clap_full`.
+- Organizaciones: `organize.py ingest --scope "<carpeta>"` · `build --name X [--scope "<carpeta>"]` ·
+  `add --name biblioteca --scope "<carpeta>"` · `link --name biblioteca --track "<texto>" --track
+  "<texto>" [--rebuild]` · `show --name X`. Export: `phase5_export.py --org-name X --formats
+  m3u8,rekordbox,traktor --out-root artifacts/v4/datasets/musica/exports`; página: `--org-name X`.
 - Revisar escuchando: `tools/playlist_review/build_review_page.py --dataset-name musica`
   (varias organizaciones a ciegas: `--org <hash> --org <hash> --blind`).
 - Corrida larga: primero `--folder "<subcarpeta>"` y revisar la salida; después la completa con
