@@ -3,6 +3,8 @@
 Registro fechado de decisiones de Gabriel que condicionan el trabajo. Cada entrada dice qué se
 decidió y qué implica para el código. Las decisiones más recientes prevalecen sobre planes
 anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_implementation_plan_v6.md`).
+Una decisión revertida o reemplazada no se borra: se marca en su lugar con
+`[REEMPLAZADO <fecha> por <decisión>: <lo que rige ahora>]` (o `[REFUTADO …]` si era un error).
 
 ## 2026-09-29
 

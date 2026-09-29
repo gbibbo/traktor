@@ -63,4 +63,4 @@ Formato: - [x] Tarea X.Y — Descripción | Completado: YYYY-MM-DD
 - [x] 6.5 Phase 2 --rep / --bpm-weight / --method ward; Phase 4 --rep + energía   | Completado: 2026-09-27
 - [x] 6.6 Phase 5 --formats m3u8,rekordbox,traktor (dj_export.py)                 | Completado: 2026-09-27
 - [ ] 6.7 Gabriel importa en Rekordbox (pendrive) y Traktor y valida los formatos
-- [ ] 6.8 MAEST-HF sobre la biblioteca (noche) y comparación contra CLAP en tripletas/carpetas
+- [x] 6.8 MAEST-HF sobre la biblioteca (noche) y comparación contra CLAP en tripletas/carpetas | Completado: 2026-09-29 (tripletas no concluyentes; escuchando, Gabriel eligió CLAP)

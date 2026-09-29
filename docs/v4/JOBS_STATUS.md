@@ -1,5 +1,9 @@
 # TRAKTOR ML V4 — Jobs Status
 
+> [REEMPLAZADO 2026-09-12 por DECISIONS 2026-09-12, punto 4: Surrey HPC y Lightning ya no existen y
+> se trabaja en CPU local. Este archivo queda como registro de los jobs de Slurm de marzo de 2026.
+> El estado actual está en `docs/STATUS.md`.]
+
 Actualizar este archivo después de cada submit o tras verificar resultados.
 Monitorear con: `./slurm/tools/on_submit.sh squeue --me`
 Logs en: `logs/v4_<jobname>_<jobid>.out`

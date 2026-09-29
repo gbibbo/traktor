@@ -84,6 +84,21 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_playlist_review.py` | Unit tests del generador de la página de revisión |
 | `test_dj_export.py` | Unit tests de rekordbox.xml / NML / M3U8, bpm_key desde tags, orden por energía, ventanas |
 
+En `tests/` (raíz): `test_check_staged.py` (chequeo pre-commit sobre repos git temporales),
+`test_status_doc.py` (`docs/STATUS.md` con sus tres secciones y a lo sumo 6 KB) y
+`test_spotify_soulseek_orchestrator.py` (`download_JIJIJI/`).
+
+## Arnés de agentes y git
+
+| Archivo | Descripción |
+| :--- | :--- |
+| `AGENTS.md` | Instrucciones canónicas para cualquier agente |
+| `CLAUDE.md` | Importa `AGENTS.md` y agrega solo lo propio de Claude Code (hook de estado, skill, compactación) |
+| `.claude/settings.json` | Permisos de auto mode y hook `SessionStart` que inyecta `docs/STATUS.md` (tope `head -c 8000`) |
+| `.claude/skills/auditar/SKILL.md` | Protocolo de investigación: tres coordenadas de cada dato, revisión hostil, veredicto etiquetado, reglas del dominio |
+| `tools/git_hooks/pre-commit` | Hook de git; se activa con `git config core.hooksPath tools/git_hooks` y corre `check_staged.py` |
+| `tools/git_hooks/check_staged.py` | Bloquea audio, arrays, pesos, credenciales, archivos > 5 MB y contenido con credenciales (sin imprimirlas); `--all` revisa el árbol entero |
+
 ## Artifacts (generados, no en git)
 
 ```
@@ -166,7 +181,8 @@ principales y un subdirectorio `diagnostics/` con el detalle técnico.
 | `docs/PROJECT_MAP.md` | Este archivo |
 | `docs/V4_USAGE.md` | Instrucciones de uso end-to-end (Phase 0→5, UI, escalar a 2000 tracks) |
 | `docs/v4/TODO.md` | Progress tracker con fechas de completado |
-| `docs/v4/JOBS_STATUS.md` | Estado de jobs Slurm + comandos de monitoreo |
+| `docs/STATUS.md` | Estado actual, pendientes y recetas de ejecución; se inyecta al abrir cada sesión de Claude Code |
+| `docs/v4/JOBS_STATUS.md` | Legado: registro de jobs Slurm de marzo de 2026 (reemplazado por `docs/STATUS.md`) |
 | `docs/LESSONS_LEARNED.md` | Base de conocimiento de lecciones aprendidas |
 | `docs/HARMONIC_COMPATIBILITY.md` | Regla de compatibilidad armónica aprobada (relaciones, transposición, ejemplo 12A) |
 | `docs/plans/representation_model_plan.md` | Plan operativo vigente: evaluación, tabla de representaciones, 1001Tracklists, entrenamiento en Kaggle, MVP |

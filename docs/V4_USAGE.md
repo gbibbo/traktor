@@ -14,6 +14,8 @@ histórica para HPC; no son el flujo actual.
 **Requisitos locales (CPU):**
 - Python 3.11.
 - Dependencias: `pip install -r requirements_v4.txt`.
+- Chequeo pre-commit (una vez por clon): `git config core.hooksPath tools/git_hooks`. Bloquea audio,
+  arrays, pesos, credenciales y archivos de más de 5 MB.
 - Nota Windows: Essentia no tiene build nativo para Windows. En Windows nativo corren
   Phase 0, Phases 2-5, tests y la UI (torch/torchaudio/sklearn/umap/hdbscan ya sirven en CPU);
   la extracción CPU de Phase 1 (`--essentia-only`) se ejecuta bajo WSL/Linux con Python 3.11.

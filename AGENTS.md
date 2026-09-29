@@ -4,8 +4,8 @@ Canonical instructions for coding agents in this repository.
 
 ## Start here
 
-1. Read `README.md` for the current V4 pipeline and project scope.
-2. Read `docs/PROJECT_MAP.md`, `docs/V4_USAGE.md`, `docs/v4/TODO.md`, and `docs/v4/JOBS_STATUS.md` before substantial work.
+1. Read `docs/STATUS.md` first: current state, open items, and run recipes. Claude Code injects it at session start. Then read `README.md` for the V4 pipeline and project scope.
+2. Read `docs/PROJECT_MAP.md`, `docs/V4_USAGE.md`, `docs/v4/TODO.md`, and `docs/DECISIONS.md` before substantial work. `docs/v4/JOBS_STATUS.md` is the legacy HPC/Slurm record from March 2026, not current state.
 3. Inspect the actual Git repository, code, tests, configuration, generated artifacts, and dataset state before asserting that prior work or a milestone exists.
 4. Treat `v4_implementation_plan.md` and `dj_music_clustering_deterministic_implementation_plan_v6.md` as design history and planning context. The current implementation under `src/v4/` and current documentation take precedence when they disagree with older plans.
 
@@ -23,6 +23,7 @@ The private audio collection, generated audio features, embeddings, model caches
 
 * Primary working dataset: `test_20`.
 * Expected source audio count: 243 tracks.
+* The full-library MVP runs on dataset `musica` (`Música/` at the repo root, ignored by Git); `test_20` remains the evaluation set with triplets and Gabriel's own folders. See `docs/STATUS.md`.
 * Default audio location: `data/raw_audio/test_20/` (resolved relative to the repo root). `data/` is ignored by Git; on a local machine this path is normally a filesystem link (symlink or Windows directory junction) to the real music folder, never a committed copy. It must never be committed.
 * Python environment: Python 3.11. On Windows the CPU pipeline (Phases 0, 2-5, tests, UI) runs on a local Python 3.11 interpreter or `.venv`. Essentia (Phase 1 CPU BPM/key) has no native-Windows build, so Phase 1 CPU extraction runs under WSL/Linux with Python 3.11.
 * Dependency source: `requirements_v4.txt`.
@@ -53,6 +54,10 @@ Before declaring a coding unit complete, run the narrowest tests that exercise t
 
 When a result is surprising, check path resolution, dataset cardinality, track UID alignment, failed audio files, model versions, and config values before changing the algorithm.
 
+For audits, diagnoses, and comparisons between representations, parameters, or organizations, follow `.claude/skills/auditar/SKILL.md` (Claude Code loads it as the `auditar` skill; other agents read the file). A better triplet score is not a better organization: between representations, Gabriel decides by listening.
+
+When a new conclusion kills an old one in the docs, edit the old line in place instead of deleting it: prefix it with `[REFUTADO <date> by <evidence>: <what is true>]` if it was wrong, or `[REEMPLAZADO <date> by <decision or change>: <what applies now>]` if it was right but no longer applies.
+
 ## Git discipline
 
 Use Git as the durable checkpoint mechanism.
@@ -64,9 +69,8 @@ Rules:
 * Commit coherent verified units, not every tiny edit.
 * Push normal commits to the current branch without asking each time when a valid upstream exists.
 * Do not force push, rewrite shared history, merge branches, delete remote branches, or open or merge pull requests unless Gabriel asks.
-* Never commit datasets, music files, generated stems, embeddings, large artifacts, credentials, `.env` files, API keys, or secrets.
-* Gabriel's parallel work lives in `download_JIJIJI/`: include it in commits and pushes, never its audio files (`.gitignore` covers the audio extensions). Scan it for credentials before staging.
-* Do not add AI attribution, generated with trailers, or session links to commits or pull request text.
+* Never commit datasets, music files, generated stems, embeddings, large artifacts, credentials, `.env` files, API keys, or secrets. The pre-commit check in `tools/git_hooks/` enforces this list (activate once per clone with `git config core.hooksPath tools/git_hooks`). Never bypass it with `--no-verify`; if it flags correct work, fix `tools/git_hooks/check_staged.py` and its tests.
+* Gabriel's parallel work lives in `download_JIJIJI/`: include it in commits and pushes, never its audio files (`.gitignore` covers the audio extensions). The pre-commit check scans staged content for credentials; still look at what you stage.* Do not add AI attribution, generated with trailers, or session links to commits or pull request text.
 * If tests are failing or evidence is incomplete, record that state instead of disguising it as completed work.
 
 Before stopping after substantive project work, report the final Git state with the full HEAD SHA, push status, and whether the working tree is clean. Do not create empty commits merely to manufacture a SHA.
@@ -94,6 +98,8 @@ Before any long run (anything that would keep the machine busy for more than a f
 For nontrivial changes, inspect existing code before creating new scripts or parallel implementations. Extend or refactor the existing V4 path when practical.
 
 New or materially edited Python files should begin with a concise module docstring describing `PURPOSE` and `CHANGELOG`, matching the existing repository convention. Use `pathlib` for filesystem paths. Keep path resolution centralized and portable across local Windows, WSL/Linux, and any optional remote environment; do not hardcode machine-specific absolute paths in tracked code. Console output must stay portable: `src/v4/common/__init__.py` forces UTF-8 stdout/stderr so non-ASCII output does not crash on Windows cp1252 consoles.
+
+Keep `docs/STATUS.md` current: edit it in place when the state, open items, or run recipes change. It holds the final state, not a chronicle (history lives in `git log`, `docs/DECISIONS.md`, and `docs/reports/`), and stays under 6 KB (`tests/test_status_doc.py`).
 
 Update `docs/PROJECT_MAP.md` when adding or removing important files or changing repository architecture. Add durable operational lessons to `docs/LESSONS_LEARNED.md` only when they are genuinely reusable and not duplicates of existing entries.
 

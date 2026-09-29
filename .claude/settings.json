@@ -3,5 +3,17 @@
     "allow": [
       "$defaults"
     ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "head -c 8000 \"$CLAUDE_PROJECT_DIR/docs/STATUS.md\""
+          }
+        ]
+      }
+    ]
   }
 }

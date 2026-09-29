@@ -1,0 +1,20 @@
+#!/bin/sh
+# PURPOSE: Hook pre-commit de git. Corre tools/git_hooks/check_staged.py con el primer Python que
+#          encuentre (el .venv del repo en Windows o Linux, después python3/python/py del PATH).
+#          Se activa una vez por clon: git config core.hooksPath tools/git_hooks
+# CHANGELOG:
+#   - 2026-09-29: Creación inicial.
+root=$(git rev-parse --show-toplevel) || exit 1
+check="$(cd "$(dirname "$0")" && pwd)/check_staged.py"
+for py in "$root/.venv/Scripts/python.exe" "$root/.venv/bin/python"; do
+  if [ -x "$py" ]; then
+    exec "$py" "$check"
+  fi
+done
+for py in python3 python py; do
+  if command -v "$py" >/dev/null 2>&1 && "$py" -c "import sys" >/dev/null 2>&1; then
+    exec "$py" "$check"
+  fi
+done
+echo "pre-commit: no encontré un intérprete de Python para correr $check; el commit queda bloqueado." >&2
+exit 1

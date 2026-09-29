@@ -103,5 +103,6 @@ enteras lo decidió.
 ## Pendiente
 
 - Gabriel importa y valida en Rekordbox (pendrive) y Traktor.
-- MAEST-HF sobre la biblioteca (≈ 6 s por tema en esta CPU: una noche) y comparación con CLAP.
+- ~~MAEST-HF sobre la biblioteca (≈ 6 s por tema en esta CPU: una noche) y comparación con CLAP.~~
+  Hecho el 2026-09-29: ver "MAEST frente a CLAP" arriba.
 - Ajustar el umbral Vocal con la lista de chequeo.
