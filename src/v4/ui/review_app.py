@@ -14,6 +14,7 @@ CHANGELOG:
   - 2026-09-29: Creación inicial.
   - 2026-09-29: Reordenar temas de una playlist a mano (/api/reorder) y eliminar fusiones
                 (/api/remove-fusion), cada uno como versión nueva que se puede deshacer.
+  - 2026-09-29: /cover/<tema>: carátula del archivo (o de su carpeta) para la columna de la tabla.
 """
 from __future__ import annotations
 
@@ -42,6 +43,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from src.v4.common.audio_utils import get_audio_files  # noqa: E402
 from src.v4.common.config_loader import load_config  # noqa: E402
 from src.v4.common.path_resolver import resolve_dataset_artifacts, resolve_dataset_audio_root  # noqa: E402
+from src.v4.common.tags import read_cover  # noqa: E402
 from src.v4.pipeline import organize  # noqa: E402
 from tools.playlist_review.build_review_page import history_lines, make_data, render  # noqa: E402
 
@@ -352,10 +354,27 @@ def make_handler(app: App):
                 return self.wfile.write(body)
             if path.startswith("/audio/"):
                 return self._audio(urllib.parse.unquote(path[len("/audio/"):]))
+            if path.startswith("/cover/"):
+                return self._cover(urllib.parse.unquote(path[len("/cover/"):]))
             if path.startswith("/api/job/"):
                 job = app.jobs.get(path.rsplit("/", 1)[-1])
                 return self._json(200, job.public()) if job else self._json(404, {"error": "no existe"})
             return self._json(404, {"error": "no existe"})
+
+        def _cover(self, rel: str):
+            target = (app.library / rel).resolve()
+            if app.library not in target.parents or not target.is_file():
+                return self._json(404, {"error": "no existe"})
+            found = read_cover(target)
+            if not found:
+                return self._json(404, {"error": "sin carátula"})
+            data, ctype = found
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "private, max-age=3600")
+            self.end_headers()
+            self.wfile.write(data)
 
         def _audio(self, rel: str):
             target = (app.library / rel).resolve()

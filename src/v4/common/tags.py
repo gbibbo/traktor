@@ -8,9 +8,11 @@ PURPOSE: Tags de audio para V4 (mutagen), para correr sin Essentia en Windows.
          - with_token / write_comment: marca idempotente en el comentario (etiqueta "Vocal"),
            que Rekordbox y Traktor muestran en la columna Comments.
          - read_release_tags: mezcla (Remixer), ISRC, fecha e ID de Spotify, para buscar en Beatport.
+         - read_cover: carátula incluida en el archivo o imagen de su carpeta.
 CHANGELOG:
   - 2026-09-27: Creación inicial (MVP de biblioteca completa en Windows).
   - 2026-09-29: read_release_tags (búsqueda en Beatport), sin cambiar read_tags ni el catálogo.
+  - 2026-09-29: read_cover (carátula del archivo o de la carpeta) para la columna de la app.
 """
 from __future__ import annotations
 
@@ -179,6 +181,45 @@ def read_release_tags(path: Path) -> Dict[str, Optional[str]]:
         out.update(tag_remixer=_vorbis(tags, "remixer", "mixartist"), tag_isrc=_vorbis(tags, "isrc"),
                    tag_date=_vorbis(tags, "date", "year"))
     return out
+
+
+_FOLDER_IMAGES = ("cover", "folder", "front", "albumart")
+
+
+def _image_mime(data: bytes, fallback: str = "image/jpeg") -> str:
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if data[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    return fallback or "image/jpeg"
+
+
+def read_cover(path: Path) -> Optional[Tuple[bytes, str]]:
+    """Carátula del tema: la imagen incluida en el archivo (ID3 APIC, con preferencia la de portada;
+    imágenes de FLAC; covr de MP4) o, si no tiene, cover/folder/front.jpg|png de su carpeta.
+    Devuelve (bytes, tipo MIME) o None. Nunca lanza."""
+    path = Path(path)
+    try:
+        import mutagen
+        audio = mutagen.File(str(path))
+        tags = getattr(audio, "tags", None) if audio is not None else None
+        pics = list(getattr(audio, "pictures", None) or [])          # FLAC
+        if tags is not None and hasattr(tags, "getall"):              # ID3 (MP3, WAV, AIFF)
+            pics += tags.getall("APIC")
+        pics.sort(key=lambda p: getattr(p, "type", 0) != 3)           # portada primero
+        for p in pics:
+            if p.data:
+                return bytes(p.data), _image_mime(p.data, getattr(p, "mime", ""))
+        covr = tags.get("covr") if tags is not None and type(tags).__name__ == "MP4Tags" else None
+        if covr:
+            return bytes(covr[0]), _image_mime(bytes(covr[0]))
+    except Exception:  # noqa: BLE001
+        pass
+    for f in sorted(path.parent.iterdir()) if path.parent.is_dir() else []:
+        if f.stem.lower() in _FOLDER_IMAGES and f.suffix.lower() in (".jpg", ".jpeg", ".png") and f.is_file():
+            data = f.read_bytes()
+            return data, _image_mime(data)
+    return None
 
 
 # ---------------------------------------------------------------------------

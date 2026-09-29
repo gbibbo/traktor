@@ -70,7 +70,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | Archivo | Descripción |
 | :--- | :--- |
 | `ui/app.py` | Streamlit dashboard: scatter UMAP, filtros L1/L2, re-clustering local, export |
-| `ui/review_app.py` | App local (http.server, solo 127.0.0.1 y con token) para cualquier persona: sirve la interfaz de revisión y ejecuta agregar música nueva (selector de carpetas, análisis con progreso, mantener o reorganizar), fusiones de temas (crear, aplicar, eliminar), orden a mano de una playlist, export para Rekordbox/Traktor y deshacer. Se abre con `Abrir TRAKTOR ML.bat` |
+| `ui/review_app.py` | App local (http.server, solo 127.0.0.1 y con token) para cualquier persona: sirve la interfaz de revisión y ejecuta agregar música nueva (selector de carpetas, análisis con progreso, mantener o reorganizar), fusiones de temas (crear, aplicar, eliminar), orden a mano de una playlist, export para Rekordbox/Traktor y deshacer; `/cover/<tema>` sirve la carátula del archivo (o cover/folder.jpg de su carpeta). Se abre con `Abrir TRAKTOR ML.bat` |
 | `adaptation/projection_head.py` | MLP projection head: 1024→512→256 L2-normalizado (stub fine-tuning) |
 | `adaptation/contrastive_trainer.py` | Entrenador contrastivo (stub — interfaz definida, NotImplementedError) |
 
@@ -92,7 +92,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_write_beatport_tags.py` | Unit tests de write_beatport_tags.py (reglas del plan, escritura real en MP3 ID3 2.3 y FLAC, hash estable, reversión) |
 | `test_organize.py` | Unit tests de organize.py: build por alcance, add congelado, link congelado/rebuild, catálogo por alcance, ensamblado con --folder, orden a mano y quitar fusiones |
 | `test_playlist_review.py` | Unit tests del generador de la página de revisión |
-| `test_review_app.py` | Unit tests de la app local: token y Host/Origin, audio con rangos, fusiones (aplicar, eliminar y deshacer), orden a mano, carpetas dentro/fuera de la biblioteca |
+| `test_review_app.py` | Unit tests de la app local: token y Host/Origin, audio con rangos, fusiones (aplicar, eliminar y deshacer), orden a mano, carpetas dentro/fuera de la biblioteca, carátulas |
 | `test_dj_export.py` | Unit tests de rekordbox.xml / NML / M3U8, bpm_key desde tags, orden por energía, ventanas |
 
 En `tests/` (raíz): `test_check_staged.py` (chequeo pre-commit sobre repos git temporales),
@@ -176,7 +176,7 @@ principales y un subdirectorio `diagnostics/` con el detalle técnico.
 | Archivo | Descripción |
 | :--- | :--- |
 | `tools/playlist_review/build_review_page.py` | Genera `<carpeta de audio>/_revision_playlists.html`: mapa UMAP, playlists en orden, escucha de la secuencia, veredictos exportables a CSV; organizaciones con nombre (`--org-name X`, `X@N`; sin argumentos, todas) con versión, historial, temas nuevos y semillas; armado y export de semillas para `organize.py link --from-file`; corridas por hash a ciegas (`--org`, `--blind`); mezcla de cada tema (tag Remixer o nombre del archivo) |
-| `tools/playlist_review/template.html` | Plantilla autónoma (sin servidor ni red; audio por rutas relativas); mapa con zoom (+/−, Ctrl + rueda, arrastre) y ancho ajustable; búsqueda con filtros por campo; barra de tiempo para avanzar o retroceder; secciones plegables; con la app, ◇ para reordenar temas arrastrando y papelera por fusión |
+| `tools/playlist_review/template.html` | Plantilla autónoma (sin servidor ni red; audio por rutas relativas); mapa con zoom (+/−, Ctrl + rueda, arrastre) y ancho ajustable; búsqueda con filtros por campo; barra de tiempo para avanzar o retroceder; secciones plegables; con la app, carátula en miniatura, ⇅ para reordenar temas arrastrando (el fantasma termina en el cursor) y papelera por fusión |
 
 ## Herramienta de feedback del DJ (`tools/dj_feedback/`)
 

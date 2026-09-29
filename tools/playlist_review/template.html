@@ -139,6 +139,8 @@ footer { grid-column: 1 / -1; display: flex; gap: 12px; align-items: center; pad
 #filterBtn[aria-pressed="true"] { border-color: var(--series-1); color: var(--series-1); font-weight: 600; }
 /* ordenar temas arrastrando */
 td.grip { width: 34px; }
+td.cover { width: 44px; padding: 2px 4px; }
+td.cover img, td.cover .nocover { display: block; width: 36px; height: 36px; border-radius: 4px; object-fit: cover; background: var(--wash); }
 .grip button { cursor: grab; padding: 2px 8px; border-radius: 6px; font-size: 15px; line-height: 1.2; touch-action: none; user-select: none; }
 .grip button:active { cursor: grabbing; }
 tr.dragsrc td { background: color-mix(in srgb, var(--series-1) 14%, var(--surface-1)); }
@@ -146,7 +148,7 @@ tr.dragsrc td:first-child { box-shadow: inset 3px 0 0 var(--series-1); }
 tr.dragsrc .grip button { background: var(--series-1); color: var(--accent-ink); border-color: var(--series-1); }
 tr.drop-before td { box-shadow: inset 0 3px 0 var(--series-1); }
 tr.drop-after td { box-shadow: inset 0 -3px 0 var(--series-1); }
-.ghost { position: fixed; z-index: 70; pointer-events: none; background: var(--surface-1); border: 1px solid var(--series-1); border-radius: 8px; padding: 6px 12px; box-shadow: 0 10px 28px rgba(0,0,0,.25); opacity: .92; font-size: 13px; max-width: 420px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transform: rotate(-1deg); }
+.ghost { position: fixed; z-index: 70; pointer-events: none; background: var(--surface-1); border: 1px solid var(--series-1); border-radius: 8px; padding: 6px 12px; box-shadow: 0 10px 28px rgba(0,0,0,.25); opacity: .92; font-size: 13px; max-width: 420px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transform: rotate(-1deg); transform-origin: 100% 50%; }
 body.dragging, body.dragging * { cursor: grabbing !important; user-select: none; }
 .toast { position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); z-index: 80; background: var(--ink); color: var(--page); border-radius: 8px; padding: 8px 14px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.25); display: none; }
 .warn { border-left: 3px solid var(--warning); padding: 6px 10px; background: var(--wash); border-radius: 6px; margin-bottom: 12px; display: none; }
@@ -302,6 +304,8 @@ const plName = i => { const x = plOf.get(i); return x ? x[1].name : "—"; };
 // ---------- audio ----------
 const audio = $("#audio");
 const srcOf = t => (APP ? "/audio/" : "") + t.p.split("/").map(encodeURIComponent).join("/");
+// Carátula del tema (solo con la app: la saca del archivo o de cover.jpg/folder.jpg de su carpeta)
+const coverOf = t => "/cover/" + t.p.split("/").map(encodeURIComponent).join("/");
 let nowIdx = null, seq = null, seqTimer = null;
 function play(idx, startFrac = 0.4) {
   const t = T[idx]; nowIdx = idx;
@@ -777,7 +781,8 @@ function renderPlaylist() {
       (() => { const sel = el("select", { id: "seqSecs" }); [10, 20, 30, 45].forEach(x => sel.append(el("option", { value: String(x), text: String(x) }))); sel.value = "20"; return sel; })())));
   const table = el("table", { style: "margin-top:10px" });
   table.append(el("thead", {}, el("tr", {},
-    el("th", { class: "num", text: "#" }), el("th", { text: "" }), el("th", { text: "Tema" }),
+    el("th", { class: "num", text: "#" }), el("th", { text: "" }), APP ? el("th", { text: "", "aria-label": "Carátula" }) : null,
+    el("th", { text: "Tema" }),
     el("th", { class: "num", text: "BPM" }), el("th", { text: "Tono" }), el("th", { class: "num", text: "Energía" }),
     el("th", { text: "Voz" }), el("th", { text: "Género" }), el("th", { text: "Tu carpeta" }), el("th", { text: "No encaja" }), el("th", { text: "" }),
     APP ? el("th", { text: "", "aria-label": "Mover" }) : null)));
@@ -790,6 +795,8 @@ function renderPlaylist() {
     const tr = el("tr", { "data-idx": String(idx), class: (flagged ? "flagged" : "") + (idx === nowIdx ? " playing" : "") },
       el("td", { class: "num muted", text: String(pos + 1) }),
       el("td", {}, el("button", { class: "play", "aria-label": "Escuchar", onclick: () => { stopSeq(); play(idx); } }, "▶")),
+      APP ? el("td", { class: "cover" }, el("img", { src: coverOf(t), alt: "", loading: "lazy",
+        onerror: e => e.target.replaceWith(el("span", { class: "nocover" })) })) : null,
       el("td", { class: "title" }, t.t, t.m ? el("span", { class: "muted", text: ` (${t.m})` }) : null,
         org.flags?.[idx] === "nuevo" ? el("span", { class: "flag", text: "agregado recientemente" }) : null,
         fu ? el("span", { class: "flag", title: `En la fusión «${fu.name}»` }, el("span", { class: "swatch", style: `--c:${fcolor(fu.color)}` }), fu.name) : null,
@@ -805,14 +812,14 @@ function renderPlaylist() {
         onclick: e => { const r = e.target.getBoundingClientRect(); openMenu(idx, r.right - 240, r.bottom + 4); } }, "⋯")),
       APP ? el("td", { class: "grip" }, el("button", { "aria-label": `Mover «${label(t)}» (arrastrá, o ↑ ↓ con el teclado)`,
         title: "Mantené apretado y arrastrá para cambiar el lugar del tema (o ↑ ↓ con el teclado)",
-        onpointerdown: e => startRowDrag(e, idx, tr), onkeydown: e => gripKey(e, idx) }, "◇")) : null);
+        onpointerdown: e => startRowDrag(e, idx, tr), onkeydown: e => gripKey(e, idx) }, "⇅")) : null);
     tr.addEventListener("contextmenu", e => { e.preventDefault(); openMenu(idx, e.clientX, e.clientY); });
     tb.append(tr);
   });
   table.append(tb); card.append(table);
 }
 
-// ---------- ordenar temas arrastrando ◇ ----------
+// ---------- ordenar temas arrastrando ⇅ ----------
 let rowDrag = null, saveChain = Promise.resolve(), toastTimer = null;
 const scroller = document.querySelector("main");
 function toast(msg) {
@@ -837,9 +844,11 @@ function startRowDrag(e, idx, tr) {
 function onRowDragMove(e) {
   if (!rowDrag) return;
   rowDrag.x = e.clientX; rowDrag.y = e.clientY;
-  // El fantasma va a la izquierda del cursor (◇ está en el borde derecho); si no entra, a la derecha
-  const gw = rowDrag.ghost.offsetWidth, left = e.clientX - gw - 18;
-  rowDrag.ghost.style.left = (left >= 8 ? left : e.clientX + 14) + "px"; rowDrag.ghost.style.top = (e.clientY - 16) + "px";
+  // El fantasma termina en el cursor y queda a su izquierda (⇅ está en el borde derecho de la
+  // pantalla: si empezara en el cursor casi no se vería). Centrado en vertical sobre el cursor.
+  const g = rowDrag.ghost;
+  g.style.left = Math.max(8, e.clientX - g.offsetWidth) + "px";
+  g.style.top = (e.clientY - g.offsetHeight / 2) + "px";
   showDropLine();
 }
 function onRowDragUp() { endRowDrag(true); }
@@ -1142,7 +1151,7 @@ function renderHelp() {
     el("li", {}, el("b", { text: "Mapa: " }), "cada punto es un tema; cerca = suenan parecido. Clic en un punto para escucharlo. Con + y − (o Ctrl + rueda del mouse) te acercás o alejás, arrastrando te movés y ⤢ vuelve a mostrar todo. «Ancho del mapa» lo hace más angosto o más ancho."),
     APP ? el("li", {}, el("b", { text: "Agregar música nueva: " }), "elegís una carpeta, se analiza y los temas se ubican en tus playlists. El interruptor «Mantener la organización actual» decide si lo que ya está se queda quieto (encendido) o se reorganiza todo (apagado).") : null,
     APP ? el("li", {}, el("b", { text: "Fusiones de temas: " }), "si dos o más temas tienen que ir juntos, hacé clic derecho sobre cada uno (o tocá ⋯) y creá una fusión o agregalos a una existente. Después, «Rehacer las playlists con las fusiones».") : null,
-    APP ? el("li", {}, el("b", { text: "Orden de una playlist: " }), "mantené apretado ◇ a la derecha de un tema y arrastralo a su nuevo lugar (o ↑ ↓ con el teclado). Se guarda como un cambio que podés deshacer.") : null,
+    APP ? el("li", {}, el("b", { text: "Orden de una playlist: " }), "mantené apretado ⇅ a la derecha de un tema y arrastralo a su nuevo lugar (o ↑ ↓ con el teclado). Se guarda como un cambio que podés deshacer.") : null,
     el("li", {}, el("b", { text: "Buscar: " }), "«Filtros» elige en qué buscar (título, artista, género, álbum, carpeta, fusión…). Sin filtros busca en todo."),
     APP ? el("li", {}, el("b", { text: "Para tocar: " }), "«Preparar para Rekordbox y Traktor» genera los archivos y te dice cómo importarlos.") : null,
     el("li", {}, el("b", { text: "Teclado: " }), "espacio = pausa, → = tema siguiente."),

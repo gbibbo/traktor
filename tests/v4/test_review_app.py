@@ -7,6 +7,7 @@ PURPOSE: Tests de src/v4/ui/review_app.py (app local) con una biblioteca sintét
 CHANGELOG:
   - 2026-09-29: Creación inicial.
   - 2026-09-29: /api/reorder y /api/remove-fusion.
+  - 2026-09-29: /cover/ (carátula del archivo o de la carpeta).
 """
 import json
 import sys
@@ -83,6 +84,35 @@ def test_audio_ranges_and_traversal(running_app):
     assert code == 206 and body == bytes(range(10, 20)) and headers["Content-Range"] == "bytes 10-19/1024"
     assert _req(base + "/audio/A/t0.mp3")[0] == 200
     assert _req(base + "/audio/..%2F..%2Fsecret.txt")[0] == 404
+
+
+def test_cover_embedded_folder_and_missing(running_app):
+    import numpy as np
+    import soundfile as sf
+    from mutagen.id3 import APIC, ID3
+    app, base = running_app
+    jpg = b"\xff\xd8\xff\xe0" + bytes(64)
+    png = b"\x89PNG\r\n\x1a\n" + bytes(32)
+    # sin carátula en el archivo ni en la carpeta
+    assert _req(base + "/cover/A/t0.mp3")[0] == 404
+    # imagen de la carpeta
+    (app.library / "A" / "Folder.png").write_bytes(png)
+    code, body, headers = _req(base + "/cover/A/t0.mp3")
+    assert code == 200 and body == png and headers["Content-Type"] == "image/png"
+    # imagen incluida en el MP3: gana la portada (tipo 3) sobre otras
+    mp3 = app.library / "B" / "t1.mp3"
+    mp3.parent.mkdir()
+    try:
+        sf.write(str(mp3), np.zeros((4410, 2), dtype=np.float32), 44100, format="MP3")
+    except Exception:  # noqa: BLE001  (libsndfile sin MP3)
+        pytest.skip("soundfile no puede escribir MP3")
+    tags = ID3()
+    tags.add(APIC(encoding=3, mime="image/png", type=4, desc="back", data=png))
+    tags.add(APIC(encoding=3, mime="image/jpeg", type=3, desc="front", data=jpg))
+    tags.save(str(mp3))
+    code, body, headers = _req(base + "/cover/B/t1.mp3")
+    assert code == 200 and body == jpg and headers["Content-Type"] == "image/jpeg"
+    assert _req(base + "/cover/..%2F..%2Fsecret.txt")[0] == 404
 
 
 def test_fusions_apply_keep_and_undo(running_app):

@@ -93,8 +93,9 @@ python src/v4/pipeline/phase5_export.py --dataset-name musica --rep clap_full --
 playlists y una barra con «Agregar música nueva» (elegir carpeta → analizar con progreso), el
 interruptor «Mantener la organización actual», «Preparar para Rekordbox y Traktor» y «Deshacer el
 último cambio». Clic derecho sobre un tema (o ⋯) crea fusiones de temas: van siempre en la misma
-playlist; la papelera de cada fusión la elimina. ◇ a la derecha de cada tema lo cambia de lugar
+playlist; la papelera de cada fusión la elimina. ⇅ a la derecha de cada tema lo cambia de lugar
 arrastrando (o con ↑ ↓); el orden se guarda como un cambio que se puede deshacer y sale en los exports.
+Cada tema muestra su carátula en miniatura (la del archivo o cover/folder.jpg de su carpeta) si la tiene.
 «Filtros» junto al buscador elige en qué campos buscar. En el mapa: + / − (o Ctrl + rueda) para el
 zoom, arrastrar para moverse, ⤢ para ver todo y «Ancho del mapa» para angostarlo. Plan: `docs/plans/20260929_app_local.md`. Lo de abajo es lo mismo
 por línea de comandos.
