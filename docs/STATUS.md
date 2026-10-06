@@ -23,15 +23,14 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
   pyarrow 16.1 (`requirements_v4.txt`). CLAP da lo mismo que con torch 2.14.
 - **Tripletas (n = 57): ninguna representación supera al BPM de forma concluyente.** Entre
   representaciones decide la escucha de playlists enteras, no el puntaje.
-- **Etiqueta Vocal** escrita en 542 archivos (CLAP zero-shot sobre 90 s del medio, umbral 0.145).
-  Detecta poco: marca 55 % de 20 temas con «feat.»; CLAP sobre el tema entero, 75 %, sin marcar más
-  Dub/Instrumental (30 % → 25 %). Silero VAD no sirve (LESSONS_LEARNED, detección de voz).
-- **Beatport (tabla aparte, tags todavía sin escribir)**: `beatport_lookup.py` encontró 1455 de 1823
-  temas (115 por ISRC, 1340 misma versión, 1230 de ellos confirmados por sello, fecha o duración);
-  103 solo tienen otro remix y 265 no están. `genre_model.py` (MAEST capa 7 + CLAP, 15 géneros):
-  38 % de acierto, 72 % en el top 3 (18 % la clase más frecuente); con confianza >= 0.6, 50 %.
-  `write_beatport_tags.py` simula 1087 archivos a cambiar (1338 con datos de Beatport, 171 con
-  género del modelo); lo corre Gabriel (al agente se lo bloquea el permiso de auto mode).
+- **Etiqueta Vocal** escrita en 542 archivos (CLAP zero-shot sobre 90 s del medio, umbral 0.145): no
+  validada. Evaluación en curso (`docs/plans/20260929_deteccion_voz.md`): en Electrobyte por segundo,
+  HDemucs (energía de la voz separada) AUC 0.91, lineal sobre CLAP 0.88, AST 0.82, CLAP actual 0.81.
+  Falta la prueba por tema en MTG-Jamendo (238 temas, mitad instrumentales). Silero VAD no sirve.
+- **Tags de Beatport escritos y verificados** (Gabriel corrió `write_beatport_tags.py`, 2026-09-29):
+  1087 archivos (Genre 785, Released 658, Label 463, Artist 395, Remixers 349), 0 errores, track_uid
+  intacto; re-simulación: 0 cambios pendientes. Catálogo refrescado (respaldo
+  `catalog_before_beatport_tags_20260929.parquet`). Los 110 sin confirmar conservan su género.
 - **`download_JIJIJI/`**: descarga de playlists de Spotify por Soulseek, con grabación por loopback
   como respaldo; punto de entrada `spotify_soulseek_orchestrator.py`.
 - **Chequeo pre-commit** en `tools/git_hooks/` (audio, arrays, pesos, credenciales, archivos > 5 MB).
@@ -42,12 +41,11 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    importar y validar en Rekordbox (pendrive) y Traktor (TODO 6.7): ¿se ve el Remixer de cada tema?
 2. GABRIEL: probar la app local (`Abrir TRAKTOR ML.bat`): agregar música nueva, fusiones de temas
    (clic derecho, papelera), orden a mano (⇅), preparar para Rekordbox/Traktor y deshacer.
-3. GABRIEL: correr la escritura de tags (`write_beatport_tags.py --folder ... --write`, después sin
-   `--folder`; comandos en V4_USAGE). Los 110 sin confirmar conservan su género.
-4. LOCAL, si Gabriel aprueba: Vocal con CLAP sobre el tema entero (~3 h de CPU) y reescribir la etiqueta.
-5. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
+3. LOCAL: terminar la evaluación por tema de los detectores de voz (`vocal_eval.py --track-level`),
+   elegir método y umbral, estimar el costo en la colección y proponer reescribir la etiqueta Vocal.
+4. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
    tracklists y descarga del audio se consultan antes de implementar.
-6. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
+5. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
 
 ## RUN RECIPES
