@@ -101,4 +101,17 @@ eso favorece a HDemucs en esta métrica por segundo.
 ### MTG-Jamendo, por tema (en curso)
 
 238 temas de baile (119 con voz y 119 instrumentales, etiqueta unánime de 3 anotadores), mitad dev
-para elegir T y mitad test.
+para elegir T y mitad test. Un tema es «con voz» si sus segundos con voz (puntaje por segundo >= umbral de
+Electrobyte valid) superan T; T se elige en dev (máxima exactitud balanceada) y se mide en test
+(118 temas). IC 95 % por bootstrap sobre temas.
+
+| Detector | Regla por tema (T de dev) | AUC test | Exactitud balanceada test | Precisión | Recall |
+|---|---|---|---|---|---|
+| clap_probe | fracción del tema con voz >= 25.5 % | 0.979 (0.954–0.997) | 0.941 (0.895–0.981) | 0.933 | 0.949 |
+| clap_probe | segundos con voz >= 31.7 | 0.951 (0.899–0.990) | 0.932 (0.887–0.975) | 0.892 | 0.983 |
+| clap (zero-shot, tema entero) | fracción >= 1.7 % | 0.887 (0.827–0.938) | 0.805 (0.738–0.870) | 0.750 | 0.915 |
+| hdemucs | (en curso) | | | | |
+
+Lectura parcial: el clasificador lineal sobre CLAP, entrenado solo con Electrobyte, generaliza a otra
+fuente (Jamendo, otros géneros de baile y temas instrumentales enteros): 94 % de exactitud balanceada
+por tema, contra 80 % del zero-shot. Cuesta ≈ 10-15 s por tema en CPU.
