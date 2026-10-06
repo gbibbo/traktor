@@ -23,11 +23,10 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
   pyarrow 16.1 (`requirements_v4.txt`). CLAP da lo mismo que con torch 2.14.
 - **Tripletas (n = 57): ninguna representación supera al BPM de forma concluyente.** Entre
   representaciones decide la escucha de playlists enteras, no el puntaje.
-- **Etiqueta Vocal**: método nuevo `tag_vocals.py --method clap_probe` (por defecto): CLAP del tema
-  entero + clasificador lineal entrenado con Electrobyte; Vocal si >= 5 % del tema tiene voz (regla de
-  Gabriel). En MTG-Jamendo por tema: 90 % de exactitud balanceada, recall 100 %, 20 % de
-  instrumentales marcados (con 25 %: 94 %). Cálculo de la colección en curso (~6 h); la escritura
-  (`--write-tags`, agrega o quita « - Vocal», con respaldo) la corre Gabriel. Hoy: 542 con la marca vieja.
+- **Etiqueta Vocal (clap_probe, calculada 2026-10-06)**: CLAP del tema entero + clasificador lineal de
+  Electrobyte; Vocal si >= 5 % del tema tiene voz (regla de Gabriel). 936 de 1823 temas Vocal (hoy hay
+  542 con la marca vieja): ganan 488, pierden 94. En MTG-Jamendo: recall 100 %, 20 % de instrumentales
+  marcados. Escritura (agrega o quita « - Vocal», solo MP3/FLAC, con respaldo) la corre Gabriel.
 - **Tags de Beatport escritos y verificados** (Gabriel corrió `write_beatport_tags.py`, 2026-09-29):
   1087 archivos (Genre 785, Released 658, Label 463, Artist 395, Remixers 349), 0 errores, track_uid
   intacto; re-simulación: 0 cambios pendientes. Catálogo refrescado (respaldo
@@ -43,8 +42,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    importar y validar en Rekordbox (pendrive) y Traktor (TODO 6.7): ¿se ve el Remixer de cada tema?
 2. GABRIEL: probar la app local (`Abrir TRAKTOR ML.bat`): agregar música nueva, fusiones de temas
    (clic derecho, papelera), orden a mano (⇅), preparar para Rekordbox/Traktor y deshacer.
-3. LOCAL: terminar `tag_vocals.py --method clap_probe` sobre musica, revisar cambios; GABRIEL: correr
-   `tag_vocals.py --dataset-name musica --write-tags` (usa la caché, es rápido).
+3. GABRIEL: correr `tag_vocals.py --dataset-name musica --write-tags` (usa la caché; probado sobre
+   copias); después LOCAL: verificar contra el respaldo.
 4. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
    tracklists y descarga del audio se consultan antes de implementar.
 5. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,

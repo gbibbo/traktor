@@ -131,6 +131,7 @@ def _load_windows(cache_dir: Path, key: str) -> Dict[str, np.ndarray]:
 
 PROBE_PATH = REPO_ROOT / "models" / "vocal_probe" / "clap_probe.npz"
 DEFAULT_MIN_FRACTION = 0.05   # Gabriel 2026-10-05: Vocal si al menos el 5 % del tema tiene voz
+UID_SAFE_SUFFIXES = (".mp3", ".flac")   # en AIFF/WAV el track_uid incluye los tags: no se escriben
 
 
 def probe_window_probs(emb: np.ndarray, probe) -> np.ndarray:
@@ -175,10 +176,10 @@ def write_tags(catalog: pd.DataFrame, vocals: pd.DataFrame, backup_path: Path) -
     """Agrega TOKEN al comentario de los temas Vocal y lo quita de los que no lo son.
     Respaldo CSV con el comentario anterior."""
     rows = []
-    merged = catalog.merge(vocals[["track_uid", "is_vocal"]], on="track_uid", how="inner")
+    merged = catalog.drop(columns=["is_vocal"], errors="ignore").merge(vocals[["track_uid", "is_vocal"]], on="track_uid", how="inner")
     for r in merged.itertuples():
         path = Path(r.source_path)
-        if path.suffix.lower() not in WRITABLE_SUFFIXES:
+        if path.suffix.lower() not in UID_SAFE_SUFFIXES:
             rows.append({"track_uid": r.track_uid, "source_path": str(path), "old_comment": None,
                          "new_comment": None, "status": "skipped_format", "detail": path.suffix.lower()})
             continue
