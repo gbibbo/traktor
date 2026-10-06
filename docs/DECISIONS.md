@@ -6,6 +6,13 @@ anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_impl
 Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 `[REEMPLAZADO <fecha> por <decisión>: <lo que rige ahora>]` (o `[REFUTADO …]` si era un error).
 
+## 2026-10-05
+
+1. **Etiqueta Vocal: clasificador lineal sobre CLAP del tema entero** (validado con Electrobyte y
+   MTG-Jamendo; `docs/plans/20260929_deteccion_voz.md`), sin sobreingeniería: producto bueno y
+   eficiente antes que el máximo rendimiento. Vocal si al menos el **5 %** del tema tiene voz (Gabriel;
+   descartó el 25 % que salía de los datos).
+
 ## 2026-09-29
 
 1. **Organización elegida: CLAP.** En la página de revisión, Gabriel eligió "claramente" la

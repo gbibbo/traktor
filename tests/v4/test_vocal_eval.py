@@ -49,3 +49,21 @@ def test_window_voice_fraction():
     segs = [(0.0, 4.0, "nosing"), (4.0, 12.0, "sing"), (12.0, 20.0, "nosing")]
     f = window_voice_fraction(segs, np.array([0.0, 5.0, 10.0]), 10.0)
     assert np.allclose(f, [0.6, 0.7, 0.2])
+
+
+def test_clap_probe_vocals_from_cache(tmp_path):
+    import pandas as pd
+    from src.v4.pipeline.tag_vocals import clap_probe_vocals
+    probe = tmp_path / "probe.npz"
+    np.savez(probe, mean=np.zeros(2), scale=np.ones(2), coef=np.array([10.0, 0.0]), intercept=0.0,
+             frame_threshold=0.5, C=0.01, win=10.0, hop=5.0)
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    # 12 ventanas (65 s): voz solo en la primera ventana -> ~10 s de 65 con voz
+    emb = np.array([[1.0, 0.0]] + [[-1.0, 0.0]] * 11)
+    np.savez(cache / "u1.npz", starts=np.arange(12) * 5.0, emb=emb)
+    np.savez(cache / "u2.npz", starts=np.arange(12) * 5.0, emb=-np.abs(emb))
+    cat = pd.DataFrame({"track_uid": ["u1", "u2"], "source_path": ["x", "y"]})
+    v = clap_probe_vocals(cat, cache, probe, min_fraction=0.05).set_index("track_uid")
+    assert v.loc["u1", "is_vocal"] and not v.loc["u2", "is_vocal"]
+    assert 0.05 <= v.loc["u1", "vocal_fraction"] < 0.2 and v.loc["u2", "vocal_fraction"] == 0.0

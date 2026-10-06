@@ -13,7 +13,15 @@ PURPOSE: Etiqueta "Vocal" por tema con modelos preentrenados, a partir de las ve
          (MP3/AIFF/FLAC) guardando un CSV de respaldo; --revert <csv> restaura los comentarios.
          --check-list N escribe features/vocal_check.m3u8: los N temas más cerca del umbral (mitad
          arriba, mitad abajo) para verificar la etiqueta escuchando.
+         Método 'clap_probe' (2026-10-05, el recomendado; docs/plans/20260929_deteccion_voz.md): CLAP
+         sobre el tema entero (ventanas de 10 s, paso 5 s; caché por track_uid en
+         representations/clap_wholetrack/cache) y el clasificador lineal entrenado con Electrobyte
+         (models/vocal_probe/clap_probe.npz, de vocal_eval.py --save-probe). Vocal si al menos
+         --min-fraction (5 %, regla de Gabriel) de los segundos del tema tiene voz. Con --write-tags
+         también quita " - Vocal" de los temas que dejan de ser Vocal.
 CHANGELOG:
+  - 2026-10-05: Método clap_probe (tema entero + clasificador lineal validado), --folder, --low-priority
+                y --write-tags que agrega o quita la marca.
   - 2026-09-27: Creación inicial (pedido de Gabriel: etiqueta Vocal en la metadata). Umbral 0.145.
                 Solo se cuentan y etiquetan temas del catálogo actual (la caché puede tener otros).
 """
@@ -33,7 +41,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from src.v4.common.catalog import load_catalog, update_catalog_columns  # noqa: E402
 from src.v4.common.config_loader import load_config  # noqa: E402
 from src.v4.common.path_resolver import resolve_dataset_artifacts  # noqa: E402
-from src.v4.common.tags import WRITABLE_SUFFIXES, read_tags, with_token, write_comment  # noqa: E402
+from src.v4.common.tags import WRITABLE_SUFFIXES, read_tags, with_token, without_token, write_comment  # noqa: E402
 
 VOCAL_PROMPTS = [
     "a song with a singer singing", "music with singing vocals", "a female voice singing over a beat",
@@ -121,18 +129,61 @@ def _load_windows(cache_dir: Path, key: str) -> Dict[str, np.ndarray]:
     return out
 
 
+PROBE_PATH = REPO_ROOT / "models" / "vocal_probe" / "clap_probe.npz"
+DEFAULT_MIN_FRACTION = 0.05   # Gabriel 2026-10-05: Vocal si al menos el 5 % del tema tiene voz
+
+
+def probe_window_probs(emb: np.ndarray, probe) -> np.ndarray:
+    z = (emb - probe["mean"]) / probe["scale"]
+    return 1.0 / (1.0 + np.exp(-(z @ probe["coef"] + float(probe["intercept"]))))
+
+
+def clap_probe_vocals(catalog: pd.DataFrame, cache_dir: Path, probe_path: Path = PROBE_PATH,
+                      min_fraction: float = DEFAULT_MIN_FRACTION) -> pd.DataFrame:
+    """Fracción y segundos con voz por tema (CLAP del tema entero + clasificador lineal)."""
+    from src.v4.evaluation.vocal_eval import ClapDetector, windows_to_frames
+    probe = np.load(probe_path)
+    thr, win = float(probe["frame_threshold"]), float(probe["win"])
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    det, rows = None, []
+    for i, r in enumerate(catalog.itertuples(), 1):
+        f = cache_dir / f"{r.track_uid}.npz"
+        if f.exists():
+            z = np.load(f)
+            starts, emb = z["starts"], z["emb"]
+        else:
+            det = det or ClapDetector()
+            try:
+                starts, _, emb = det._embed(Path(r.source_path))
+            except Exception as exc:  # noqa: BLE001
+                print(f"[WARN] {r.source_path}: {type(exc).__name__}: {exc}")
+                continue
+            np.savez(f, starts=starts, emb=emb)
+        p = probe_window_probs(emb, probe)
+        s = windows_to_frames(np.asarray(starts), win, p, int(max(starts) + win))
+        s = s[~np.isnan(s)]
+        frac = float((s >= thr).mean()) if len(s) else 0.0
+        rows.append({"track_uid": r.track_uid, "vocal_fraction": frac, "vocal_seconds": float((s >= thr).sum()),
+                     "vocal_max": float(p.max()), "vocal_mean": float(p.mean()), "vocal_coverage": frac,
+                     "is_vocal": frac >= min_fraction})
+        if i % 25 == 0 or i == len(catalog):
+            print(f"[INFO] {i}/{len(catalog)} temas", flush=True)
+    return pd.DataFrame(rows)
+
+
 def write_tags(catalog: pd.DataFrame, vocals: pd.DataFrame, backup_path: Path) -> pd.DataFrame:
-    """Agrega TOKEN al comentario de los temas Vocal. Respaldo CSV con el comentario anterior."""
+    """Agrega TOKEN al comentario de los temas Vocal y lo quita de los que no lo son.
+    Respaldo CSV con el comentario anterior."""
     rows = []
     merged = catalog.merge(vocals[["track_uid", "is_vocal"]], on="track_uid", how="inner")
-    for r in merged[merged["is_vocal"]].itertuples():
+    for r in merged.itertuples():
         path = Path(r.source_path)
         if path.suffix.lower() not in WRITABLE_SUFFIXES:
             rows.append({"track_uid": r.track_uid, "source_path": str(path), "old_comment": None,
                          "new_comment": None, "status": "skipped_format", "detail": path.suffix.lower()})
             continue
         old = read_tags(path)["tag_comment"]
-        new = with_token(old, TOKEN)
+        new = with_token(old, TOKEN) if r.is_vocal else without_token(old, TOKEN)
         status, detail = "unchanged", ""
         if new != (old or "") and not os.access(path, os.W_OK):
             status = "read_only"  # atributo de solo lectura: no se cambia sin pedirlo
@@ -162,7 +213,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Etiqueta Vocal por tema (CLAP zero-shot o AST AudioSet)")
     parser.add_argument("--dataset-name", required=True)
     parser.add_argument("--config", default=None)
-    parser.add_argument("--method", choices=("clap", "ast"), default="clap")
+    parser.add_argument("--method", choices=("clap_probe", "clap", "ast"), default="clap_probe")
+    parser.add_argument("--min-fraction", type=float, default=DEFAULT_MIN_FRACTION,
+                        help="clap_probe: Vocal si al menos esta fracción del tema tiene voz")
+    parser.add_argument("--folder", default=None, help="Solo temas cuyo rel_path contiene este texto (prueba)")
+    parser.add_argument("--low-priority", action="store_true")
     parser.add_argument("--threshold", type=float, default=0.5, help="P(voz) mínima para contar una ventana")
     parser.add_argument("--min-coverage", type=float, default=0.34, help="Fracción mínima de ventanas con voz")
     parser.add_argument("--mean-threshold", type=float, default=None,
@@ -177,9 +232,27 @@ def main() -> int:
         print(f"[INFO] Restaurados {revert(Path(args.revert))} comentarios")
         return 0
 
+    if args.low_priority:
+        from src.v4.pipeline.extract_representations import lower_priority
+        lower_priority()
     config = load_config(Path(args.config) if args.config else None)
     artifacts = resolve_dataset_artifacts(args.dataset_name, config)
     rep_root = artifacts / "representations"
+    features = artifacts / "features"
+    if args.method == "clap_probe":
+        catalog = load_catalog(args.dataset_name, config)
+        if args.folder:
+            catalog = catalog[catalog["rel_path"].str.contains(args.folder, case=False, regex=False)]
+        vocals = clap_probe_vocals(catalog, rep_root / "clap_wholetrack" / "cache", min_fraction=args.min_fraction)
+        vocals["method"] = "clap_probe"
+        features.mkdir(parents=True, exist_ok=True)
+        out = features / ("vocals_clap_probe_folder.parquet" if args.folder else "vocals_clap_probe.parquet")
+        vocals.to_parquet(out, index=False)
+        print(f"[INFO] {int(vocals['is_vocal'].sum())}/{len(vocals)} temas Vocal (clap_probe, >= "
+              f"{args.min_fraction:.0%} del tema con voz) -> {out}")
+        if args.write_tags:
+            write_and_sync(args, config, catalog, vocals, features)
+        return 0
     if args.method == "clap":
         wins = _load_windows(rep_root / "clap_full" / "cache", "_winclap")
         probs = clap_window_probs(wins)
@@ -213,17 +286,22 @@ def main() -> int:
             print(f"    {r.label:9s} {r.vocal_mean:.3f}  {r.artist} - {r.title}")
 
     if args.write_tags:
-        stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup = features / f"vocal_tags_backup_{stamp}.csv"
-        log = write_tags(catalog, vocals, backup)
-        print(f"[INFO] Comentarios: {log['status'].value_counts().to_dict()} | respaldo: {backup}")
-        written = log[log["status"] == "written"].set_index("track_uid")["new_comment"]
-        if not written.empty:
-            # El catálogo refleja el comentario nuevo (lo usan los exports de Rekordbox/Traktor)
-            comments = catalog.set_index("track_uid")["tag_comment"].astype(object)
-            comments.update(written)
-            update_catalog_columns(args.dataset_name, config, comments.reset_index())
+        write_and_sync(args, config, catalog, vocals, features)
     return 0
+
+
+def write_and_sync(args, config, catalog: pd.DataFrame, vocals: pd.DataFrame, features: Path) -> None:
+    stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup = features / f"vocal_tags_backup_{stamp}.csv"
+    log = write_tags(catalog, vocals, backup)
+    print(f"[INFO] Comentarios: {log['status'].value_counts().to_dict()} | respaldo: {backup}")
+    written = log[log["status"] == "written"].set_index("track_uid")["new_comment"]
+    if not written.empty:
+        # El catálogo refleja el comentario nuevo (lo usan la app y los exports de Rekordbox/Traktor)
+        full = load_catalog(args.dataset_name, config)
+        comments = full.set_index("track_uid")["tag_comment"].astype(object)
+        comments.update(written)
+        update_catalog_columns(args.dataset_name, config, comments.reset_index())
 
 
 if __name__ == "__main__":

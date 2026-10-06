@@ -69,6 +69,12 @@ python src/v4/pipeline/extract_representations.py --dataset-name musica --models
 #     " - Vocal" al comentario (respaldo CSV en features/; --revert <csv> lo deshace)
 python src/v4/pipeline/tag_vocals.py --dataset-name musica --method clap --check-list 12
 python src/v4/pipeline/tag_vocals.py --dataset-name musica --method clap --write-tags
+# Vocal validada (2026-10-05): CLAP del tema entero + clasificador lineal; Vocal si >= 5 % con voz.
+# Primero calcula (~13 s por tema, caché por tema); --write-tags agrega o quita « - Vocal» con respaldo
+python src/v4/evaluation/vocal_eval.py --save-probe
+python src/v4/pipeline/tag_vocals.py --dataset-name musica --folder "2024/Tech-Disco"
+python src/v4/pipeline/tag_vocals.py --dataset-name musica --low-priority
+python src/v4/pipeline/tag_vocals.py --dataset-name musica --write-tags
 # 1d. Género, sello, fecha y remixers de Beatport, como tabla aparte (no escribe tags). Primero una
 #     carpeta chica; la corrida entera (~1.5 h, 1 pedido cada ~1.2 s) retoma desde la caché
 python src/v4/pipeline/beatport_lookup.py --dataset-name musica --folder "2024/Tech-Disco" --output beatport_pilot

@@ -12,6 +12,7 @@ PURPOSE: Tags de audio para V4 (mutagen), para correr sin Essentia en Windows.
 CHANGELOG:
   - 2026-09-27: Creación inicial (MVP de biblioteca completa en Windows).
   - 2026-09-29: read_release_tags (búsqueda en Beatport), sin cambiar read_tags ni el catálogo.
+  - 2026-10-05: without_token (quitar la marca Vocal cuando un tema deja de tenerla).
   - 2026-09-29: read_cover (carátula del archivo o de la carpeta) para la columna de la app.
 """
 from __future__ import annotations
@@ -66,6 +67,13 @@ def with_token(comment: Optional[str], token: str, sep: str = " - ") -> str:
     if re.search(rf"(?<![\w]){re.escape(token)}(?![\w])", base, re.IGNORECASE):
         return base
     return f"{base}{sep}{token}" if base else token
+
+
+def without_token(comment: Optional[str], token: str) -> str:
+    """Quita token (como palabra) del comentario y limpia los separadores ' - ' que sobren. Idempotente."""
+    base = re.sub(rf"(?<![\w]){re.escape(token)}(?![\w])", "", comment or "", flags=re.IGNORECASE)
+    parts = [x.strip() for x in base.split(" - ")]
+    return " - ".join(x for x in parts if x).strip(" -")
 
 
 # ---------------------------------------------------------------------------

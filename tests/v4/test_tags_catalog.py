@@ -139,3 +139,12 @@ def test_duration_falls_back_to_mutagen(monkeypatch):
             raise RuntimeError("bad map offset")
         monkeypatch.setattr(sf, "info", boom)
         assert abs(catalog_mod._get_duration(p) - 2.0) < 0.05
+
+
+def test_without_token():
+    from src.v4.common.tags import without_token
+    assert without_token("8A - Energy 6 - Vocal", "Vocal") == "8A - Energy 6"
+    assert without_token("Vocal - 5A - Energy 7", "Vocal") == "5A - Energy 7"
+    assert without_token("Vocal", "Vocal") == ""
+    assert without_token("8A - Energy 6", "Vocal") == "8A - Energy 6"
+    assert without_token(None, "Vocal") == ""

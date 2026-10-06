@@ -17,6 +17,7 @@ CHANGELOG:
   - 2026-09-29: Creación inicial.
   - 2026-09-29: Detector 'clap_probe' (lineal sobre CLAP, entrenado con Electrobyte train); el último
                 pedazo de HDemucs se rellena con silencio (el modelo exige largo fijo).
+  - 2026-10-05: --save-probe guarda clap_probe como coeficientes para tag_vocals.
 """
 import argparse
 import json
@@ -317,6 +318,21 @@ class ClapProbeDetector:
         return starts, win, self.clf.predict_proba(emb)[:, 1]
 
 
+PROBE_PATH = REPO_ROOT / "models" / "vocal_probe" / "clap_probe.npz"
+
+
+def save_probe(path: Path = PROBE_PATH) -> Path:
+    """Guarda el clasificador lineal como coeficientes (sin pickle) con el umbral por segundo elegido en
+    Electrobyte valid (report_clap_probe.json)."""
+    det = ClapProbeDetector()
+    scaler, lr = det.clf.named_steps["standardscaler"], det.clf.named_steps["logisticregression"]
+    thr = json.loads((CACHE / "report_clap_probe.json").read_text(encoding="utf-8"))["threshold_from_valid"]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez(path, mean=scaler.mean_, scale=scaler.scale_, coef=lr.coef_[0], intercept=lr.intercept_[0],
+             frame_threshold=thr, C=det.info["C"], win=det.win, hop=det.hop)
+    return path
+
+
 DETECTORS = {"clap": ClapDetector, "ast": AstDetector, "hdemucs": HDemucsDetector, "clap_probe": ClapProbeDetector}
 
 
@@ -462,6 +478,8 @@ def main() -> int:
     ap.add_argument("--detector", choices=sorted(DETECTORS))
     ap.add_argument("--limit", type=int, default=0, help="Solo los primeros N temas de cada partición (prueba)")
     ap.add_argument("--fetch-jamendo", action="store_true", help="Bajar el audio del banco MTG-Jamendo (CC)")
+    ap.add_argument("--save-probe", action="store_true",
+                    help="Entrenar clap_probe y guardarlo en models/vocal_probe/clap_probe.npz (lo usa tag_vocals)")
     ap.add_argument("--track-level", action="store_true", help="Evaluar por tema en MTG-Jamendo")
     ap.add_argument("--low-priority", action="store_true")
     ap.add_argument("--threads", type=int, default=6)
@@ -472,6 +490,10 @@ def main() -> int:
     if args.fetch_jamendo:
         items = jamendo_sample()
         print(f"[jamendo] {len(items)} temas ({sum(i['label'] for i in items)} con voz); bajados ahora: {fetch_jamendo(items)}")
+        return 0
+    if args.save_probe:
+        out = save_probe()
+        print(f"[probe] guardado en {out}")
         return 0
     if not args.detector:
         ap.error("falta --detector")

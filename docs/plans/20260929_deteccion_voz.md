@@ -115,3 +115,11 @@ Electrobyte valid) superan T; T se elige en dev (máxima exactitud balanceada) y
 Lectura parcial: el clasificador lineal sobre CLAP, entrenado solo con Electrobyte, generaliza a otra
 fuente (Jamendo, otros géneros de baile y temas instrumentales enteros): 94 % de exactitud balanceada
 por tema, contra 80 % del zero-shot. Cuesta ≈ 10-15 s por tema en CPU.
+
+### Decisión (2026-10-05)
+
+Gabriel pidió un producto eficiente, sin sobreingeniería: se usa `clap_probe` (≈ 13 s por tema en CPU;
+HDemucs serían ≈ 50 h para la colección y su evaluación por tema quedó sin terminar, 20 de 238).
+Regla de Gabriel: Vocal si al menos el 5 % del tema tiene voz. En MTG-Jamendo test esa regla da
+exactitud balanceada 0.898, recall 1.0 y 12 de 59 instrumentales marcados (con 25 %: 0.941 y 4 de 59).
+Implementado en `tag_vocals.py --method clap_probe` con el modelo de `vocal_eval.py --save-probe`.
