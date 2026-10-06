@@ -4,7 +4,7 @@ Se inyecta al abrir cada sesión de Claude Code (hook `SessionStart` en `.claude
 Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. Tope 6 KB
 (`tests/test_status_doc.py`). La historia vive en `git log`, `docs/DECISIONS.md` y `docs/reports/`.
 
-## CURRENT STATE (2026-09-29)
+## CURRENT STATE (2026-10-05)
 
 - **Foco: MVP sobre la biblioteca completa** para Rekordbox y Traktor, en CPU local (DECISIONS
   2026-09-27). Dataset `musica` = `Música/` en la raíz del repo (git-ignorada): 3086 archivos, 2303
@@ -32,7 +32,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
   intacto; re-simulación: 0 cambios pendientes. Catálogo refrescado (respaldo
   `catalog_before_beatport_tags_20260929.parquet`). Los 110 sin confirmar conservan su género.
 - **`download_JIJIJI/`**: descarga de playlists de Spotify por Soulseek, con grabación por loopback
-  como respaldo; punto de entrada `spotify_soulseek_orchestrator.py`.
+  como respaldo; punto de entrada `spotify_soulseek_orchestrator.py`. Soulseek exige tamaño
+  proporcional, formatos MP3/FLAC/WAV y antivirus antes de incorporar archivos (README del módulo).
 - **Chequeo pre-commit** en `tools/git_hooks/` (audio, arrays, pesos, credenciales, archivos > 5 MB).
 
 ## OPEN ITEMS (por prioridad; LOCAL = trabajo del agente, GABRIEL = lo hace o decide Gabriel)

@@ -26,6 +26,44 @@ y enlaces esenciales para auditoría, y el cover oficial embebido. Se conserva u
 perfil ID3v2.3 reducido, comprobado tanto en Windows Media Player Legacy como en
 el Reproductor multimedia actual de Windows.
 
+## Seguridad de las descargas Soulseek
+
+La consulta previa rechaza nombres peligrosos (ejecutables, archivos comprimidos,
+dobles extensiones, rutas relativas y caracteres de control) y solo admite MP3,
+FLAC y WAV. Exige tamaño y duración anunciados válidos; sin estos datos el tema
+queda como faltante. Descarga únicamente el archivo exacto de un candidato
+aprobado, sin repetir una búsqueda abierta ni bajar carpetas completas.
+
+Para MP3 320 kbps, el tamaño esperado es `segundos × 320000 / 8`:
+se permite ±15 % y hasta 2 MiB adicionales para etiquetas y carátula. Un tema
+de 5 minutos espera 12 MB de audio. Para WAV se calcula a partir de frecuencia,
+profundidad y canales (Soulseek no anuncia canales: se contempla mono/estéreo).
+FLAC tiene un rango más amplio porque su compresión depende del contenido.
+Se rechazan parámetros PCM desconocidos, tamaños superiores a 512 MiB y
+duraciones incompatibles con el tema o su Extended. Son reglas conservadoras:
+pueden excluir archivos legítimos con metadata incompleta o carátulas grandes.
+
+Antes de transferir se comprueba que el antivirus puede analizar un archivo de
+prueba. Los archivos recibidos permanecen en una carpeta temporal aislada:
+se verifica la cabecera y el tamaño real, se exige un análisis antivirus sin
+detecciones y después se comprueban los datos de audio reales. Se vuelve a
+analizar el MP3 final con la carátula antes de moverlo a la salida. Los candidatos
+rechazados y las transferencias incompletas se eliminan; detección, error o
+timeout del antivirus bloquean la incorporación a la biblioteca.
+
+Windows requiere Microsoft Defender; Linux requiere `clamscan` con sus bases
+instaladas. No se instala ni se desactiva ningún antivirus automáticamente.
+La configuración de Sockseek debe tener `username` y `password` en la sección
+global: el script usa una copia temporal que conserva solo esas credenciales,
+para impedir que perfiles, comandos `on-complete` o descargas alternativas
+heredadas ejecuten acciones sobre los archivos recibidos.
+
+Estos controles reducen el riesgo, pero no certifican ausencia de malware:
+un servidor puede mentir sobre un archivo y un antivirus puede no detectar una
+amenaza nueva. No se puede asegurar que nunca lleguen bytes maliciosos a la
+carpeta temporal; sí se bloquean los archivos detectados antes de incorporarlos.
+Mantener actualizados el antivirus, Sockseek, Mutagen y ffmpeg.
+
 ## Reanudación después de una interrupción
 
 El grabador codifica y registra cada MP3 apenas termina el tema, sin esperar al

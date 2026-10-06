@@ -6,6 +6,7 @@ spotify_soulseek_download.py
 PURPOSE: Reconcile a Spotify playlist against Soulseek and download matches.
 
 CHANGELOG:
+- 2026-10-05: Gate exact Soulseek files by size, content and mandatory antivirus.
 - 2026-09-29: Split missing tracks into private Spotify playlists of 10 tracks.
 - 2026-09-27: Match the Windows Media-compatible Soulseek ID3 frame profile.
 - 2026-09-27: Expose the canonical Spotify metadata/cover writer for recordings.
@@ -45,6 +46,7 @@ import csv
 import hashlib
 import http.server
 import json
+import math
 import os
 import re
 import secrets
@@ -86,6 +88,7 @@ try:
         TXXX,
     )
     from mutagen.mp3 import MP3
+    from mutagen.wave import WAVE
 except ImportError:
     print("Instala mutagen: pip install mutagen", file=sys.stderr)
     sys.exit(1)
@@ -108,6 +111,149 @@ DEFAULT_REDIRECT = "http://127.0.0.1:48721/callback"
 SCOPES = "playlist-read-private playlist-read-collaborative playlist-modify-private"
 REQUIRED_SCOPES = set(SCOPES.split())
 DEFAULT_MISSING_PLAYLIST_BATCH_SIZE = 10
+ALLOWED_AUDIO_FORMATS = {"mp3", "flac", "wav"}
+SIZE_MARGIN = 0.15
+TAG_ALLOWANCE_BYTES = 2 * 1024 * 1024
+MAX_SOURCE_BYTES = 512 * 1024 * 1024
+_DANGEROUS_SUFFIX = re.compile(
+    r"\.(?:exe|com|scr|msi|dll|bat|cmd|ps1|vbs|js|jse|wsf|lnk|url|hta|jar|zip|rar|7z)(?:$|[.\s])",
+    re.IGNORECASE,
+)
+
+
+def _positive_number(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+        return number if math.isfinite(number) and number > 0 else None
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _safe_audio_filename(filename: str) -> bool:
+    parts = filename.replace("\\", "/").split("/")
+    return bool(
+        filename
+        and all(part and part not in {".", ".."} and ":" not in part for part in parts)
+        and not any(unicodedata.category(ch).startswith("C") for ch in filename)
+        and Path(parts[-1]).suffix.lower().lstrip(".") in ALLOWED_AUDIO_FORMATS
+        and not _DANGEROUS_SUFFIX.search(parts[-1])
+        and not parts[-1].endswith((" ", "."))
+    )
+
+
+def _audio_size_error(candidate: dict[str, Any]) -> str | None:
+    """Conservative byte bounds; peer metadata is untrusted, not proof of safety."""
+    size = _positive_number(candidate.get("size_bytes"))
+    length = _positive_number(candidate.get("length_s"))
+    fmt = candidate.get("format")
+    if size is None or length is None or size != int(size) or length > 86400:
+        return "tamaño/duración ausentes o inválidos"
+    if size > MAX_SOURCE_BYTES:
+        return "archivo supera el límite de 512 MiB"
+    if fmt == "mp3":
+        bitrate = _positive_number(candidate.get("bitrate_kbps"))
+        if candidate.get("bitrate_kbps") is not None and bitrate is None:
+            return "bitrate inválido"
+        if bitrate is not None and not 315 <= bitrate <= 325:
+            return "MP3 fuera del rango de 320 kbps"
+        expected = length * (bitrate or 320) * 1000 / 8
+        lower, upper = expected * (1 - SIZE_MARGIN), expected * (1 + SIZE_MARGIN)
+    elif fmt in {"flac", "wav"}:
+        rate = _positive_number(candidate.get("sample_rate"))
+        depth = _positive_number(candidate.get("bit_depth"))
+        channels = _positive_number(candidate.get("channels", 2))
+        if (rate is None or depth is None or channels not in {1, 2}
+                or not 8000 <= rate <= 192000 or depth not in {8, 16, 24, 32}):
+            return "parámetros PCM ausentes o fuera de rango"
+        expected = length * rate * depth * channels / 8
+        # Soulseek does not advertise channels; allow mono with the stereo estimate.
+        lower = expected * (0.01 if fmt == "flac" else 0.5 * (1 - SIZE_MARGIN))
+        upper = expected * (1 + SIZE_MARGIN)
+    else:
+        return "formato no permitido"
+    if not round(lower) <= size <= round(upper) + TAG_ALLOWANCE_BYTES:
+        return "tamaño no proporcional a duración/calidad"
+    return None
+
+
+def _antivirus_command(path: Path) -> list[str]:
+    if os.name == "nt":
+        platform = Path(os.environ.get("PROGRAMDATA", "C:/ProgramData")) / "Microsoft/Windows Defender/Platform"
+        candidates = sorted(platform.glob("*/MpCmdRun.exe"), reverse=True)
+        candidates.append(Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Windows Defender/MpCmdRun.exe")
+        for executable in candidates:
+            if executable.is_file():
+                # No remediation: code 0 must mean no detection, not a repaired file.
+                return [str(executable), "-Scan", "-ScanType", "3", "-File", str(path.resolve()), "-DisableRemediation"]
+    else:
+        executable = shutil.which("clamscan")
+        if executable:
+            return [
+                executable, "--no-summary", "--max-filesize=512M",
+                "--max-scansize=1024M", "--alert-exceeds-max=yes",
+                "--", str(path.resolve()),
+            ]
+    raise RuntimeError("antivirus requerido: Microsoft Defender en Windows o clamscan en Linux")
+
+
+def _scan_antivirus(path: Path) -> None:
+    try:
+        result = subprocess.run(
+            _antivirus_command(path), capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=120, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError("no se pudo completar el análisis antivirus; archivo bloqueado") from exc
+    if result.returncode != 0 or not path.is_file():
+        raise RuntimeError(f"antivirus detectó una amenaza o falló (código {result.returncode}); archivo bloqueado")
+
+
+def _check_antivirus_ready() -> None:
+    with tempfile.TemporaryDirectory(prefix="soulseek_antivirus_") as directory:
+        probe = Path(directory) / "probe.txt"
+        probe.write_text("Soulseek antivirus readiness check\n", encoding="utf-8")
+        _scan_antivirus(probe)
+
+
+def _check_audio_header(path: Path) -> None:
+    if path.is_symlink() or not _safe_audio_filename(path.name):
+        raise RuntimeError("nombre/formato de archivo no permitido")
+    with path.open("rb") as stream:
+        header = stream.read(12)
+    fmt = path.suffix.lower()
+    valid = (
+        (fmt == ".mp3" and (header.startswith(b"ID3") or
+         (len(header) >= 2 and header[0] == 0xff and header[1] & 0xe0 == 0xe0)))
+        or (fmt == ".flac" and header.startswith(b"fLaC"))
+        or (fmt == ".wav" and header.startswith(b"RIFF") and header[8:12] == b"WAVE")
+    )
+    if not valid:
+        raise RuntimeError("contenido no coincide con el formato de audio permitido")
+
+
+def _validate_download(path: Path, advertised: dict[str, Any] | None = None) -> LocalFile:
+    """Scan before invoking audio parsers, then verify actual size and audio info."""
+    _check_audio_header(path)
+    if path.stat().st_size > MAX_SOURCE_BYTES:
+        raise RuntimeError("archivo supera el límite de 512 MiB")
+    if advertised and path.stat().st_size != int(advertised["size_bytes"]):
+        raise RuntimeError("tamaño recibido distinto del anunciado")
+    _scan_antivirus(path)
+    local = inspect(path)
+    if local is None:
+        raise RuntimeError("contenido de audio inválido")
+    error = _audio_size_error({
+        "format": local.format, "length_s": local.length_s,
+        "size_bytes": path.stat().st_size, "bitrate_kbps": local.bitrate_kbps,
+        "sample_rate": local.sample_rate,
+        "bit_depth": local.bit_depth,
+        "channels": local.channels,
+    })
+    if error:
+        raise RuntimeError(error)
+    return local
 
 
 def token_cache_path() -> Path:
@@ -158,6 +304,9 @@ class LocalFile:
     tag_title: str | None = None
     tag_artists: list[str] | None = None
     isrc: str | None = None
+    sample_rate: int | None = None
+    bit_depth: int | None = None
+    channels: int | None = None
 
 
 @dataclass
@@ -895,7 +1044,9 @@ def _frame_text(value: Any) -> str | None:
 def inspect(path: Path) -> LocalFile | None:
     try:
         audio = mutagen.File(path)
-        if not audio or not getattr(audio, "info", None):
+        if audio is None or not getattr(audio, "info", None):
+            return None
+        if not isinstance(audio, {".mp3": MP3, ".flac": FLAC, ".wav": WAVE}.get(path.suffix.lower(), ())):
             return None
         info = audio.info
         br = getattr(info, "bitrate", None)
@@ -931,6 +1082,9 @@ def inspect(path: Path) -> LocalFile | None:
             tag_title=txt("TIT2", "title", "TITLE"),
             tag_artists=artists,
             isrc=txt("TSRC", "isrc", "ISRC"),
+            sample_rate=getattr(info, "sample_rate", None),
+            bit_depth=getattr(info, "bits_per_sample", None),
+            channels=getattr(info, "channels", None),
         )
     except Exception:
         return None
@@ -952,6 +1106,31 @@ def find_sockseek() -> str:
     )
 
 
+def _write_sockseek_safe_config(destination: Path, binary: str) -> None:
+    """Keep global login only; never inherit hooks, album mode or fallback commands."""
+    locations = [Path.home() / ".config/sockseek/sockseek.conf"]
+    if os.environ.get("APPDATA"):
+        locations.append(Path(os.environ["APPDATA"]) / "sockseek/sockseek.conf")
+    if os.environ.get("XDG_CONFIG_HOME"):
+        locations.append(Path(os.environ["XDG_CONFIG_HOME"]) / "sockseek/sockseek.conf")
+    locations.append(Path(binary).resolve().parent / "sockseek.conf")
+    source = next((p for p in locations if p.is_file()), None)
+    if source is None:
+        raise RuntimeError("falta sockseek.conf con username/password globales")
+    login: dict[str, str] = {}
+    for line in source.read_text(encoding="utf-8-sig").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("["):
+            break  # Profiles cannot enable commands or replace credentials.
+        key, separator, value = stripped.partition("=")
+        if separator and key.strip().lower() in {"username", "password"}:
+            login[key.strip().lower()] = value.strip()
+    if not all(login.get(key) for key in ("username", "password")):
+        raise RuntimeError("sockseek.conf debe tener username/password en la sección global")
+    destination.write_text("\n".join(f"{key} = {value}" for key, value in login.items()) + "\n", encoding="utf-8")
+    destination.chmod(0o600)
+
+
 def _sockseek_query(track: Track) -> str:
     query = f"{track.primary_artist} - {track.title}"
     if track.duration_ms:
@@ -960,8 +1139,8 @@ def _sockseek_query(track: Track) -> str:
 
 
 def _availability_candidate_summary(item: dict[str, Any]) -> dict[str, Any]:
-    user = item.get("User") or {}
-    file_info = item.get("File") or {}
+    user = item.get("User") if isinstance(item.get("User"), dict) else {}
+    file_info = item.get("File") if isinstance(item.get("File"), dict) else {}
     filename = str(file_info.get("Filename") or "")
     suffix = Path(filename.replace("\\", "/")).suffix.casefold()
     return {
@@ -978,7 +1157,7 @@ def _availability_candidate_summary(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _classify_availability_raw(raw: Any) -> AvailabilityCheck:
+def _classify_availability_raw(raw: Any, track: Track | None = None, length_tol: int = 60) -> AvailabilityCheck:
     """Classify one Sockseek JSON result array without touching the network."""
     if not isinstance(raw, list):
         return AvailabilityCheck(
@@ -997,6 +1176,24 @@ def _classify_availability_raw(raw: Any) -> AvailabilityCheck:
     usable: list[dict[str, Any]] = []
     quality_unknown = False
     for candidate in summaries:
+        error = None
+        if not _safe_audio_filename(candidate["filename"]):
+            error = "nombre/formato no permitido"
+        elif not isinstance(candidate["username"], str) or not candidate["username"]:
+            error = "usuario ausente o inválido"
+        else:
+            error = _audio_size_error(candidate)
+        if not error and track is not None:
+            length = float(candidate["length_s"])
+            if track.duration_s <= 0:
+                error = "duración Spotify ausente o inválida"
+            elif length < max(1, track.duration_s - max(0, length_tol)) or length > max(
+                track.duration_s + max(0, length_tol), track.duration_s * 1.9
+            ):
+                error = "duración anunciada fuera del rango del tema/Extended"
+        if error:
+            candidate["rejection_reason"] = error
+            continue
         fmt = str(candidate.get("format") or "").casefold()
         bitrate = candidate.get("bitrate_kbps")
         if fmt in {"flac", "wav"}:
@@ -1088,10 +1285,13 @@ def check_soulseek_availability_batch(
     with tempfile.TemporaryDirectory(prefix="sockseek_preflight_") as tmp:
         batch_csv = Path(tmp) / "spotify_preflight.csv"
         _write_sockseek_preflight_csv(batch_csv, tracks)
+        safe_config = Path(tmp) / "sockseek.conf"
+        _write_sockseek_safe_config(safe_config, bin_)
 
         cmd = [
             bin_,
             str(batch_csv),
+            f"--config={safe_config}",
             "--strict-title",
             "--strict-artist",
             f"--length-tol={length_tol}",
@@ -1171,7 +1371,10 @@ def check_soulseek_availability_batch(
                 for _ in tracks
             ]
 
-        return [_classify_availability_raw(raw) for raw in raw_values]
+        return [
+            _classify_availability_raw(raw, track, length_tol)
+            for raw, track in zip(raw_values, tracks)
+        ]
 
 
 def check_soulseek_availability(
@@ -1258,50 +1461,62 @@ def download_with_sockseek(
     track: Track,
     out_dir: Path,
     length_tol: int = 60,
+    *,
+    availability: AvailabilityCheck | None = None,
 ) -> list[Path]:
+    """Download only preflight-approved single files, scan before exposing to parsers."""
     bin_ = find_sockseek()
     out_dir.mkdir(parents=True, exist_ok=True)
-    before = {p.resolve() for p in out_dir.rglob("*") if p.is_file()}
-
-    query = _sockseek_query(track)
-
-    cmd = [
-        bin_,
-        query,
-        "--song",
-        "--strict-title",
-        "--strict-artist",
-        f"--length-tol={length_tol}",
-        f"--pref-length-tol={length_tol}",
-        "--pref-format=flac,wav,mp3",
-        "--pref-min-bitrate=320",
-        f"--output-dir={out_dir}",
-        "--name-format={artist} - {title}",
-    ]
-    print(f"    → sockseek: {query}")
-    try:
-        subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=360,
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
-        print("    ! timeout sockseek")
-    except FileNotFoundError:
-        raise RuntimeError("sockseek no encontrado")
-
-    after = [
-        p
-        for p in out_dir.rglob("*")
-        if p.is_file()
-        and p.resolve() not in before
-        and p.suffix.lower() in {".mp3", ".flac", ".wav", ".m4a"}
-    ]
-    return sorted(after)
+    _check_antivirus_ready()  # Require a working scanner before any network transfer.
+    check = availability or check_soulseek_availability(track, length_tol=length_tol)
+    if not check.downloadable:
+        if check.error:
+            raise RuntimeError(check.error)
+        return []
+    for candidate in check.candidates:
+        if not _safe_audio_filename(str(candidate.get("filename") or "")) or _audio_size_error(candidate):
+            continue
+        username = candidate.get("username")
+        if not isinstance(username, str) or not username:
+            continue
+        remote_path = candidate["filename"].replace("\\", "/")
+        link = "slsk://" + urllib.parse.quote(username, safe="") + "/" + urllib.parse.quote(remote_path, safe="/")
+        # Each attempt is isolated. Rejected and incomplete payloads are removed.
+        with tempfile.TemporaryDirectory(prefix="incoming_", dir=out_dir) as tmp:
+            incoming = Path(tmp)
+            safe_config = incoming / "sockseek.conf"
+            _write_sockseek_safe_config(safe_config, bin_)
+            cmd = [
+                bin_, link, "--input-type=soulseek", "--song",
+                f"--config={safe_config}",
+                "--format=flac,wav,mp3", "--min-bitrate=315",
+                "--yt-dlp=false", "--album=false",
+                "--upgrade-to-album=false", "--aggregate=false",
+                "--album-art=default", "--album-art-only=false",
+                "--name-format={slsk-filename}", "--no-write-index",
+                "--write-playlist=false", "--no-skip-existing",
+                f"--output-dir={incoming}",
+            ]
+            try:
+                result = subprocess.run(
+                    cmd, capture_output=True, text=True, encoding="utf-8",
+                    errors="replace", timeout=360, check=False,
+                )
+                if result.returncode != 0:
+                    continue
+                files = [p for p in incoming.rglob("*") if p.is_file() and p != safe_config]
+                if len(files) != 1:
+                    continue
+                path = files[0]
+                if not path.resolve().is_relative_to(incoming.resolve()):
+                    raise RuntimeError("archivo fuera del directorio de recepción")
+                _validate_download(path, candidate)
+                destination = Path(tempfile.mkdtemp(prefix="verified_", dir=out_dir)) / path.name
+                shutil.move(str(path), destination)
+                return [destination]
+            except (RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
+                print(f"    ! candidato bloqueado: {exc}")
+    return []
 
 
 # ---------------------------------------------------------------------------
@@ -1572,6 +1787,8 @@ def finalize(
         overwrite,
     )
     if already_exists:
+        _check_audio_header(dest)
+        _scan_antivirus(dest)
         _validate_existing_output(
             dest,
             track.spotify_id,
@@ -1584,9 +1801,7 @@ def finalize(
     if not src.is_file():
         raise RuntimeError(f"el source seleccionado no existe: {src}")
 
-    checked = inspect(src)
-    if checked is None:
-        raise RuntimeError("no se pudo revalidar el source antes de finalizar")
+    checked = _validate_download(src)
     if source.length_s and checked.length_s and abs(source.length_s - checked.length_s) > 2:
         raise RuntimeError("la duración del source cambió después del matching")
     if src.suffix.lower() == ".mp3" and (checked.bitrate_kbps or 0) < 315:
@@ -1646,6 +1861,7 @@ def finalize(
             raise RuntimeError(f"no se pudo verificar MP3: {e}")
 
         write_tags(tmp_mp3, track, source, extended, cover)
+        _scan_antivirus(tmp_mp3)
 
         if dest.exists():
             if overwrite:
@@ -2119,11 +2335,11 @@ def main() -> int:
         }
 
         try:
-            # Conserva la función y flags de descarga Soulseek de la versión anterior.
             files = download_with_sockseek(
                 track,
                 staging,
                 length_tol=args.length_tol,
+                availability=availability,
             )
         except Exception as exc:
             print(f"    ✗ error descarga: {exc}")
