@@ -103,7 +103,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 En `tests/` (raíz): `test_check_staged.py` (chequeo pre-commit sobre repos git temporales),
 `test_status_doc.py` (`docs/STATUS.md` con sus tres secciones y a lo sumo 6 KB) y
 `test_spotify_soulseek_orchestrator.py` (`download_JIJIJI/`) y `test_soulseek_safety.py`
-(tamaño/duración, formatos, contenido, descarga exacta y antivirus obligatorio).
+(tamaño/duración, descarga exacta, límites de procesos, carátulas y antivirus en consolidación).
 
 ## Arnés de agentes y git
 

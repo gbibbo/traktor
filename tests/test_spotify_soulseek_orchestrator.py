@@ -1,4 +1,7 @@
-"""Tests for the Spotify/Soulseek workflow synchronization helpers."""
+"""PURPOSE: Test Spotify/Soulseek synchronization, metadata and consolidation.
+
+CHANGELOG: 2026-10-05: Isolate placement tests from the mandatory audio/AV gate.
+"""
 
 from __future__ import annotations
 
@@ -293,7 +296,8 @@ class ConsolidationTests(unittest.TestCase):
         )
         tags.save(path, v2_version=3)
 
-    def test_moves_both_branches_and_resolves_cross_branch_collision(self) -> None:
+    @mock.patch.object(ORCHESTRATOR, "_validate_final_mp3", side_effect=ORCHESTRATOR.embedded_spotify_id)
+    def test_moves_both_branches_and_resolves_cross_branch_collision(self, validator) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             run_dir = root / "runs" / "run-1"
@@ -324,7 +328,8 @@ class ConsolidationTests(unittest.TestCase):
             self.assertEqual(report["moved"], 2)
             self.assertEqual(len(moved), 2)
 
-    def test_existing_same_spotify_id_is_deduplicated(self) -> None:
+    @mock.patch.object(ORCHESTRATOR, "_validate_final_mp3", side_effect=ORCHESTRATOR.embedded_spotify_id)
+    def test_existing_same_spotify_id_is_deduplicated(self, validator) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             run_dir = root / "runs" / "run-1"
@@ -371,6 +376,59 @@ class ConsolidationTests(unittest.TestCase):
             self.assertFalse((run_dir / "player_ready.json").exists())
             self.assertFalse((run_dir / "start.signal").exists())
             self.assertFalse((recorded / "partial.wav").exists())
+
+
+class ConsolidationSafetyTests(unittest.TestCase):
+    def test_id3_only_file_is_blocked_without_moving_or_parsing_before_scan(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "run/soulseek/fake.mp3"
+            ConsolidationTests.tagged_file(source, "fixture-track")
+            with mock.patch.object(DOWNLOADER, "_scan_antivirus") as scan:
+                with self.assertRaises(ORCHESTRATOR.WorkflowError):
+                    ORCHESTRATOR.consolidate_audio(root / "run", source.parent, root / "run/recorded", root / "library", "Fixture", {"fixture-track"})
+            scan.assert_called_once_with(source)
+            self.assertTrue(source.exists())
+            self.assertFalse((root / "library").exists())
+
+    def test_all_sources_validate_before_any_move(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first = root / "run/soulseek/a.mp3"
+            second = root / "run/soulseek/b.mp3"
+            ConsolidationTests.tagged_file(first, "first")
+            ConsolidationTests.tagged_file(second, "second")
+            with mock.patch.object(ORCHESTRATOR, "_validate_final_mp3", side_effect=["first", ORCHESTRATOR.WorkflowError("blocked")]):
+                with self.assertRaises(ORCHESTRATOR.WorkflowError):
+                    ORCHESTRATOR.consolidate_audio(root / "run", first.parent, root / "run/recorded", root / "library", "Fixture", {"first", "second"})
+            self.assertTrue(first.exists() and second.exists())
+            self.assertFalse((root / "library").exists())
+
+    def test_invalid_existing_duplicate_does_not_delete_valid_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "run/soulseek/song.mp3"
+            existing = root / "library/Fixture/song.mp3"
+            ConsolidationTests.tagged_file(source, "fixture-track")
+            ConsolidationTests.tagged_file(existing, "fixture-track")
+            real_validate = ORCHESTRATOR._validate_final_mp3
+
+            def validate(path):
+                return "fixture-track" if path == source else real_validate(path)
+
+            with mock.patch.object(ORCHESTRATOR, "_validate_final_mp3", side_effect=validate), mock.patch.object(DOWNLOADER, "_scan_antivirus"):
+                with self.assertRaises(ORCHESTRATOR.WorkflowError):
+                    ORCHESTRATOR.consolidate_audio(root / "run", source.parent, root / "run/recorded", root / "library", "Fixture", {"fixture-track"})
+            self.assertTrue(source.exists() and existing.exists())
+
+    def test_detection_during_consolidation_blocks_identity_parser(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "fixture.mp3"
+            ConsolidationTests.tagged_file(source, "fixture-track")
+            with mock.patch.object(DOWNLOADER, "_scan_antivirus", side_effect=RuntimeError("blocked")), mock.patch.object(ORCHESTRATOR, "embedded_spotify_id") as parser:
+                with self.assertRaises(ORCHESTRATOR.WorkflowError):
+                    ORCHESTRATOR._validate_final_mp3(source)
+                parser.assert_not_called()
 
 
 class ResumeTests(unittest.TestCase):

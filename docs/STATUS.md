@@ -33,8 +33,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
   intacto; re-simulación: 0 cambios pendientes. Catálogo refrescado (respaldo
   `catalog_before_beatport_tags_20260929.parquet`). Los 110 sin confirmar conservan su género.
 - **`download_JIJIJI/`**: descarga de playlists de Spotify por Soulseek, con grabación por loopback
-  como respaldo; punto de entrada `spotify_soulseek_orchestrator.py`. Soulseek exige tamaño
-  proporcional, formatos MP3/FLAC/WAV y antivirus antes de incorporar archivos (README del módulo).
+  como respaldo; entrada `spotify_soulseek_orchestrator.py`. Exige tamaño proporcional, controles
+  durante transferencia, conversión acotada, carátulas verificadas y antivirus en consolidación.
 - **Chequeo pre-commit** en `tools/git_hooks/` (audio, arrays, pesos, credenciales, archivos > 5 MB).
 
 ## OPEN ITEMS (por prioridad; LOCAL = trabajo del agente, GABRIEL = lo hace o decide Gabriel)

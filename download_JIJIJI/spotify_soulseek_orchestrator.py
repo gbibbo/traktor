@@ -3,6 +3,7 @@
 PURPOSE: Run the complete Spotify -> Soulseek + loopback fallback workflow.
 
 CHANGELOG:
+- 2026-10-05: Revalidate final MP3s and existing duplicates before consolidation.
 - 2026-09-29: Record missing tracks sequentially in Spotify batches of up to 10.
 - 2026-09-27: Consolidate successful runs into one named playlist directory.
 - 2026-09-27: Initial orchestration with manifest and recorder readiness handshakes.
@@ -110,6 +111,7 @@ def validate_environment() -> None:
     required_modules = {
         "requests": "requests",
         "mutagen": "mutagen",
+        "PIL": "Pillow",
         "spotipy": "spotipy",
         "numpy": "numpy",
         "pyaudiowpatch": "PyAudioWPatch",
@@ -416,15 +418,31 @@ def _collision_destination(
     destination = playlist_dir / source.name
     if not destination.exists():
         return destination, False
-    if embedded_spotify_id(destination) == spotify_id:
+    if _validate_final_mp3(destination) == spotify_id:
         return destination, True
 
     alternate = playlist_dir / f"{source.stem} [{spotify_id}]{source.suffix}"
     if not alternate.exists():
         return alternate, False
-    if embedded_spotify_id(alternate) == spotify_id:
+    if _validate_final_mp3(alternate) == spotify_id:
         return alternate, True
     raise WorkflowError(f"Colisión de audio no resoluble: {alternate}")
+
+
+def _validate_final_mp3(path: Path) -> str:
+    """Use the downloader's audio/size/AV gate before reading identity or moving files."""
+    from spotify_soulseek_download import _validate_download
+
+    try:
+        if path.suffix.lower() != ".mp3":
+            raise RuntimeError("se requiere MP3 final")
+        _validate_download(path)
+        spotify_id = embedded_spotify_id(path)
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", spotify_id):
+            raise RuntimeError("Spotify Track ID inválido")
+        return spotify_id
+    except (RuntimeError, OSError) as exc:
+        raise WorkflowError(f"MP3 bloqueado durante consolidación: {path}: {exc}") from exc
 
 
 def consolidate_audio(
@@ -446,10 +464,11 @@ def consolidate_audio(
                 if path.is_file()
             )
 
-    identified_sources = [
-        (origin, source, embedded_spotify_id(source))
-        for origin, source in sources
-    ]
+    identified_sources = []
+    for origin, source in sources:
+        if source.is_symlink() or not source.resolve().is_relative_to(run_root):
+            raise WorkflowError(f"Audio fuera del run rechazado: {source}")
+        identified_sources.append((origin, source, _validate_final_mp3(source)))
     found_ids = {spotify_id for _, _, spotify_id in identified_sources}
     if expected_spotify_ids is not None and found_ids != expected_spotify_ids:
         missing = sorted(expected_spotify_ids - found_ids)

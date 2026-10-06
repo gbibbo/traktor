@@ -1,5 +1,6 @@
 requests
 mutagen
+Pillow==12.3.0
 spotipy
 python-dotenv
 numpy

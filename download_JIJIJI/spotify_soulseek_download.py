@@ -6,6 +6,7 @@ spotify_soulseek_download.py
 PURPOSE: Reconcile a Spotify playlist against Soulseek and download matches.
 
 CHANGELOG:
+- 2026-10-05: Monitor transfers, bound ffmpeg and verify/rebuild cover images.
 - 2026-10-05: Gate exact Soulseek files by size, content and mandatory antivirus.
 - 2026-09-29: Split missing tracks into private Spotify playlists of 10 tracks.
 - 2026-09-27: Match the Windows Media-compatible Soulseek ID3 frame profile.
@@ -45,6 +46,7 @@ import base64
 import csv
 import hashlib
 import http.server
+import io
 import json
 import math
 import os
@@ -59,6 +61,7 @@ import time
 import unicodedata
 import urllib.parse
 import urllib.request
+import warnings
 from dataclasses import asdict, dataclass, fields
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -115,6 +118,12 @@ ALLOWED_AUDIO_FORMATS = {"mp3", "flac", "wav"}
 SIZE_MARGIN = 0.15
 TAG_ALLOWANCE_BYTES = 2 * 1024 * 1024
 MAX_SOURCE_BYTES = 512 * 1024 * 1024
+TRANSFER_POLL_SECONDS = 0.1
+TRANSFER_TIMEOUT_SECONDS = 360
+MIN_DISK_FREE_BYTES = 64 * 1024 * 1024
+MAX_PROCESS_LOG_BYTES = 2 * 1024 * 1024
+FFMPEG_TIMEOUT_SECONDS = 180
+MAX_COVER_PIXELS = 16_000_000
 _DANGEROUS_SUFFIX = re.compile(
     r"\.(?:exe|com|scr|msi|dll|bat|cmd|ps1|vbs|js|jse|wsf|lnk|url|hta|jar|zip|rar|7z)(?:$|[.\s])",
     re.IGNORECASE,
@@ -215,6 +224,54 @@ def _check_antivirus_ready() -> None:
         probe = Path(directory) / "probe.txt"
         probe.write_text("Soulseek antivirus readiness check\n", encoding="utf-8")
         _scan_antivirus(probe)
+
+
+def _run_sockseek_transfer(cmd: list[str], incoming: Path, expected_bytes: int, config: Path) -> int:
+    """Watch received bytes while the CLI runs; always reap it before cleaning files."""
+    limit = min(expected_bytes, MAX_SOURCE_BYTES)
+    if limit <= 0 or shutil.disk_usage(incoming).free < limit + MIN_DISK_FREE_BYTES:
+        raise RuntimeError("espacio libre insuficiente para la transferencia")
+    root = incoming.resolve()
+    with tempfile.TemporaryFile() as log:
+        process = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT)
+        deadline = time.monotonic() + TRANSFER_TIMEOUT_SECONDS
+        try:
+            while True:
+                received = 0
+                for path in incoming.rglob("*"):
+                    if path == config:
+                        continue
+                    if path.is_symlink() or not path.resolve().is_relative_to(root):
+                        raise RuntimeError("ruta de transferencia no permitida")
+                    if path.is_dir():
+                        continue
+                    try:
+                        received += path.stat().st_size
+                    except FileNotFoundError:
+                        continue  # Sockseek can rename .incomplete while we poll.
+                if received > limit:
+                    raise RuntimeError("transferencia excedió los bytes anunciados; cancelada")
+                if os.fstat(log.fileno()).st_size > MAX_PROCESS_LOG_BYTES:
+                    raise RuntimeError("salida excesiva del descargador; transferencia cancelada")
+                if shutil.disk_usage(incoming).free < MIN_DISK_FREE_BYTES:
+                    raise RuntimeError("espacio libre agotándose; transferencia cancelada")
+                if time.monotonic() >= deadline:
+                    raise RuntimeError("timeout de transferencia Soulseek")
+                code = process.poll()
+                if code is not None:
+                    return code
+                try:
+                    process.wait(timeout=TRANSFER_POLL_SECONDS)
+                except subprocess.TimeoutExpired:
+                    pass
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=5)
 
 
 def _check_audio_header(path: Path) -> None:
@@ -1498,11 +1555,8 @@ def download_with_sockseek(
                 f"--output-dir={incoming}",
             ]
             try:
-                result = subprocess.run(
-                    cmd, capture_output=True, text=True, encoding="utf-8",
-                    errors="replace", timeout=360, check=False,
-                )
-                if result.returncode != 0:
+                code = _run_sockseek_transfer(cmd, incoming, int(candidate["size_bytes"]), safe_config)
+                if code != 0:
                     continue
                 files = [p for p in incoming.rglob("*") if p.is_file() and p != safe_config]
                 if len(files) != 1:
@@ -1579,6 +1633,8 @@ def download_cover(
 ) -> tuple[bytes, str] | None:
     if not url:
         return None
+    if urllib.parse.urlparse(url).scheme != "https":
+        raise RuntimeError("la carátula debe descargarse por HTTPS")
 
     last_error: Exception | None = None
     for attempt in range(retries):
@@ -1600,13 +1656,52 @@ def download_cover(
                     raise RuntimeError(f"Content-Type de cover inesperado: {ctype}")
                 if not data:
                     raise RuntimeError("cover vacío")
-                return data, ctype
+                return _validated_cover(data, ctype)
         except Exception as exc:
             last_error = exc
             if attempt + 1 < retries:
                 time.sleep(0.5 * (attempt + 1))
 
     raise RuntimeError(f"no se pudo descargar el cover de Spotify: {last_error}")
+
+
+def _validated_cover(data: bytes, mime: str) -> tuple[bytes, str]:
+    """Scan and decode a bounded image; return fresh JPEG bytes without extra payloads."""
+    try:
+        from PIL import Image
+    except ImportError as exc:
+        raise RuntimeError("falta Pillow; instala download_JIJIJI/requirements.txt") from exc
+    formats = {"image/jpeg": "JPEG", "image/png": "PNG", "image/webp": "WEBP"}
+    if mime not in formats or not data or len(data) > 15 * 1024 * 1024:
+        raise RuntimeError("carátula inválida o demasiado grande")
+    with tempfile.TemporaryDirectory(prefix="spotify_cover_") as directory:
+        path = Path(directory) / "cover.bin"
+        path.write_bytes(data)
+        _scan_antivirus(path)
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", Image.DecompressionBombWarning)
+                with Image.open(io.BytesIO(data), formats=[formats[mime]]) as image:
+                    if image.format != formats[mime] or image.width * image.height > MAX_COVER_PIXELS:
+                        raise ValueError("formato/dimensiones fuera de rango")
+                    if getattr(image, "n_frames", 1) != 1:
+                        raise ValueError("carátula animada no permitida")
+                    image.verify()
+                with Image.open(io.BytesIO(data), formats=[formats[mime]]) as image:
+                    image.load()
+                    image.thumbnail((2048, 2048))
+                    clean = image.convert("RGB")
+                    clean.info.clear()
+                    output = io.BytesIO()
+                    clean.save(output, format="JPEG", quality=90)
+                    rebuilt = output.getvalue()
+        except (OSError, ValueError, Image.DecompressionBombWarning, Image.DecompressionBombError) as exc:
+            raise RuntimeError("contenido de carátula inválido") from exc
+        if len(rebuilt) > TAG_ALLOWANCE_BYTES:
+            raise RuntimeError("carátula reconstruida supera 2 MiB")
+        path.write_bytes(rebuilt)
+        _scan_antivirus(path)
+    return rebuilt, "image/jpeg"
 
 
 def _existing_spotify_track_id(path: Path) -> str | None:
@@ -1823,11 +1918,17 @@ def finalize(
             cmd = [
                 "ffmpeg",
                 "-hide_banner",
+                "-nostdin",
+                "-max_alloc", str(64 * 1024 * 1024),
                 "-loglevel",
                 "error",
                 "-y",
+                "-threads", "2",
+                "-protocol_whitelist", "file",
+                "-f", src.suffix.lower().lstrip("."),
                 "-i",
                 str(src),
+                "-map", "0:a:0",
                 "-vn",
                 "-map_metadata",
                 "-1",
@@ -1835,21 +1936,29 @@ def finalize(
                 "libmp3lame",
                 "-b:a",
                 "320k",
+                "-threads", "2",
+                "-t", str(checked.length_s + 2),
+                "-fs", str(min(MAX_SOURCE_BYTES, math.ceil((checked.length_s + 2) * 40000) + TAG_ALLOWANCE_BYTES)),
                 str(tmp_mp3),
             ]
             try:
                 subprocess.run(
                     cmd,
                     check=True,
-                    capture_output=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
                     text=True,
                     encoding="utf-8",
                     errors="replace",
+                    timeout=FFMPEG_TIMEOUT_SECONDS,
+                    stdin=subprocess.DEVNULL,
                 )
+            except subprocess.TimeoutExpired as exc:
+                raise RuntimeError("ffmpeg excedió el tiempo permitido; conversión cancelada") from exc
             except FileNotFoundError:
                 raise RuntimeError("ffmpeg no está en el PATH")
             except subprocess.CalledProcessError as e:
-                raise RuntimeError(f"ffmpeg falló: {(e.stderr or "sin stderr")[:300]}")
+                raise RuntimeError(f"ffmpeg falló (código {e.returncode})") from e
         else:
             raise RuntimeError(f"formato no soportado al finalizar: {src.suffix}")
 
@@ -1857,10 +1966,14 @@ def finalize(
             info = MP3(tmp_mp3).info
             if info.bitrate < 315_000:
                 raise RuntimeError(f"bitrate final bajo: {info.bitrate}")
+            if not _positive_number(info.length) or abs(info.length - checked.length_s) > 2:
+                raise RuntimeError("duración final incompatible con el source; posible truncamiento")
         except Exception as e:
             raise RuntimeError(f"no se pudo verificar MP3: {e}")
 
         write_tags(tmp_mp3, track, source, extended, cover)
+        if tmp_mp3.stat().st_size > MAX_SOURCE_BYTES:
+            raise RuntimeError("MP3 final supera el límite de 512 MiB")
         _scan_antivirus(tmp_mp3)
 
         if dest.exists():

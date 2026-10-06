@@ -49,7 +49,24 @@ se verifica la cabecera y el tamaño real, se exige un análisis antivirus sin
 detecciones y después se comprueban los datos de audio reales. Se vuelve a
 analizar el MP3 final con la carátula antes de moverlo a la salida. Los candidatos
 rechazados y las transferencias incompletas se eliminan; detección, error o
-timeout del antivirus bloquean la incorporación a la biblioteca.
+timeout del antivirus bloquean la incorporación a la biblioteca. La consolidación
+revalida audio, tamaño y antivirus tanto de los MP3 del run como de los duplicados
+existentes antes de borrar una copia; una etiqueta Spotify válida sola no basta.
+
+Durante la transferencia se comprueban los bytes recibidos cada 100 ms, el espacio
+libre y la salida del proceso. Si se supera el tamaño anunciado, se agota el margen
+de disco o pasan 360 segundos, se cancela el proceso antes de limpiar los archivos.
+Es un control por sondeo: puede haber un exceso breve entre comprobaciones.
+
+La conversión WAV/FLAC tiene un timeout de 180 segundos, dos hilos, límite de
+asignación individual de 64 MiB, duración y tamaño de salida acotados. ffmpeg solo
+abre archivos locales y el formato de entrada se fija explícitamente. Se rechaza
+un MP3 truncado. Estos límites no equivalen a una cuota total de memoria del proceso.
+
+Las carátulas requieren HTTPS, antivirus y contenido JPEG/PNG/WebP decodificable,
+con hasta 15 MiB, 16 millones de píxeles y un solo fotograma. Pillow verifica y
+reconstruye un JPEG de hasta 2048×2048 y 2 MiB, descartando metadata y datos
+añadidos al final; también se analiza esa imagen antes de incorporarla al MP3.
 
 Windows requiere Microsoft Defender; Linux requiere `clamscan` con sus bases
 instaladas. No se instala ni se desactiva ningún antivirus automáticamente.
@@ -62,7 +79,7 @@ Estos controles reducen el riesgo, pero no certifican ausencia de malware:
 un servidor puede mentir sobre un archivo y un antivirus puede no detectar una
 amenaza nueva. No se puede asegurar que nunca lleguen bytes maliciosos a la
 carpeta temporal; sí se bloquean los archivos detectados antes de incorporarlos.
-Mantener actualizados el antivirus, Sockseek, Mutagen y ffmpeg.
+Mantener actualizados el antivirus, Sockseek, Mutagen, Pillow y ffmpeg.
 
 ## Reanudación después de una interrupción
 

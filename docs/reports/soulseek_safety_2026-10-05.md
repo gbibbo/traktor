@@ -38,7 +38,7 @@ había sido detectado y reparado. Véase [documentación de Microsoft](https://l
 Linux admite ClamAV con límites explícitos y alerta si se exceden; esa ruta está
 cubierta por construcción del comando, pero no se ejecutó ClamAV en esta máquina.
 
-Validación: `.venv/Scripts/python.exe` (Python 3.12.10, discrepancia ya registrada
+Validación de la primera corrección (`4c085bb`): `.venv/Scripts/python.exe` (Python 3.12.10, discrepancia ya registrada
 en STATUS frente al 3.11 declarado), imports existentes correctos, **70 tests
 passed, 1 skipped** en `test_soulseek_safety.py`,
 `test_spotify_soulseek_orchestrator.py` y `test_status_doc.py`.
@@ -48,3 +48,47 @@ El resultado sobre 20 temas utiliza un reporte previo, no una consulta actual
 de disponibilidad. No se extrapola al resto de playlists. Los archivos pueden
 llegar a la recepción temporal con contenido malicioso antes de ser analizados;
 el objetivo implementado es impedir que los detectados lleguen a la biblioteca.
+
+## Corrección de las cuatro vulnerabilidades adicionales
+
+**Veredicto:** se cerraron las omisiones de consolidación, control durante la
+transferencia, límites de conversión y validación de carátulas. La comparación
+parte del código posterior al primer gate (`4c085bb`); estas correcciones se
+verificaron sobre fixtures sintéticos, sin descargar música ni tocar la colección.
+
+| Afirmación | Etiqueta | Evidencia de esta corrección |
+| --- | --- | --- |
+| Una etiqueta Spotify sola ya no permite consolidar un MP3 inválido | EVIDENCIA OBSERVADA | `_validate_final_mp3` reutiliza `_validate_download` antes de leer la identidad; tests con ID3 sin audio y fallo de antivirus bloquean el archivo y conservan el origen |
+| Un duplicado inválido no provoca borrar la copia válida del run | EVIDENCIA OBSERVADA | `_collision_destination` revalida el destino; test de colisión con ID3 sin audio conserva ambos archivos |
+| Un archivo fuente inválido bloquea los movimientos del lote | EVIDENCIA OBSERVADA | `consolidate_audio` valida todas las fuentes antes de crear la biblioteca; test con la segunda fuente inválida mantiene ambas en el run. No se afirma atomicidad ante errores posteriores en destinos |
+| Se cancela una transferencia que supera los bytes anunciados mientras sigue activa | EVIDENCIA OBSERVADA | `_run_sockseek_transfer`; tests con procesos Python locales que escriben 2048 bytes frente a un límite de 1024, con proceso vivo y ya terminado; se espera su terminación antes de limpiar |
+| Timeout y falta de disco impiden continuar la transferencia | EVIDENCIA OBSERVADA | Test con proceso local dormido y deadline reducido; test de espacio insuficiente comprueba que no se lanza el proceso |
+| ffmpeg tiene límites y un MP3 truncado no se promociona | EVIDENCIA OBSERVADA | Timeout de 180 s, dos hilos, `-max_alloc`, formato explícito, protocolos locales, `-t` y `-fs`; tests de timeout/truncamiento mantienen vacía la salida |
+| MIME falso, contenido truncado, animación y dimensiones excesivas de carátulas se rechazan | EVIDENCIA OBSERVADA | Tests con ejecutable disfrazado, PNG etiquetado JPEG, imágenes truncadas, APNG y cabecera PNG con dimensiones excesivas; antivirus precede al decoder |
+| La imagen incorporada se reconstruye sin datos añadidos al final | EVIDENCIA OBSERVADA | `_validated_cover` verifica, carga, limita dimensiones y genera un JPEG nuevo sin metadata; test de payload añadido y dos análisis antivirus |
+| La ruta válida completa funciona con herramientas reales | EVIDENCIA OBSERVADA | WAV estéreo sintético de 2 s + PNG 16×16; Pillow, ffmpeg 9.0.2 y Microsoft Defender reales; MP3 de 2.038 s a 320 kbps consolidado en directorio temporal, ID conservado |
+
+La recepción se sondea cada 100 ms y puede exceder brevemente el límite antes
+de cancelarse; no es una cuota de disco del sistema operativo. Se reservan 64 MiB
+de espacio libre y se limita el log del descargador a 2 MiB. La asignación de
+64 MiB de ffmpeg es **por bloque**, no un límite total de memoria; `-fs` puede
+tener un pequeño exceso, y se comprueba además el límite final de 512 MiB.
+Véase la [documentación de ffmpeg](https://ffmpeg.org/ffmpeg.html).
+El protocolo permitido es `file`, según la
+[documentación de protocolos](https://ffmpeg.org/ffmpeg-protocols.html).
+
+Carátulas: máximo 15 MiB, 16 millones de píxeles y un fotograma; JPEG reconstruido
+de hasta 2048×2048 y 2 MiB. `verify()` se complementa con una reapertura y `load()`;
+la [documentación de Pillow](https://pillow.readthedocs.io/en/stable/reference/Image.html)
+explica que abrir una imagen no decodifica sus píxeles. Se añadió `Pillow==12.3.0`
+a las dependencias y se instaló únicamente ese paquete en el entorno existente.
+
+Verificación final: **92 passed, sin omisiones**, en `test_soulseek_safety.py`,
+`test_spotify_soulseek_orchestrator.py` y `test_status_doc.py`, con Python 3.12.10.
+La ejecución dentro del sandbox dio 91 passed/1 skipped por no ver la instalación
+WinGet de ffmpeg; al permitir acceso a esa instalación, también pasó esa prueba.
+Las pruebas adversariales simulan detecciones del antivirus; el smoke válido
+ejecutó Defender real. No se descargó ni ejecutó malware para verificar el gate.
+
+Estos cambios reducen las vías observadas; no demuestran ausencia de todas las
+vulnerabilidades de Sockseek, los decoders, sus dependencias o el antivirus.
