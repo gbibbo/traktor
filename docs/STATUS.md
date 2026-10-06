@@ -4,7 +4,7 @@ Se inyecta al abrir cada sesión de Claude Code (hook `SessionStart` en `.claude
 Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. Tope 6 KB
 (`tests/test_status_doc.py`). La historia vive en `git log`, `docs/DECISIONS.md` y `docs/reports/`.
 
-## CURRENT STATE (2026-10-05)
+## CURRENT STATE (2026-10-06)
 
 - **Foco: MVP sobre la biblioteca completa** para Rekordbox y Traktor, en CPU local (DECISIONS
   2026-09-27). Dataset `musica` = `Música/` en la raíz del repo (git-ignorada): 3086 archivos, 2303
@@ -26,7 +26,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 - **Etiqueta Vocal (clap_probe, calculada 2026-10-06)**: CLAP del tema entero + clasificador lineal de
   Electrobyte; Vocal si >= 5 % del tema tiene voz (regla de Gabriel). 936 de 1823 temas Vocal (hoy hay
   542 con la marca vieja): ganan 488, pierden 94. En MTG-Jamendo: recall 100 %, 20 % de instrumentales
-  marcados. Escritura (agrega o quita « - Vocal», solo MP3/FLAC, con respaldo) la corre Gabriel.
+  marcados. Escrita por Gabriel 2026-10-06 (573 archivos, 0 errores; MP3/FLAC; respaldo
+  `vocal_tags_backup_20261006_111119.csv`): marca y cálculo coinciden en los 1792 MP3/FLAC.
 - **Tags de Beatport escritos y verificados** (Gabriel corrió `write_beatport_tags.py`, 2026-09-29):
   1087 archivos (Genre 785, Released 658, Label 463, Artist 395, Remixers 349), 0 errores, track_uid
   intacto; re-simulación: 0 cambios pendientes. Catálogo refrescado (respaldo
@@ -42,11 +43,9 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    importar y validar en Rekordbox (pendrive) y Traktor (TODO 6.7): ¿se ve el Remixer de cada tema?
 2. GABRIEL: probar la app local (`Abrir TRAKTOR ML.bat`): agregar música nueva, fusiones de temas
    (clic derecho, papelera), orden a mano (⇅), preparar para Rekordbox/Traktor y deshacer.
-3. GABRIEL: correr `tag_vocals.py --dataset-name musica --write-tags` (usa la caché; probado sobre
-   copias); después LOCAL: verificar contra el respaldo.
-4. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
+3. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
    tracklists y descarga del audio se consultan antes de implementar.
-5. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
+4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
 
 ## RUN RECIPES
