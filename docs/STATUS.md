@@ -18,7 +18,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
   es idéntico a `V4_1`). `add` agrega música con lo existente congelado; `link` exige temas juntos
   (congelado o `--rebuild`); `build --scope` organiza una carpeta sola con su propio mapa.
 - **Temas repetidos, cerrado** (DECISIONS 2026-09-29, 8-13): una copia por tema; `biblioteca` v11
-  (1760 temas); copias en `Música/_copias/` (`dedupe.py restore-copies` las devuelve).
+  (1760 temas); copias en `Música/_copias/` (`dedupe.py restore-copies` las devuelve). Export
+  `exports/biblioteca_v11/` (2026-10-08): 51 playlists, 0 rutas faltantes, 907 Vocal, 27 GB.
 - **Smart App Control activo en la laptop**: bloquea DLLs nuevas; `.venv` fijado en torch 2.7.1 y
   pyarrow 16.1 (`requirements_v4.txt`). CLAP da lo mismo que con torch 2.14.
 - **Tripletas (n = 57): ninguna representación supera al BPM de forma concluyente.** Entre
@@ -39,8 +40,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 
 ## OPEN ITEMS (por prioridad; LOCAL = trabajo del agente, GABRIEL = lo hace o decide Gabriel)
 
-1. GABRIEL: «Preparar para Rekordbox y Traktor» de nuevo (`V4_1` aún tiene los temas repetidos) e
-   importar y validar en Rekordbox (pendrive) y Traktor (TODO 6.7): ¿se ve el Remixer de cada tema?
+1. GABRIEL: importar `biblioteca_v11/rekordbox.xml` en Rekordbox 7 y grabar el pendrive; validar
+   también en Traktor (TODO 6.7). ¿Se ve el Remixer? (el XML no lo trae; si falta, agregarlo).
 2. GABRIEL: probar la app local (`Abrir TRAKTOR ML.bat`): agregar música nueva, fusiones de temas
    (clic derecho, papelera), orden a mano (⇅), preparar para Rekordbox/Traktor y deshacer.
 3. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
