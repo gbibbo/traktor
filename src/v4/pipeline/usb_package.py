@@ -4,14 +4,17 @@ PURPOSE: Paquete portátil de una organización para tocar con Traktor desde un 
          <destino>/<paquete>/Musica/<carpeta>/<playlist>/<archivo> (la música queda ordenada como
          las playlists) y escribe:
            - traktor.nml con las rutas del destino actual (Import Playlist en Traktor),
-           - _plantilla.nml + _preparar_traktor.ps1 + "Preparar Traktor.bat": en otra computadora
-             reescriben traktor.nml con la letra y la carpeta donde esté el paquete y verifican
-             que estén todos los temas,
+           - _plantilla.nml + _preparar_traktor.ps1 (traktor_prepare.ps1) + "Preparar Traktor.bat":
+             en otra computadora arman traktor.nml con los temas que ya están en su colección de
+             Traktor (ya analizados; ficha copiada tal cual) y, para los que no, la copia del
+             paquete en la letra y carpeta donde esté,
            - Playlists m3u8/ con rutas relativas (respaldo para otros programas),
            - _organizacion.csv (playlist, posición, track_uid, archivo) y LEEME.txt.
          Reanudable: no vuelve a copiar archivos que ya están con el mismo tamaño. Verifica tamaños
          siempre y, con --verify hash, el SHA256 de cada copia contra el original.
 CHANGELOG:
+  - 2026-10-10: Preparar Traktor usa los temas de la colección local (ya analizados) y deja la copia
+                del paquete solo para los que faltan; el CSV suma nombre, carpeta y duración originales.
   - 2026-10-10: Creación inicial (Gabriel toca con Traktor desde el pendrive en otra computadora).
 """
 from __future__ import annotations
@@ -158,44 +161,18 @@ def fill_template(template: str, package_dir: PureWindowsPath) -> str:
 # Scripts para la otra computadora
 # ---------------------------------------------------------------------------
 
-PS1 = r"""# Preparar Traktor: reescribe traktor.nml con la unidad y la carpeta donde esta este paquete
-# y comprueba que esten todos los temas. Generado por TRAKTOR ML (usb_package.py).
-$ErrorActionPreference = 'Stop'
-$here = Split-Path -Parent $MyInvocation.MyCommand.Path
-$vol = Split-Path -Qualifier $here
-$rest = $here.Substring($vol.Length).Trim('\')
-$dir = '/:'
-if ($rest) { foreach ($p in $rest.Split('\')) { $dir += $p + '/:' } }
-$enc = New-Object System.Text.UTF8Encoding $false
-$tpl = [System.IO.File]::ReadAllText((Join-Path $here '_plantilla.nml'), $enc)
-$out = $tpl.Replace('@@VOL@@', [System.Security.SecurityElement]::Escape($vol)).Replace('@@DIR@@', [System.Security.SecurityElement]::Escape($dir))
-[System.IO.File]::WriteAllText((Join-Path $here 'traktor.nml'), $out, $enc)
-$rows = Import-Csv -LiteralPath (Join-Path $here '_organizacion.csv') -Encoding UTF8
-$files = $rows | Select-Object -ExpandProperty archivo -Unique
-$missing = @($files | Where-Object { -not (Test-Path -LiteralPath (Join-Path $here $_)) })
-Write-Host ''
-Write-Host "Paquete en: $here"
-Write-Host ("Temas: {0}   Encontrados: {1}   Faltan: {2}" -f $files.Count, ($files.Count - $missing.Count), $missing.Count)
-if ($missing.Count -gt 0) {
-  Write-Host 'Faltan estos archivos (se copiaron mal o se borraron):' -ForegroundColor Yellow
-  $missing | Select-Object -First 30 | ForEach-Object { Write-Host "  $_" }
-} else {
-  Write-Host 'Todo bien.' -ForegroundColor Green
-}
-Write-Host ''
-Write-Host 'Listo: traktor.nml actualizado. En Traktor: clic derecho en Playlists > Import Playlist > traktor.nml'
-"""
+PS1_PATH = Path(__file__).with_name("traktor_prepare.ps1")  # se copia como _preparar_traktor.ps1
 
 BAT = (
     "@echo off\r\n"
-    "rem Reescribe traktor.nml para la letra y carpeta actuales del pendrive.\r\n"
+    "rem Arma traktor.nml con los temas de la coleccion de Traktor de esta computadora.\r\n"
     "powershell -NoProfile -ExecutionPolicy Bypass -File \"%~dp0_preparar_traktor.ps1\"\r\n"
     "echo.\r\n"
     "pause\r\n"
 )
 
 
-def leeme(root_label: str, n_tracks: int, n_playlists: int, size_gb: float, vol: str) -> str:
+def leeme(root_label: str, n_tracks: int, n_playlists: int, size_gb: float) -> str:
     return f"""TRAKTOR ML - organizacion para Traktor
 =====================================
 
@@ -203,26 +180,25 @@ Contenido: {n_tracks} temas ({size_gb:.1f} GB) en {n_playlists} playlists, carpe
 
 Musica\\             Los temas, ordenados en carpetas igual que las playlists.
 traktor.nml          Las playlists para Traktor (con el orden sugerido).
-Preparar Traktor.bat Ajusta traktor.nml a la letra que tenga el pendrive en esta computadora.
+Preparar Traktor.bat Arma traktor.nml para esta computadora (ver abajo).
 Playlists m3u8\\      Las mismas playlists en formato m3u8 (respaldo para otros programas).
 _organizacion.csv    Lista de temas por playlist (lo usa Preparar Traktor.bat).
+_informe.txt         Lo escribe Preparar Traktor.bat: que archivo usa cada tema.
 
 Como cargarlo en Traktor (Windows)
 ----------------------------------
-0. Para tocar sin el pendrive: copiar esta carpeta entera a la raiz de un disco, por ejemplo
-   C:\\TRAKTOR ML o D:\\TRAKTOR ML (no dentro de Documentos o Musica: las rutas quedarian largas).
-1. Doble clic en "Preparar Traktor.bat" (dentro de la carpeta que vas a usar). Muestra cuantos
-   temas encontro (tiene que decir "Faltan: 0") y ajusta traktor.nml a esa unidad y carpeta.
-   Desde el pendrive en la unidad {vol} no hace falta.
-2. En Traktor, en el panel izquierdo: clic derecho sobre "Playlists" > "Import Playlist" >
-   elegir traktor.nml de esa misma carpeta.
-3. Aparece la carpeta "{root_label}" con las playlists. Ordenar por la columna "#" para ver
-   el orden sugerido.
-4. La primera vez, dejar que Traktor analice los temas (seleccionar todo > clic derecho > Analyze).
-
-Consejo: asignar siempre la misma letra al pendrive (Administracion de discos > clic derecho en el
-pendrive > Cambiar la letra y rutas de acceso). Asi Traktor no pierde el analisis ni los cue points.
-No desenchufar el pendrive mientras se toca.
+1. Cerrar Traktor si esta abierto (asi su coleccion en disco esta al dia).
+2. Doble clic en "Preparar Traktor.bat". Busca cada tema en la coleccion de Traktor de esta
+   computadora: los que ya estan se usan tal cual (con su analisis y sus cue points); los que no,
+   salen de la copia de este paquete. Muestra cuantos hay de cada tipo.
+   - "Copia del paquete: 0": todo es local; el pendrive no hace falta para tocar.
+   - Si hay temas de la copia del paquete y no queres tocar con el pendrive enchufado: copiar esta
+     carpeta entera a la raiz de un disco (C:\\TRAKTOR ML o D:\\TRAKTOR ML; no dentro de Documentos:
+     las rutas quedarian largas) y volver a hacer doble clic en Preparar Traktor.bat desde ahi.
+3. Abrir Traktor. En el panel izquierdo: clic derecho sobre "Playlists" > "Import Playlist" >
+   elegir traktor.nml de la carpeta donde corriste Preparar Traktor.bat.
+4. Aparece la carpeta "{root_label}" con las playlists. Ordenar por la columna "#" para ver
+   el orden sugerido. Solo los temas de la copia del paquete necesitan analisis.
 """
 
 
@@ -293,6 +269,10 @@ def stale_files(files: List[Placement], package_dir: Path) -> List[Path]:
 # Paquete
 # ---------------------------------------------------------------------------
 
+def _text(value) -> str:
+    return str(value) if value is not None and pd.notna(value) else ""
+
+
 def write_package_files(package_dir: Path, tracks: pd.DataFrame, specs: List[PlaylistSpec],
                         placements: List[Placement], root_label: str) -> None:
     """Todo lo que no es audio: NML, plantilla, scripts, m3u8, CSV y LEEME."""
@@ -300,7 +280,8 @@ def write_package_files(package_dir: Path, tracks: pd.DataFrame, specs: List[Pla
     template = write_template_nml(package_dir / "_plantilla.nml", tracks, specs, placements, root_label)
     real = PureWindowsPath(str(package_dir.resolve()))
     (package_dir / "traktor.nml").write_text(fill_template(template, real), encoding="utf-8", newline="\n")
-    (package_dir / "_preparar_traktor.ps1").write_text(PS1, encoding="utf-8-sig", newline="\r\n")
+    (package_dir / "_preparar_traktor.ps1").write_text(PS1_PATH.read_text(encoding="utf-8"),
+                                                       encoding="utf-8-sig", newline="\r\n")
     (package_dir / "Preparar Traktor.bat").write_bytes(BAT.encode("ascii"))
 
     # m3u8 con rutas relativas a la carpeta de cada playlist
@@ -320,16 +301,22 @@ def write_package_files(package_dir: Path, tracks: pd.DataFrame, specs: List[Pla
 
     with open(package_dir / "_organizacion.csv", "w", encoding="utf-8-sig", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["carpeta", "playlist", "posicion", "track_uid", "archivo", "artista", "titulo", "origen"])
+        w.writerow(["carpeta", "playlist", "posicion", "track_uid", "archivo", "artista", "titulo", "origen",
+                    "nombre_original", "carpeta_original", "duracion_s"])
         for p in placements:
             row = tracks.loc[p.track_uid]
+            src = PureWindowsPath(p.source_path)
+            rel = row.get("rel_path")
+            orig_dir = str(PureWindowsPath(str(rel)).parent) if isinstance(rel, str) and rel else ""
+            dur = row.get("duration_s")
             w.writerow([p.folder, p.playlist, p.position, p.track_uid, p.rel_path,
-                        row.get("artist") if pd.notna(row.get("artist")) else "",
-                        row.get("title") if pd.notna(row.get("title")) else "", p.source_path])
+                        _text(row.get("artist")), _text(row.get("title")), p.source_path,
+                        src.name, "" if orig_dir == "." else orig_dir,
+                        f"{float(dur):.2f}" if pd.notna(dur) else ""])
 
     size_gb = sum(Path(p.source_path).stat().st_size for p in files) / 1e9
     (package_dir / "LEEME.txt").write_text(
-        leeme(root_label, len(files), len(specs), size_gb, real.drive), encoding="utf-8-sig", newline="\r\n")
+        leeme(root_label, len(files), len(specs), size_gb), encoding="utf-8-sig", newline="\r\n")
 
 
 def build_package(dataset_name: str, org_name: str, dest: Path, org_version: Optional[int] = None,

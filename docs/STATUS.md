@@ -41,8 +41,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 ## OPEN ITEMS (por prioridad; LOCAL = trabajo del agente, GABRIEL = lo hace o decide Gabriel)
 
 1. GABRIEL: Rekordbox 7 con `biblioteca_v11/rekordbox.xml` importado (analizando; DDJ-400, sin
-   pendrive). Traktor en la otra PC: paquete `D:\TRAKTOR ML` (`usb_package.py`, 1760 temas, SHA256
-   OK) → copiar a la raíz de un disco, `Preparar Traktor.bat`, importar. ¿Se ve el Remixer?
+   pendrive). Traktor en la otra PC: pendrive `D:\TRAKTOR ML` (`usb_package.py`, SHA256 OK);
+   `Preparar Traktor.bat` usa sus temas ya analizados, el paquete solo para faltantes. ¿Remixer?
 2. GABRIEL: probar la app local (`Abrir TRAKTOR ML.bat`): agregar música nueva, fusiones de temas
    (clic derecho, papelera), orden a mano (⇅), preparar para Rekordbox/Traktor y deshacer.
 3. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los

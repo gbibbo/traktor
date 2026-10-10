@@ -4,6 +4,7 @@ PURPOSE: Tests del paquete portátil para Traktor (src/v4/pipeline/usb_package.p
          reemplazables (incluido lo que hace el .ps1), m3u8 relativos, copia reanudable y
          verificación.
 CHANGELOG:
+  - 2026-10-10: Preparar Traktor con colección local falsa (ficha copiada, nombre, artista/título).
   - 2026-10-10: Creación inicial.
 """
 import shutil
@@ -30,13 +31,13 @@ def _fixture(tmp: Path):
     src = tmp / "src"
     (src / "a").mkdir(parents=True)
     (src / "b").mkdir()
-    files = {"u1": src / "a" / "x.mp3", "u2": src / "b" / "x.mp3", "u3": src / "a" / "R&B: y?.flac"
-             if sys.platform != "win32" else src / "a" / "R&B y.flac"}
+    files = {"u1": src / "a" / "x.mp3", "u2": src / "b" / "x.mp3", "u3": src / "a" / "R&B y.flac"}
     for i, p in enumerate(files.values()):
         p.write_bytes(bytes([i]) * (100 + i))
     tracks = pd.DataFrame({
         "track_uid": list(files), "source_path": [str(p) for p in files.values()],
-        "artist": ["A", "B", None], "title": ["One", "Two", None],
+        "rel_path": ["a/x.mp3", "b/x.mp3", "a/R&B y.flac"],
+        "artist": ["A", "B", "Céline"], "title": ["One", "Two", "Three (Remix)"],
         "tag_comment": ["Vocal", None, None], "duration_s": [300.0, 310.0, 320.0],
     }).set_index("track_uid")
     specs = [PlaylistSpec("A · Techno / House", "A1 Techno / House (120-125)", ["u1", "u2"]),
@@ -112,16 +113,76 @@ def test_package_end_to_end():
         (pkg / "Musica" / "viejo.mp3").write_bytes(b"x")
         assert [f.name for f in stale_files(files, pkg)] == ["viejo.mp3"]
 
-        if _ps_available():  # el .ps1 genera lo mismo que fill_template para su carpeta real
-            moved = t / "otra" / "TRAKTOR ML"
-            shutil.copytree(pkg, moved)
-            (moved / "traktor.nml").unlink()
-            r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-                                str(moved / "_preparar_traktor.ps1")], capture_output=True, text=True)
-            assert r.returncode == 0, r.stderr
-            assert "Faltan: 0" in r.stdout
-            got = (moved / "traktor.nml").read_text(encoding="utf-8")
-            assert got == fill_template(tpl, PureWindowsPath(str(moved.resolve())))
+        if _ps_available():
+            _check_prepare_script(t, pkg)
+
+def _nml_loc(path: Path) -> str:
+    p = PureWindowsPath(str(path))
+    d = "/:" + "".join(f"{x}/:" for x in p.parts[1:-1])
+    return f'<LOCATION DIR="{d}" FILE="{p.name}" VOLUME="{p.drive}" VOLUMEID="abc"/>', p.drive + d + p.name
+
+
+def _check_prepare_script(t: Path, pkg: Path):
+    """El .ps1 real sobre una copia movida del paquete y una colección de Traktor falsa."""
+    local = t / "local"
+    (local / "music" / "a").mkdir(parents=True)
+    (local / "music" / "z").mkdir()
+    l1, l2, l3 = local / "music" / "a" / "x.mp3", local / "music" / "z" / "x.mp3", local / "music" / "renamed.flac"
+    for f in (l1, l2, l3):
+        f.write_bytes(b"local")
+    (loc1, k1), (loc2, _), (loc3, k3) = _nml_loc(l1), _nml_loc(l2), _nml_loc(l3)
+    gone, _ = _nml_loc(local / "music" / "gone.mp3")
+    collection = local / "collection.nml"
+    collection.write_text(f"""<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<NML VERSION="19"><HEAD COMPANY="www.native-instruments.com" PROGRAM="Traktor"/><COLLECTION ENTRIES="4">
+<ENTRY TITLE="One" ARTIST="A">{loc1}<INFO PLAYTIME="300" PLAYTIME_FLOAT="300.5"/><TEMPO BPM="128.000000" BPM_QUALITY="100.000000"/><CUE_V2 NAME="AutoGrid" TYPE="4" START="12.3"/></ENTRY>
+<ENTRY TITLE="Other" ARTIST="Z">{loc2}<INFO PLAYTIME="999"/></ENTRY>
+<ENTRY TITLE="Three (Remix)" ARTIST="Celine">{loc3}<INFO PLAYTIME="321"/><TEMPO BPM="124.000000"/></ENTRY>
+<ENTRY TITLE="Two" ARTIST="B">{gone}<INFO PLAYTIME="310"/></ENTRY>
+</COLLECTION></NML>
+""", encoding="utf-8")
+
+    moved = t / "otra" / "TRAKTOR ML"
+    shutil.copytree(pkg, moved)
+    (moved / "traktor.nml").unlink()
+    r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                        str(moved / "_preparar_traktor.ps1"), "-Collection", str(collection)],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "por nombre: 1, por artista y titulo: 1" in r.stdout, r.stdout
+    assert "Copia del paquete (Traktor la analiza al cargarla): 1" in r.stdout
+    assert "No encontrados: 0" in r.stdout
+
+    text = (moved / "traktor.nml").read_text(encoding="utf-8")
+    assert text.startswith('<?xml version="1.0" encoding="UTF-8" standalone="no" ?>\n<NML')
+    root = ET.fromstring(text.split("\n", 1)[1])
+    coll = root.find("COLLECTION")
+    assert coll.get("ENTRIES") == "3" and len(coll.findall("ENTRY")) == 3
+    by_title = {e.get("TITLE"): e for e in coll.findall("ENTRY")}
+    # la ficha local se copia tal cual (análisis y cues), no la del paquete
+    assert by_title["One"].find("TEMPO").get("BPM") == "128.000000"
+    assert by_title["One"].find("CUE_V2").get("START") == "12.3"
+    assert by_title["Three (Remix)"].get("ARTIST") == "Celine"
+    pkg_key = by_title["Two"].find("LOCATION")
+    assert pkg_key.get("VOLUME") == PureWindowsPath(str(moved)).drive
+    k2 = pkg_key.get("VOLUME") + pkg_key.get("DIR") + pkg_key.get("FILE")
+    assert "/:otra/:TRAKTOR ML/:Musica/:" in k2
+    keys = [pk.get("KEY") for pk in root.iter("PRIMARYKEY")]
+    assert keys == [k1, k2, k3, k1]
+    rep = (moved / "_informe.txt").read_text(encoding="utf-8").splitlines()
+    assert len(rep) == 3 and sum(l.startswith("copia del paquete") for l in rep) == 1
+
+    # sin temas en la colección: todo sale del paquete
+    empty = local / "empty.nml"
+    empty.write_text('<?xml version="1.0" encoding="UTF-8"?><NML VERSION="19"><COLLECTION ENTRIES="0"/></NML>',
+                     encoding="utf-8")
+    r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                        str(moved / "_preparar_traktor.ps1"), "-Collection", str(empty)],
+                       capture_output=True, text=True)
+    assert r.returncode == 0 and "Copia del paquete (Traktor la analiza al cargarla): 3" in r.stdout, r.stdout
+    root = ET.fromstring((moved / "traktor.nml").read_text(encoding="utf-8").split("\n", 1)[1])
+    for loc in root.iter("LOCATION"):
+        assert Path(loc.get("VOLUME") + loc.get("DIR").replace("/:", "\\") + loc.get("FILE")).exists()
 
 
 def test_verify_detects_problems():

@@ -159,9 +159,11 @@ universal: las `.m3u8` de `m3u8/` (una por playlist).
 **Traktor desde un pendrive en otra computadora (paquete portátil, 2026-10-10):**
 `python src/v4/pipeline/usb_package.py --org-name biblioteca --dest "D:\" --verify hash --low-priority`
 copia la música a `D:\TRAKTOR ML\Musica\<carpeta>\<playlist>\` y escribe `traktor.nml`. En la otra
-PC: si el pendrive tiene otra letra, doble clic en `Preparar Traktor.bat` (reescribe el NML para su
-letra y carpeta y cuenta los temas); después Import Playlist > `traktor.nml`. Reanudable; cuando
-cambia la organización se vuelve a correr (`--prune` borra los temas que ya no están).
+PC (Traktor cerrado): doble clic en `Preparar Traktor.bat` (`traktor_prepare.ps1`): busca cada tema
+en su `collection.nml` (nombre de archivo con duración ±5 s, después artista y título ±3 s) y usa
+ese archivo con su ficha tal cual (análisis, cues); los que no están salen de la copia del paquete.
+Informe en `_informe.txt`; después Import Playlist > `traktor.nml`. Reanudable; cuando cambia la
+organización se vuelve a correr (`--prune` borra los temas que ya no están).
 
 ---
 

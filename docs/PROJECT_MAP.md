@@ -46,7 +46,8 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `write_beatport_tags.py` | Escribe Artist, Remixers, Label, Genre y Released de Beatport (A y B confirmado) y el género del modelo con confianza >= 0.6 (C/D), solo MP3/FLAC. Simulación por defecto (→ features/tag_plan.csv); `--write` con respaldo features/tag_backup_<fecha>.csv y verificación del hash de audio; `--revert <csv>`; `--folder` para la prueba |
 | `tag_vocals.py` | CPU: etiqueta Vocal (por defecto `clap_probe`: CLAP del tema entero + clasificador lineal de `models/vocal_probe/`, Vocal si >= 5 % con voz; también CLAP zero-shot o AST AudioSet) → features/vocals_<método>.parquet; `--write-tags` agrega " - Vocal" al comentario con respaldo CSV y `--revert` |
 | `phase5_export.py` | CPU: Export M3U Traktor (UTF-8, rutas Windows) → playlists/V4_<N>/; `--formats m3u8,rekordbox,traktor`, `--rep`, `--out-root` |
-| `usb_package.py` | Paquete portátil para Traktor: copia la música ordenada por playlist a un pendrive/disco + `traktor.nml`, plantilla y `Preparar Traktor.bat` (ajusta la letra en otra PC), m3u8 relativos; reanudable, `--verify hash` |
+| `usb_package.py` | Paquete portátil para Traktor: copia la música ordenada por playlist a un pendrive/disco + `traktor.nml`, plantilla y `Preparar Traktor.bat`, m3u8 relativos; reanudable, `--verify hash` |
+| `traktor_prepare.ps1` | «Preparar Traktor» del paquete (otra PC, sin Python): usa los temas de su `collection.nml` (ficha y análisis tal cual), el paquete solo para faltantes; `_informe.txt` |
 
 ## Evaluation (`src/v4/evaluation/`)
 
