@@ -156,6 +156,13 @@ Analizar los temas y arrastrar la carpeta al pendrive (modo Export).
 **Traktor:** Browser > clic derecho en Playlists > Import Playlist > `traktor.nml`. Alternativa
 universal: las `.m3u8` de `m3u8/` (una por playlist).
 
+**Traktor desde un pendrive en otra computadora (paquete portátil, 2026-10-10):**
+`python src/v4/pipeline/usb_package.py --org-name biblioteca --dest "D:\" --verify hash --low-priority`
+copia la música a `D:\TRAKTOR ML\Musica\<carpeta>\<playlist>\` y escribe `traktor.nml`. En la otra
+PC: si el pendrive tiene otra letra, doble clic en `Preparar Traktor.bat` (reescribe el NML para su
+letra y carpeta y cuenta los temas); después Import Playlist > `traktor.nml`. Reanudable; cuando
+cambia la organización se vuelve a correr (`--prune` borra los temas que ya no están).
+
 ---
 
 ## 1. Requisitos (referencia histórica HPC / entornos remotos)

@@ -6,6 +6,8 @@ PURPOSE: Phase 5 — Exportar playlists M3U compatibles con Traktor DJ.
          Formatos (--formats): m3u (histórico: carpeta Windows + nombre de archivo), m3u8 (UTF-8,
          rutas absolutas del catálogo), rekordbox (rekordbox.xml) y traktor (traktor.nml).
 CHANGELOG:
+  - 2026-10-10: run_export(return_specs=True) devuelve también las playlists, los metadatos y el
+                nombre raíz (lo usa usb_package.py para el paquete portátil).
   - 2026-09-29: --org-name [--org-version]: exporta una organización estable (organize.py) en
                 <out-root>/<nombre>_v<N>/, con carpeta raíz "TRAKTOR ML <nombre> v<N>".
   - 2026-09-27: --formats m3u8,rekordbox,traktor (src/v4/common/dj_export.py) con rutas absolutas
@@ -121,13 +123,15 @@ def run_export(
     root_name: Optional[str] = None,
     org_name: Optional[str] = None,
     org_version: Optional[int] = None,
-) -> Path:
+    return_specs: bool = False,
+):
     """
     Genera playlists desde ordered_<hash>.parquet y names_<hash>.json.
     formats: subconjunto de ('m3u', 'm3u8', 'rekordbox', 'traktor').
     rep: representación usada en Phases 2-4 (define el N canónico); None = Phase 1.
 
-    Returns: Ruta al directorio <out_root>/V4_<N>/ generado.
+    Returns: Ruta al directorio <out_root>/V4_<N>/ generado; con return_specs=True,
+             (out_dir, playlists, metadatos por track_uid, nombre de la carpeta raíz).
     """
     artifacts_dir = resolve_dataset_artifacts(dataset_name, config)
     clustering_dir = artifacts_dir / "clustering"
@@ -293,9 +297,9 @@ def run_export(
             print(f"  [OK] {l1_dirname}/{fn} ({len(tracks_l2)} tracks)")
 
     # Formatos para software de DJ (rutas absolutas del catálogo)
+    tracks_meta = catalog.drop_duplicates("track_uid").set_index("track_uid") if not catalog.empty else catalog
+    root_label = root_name or (f"TRAKTOR ML {org_name} v{org_version_used}" if org_name else f"TRAKTOR ML {out_dir.name}")
     if any(f in DJ_FORMATS for f in formats):
-        tracks_meta = catalog.drop_duplicates("track_uid").set_index("track_uid")
-        root_label = root_name or (f"TRAKTOR ML {org_name} v{org_version_used}" if org_name else f"TRAKTOR ML {out_dir.name}")
         if "m3u8" in formats:
             for spec in specs:
                 folder_dir = out_dir / "m3u8" / _sanitize_dirname(spec.folder) if spec.folder else out_dir / "m3u8"
@@ -333,6 +337,8 @@ def run_export(
     print(f"[INFO] Summary: {summary_path}")
     print("=" * 70)
 
+    if return_specs:
+        return out_dir, specs, tracks_meta, root_label
     return out_dir
 
 

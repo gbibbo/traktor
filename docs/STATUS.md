@@ -4,7 +4,7 @@ Se inyecta al abrir cada sesión de Claude Code (hook `SessionStart` en `.claude
 Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. Tope 6 KB
 (`tests/test_status_doc.py`). La historia vive en `git log`, `docs/DECISIONS.md` y `docs/reports/`.
 
-## CURRENT STATE (2026-10-06)
+## CURRENT STATE (2026-10-10)
 
 - **Foco: MVP sobre la biblioteca completa** para Rekordbox y Traktor, en CPU local (DECISIONS
   2026-09-27). Dataset `musica` = `Música/` en la raíz del repo (git-ignorada): 3086 archivos, 2303
@@ -40,8 +40,9 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 
 ## OPEN ITEMS (por prioridad; LOCAL = trabajo del agente, GABRIEL = lo hace o decide Gabriel)
 
-1. GABRIEL: importar `biblioteca_v11/rekordbox.xml` en Rekordbox 7 y grabar el pendrive; validar
-   también en Traktor (TODO 6.7). ¿Se ve el Remixer? (el XML no lo trae; si falta, agregarlo).
+1. GABRIEL: Rekordbox 7 con `biblioteca_v11/rekordbox.xml` importado (analizando; DDJ-400, sin
+   pendrive). Traktor en la otra PC: paquete `D:\TRAKTOR ML` (`usb_package.py`, 1760 temas, SHA256
+   OK) → copiar a la raíz de un disco, `Preparar Traktor.bat`, importar. ¿Se ve el Remixer?
 2. GABRIEL: probar la app local (`Abrir TRAKTOR ML.bat`): agregar música nueva, fusiones de temas
    (clic derecho, papelera), orden a mano (⇅), preparar para Rekordbox/Traktor y deshacer.
 3. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
