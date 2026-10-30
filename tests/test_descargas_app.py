@@ -109,7 +109,7 @@ def test_failed_run_explains_each_track(tmp_path):
     state = APP.run_state(run)
     tracks = by_pos(state)
     assert state["status"] == "failed" and state["phase"] is None
-    assert tracks[1]["state"] == "failed" and "otra grabación" in tracks[1]["detail"]
+    assert tracks[1]["state"] == "failed" and "ISRC distinto" in tracks[1]["detail"]
     assert "duración distinta (-27 s)" in tracks[2]["detail"]
     assert tracks[3]["state"] == "recorded"
     assert state["saved_to"] is None

@@ -149,15 +149,17 @@ def load_settings(path: Path) -> dict[str, str]:
 # Estado de un run (lee los archivos que escribe el orquestador; no toca nada)
 # ---------------------------------------------------------------------------
 
+# Solo lo que la verificación comprobó: un ISRC distinto puede ser una reedición de la misma grabación
+# y un artista "distinto" puede estar escrito de otra forma en la etiqueta («A & B»).
 _REASONS = [
-    (re.compile(r"^ISRC distinto"), "otra grabación (ISRC distinto)"),
-    (re.compile(r"^artista mismatch"), "artista distinto"),
+    (re.compile(r"^ISRC distinto"), "ISRC distinto al de Spotify"),
+    (re.compile(r"^artista mismatch"), "el artista de la etiqueta no coincide"),
     (re.compile(r"^duraci.n mismatch \(([-+]?\d+(?:\.\d+)?)s\)"), "duración distinta ({0} s)"),
-    (re.compile(r"^t.tulo mismatch|^title mismatch", re.I), "título distinto"),
-    (re.compile(r"^versi.n", re.I), "otra versión"),
+    (re.compile(r"^t.tulo (base )?mismatch|^title mismatch", re.I), "el título no coincide"),
+    (re.compile(r"^identidad de versi.n", re.I), "otra versión o remix"),
 ]
 _FAILURES = {
-    "verification_failed": "Lo que había en Soulseek no era este tema",
+    "verification_failed": "El archivo de Soulseek no pasó la verificación",
     "download_error": "Falló la descarga",
     "availability_changed_or_download_failed": "Ya no estaba disponible en Soulseek",
     "finalize_error": "No se pudo guardar el MP3",

@@ -681,7 +681,7 @@ function statusHtml(v, tracks) {
   } else if (status === "failed") {
     const savedTo = run.saved_to;
     html += `<div class="note amber">${icon("warn")}<div><b>${failed ? `${plural(failed, "tema no se pudo", "temas no se pudieron")} bajar` : "La descarga terminó con un error"}</b>
-      <p>${failed ? "Soulseek tenía archivos con esos nombres, pero no pasaron la verificación (otra grabación, otro artista o duración distinta). Pasa el ratón sobre «No se pudo» para ver el motivo de cada uno. " : ""}Como faltan temas, la carpeta final no se armó${done && !savedTo ? `: los ${done} temas listos siguen en la carpeta de trabajo` : ""}.</p>
+      <p>${failed ? "Soulseek tenía archivos con esos nombres, pero el que se bajó no pasó la verificación (ISRC, artista de la etiqueta o duración), y esos temas no se graban de Spotify. Pasa el ratón sobre «No se pudo» para ver el motivo de cada uno. " : ""}Como faltan temas, la carpeta final no se armó${done && !savedTo ? `: los ${done} temas listos siguen en la carpeta de trabajo` : ""}.</p>
       ${errLine(job)}
       <div class="row">
         ${savedTo ? `<button class="pill white small" data-open-folder="${esc(savedTo)}">${icon("folder", "sm")}Abrir los ${run.saved_count} guardados</button>` :
