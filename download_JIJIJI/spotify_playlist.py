@@ -2,6 +2,7 @@
 PURPOSE: Open a Spotify playlist in the Windows desktop client and start playback.
 
 CHANGELOG:
+- 2026-10-30: Keep the token cache at the repo root, not in the working directory.
 - 2026-09-27: Add ``--start-only`` for non-blocking orchestration.
 - 2026-09-27: Add a zero-based playlist offset for resumable recording.
 - 2026-09-27: Add a playback watchdog handshake for resumable capture.
@@ -34,6 +35,9 @@ SCOPES = " ".join([
     "user-read-currently-playing",
     "user-modify-playback-state",
 ])
+# Absolute so the authorization is reused from any working directory: inside the
+# orchestrator the player has only seconds to start, too few for a browser login.
+TOKEN_CACHE = Path(__file__).resolve().parent.parent / ".spotify_token_cache"
 
 
 def playlist_url_to_uri(url: str) -> str:
@@ -230,7 +234,7 @@ def main() -> int:
             client_secret=os.environ["SPOTIFY_CLIENT_SECRET"],
             redirect_uri=os.environ["SPOTIFY_REDIRECT_URI"],
             scope=SCOPES,
-            cache_path=".spotify_token_cache",
+            cache_path=str(TOKEN_CACHE),
         )
     )
 

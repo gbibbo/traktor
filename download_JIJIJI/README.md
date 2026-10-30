@@ -112,9 +112,14 @@ de faltantes y el reporte de consolidación; los detalles se agrupan bajo
 `download_JIJIJI/Playlists_DOWNLOAD/<nombre de playlist>/`.
 
 Puede cambiarse la raíz de runs mediante `SPOTIFY_DOWNLOAD_ROOT` y la biblioteca
-consolidada mediante `SPOTIFY_PLAYLISTS_ROOT`.
+consolidada mediante `SPOTIFY_PLAYLISTS_ROOT`, como variables de entorno o como
+líneas del `.env`.
 
 ## Configuración inicial
+
+Para instalar todo en otra PC paso a paso (claves de Spotify y Soulseek,
+sockseek, ffmpeg y las autorizaciones de Spotify), seguir
+[CONFIGURAR_OTRO_ORDENADOR.md](CONFIGURAR_OTRO_ORDENADOR.md). Resumen:
 
 Instalar los paquetes Python:
 
@@ -138,6 +143,9 @@ SPOTIFY_CLIENT_SECRET=...
 SPOTIFY_REDIRECT_URI=http://127.0.0.1:48721/callback
 ```
 
-La aplicación de Spotify debe tener exactamente el mismo redirect URI. Durante
+La aplicación de Spotify debe tener registrado `http://127.0.0.1:48721/callback`,
+que la lectura de playlists usa siempre (está fijo en el código), y también el
+valor de `SPOTIFY_REDIRECT_URI` si es otro, porque lo usa el control de la
+reproducción. En la PC actual ese valor es `http://127.0.0.1:8888/callback`. Durante
 la grabación conviene desactivar otros sonidos del sistema y el crossfade de
 Spotify.

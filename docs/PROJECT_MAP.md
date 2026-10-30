@@ -173,7 +173,9 @@ por loopback (`playlist_loopback_recorder.py`) y los reportes JSON/TXT de una pr
 coordina el preflight y la descarga de Soulseek, divide los faltantes en playlists
 privadas de hasta 10 temas, las reproduce y graba secuencialmente, y reúne los resultados bajo
 `download_JIJIJI/runs/` (git-ignorado). `download_JIJIJI/README.md` documenta la
-configuración inicial y el uso. La grabación crea checkpoints por tema en
+configuración inicial y el uso; `download_JIJIJI/CONFIGURAR_OTRO_ORDENADOR.md`, la instalación
+paso a paso en otra PC (claves de Spotify y Soulseek, `sockseek.exe` en `tools/sockseek/`,
+git-ignorado, y las dos autorizaciones de Spotify). La grabación crea checkpoints por tema en
 `recording_progress.json`; una ejecución posterior conserva los MP3 terminados y
 reanuda el lote correcto desde la primera pista pendiente. El grabador reutiliza el
 escritor canónico de metadata y cover de `spotify_soulseek_download.py`, por lo

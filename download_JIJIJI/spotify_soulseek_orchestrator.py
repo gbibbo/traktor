@@ -3,6 +3,7 @@
 PURPOSE: Run the complete Spotify -> Soulseek + loopback fallback workflow.
 
 CHANGELOG:
+- 2026-10-30: Load .env before parsing so it can set the runs and playlists roots.
 - 2026-10-05: Revalidate final MP3s and existing duplicates before consolidation.
 - 2026-09-29: Record missing tracks sequentially in Spotify batches of up to 10.
 - 2026-09-27: Consolidate successful runs into one named playlist directory.
@@ -594,7 +595,6 @@ def simplify_completed_run(run_dir: Path, moved_paths: dict[str, str]) -> Path:
 def run_workflow(args: argparse.Namespace) -> int:
     playlist_id = playlist_id_from_url(args.playlist_url)
     playlist_url = canonical_playlist_url(args.playlist_url)
-    load_environment()
     validate_environment()
 
     sockseek = find_required_program("sockseek")
@@ -1016,8 +1016,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
-    args = build_parser().parse_args()
     try:
+        # Before the parser: .env may set SPOTIFY_DOWNLOAD_ROOT / SPOTIFY_PLAYLISTS_ROOT.
+        load_environment()
+        args = build_parser().parse_args()
         return run_workflow(args)
     except ResumeAvailable as exc:
         print(f"PAUSADO: {exc}", file=sys.stderr)

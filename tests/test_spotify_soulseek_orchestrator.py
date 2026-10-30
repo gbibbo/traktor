@@ -1,6 +1,8 @@
 """PURPOSE: Test Spotify/Soulseek synchronization, metadata and consolidation.
 
-CHANGELOG: 2026-10-05: Isolate placement tests from the mandatory audio/AV gate.
+CHANGELOG:
+- 2026-10-30: Cover .env output roots and the absolute player token cache.
+- 2026-10-05: Isolate placement tests from the mandatory audio/AV gate.
 """
 
 from __future__ import annotations
@@ -8,6 +10,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import math
+import os
 import sys
 import tempfile
 import unittest
@@ -640,6 +643,31 @@ class ResumeTests(unittest.TestCase):
 
         self.assertEqual(code, 0)
         self.assertEqual(status["status"], "natural_end")
+
+
+class EnvironmentSetupTests(unittest.TestCase):
+    def test_env_file_sets_default_output_roots(self) -> None:
+        def fake_load_environment() -> None:
+            os.environ["SPOTIFY_DOWNLOAD_ROOT"] = "D:/descargas/runs"
+            os.environ["SPOTIFY_PLAYLISTS_ROOT"] = "D:/descargas/playlists"
+
+        received: list[object] = []
+        with mock.patch.dict(os.environ), mock.patch.object(
+            ORCHESTRATOR, "load_environment", fake_load_environment
+        ), mock.patch.object(
+            ORCHESTRATOR, "run_workflow", lambda args: received.append(args) or 0
+        ), mock.patch.object(
+            sys, "argv", ["orchestrator", "https://open.spotify.com/playlist/abc"]
+        ):
+            self.assertEqual(ORCHESTRATOR.main(), 0)
+
+        self.assertEqual(received[0].output_root, Path("D:/descargas/runs"))
+        self.assertEqual(received[0].library_root, Path("D:/descargas/playlists"))
+
+    def test_player_token_cache_ignores_working_directory(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        self.assertEqual(PLAYER.TOKEN_CACHE, repo_root / ".spotify_token_cache")
+
 
 if __name__ == "__main__":
     unittest.main()

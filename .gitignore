@@ -62,3 +62,5 @@ Thumbs.db
 .spotify_token_cache
 download_JIJIJI/runs/
 download_JIJIJI/Playlists_DOWNLOAD/
+# sockseek.exe (114 MB) se descarga en cada PC: download_JIJIJI/CONFIGURAR_OTRO_ORDENADOR.md
+tools/sockseek/
