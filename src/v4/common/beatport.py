@@ -17,6 +17,7 @@ PURPOSE: Beatport como fuente de metadatos (género, sello, fecha de lanzamiento
              "Extended Mix" si el archivo es la Extended, si no "Original Mix"; Label, Genre y
              Released (fecha AAAA-MM-DD).
 CHANGELOG:
+  - 2026-10-30: summarize guarda la carátula del lanzamiento (release_image) para package_tags.py.
   - 2026-09-29: Creación inicial.
 """
 from __future__ import annotations
@@ -168,6 +169,9 @@ def summarize(raw: dict) -> dict:
         "label": ((raw.get("label") or {}).get("label_name") or "").strip() or None,
         "release_date": (raw.get("release_date") or "")[:10] or None,
         "release_name": (raw.get("release") or {}).get("release_name"),
+        # carátula del lanzamiento; "{w}x{h}" se reemplaza por el tamaño pedido (package_tags.py)
+        "release_image": ((raw.get("release") or {}).get("release_image_dynamic_uri")
+                          or (raw.get("release") or {}).get("release_image_uri")),
         "genre": genres[0] if genres else None,
         "isrc": (raw.get("isrc") or "").strip().upper() or None,
         "bpm": raw.get("bpm"),

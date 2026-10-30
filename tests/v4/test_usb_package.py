@@ -197,3 +197,77 @@ def test_verify_detects_problems():
         assert verify_files(files, pkg, "size") == [f"falta: {files[1].rel_path}"]
         probs = verify_files(files, pkg, "hash")
         assert len(probs) == 2 and probs[0].startswith("contenido distinto")
+
+
+def tiny_mp3(path: Path, frames: int = 20) -> Path:
+    """MP3 válido mínimo (silencio, MPEG-1 Layer III 128 kbps 44.1 kHz) para leer y escribir tags."""
+    frame = bytes([0xFF, 0xFB, 0x90, 0x64]) + bytes(413)
+    path.write_bytes(frame * frames)
+    return path
+
+
+def _decode_location(loc: str) -> Path:
+    from urllib.parse import unquote
+    assert loc.startswith("file://localhost/"), loc
+    return Path(unquote(loc[len("file://localhost/"):]))
+
+
+def test_rekordbox_template_and_refresh():
+    from mutagen.id3 import ID3, TDRC, TIT2, TPE1, TPE4
+    from src.v4.pipeline.usb_package import fill_rekordbox, refresh_package
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        tracks, specs = _fixture(t)
+        pkg = t / "dest" / "TRAKTOR ML"
+        pl = plan_layout(specs, tracks)
+        files = unique_files(pl)
+        copy_files(files, pkg)
+        write_package_files(pkg, tracks, specs, pl, "TRAKTOR ML test v1")
+
+        # rekordbox.xml real: cada Location existe; 4 entradas en playlists, 3 temas
+        root = ET.parse(pkg / "rekordbox.xml").getroot()
+        locs = [tr.get("Location") for tr in root.find("COLLECTION")]
+        assert len(locs) == 3 and all(_decode_location(l).exists() for l in locs)
+        assert sum(len(n) for n in root.iter("NODE") if n.get("Type") == "1") == 4
+
+        tpl = (pkg / "_plantilla_rekordbox.xml").read_text(encoding="utf-8")
+        assert tpl.count("file://localhost/@@ROOT@@/Musica/") == 3 and "__PKG__" not in tpl
+        filled = fill_rekordbox(tpl, PureWindowsPath(r"E:\otra & carpeta\TRAKTOR ML"))
+        assert "file://localhost/E:/otra%20%26%20carpeta/TRAKTOR%20ML/Musica/A%20-%20Techno" in filled
+        assert (pkg / "Preparar Rekordbox.bat").read_bytes().startswith(b"@echo off")
+
+        if _ps_available():   # el .ps1 real en una carpeta movida con espacios, & y acentos
+            moved = t / "otra carpeta & más" / "TRAKTOR ML"
+            shutil.copytree(pkg, moved)
+            (moved / "rekordbox.xml").unlink()
+            r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                                str(moved / "_preparar_rekordbox.ps1")], capture_output=True, text=True)
+            assert r.returncode == 0, r.stdout + r.stderr
+            assert "Archivos que faltan: 0" in r.stdout, r.stdout
+            root = ET.parse(moved / "rekordbox.xml").getroot()
+            paths = [_decode_location(tr.get("Location")) for tr in root.find("COLLECTION")]
+            assert all(p.exists() and moved in p.parents for p in paths), paths
+
+        # refresh: el texto del XML/NML/CSV sale de los tags actuales del archivo
+        f1 = pkg / next(p.rel_path for p in files if p.track_uid == "u1")
+        tiny_mp3(f1)
+        tags = ID3()
+        tags.add(TIT2(encoding=3, text=["One"]))
+        tags.add(TPE1(encoding=3, text=["Artist A"]))
+        tags.add(TPE4(encoding=3, text=["Extended Mix"]))
+        tags.add(TDRC(encoding=3, text=["2020-01-02"]))
+        tags.save(f1, v2_version=3)
+        (pkg / "rekordbox.xml").unlink()
+        assert refresh_package(pkg) == 0
+        root = ET.parse(pkg / "rekordbox.xml").getroot()
+        one = next(tr for tr in root.find("COLLECTION") if tr.get("Name") == "One")
+        assert one.get("Artist") == "Artist A" and one.get("Remixer") == "Extended Mix" and one.get("Year") == "2020"
+        assert all(_decode_location(tr.get("Location")).exists() for tr in root.find("COLLECTION"))
+        nml = ET.fromstring((pkg / "traktor.nml").read_text(encoding="utf-8").split("\n", 1)[1])
+        e1 = next(e for e in nml.iter("ENTRY") if e.get("TITLE") == "One")
+        assert e1.get("ARTIST") == "Artist A" and e1.find("INFO").get("REMIXER") == "Extended Mix"
+        # mismas playlists, mismo orden; los otros temas conservan el texto del CSV
+        assert [n.get("Name") for n in root.iter("NODE") if n.get("Type") == "1"] == [s.name for s in specs]
+        assert {tr.get("Name") for tr in root.find("COLLECTION")} == {"One", "Two", "Three (Remix)"}
+        org = pd.read_csv(pkg / "_organizacion.csv", encoding="utf-8-sig")
+        assert len(org) == 4 and org.loc[org["track_uid"] == "u1", "artista"].tolist() == ["Artist A", "Artist A"]

@@ -1,6 +1,6 @@
 """
-PURPOSE: Paquete portátil de una organización para tocar con Traktor desde un pendrive o disco
-         externo en cualquier computadora Windows. Copia cada tema a
+PURPOSE: Paquete portátil de una organización para tocar con Rekordbox o Traktor desde un pendrive o
+         disco externo en cualquier computadora Windows. Copia cada tema a
          <destino>/<paquete>/Musica/<carpeta>/<playlist>/<archivo> (la música queda ordenada como
          las playlists) y escribe:
            - traktor.nml con las rutas del destino actual (Import Playlist en Traktor),
@@ -8,11 +8,20 @@ PURPOSE: Paquete portátil de una organización para tocar con Traktor desde un 
              en otra computadora arman traktor.nml con los temas que ya están en su colección de
              Traktor (ya analizados; ficha copiada tal cual) y, para los que no, la copia del
              paquete en la letra y carpeta donde esté,
+           - rekordbox.xml con las rutas del destino actual, y _plantilla_rekordbox.xml +
+             _preparar_rekordbox.ps1 (rekordbox_prepare.ps1) + "Preparar Rekordbox.bat", que lo
+             rearman con la letra y la carpeta donde esté el paquete en otra computadora,
            - Playlists m3u8/ con rutas relativas (respaldo para otros programas),
            - _organizacion.csv (playlist, posición, track_uid, archivo) y LEEME.txt.
          Reanudable: no vuelve a copiar archivos que ya están con el mismo tamaño. Verifica tamaños
          siempre y, con --verify hash, el SHA256 de cada copia contra el original.
+         --refresh <paquete> rehace todo lo que no es audio desde el propio paquete
+         (_organizacion.csv y los tags actuales de cada archivo), sin la organización ni la
+         biblioteca original: para después de corregir los tags con package_tags.py.
 CHANGELOG:
+  - 2026-10-30: Rekordbox en el paquete (plantilla + Preparar Rekordbox.bat) y --refresh (con
+                --refresh, artista, título, mezcla y año del NML/XML salen de los tags de cada
+                archivo). El tamaño del LEEME sale de las copias del paquete.
   - 2026-10-10: Preparar Traktor usa los temas de la colección local (ya analizados) y deja la copia
                 del paquete solo para los que faltan; el CSV suma nombre, carpeta y duración originales.
   - 2026-10-10: Creación inicial (Gabriel toca con Traktor desde el pendrive en otra computadora).
@@ -38,12 +47,15 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.v4.common.config_loader import load_config  # noqa: E402
-from src.v4.common.dj_export import PlaylistSpec, write_m3u8, write_traktor_nml  # noqa: E402
+from src.v4.common.dj_export import (  # noqa: E402
+    PlaylistSpec, rekordbox_location, write_m3u8, write_rekordbox_xml, write_traktor_nml,
+)
 
 PACKAGE_NAME = "TRAKTOR ML"
 MUSIC_DIR = "Musica"
 M3U_DIR = "Playlists m3u8"
 VOL_TOKEN, DIR_TOKEN = "@@VOL@@", "@@DIR@@"
+RB_TOKEN = "@@ROOT@@"              # unidad y carpeta del paquete dentro de cada Location de rekordbox.xml
 _PLACEHOLDER_ROOT = r"Z:\__PKG__"  # raíz ficticia que la plantilla reemplaza por la real
 MAX_PATH = 240                     # margen bajo el límite clásico de 260 de Windows
 
@@ -157,11 +169,38 @@ def fill_template(template: str, package_dir: PureWindowsPath) -> str:
     return template.replace(VOL_TOKEN, escape(vol, {'"': "&quot;"})).replace(DIR_TOKEN, escape(dirp, {'"': "&quot;"}))
 
 
+def write_rekordbox_template(out_path: Path, tracks: pd.DataFrame, specs: List[PlaylistSpec],
+                             placements: List[Placement], root_label: str) -> str:
+    """Plantilla rekordbox.xml con Location="file://localhost/@@ROOT@@/Musica/..." en cada tema."""
+    ph = PureWindowsPath(_PLACEHOLDER_ROOT)
+    t = tracks.copy()
+    for p in unique_files(placements):
+        t.loc[p.track_uid, "source_path"] = str(ph / p.rel_path)
+    tmp = out_path.with_suffix(".tmp")
+    write_rekordbox_xml(tmp, t, specs, root_label)
+    text = tmp.read_text(encoding="utf-8")
+    tmp.unlink()
+    old = 'Location="' + rekordbox_location(str(ph)) + "/"
+    assert text.count(old) == len(unique_files(placements)), (old, text.count(old))
+    text = text.replace(old, f'Location="file://localhost/{RB_TOKEN}/')
+    assert "__PKG__" not in text
+    out_path.write_text(text, encoding="utf-8", newline="\n")
+    return text
+
+
+def fill_rekordbox(template: str, package_dir: PureWindowsPath) -> str:
+    """Lo mismo que hace _preparar_rekordbox.ps1: 'E:/otra%20carpeta/TRAKTOR%20ML' en cada Location."""
+    from urllib.parse import quote
+    root = package_dir.drive + "".join("/" + quote(d, safe="") for d in package_dir.parts[1:])
+    return template.replace(RB_TOKEN, root)
+
+
 # ---------------------------------------------------------------------------
 # Scripts para la otra computadora
 # ---------------------------------------------------------------------------
 
 PS1_PATH = Path(__file__).with_name("traktor_prepare.ps1")  # se copia como _preparar_traktor.ps1
+RB_PS1_PATH = Path(__file__).with_name("rekordbox_prepare.ps1")  # se copia como _preparar_rekordbox.ps1
 
 BAT = (
     "@echo off\r\n"
@@ -170,20 +209,44 @@ BAT = (
     "echo.\r\n"
     "pause\r\n"
 )
+BAT_RB = (
+    "@echo off\r\n"
+    "rem Arma rekordbox.xml con la letra y la carpeta donde esta este paquete.\r\n"
+    "powershell -NoProfile -ExecutionPolicy Bypass -File \"%~dp0_preparar_rekordbox.ps1\"\r\n"
+    "echo.\r\n"
+    "pause\r\n"
+)
 
 
 def leeme(root_label: str, n_tracks: int, n_playlists: int, size_gb: float) -> str:
-    return f"""TRAKTOR ML - organizacion para Traktor
-=====================================
+    return f"""TRAKTOR ML - organizacion para Rekordbox y Traktor
+=================================================
 
 Contenido: {n_tracks} temas ({size_gb:.1f} GB) en {n_playlists} playlists, carpeta "{root_label}".
 
-Musica\\             Los temas, ordenados en carpetas igual que las playlists.
-traktor.nml          Las playlists para Traktor (con el orden sugerido).
-Preparar Traktor.bat Arma traktor.nml para esta computadora (ver abajo).
-Playlists m3u8\\      Las mismas playlists en formato m3u8 (respaldo para otros programas).
-_organizacion.csv    Lista de temas por playlist (lo usa Preparar Traktor.bat).
-_informe.txt         Lo escribe Preparar Traktor.bat: que archivo usa cada tema.
+Musica\\                Los temas, ordenados en carpetas igual que las playlists.
+Preparar Rekordbox.bat  Arma rekordbox.xml para esta computadora (ver abajo).
+rekordbox.xml           Las playlists para Rekordbox (con el orden sugerido).
+Preparar Traktor.bat    Arma traktor.nml para esta computadora.
+traktor.nml             Las playlists para Traktor (con el orden sugerido).
+Playlists m3u8\\         Las mismas playlists en formato m3u8 (respaldo para otros programas).
+_organizacion.csv       Lista de temas por playlist (lo usan los .bat).
+_informe.txt            Lo escribe Preparar Traktor.bat: que archivo usa cada tema.
+
+Las playlists guardan la ruta completa de cada tema, con la letra del pendrive (D:, E:...), que
+cambia de una computadora a otra. Por eso, en cada computadora nueva, primero el .bat.
+Recomendado: copiar esta carpeta entera a C:\\TRAKTOR ML y preparar desde ahi; asi la ruta no
+cambia aunque el pendrive cambie de letra (y no hace falta tenerlo enchufado para tocar).
+
+Como cargarlo en Rekordbox (Windows, con controladora)
+------------------------------------------------------
+1. Doble clic en "Preparar Rekordbox.bat". Escribe rekordbox.xml con la carpeta donde esta este
+   paquete y muestra cuantos temas encontro ("Archivos que faltan: 0" = todo bien).
+2. Rekordbox: Preferencias > Avanzado > Base de datos > rekordbox xml: elegir el rekordbox.xml
+   de esta carpeta. Preferencias > Vista > Diseno: activar "rekordbox xml".
+3. En el arbol de la izquierda: rekordbox xml > Playlists > clic derecho sobre la carpeta
+   "{root_label}" > Importar playlist. Rekordbox analiza los temas al importarlos.
+   Ordenar por la columna "#" para ver el orden sugerido.
 
 Como cargarlo en Traktor (Windows)
 ----------------------------------
@@ -283,6 +346,12 @@ def write_package_files(package_dir: Path, tracks: pd.DataFrame, specs: List[Pla
     (package_dir / "_preparar_traktor.ps1").write_text(PS1_PATH.read_text(encoding="utf-8"),
                                                        encoding="utf-8-sig", newline="\r\n")
     (package_dir / "Preparar Traktor.bat").write_bytes(BAT.encode("ascii"))
+    rb_template = write_rekordbox_template(package_dir / "_plantilla_rekordbox.xml", tracks, specs, placements,
+                                           root_label)
+    (package_dir / "rekordbox.xml").write_text(fill_rekordbox(rb_template, real), encoding="utf-8", newline="\n")
+    (package_dir / "_preparar_rekordbox.ps1").write_text(RB_PS1_PATH.read_text(encoding="utf-8"),
+                                                         encoding="utf-8-sig", newline="\r\n")
+    (package_dir / "Preparar Rekordbox.bat").write_bytes(BAT_RB.encode("ascii"))
 
     # m3u8 con rutas relativas a la carpeta de cada playlist
     m3u_root = package_dir / M3U_DIR
@@ -314,9 +383,57 @@ def write_package_files(package_dir: Path, tracks: pd.DataFrame, specs: List[Pla
                         src.name, "" if orig_dir == "." else orig_dir,
                         f"{float(dur):.2f}" if pd.notna(dur) else ""])
 
-    size_gb = sum(Path(p.source_path).stat().st_size for p in files) / 1e9
+    size_gb = sum((package_dir / p.rel_path).stat().st_size for p in files) / 1e9
     (package_dir / "LEEME.txt").write_text(
         leeme(root_label, len(files), len(specs), size_gb), encoding="utf-8-sig", newline="\r\n")
+
+
+def _root_label(package_dir: Path) -> str:
+    """Nombre de la carpeta raíz de las playlists, leído de la plantilla NML del paquete."""
+    import xml.etree.ElementTree as ET
+    text = (package_dir / "_plantilla.nml").read_text(encoding="utf-8")
+    node = ET.fromstring(text[text.index("<NML"):]).find("PLAYLISTS/NODE/SUBNODES/NODE")
+    if node is None or not node.get("NAME"):
+        raise ValueError("no encontré la carpeta raíz de las playlists en _plantilla.nml")
+    return node.get("NAME")
+
+
+def refresh_package(package_dir: Path) -> int:
+    """Rehace NML, rekordbox.xml, plantillas, scripts, m3u8, CSV y LEEME de un paquete existente
+    a partir de su _organizacion.csv y de los tags actuales de sus archivos (sin copiar audio)."""
+    from src.v4.common.tags import read_release_tags, read_tags
+    org = pd.read_csv(package_dir / "_organizacion.csv", encoding="utf-8-sig", dtype=str, keep_default_na=False)
+    specs: List[PlaylistSpec] = []
+    by_key: Dict[Tuple[str, str], PlaylistSpec] = {}
+    for r in org.itertuples():
+        if (r.carpeta, r.playlist) not in by_key:
+            by_key[(r.carpeta, r.playlist)] = PlaylistSpec(r.carpeta, r.playlist, [])
+            specs.append(by_key[(r.carpeta, r.playlist)])
+    for r in sorted(org.itertuples(), key=lambda r: int(r.posicion)):
+        by_key[(r.carpeta, r.playlist)].track_uids.append(r.track_uid)
+    placements = [Placement(r.track_uid, r.carpeta, r.playlist, int(r.posicion), r.archivo, r.origen)
+                  for r in org.itertuples()]
+    files = unique_files(placements)
+    missing = [p.rel_path for p in files if not (package_dir / p.rel_path).exists()]
+    if missing:
+        print(f"[ERROR] {len(missing)} archivos del paquete no están, p. ej. {missing[:3]}")
+        return 1
+    first = {r.track_uid: r for r in org.drop_duplicates("track_uid").itertuples()}
+    rows = []
+    for p in files:
+        f, o = package_dir / p.rel_path, first[p.track_uid]
+        t, rel = read_tags(f), read_release_tags(f)
+        rows.append({"track_uid": p.track_uid, "source_path": str(f),
+                     "artist": _text(t["tag_artist"]) or o.artista, "title": _text(t["tag_title"]) or o.titulo,
+                     "tag_album": t["tag_album"], "tag_genre": t["tag_genre"], "tag_label": t["tag_label"],
+                     "tag_comment": t["tag_comment"], "tag_remixer": rel["tag_remixer"], "tag_date": rel["tag_date"],
+                     "duration_s": float(o.duracion_s) if o.duracion_s else float("nan"),
+                     "filesize_bytes": f.stat().st_size,
+                     "rel_path": f"{o.carpeta_original}\\{o.nombre_original}" if o.carpeta_original else o.nombre_original})
+    tracks = pd.DataFrame(rows).set_index("track_uid")
+    write_package_files(package_dir, tracks, specs, placements, _root_label(package_dir))
+    print(f"[INFO] Paquete rehecho: {len(files)} temas, {len(specs)} playlists -> {package_dir}")
+    return 0
 
 
 def build_package(dataset_name: str, org_name: str, dest: Path, org_version: Optional[int] = None,
@@ -374,9 +491,11 @@ def build_package(dataset_name: str, org_name: str, dest: Path, org_version: Opt
 def main() -> int:
     ap = argparse.ArgumentParser(description="Paquete portátil (música + traktor.nml) de una organización")
     ap.add_argument("--dataset-name", default="musica")
-    ap.add_argument("--org-name", required=True)
+    ap.add_argument("--org-name", default=None)
     ap.add_argument("--org-version", type=int, default=None)
-    ap.add_argument("--dest", required=True, help="Unidad o carpeta destino, p. ej. D:\\")
+    ap.add_argument("--dest", default=None, help="Unidad o carpeta destino, p. ej. D:\\")
+    ap.add_argument("--refresh", default=None, metavar="PAQUETE",
+                    help="Rehace los archivos que no son audio de un paquete existente desde sus tags actuales")
     ap.add_argument("--package-name", default=PACKAGE_NAME)
     ap.add_argument("--verify", choices=("size", "hash"), default="size")
     ap.add_argument("--prune", action="store_true", help="Borra de Musica/ lo que ya no está en la organización")
@@ -384,6 +503,10 @@ def main() -> int:
     ap.add_argument("--low-priority", action="store_true")
     ap.add_argument("--config", default=None)
     args = ap.parse_args()
+    if args.refresh:
+        return refresh_package(Path(args.refresh))
+    if not args.org_name or not args.dest:
+        ap.error("--org-name y --dest son obligatorios (salvo con --refresh)")
     if args.low_priority:
         from src.v4.pipeline.extract_representations import lower_priority
         lower_priority()

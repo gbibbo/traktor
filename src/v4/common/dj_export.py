@@ -7,6 +7,8 @@ PURPOSE: Escritores de playlists para software de DJ a partir de una lista orden
          Rutas absolutas de Windows tomadas de catalog.source_path (la biblioteca tiene
          subcarpetas, así que carpeta raíz + nombre de archivo ya no alcanza).
 CHANGELOG:
+  - 2026-10-30: Remixer (mezcla) y Year en rekordbox.xml, REMIXER en el NML, si las columnas
+                tag_remixer / tag_date existen (paquete portátil con tags corregidos).
   - 2026-09-27: Creación inicial (MVP Rekordbox + Traktor). Filtra caracteres de control prohibidos en XML.
 """
 from __future__ import annotations
@@ -64,6 +66,12 @@ def traktor_location(path: str) -> Dict[str, str]:
     return {"VOLUME": volume, "DIR": dir_str, "FILE": p.name, "KEY": f"{volume}{dir_str}{p.name}"}
 
 
+def _year(value) -> str:
+    """'2020-11-12' / '2020' -> '2020'; otra cosa -> ''."""
+    m = re.match(r"\s*((?:19|20)\d\d)", _s(value))
+    return m.group(1) if m else ""
+
+
 def _label(row: pd.Series) -> str:
     artist, title = _s(row.get("artist")).strip(), _s(row.get("title")).strip()
     return f"{artist} - {title}" if artist and title else PureWindowsPath(_s(row.get("source_path"))).stem
@@ -115,6 +123,8 @@ def write_rekordbox_xml(out_path, tracks: pd.DataFrame, playlists: List[Playlist
             "Album": _s(row.get("tag_album")),
             "Genre": _s(row.get("tag_genre")),
             "Label": _s(row.get("tag_label")),
+            "Remixer": _s(row.get("tag_remixer")),
+            "Year": _year(row.get("tag_date")),
             "Comments": _s(row.get("tag_comment")),
             "Kind": _KIND.get(PureWindowsPath(path).suffix.lower(), ""),
             "Size": str(int(row["filesize_bytes"])) if pd.notna(row.get("filesize_bytes")) else "",
@@ -160,7 +170,7 @@ def write_traktor_nml(out_path, tracks: pd.DataFrame, playlists: List[PlaylistSp
         if _s(row.get("tag_album")):
             ET.SubElement(entry, "ALBUM", TITLE=_s(row.get("tag_album")))
         info = {"GENRE": _s(row.get("tag_genre")), "LABEL": _s(row.get("tag_label")),
-                "COMMENT": _s(row.get("tag_comment"))}
+                "REMIXER": _s(row.get("tag_remixer")), "COMMENT": _s(row.get("tag_comment"))}
         if pd.notna(row.get("duration_s")):
             info["PLAYTIME"] = str(int(round(float(row["duration_s"]))))
         ET.SubElement(entry, "INFO", {k: v for k, v in info.items() if v != ""})

@@ -165,6 +165,25 @@ ese archivo con su ficha tal cual (análisis, cues); los que no están salen de 
 Informe en `_informe.txt`; después Import Playlist > `traktor.nml`. Reanudable; cuando cambia la
 organización se vuelve a correr (`--prune` borra los temas que ya no están).
 
+**Rekordbox con controladora desde el pendrive (2026-10-30):** el paquete trae además
+`rekordbox.xml` y `Preparar Rekordbox.bat` (`rekordbox_prepare.ps1`), que lo rearma con la letra y la
+carpeta donde está el paquete en esa PC; después, en Rekordbox, los mismos pasos de arriba con ese
+`rekordbox.xml`. Las rutas llevan la letra de la unidad: un `traktor.nml`/`rekordbox.xml` armado en
+otra PC (o con el pendrive en otra letra) da todos los temas como faltantes.
+Etiquetas y carátulas del paquete (sin tocar la biblioteca; un `usb_package.py` posterior las pisa
+con las del original):
+```
+python src/v4/pipeline/package_tags.py lookup --package "D:\TRAKTOR ML" --folder "A1 (" --out-dir <prueba>
+python src/v4/pipeline/package_tags.py lookup --package "D:\TRAKTOR ML" --low-priority
+python src/v4/pipeline/package_tags.py plan --package "D:\TRAKTOR ML"   # Title = "Título (Mezcla)"
+python src/v4/pipeline/package_tags.py write --package "D:\TRAKTOR ML" --target "D:\TRAKTOR ML" --folder "A1 (" --dry-run
+python src/v4/pipeline/package_tags.py write --package "D:\TRAKTOR ML" --target "D:\TRAKTOR ML" --target "C:\TRAKTOR ML"
+python src/v4/pipeline/usb_package.py --refresh "D:\TRAKTOR ML"
+```
+`write` guarda un respaldo por copia en `artifacts/v4/package_tags/<paquete>/backups/` (`revert
+--backup <backup.json> --target <copia>`); `--refresh` rehace XML, NML, m3u8, CSV y LEEME con los
+tags nuevos.
+
 ---
 
 ## 1. Requisitos (referencia histórica HPC / entornos remotos)

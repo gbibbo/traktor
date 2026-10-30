@@ -46,7 +46,9 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `write_beatport_tags.py` | Escribe Artist, Remixers, Label, Genre y Released de Beatport (A y B confirmado) y el género del modelo con confianza >= 0.6 (C/D), solo MP3/FLAC. Simulación por defecto (→ features/tag_plan.csv); `--write` con respaldo features/tag_backup_<fecha>.csv y verificación del hash de audio; `--revert <csv>`; `--folder` para la prueba |
 | `tag_vocals.py` | CPU: etiqueta Vocal (por defecto `clap_probe`: CLAP del tema entero + clasificador lineal de `models/vocal_probe/`, Vocal si >= 5 % con voz; también CLAP zero-shot o AST AudioSet) → features/vocals_<método>.parquet; `--write-tags` agrega " - Vocal" al comentario con respaldo CSV y `--revert` |
 | `phase5_export.py` | CPU: Export M3U Traktor (UTF-8, rutas Windows) → playlists/V4_<N>/; `--formats m3u8,rekordbox,traktor`, `--rep`, `--out-root` |
-| `usb_package.py` | Paquete portátil para Traktor: copia la música ordenada por playlist a un pendrive/disco + `traktor.nml`, plantilla y `Preparar Traktor.bat`, m3u8 relativos; reanudable, `--verify hash` |
+| `usb_package.py` | Paquete portátil para Rekordbox y Traktor: copia la música ordenada por playlist a un pendrive/disco + `rekordbox.xml` y `traktor.nml` con sus plantillas y `Preparar Rekordbox.bat` / `Preparar Traktor.bat`, m3u8 relativos; reanudable, `--verify hash`; `--refresh <paquete>` rehace todo lo que no es audio desde los tags actuales del paquete |
+| `package_tags.py` | Red: etiquetas y carátula de los temas de un paquete (no de la biblioteca): `lookup` (Beatport, Deezer de respaldo) → `plan` (plan.csv, summary.json, carátulas 600x600) → `write --target` (respaldo JSON, audio verificado) / `revert`; salida en artifacts/v4/package_tags/<paquete> |
+| `rekordbox_prepare.ps1` | «Preparar Rekordbox» del paquete (otra PC, sin Python): escribe `rekordbox.xml` con la letra y carpeta del paquete y cuenta los archivos que faltan |
 | `traktor_prepare.ps1` | «Preparar Traktor» del paquete (otra PC, sin Python): usa los temas de su `collection.nml` (ficha y análisis tal cual), el paquete solo para faltantes; `_informe.txt` |
 
 ## Evaluation (`src/v4/evaluation/`)
@@ -100,7 +102,8 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_duplicates.py` | Unit tests de la regla de temas repetidos, la detección por capas, las decisiones, remove_tracks y la exclusión en Library |
 | `test_playlist_review.py` | Unit tests del generador de la página de revisión |
 | `test_review_app.py` | Unit tests de la app local: token y Host/Origin, audio con rangos, fusiones (aplicar, eliminar y deshacer), orden a mano, carpetas dentro/fuera de la biblioteca, carátulas || `test_dj_export.py` | Unit tests de rekordbox.xml / NML / M3U8, bpm_key desde tags, orden por energía, ventanas |
-| `test_usb_package.py` | Paquete portátil: nombres FAT32, ubicación por playlist, plantilla NML y `.ps1` real, m3u8 relativos, copia y verificación |
+| `test_usb_package.py` | Paquete portátil: nombres FAT32, ubicación por playlist, plantillas NML y rekordbox.xml con sus `.ps1` reales, m3u8 relativos, copia, verificación y `--refresh` |
+| `test_package_tags.py` | package_tags.py sin red: limpieza local de artista/título/mezcla, verificación de Deezer, reglas del plan, escritura y reversión en un MP3 mínimo (audio intacto) |
 
 En `tests/` (raíz): `test_check_staged.py` (chequeo pre-commit sobre repos git temporales),
 `test_status_doc.py` (`docs/STATUS.md` con sus tres secciones y a lo sumo 6 KB) y

@@ -6,6 +6,22 @@ anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_impl
 Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 `[REEMPLAZADO <fecha> por <decisión>: <lo que rige ahora>]` (o `[REFUTADO …]` si era un error).
 
+## 2026-10-30
+
+1. **El pendrive es para Rekordbox con controladora** (no para CDJ): el paquete portátil lleva
+   `rekordbox.xml` y `Preparar Rekordbox.bat`, que lo rearma con la letra del pendrive en cada PC.
+   Traktor sigue en el paquete. Motivo: las playlists de Traktor del pendrive no funcionaron en otra
+   PC (rutas a `E:` y a `D:\MÚSICA` de la laptop) y Gabriel tuvo que tocar desde las carpetas.
+2. **Metadata y carátula de todos los temas del paquete** (`package_tags.py`), en el pendrive y en
+   `C:\TRAKTOR ML`, no en `Música/`. Gabriel vio los números del plan, eligió **Title = "Título
+   (Mezcla)"** (sin "Original Mix"; la mezcla queda también en Remixers) y aprobó escribir en las dos
+   copias. Reglas del agente, mostradas con el plan:
+   - El título sale del archivo (limpio), no de Beatport (trae errores de tipeo).
+   - Artist, Label y Released de Beatport solo donde faltan o tienen basura: un valor válido no se
+     pisa (Beatport devolvía otras ediciones: compilados, otro sello).
+   - Carátula donde falta o está rota: Beatport confirmado, Deezer verificado, o Beatport B sin
+     confirmar (mismo artista, título y mezcla).
+
 ## 2026-10-05
 
 1. **Etiqueta Vocal: clasificador lineal sobre CLAP del tema entero** (validado con Electrobyte y

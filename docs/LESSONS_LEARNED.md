@@ -71,6 +71,20 @@ propio contenedor), y al detener el orquestador quedó un `sockseek.exe` huérfa
 Soulseek abierta. La app de descargas sigue el árbol por PID padre y guarda la hora de creación de
 cada proceso para no cerrar uno que reutilizó el PID (`ProcessTree` en `descargas_app.py`).
 
+### Las playlists de Rekordbox y Traktor guardan la letra de la unidad
+
+`traktor.nml` (VOLUME="E:") y `rekordbox.xml` (file://localhost/E:/...) llevan la ruta absoluta con la
+letra. El pendrive cambia de letra entre computadoras y un NML preparado en la laptop (pendrive en
+`E:`, temas locales en `D:\MÚSICA`) dio todos los temas como faltantes en otra PC (2026-10-30). Las
+playlists del paquete se rearman en cada PC con su `.bat` (`usb_package.py`), o se copia el paquete a
+`C:\TRAKTOR ML` y se prepara desde ahí.
+
+### Python no abre rutas de más de 260 caracteres en esta PC
+
+Sin LongPathsEnabled, `Path.exists()` da False en silencio para rutas largas: un paquete probado
+desde una carpeta de prueba profunda "perdió" 705 temas. Probar con la misma longitud de ruta que el
+destino real (`subst R: <carpeta>` deja `R:\TRAKTOR ML`, como `D:\TRAKTOR ML`).
+
 ## Entorno HPC (ver también memory/MEMORY.md)
 
 [REEMPLAZADO 2026-09-12 por DECISIONS 2026-09-12, punto 4: Surrey HPC ya no existe; se trabaja en CPU local (AGENTS.md). Se conserva como registro.]

@@ -4,7 +4,7 @@ Se inyecta al abrir cada sesión de Claude Code (hook `SessionStart` en `.claude
 Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. Tope 6 KB
 (`tests/test_status_doc.py`). La historia vive en `git log`, `docs/DECISIONS.md` y `docs/reports/`.
 
-## CURRENT STATE (2026-10-10)
+## CURRENT STATE (2026-10-30)
 
 - **Foco: MVP sobre la biblioteca completa** para Rekordbox y Traktor, en CPU local (DECISIONS
   2026-09-27). Dataset `musica` = `Música/` en la raíz del repo (git-ignorada): 3086 archivos, 2303
@@ -25,14 +25,17 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 - **Tripletas (n = 57): ninguna representación supera al BPM de forma concluyente.** Entre
   representaciones decide la escucha de playlists enteras, no el puntaje.
 - **Etiqueta Vocal (clap_probe, calculada 2026-10-06)**: CLAP del tema entero + clasificador lineal de
-  Electrobyte; Vocal si >= 5 % del tema tiene voz (regla de Gabriel). 936 de 1823 temas Vocal (hoy hay
-  542 con la marca vieja): ganan 488, pierden 94. En MTG-Jamendo: recall 100 %, 20 % de instrumentales
-  marcados. Escrita por Gabriel 2026-10-06 (573 archivos, 0 errores; MP3/FLAC; respaldo
+  Electrobyte; Vocal si >= 5 % del tema tiene voz (regla de Gabriel). 936 de 1823 temas Vocal. En
+  MTG-Jamendo: recall 100 %, 20 % de instrumentales marcados. Escrita por Gabriel 2026-10-06 (573 archivos, 0 errores; MP3/FLAC; respaldo
   `vocal_tags_backup_20261006_111119.csv`): marca y cálculo coinciden en los 1792 MP3/FLAC.
 - **Tags de Beatport escritos y verificados** (Gabriel corrió `write_beatport_tags.py`, 2026-09-29):
   1087 archivos (Genre 785, Released 658, Label 463, Artist 395, Remixers 349), 0 errores, track_uid
-  intacto; re-simulación: 0 cambios pendientes. Catálogo refrescado (respaldo
+  intacto. Catálogo refrescado (respaldo
   `catalog_before_beatport_tags_20260929.parquet`). Los 110 sin confirmar conservan su género.
+- **Pendrive `D:\TRAKTOR ML` (copia en `C:\TRAKTOR ML`) para Rekordbox con controladora**
+  (DECISIONS 2026-10-30): tags y carátulas con `package_tags.py` ("Título (Mezcla)", 1591/1760 con
+  carátula); `rekordbox.xml` + `Preparar Rekordbox.bat` (`usb_package.py --refresh`). Las rutas
+  llevan la letra de la unidad: en cada PC, primero el .bat.
 - **`download_JIJIJI/`**: descarga de playlists de Spotify por Soulseek, con grabación por loopback
   como respaldo; entrada `spotify_soulseek_orchestrator.py`. Exige tamaño proporcional, controles
   durante transferencia, conversión acotada, carátulas verificadas y antivirus en consolidación.
@@ -42,9 +45,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 
 ## OPEN ITEMS (por prioridad; LOCAL = trabajo del agente, GABRIEL = lo hace o decide Gabriel)
 
-1. GABRIEL: Rekordbox 7 con `biblioteca_v11/rekordbox.xml` importado (analizando; DDJ-400, sin
-   pendrive). Traktor en la otra PC: pendrive `D:\TRAKTOR ML` (`usb_package.py`, SHA256 OK);
-   `Preparar Traktor.bat` usa sus temas ya analizados, el paquete solo para faltantes. ¿Remixer?
+1. GABRIEL: probar el pendrive en Rekordbox con la controladora. LOCAL: los tags corregidos están
+   solo en el paquete; pasarlos a `Música/` antes del próximo `usb_package.py` (si no, los pisa).
 2. GABRIEL: probar la app local (`Abrir TRAKTOR ML.bat`): agregar música nueva, fusiones de temas
    (clic derecho, papelera), orden a mano (⇅), preparar para Rekordbox/Traktor y deshacer.
 3. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
