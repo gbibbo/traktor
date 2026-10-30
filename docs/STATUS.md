@@ -36,7 +36,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 - **`download_JIJIJI/`**: descarga de playlists de Spotify por Soulseek, con grabación por loopback
   como respaldo; entrada `spotify_soulseek_orchestrator.py`. Exige tamaño proporcional, controles
   durante transferencia, conversión acotada, carátulas verificadas y antivirus en consolidación.
-  Instalación en otra PC: `download_JIJIJI/CONFIGURAR_OTRO_ORDENADOR.md`.
+  Instalación en otra PC: `download_JIJIJI/CONFIGURAR_OTRO_ORDENADOR.md`. App: acceso directo
+  «Descargar playlists» (`download_JIJIJI/app/`).
 - **Chequeo pre-commit** en `tools/git_hooks/` (audio, arrays, pesos, credenciales, archivos > 5 MB).
 
 ## OPEN ITEMS (por prioridad; LOCAL = trabajo del agente, GABRIEL = lo hace o decide Gabriel)

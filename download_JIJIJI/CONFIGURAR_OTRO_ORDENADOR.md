@@ -80,6 +80,7 @@ py -3.12 -m venv .venv
 ```
 
 Tiene que imprimir `paquetes OK`. Si `.venv` ya existía, sáltate la línea `py -3.12 -m venv .venv`.
+Python 3.11 también sirve (la PC de escritorio usa el 3.11 de la Microsoft Store: `python -m venv .venv`).
 
 ## Paso 4. sockseek (cliente de Soulseek)
 
@@ -240,9 +241,20 @@ Tiene que terminar con `=== FLUJO COMPLETADO ===` y dejar los MP3 en
 `SPOTIFY_PLAYLISTS_ROOT`, si lo definiste). Abre un MP3: tiene que sonar entero y
 tener carátula. Recién entonces pasa a playlists largas.
 
+## Paso 11. Acceso directo a la app
+
+```powershell
+cd C:\VS\traktor
+powershell -ExecutionPolicy Bypass -File download_JIJIJI\app\crear_acceso_directo.ps1
+```
+
+Crea **«Descargar playlists»** en el Escritorio. Con doble clic se abre la app: pegas el
+enlace, eliges la salida de audio y la carpeta abajo a la derecha, y pulsas Descargar. El
+detalle está en `download_JIJIJI/README.md`, sección «La app».
+
 ## Uso diario
 
-Es el mismo comando del paso 10, con la URL de la playlist. Si se corta
+Desde la app (paso 11), o con el mismo comando del paso 10 y la URL de la playlist. Si se corta
 (`PAUSADO: ...`), relanza **exactamente el mismo comando** y sigue desde el primer
 tema pendiente; `--fresh` empieza de cero. El detalle del flujo y de los controles
 de seguridad está en `download_JIJIJI/README.md`.

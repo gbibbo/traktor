@@ -1,5 +1,40 @@
 # Descarga automática desde Spotify
 
+## La app (sin línea de comandos)
+
+Doble clic en **«Descargar playlists»** del Escritorio. El acceso directo se crea una vez por
+ordenador:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File download_JIJIJI\app\crear_acceso_directo.ps1
+```
+
+Abre una ventana propia (Edge en modo app) servida por `app/descargas_app.py` solo en
+`127.0.0.1`. Desde ahí:
+
+* pegar el enlace de una playlist y ver portada y temas (la primera vez, «Conectar» pide permiso
+  a Spotify en el navegador; es una autorización propia de la app y no toca la del descargador);
+* elegir la **salida de audio** de Windows (abajo a la derecha). Es la salida predeterminada:
+  por ahí suena Spotify y eso es lo que graba el loopback. «Probar sonido» toca un ding-dong y lo
+  graba para medirlo; «Medir lo que suena» muestra el nivel mientras suena Spotify. Con una
+  descarga en curso no se puede cambiar ni probar, porque cortaría o ensuciaría la grabación;
+* elegir la **carpeta de destino** (`--library-root`) y, en avanzado, la de trabajo (`--output-root`);
+* **Descargar**, **Detener** (como un Ctrl+C: el run queda interrumpido y se cierran también
+  `sockseek` y `ffmpeg`, nunca Spotify), **Continuar** o **Empezar de cero** (`--fresh`);
+* seguir cada tema: en Soulseek, bajando, bajado, se grabará, grabando, grabado o «no se pudo»
+  (con el motivo de la verificación). También se siguen los runs lanzados desde la terminal;
+* si un run terminó con error, **«Guardar los temas listos»** mueve a la carpeta de destino los
+  MP3 que sí están, con la misma validación de la consolidación (audio, tamaño, antivirus,
+  Spotify Track ID) y sin duplicar.
+
+Cerrar la ventana no corta la descarga: la app sigue y el acceso directo la vuelve a abrir.
+Sin ventana ni descarga, se apaga sola. Ajustes, caché de portadas, token de la vista previa y
+`app.log` van en `%APPDATA%\traktor_descargas`; con el Python de la Microsoft Store, esa carpeta
+está virtualizada en
+`%LOCALAPPDATA%\Packages\PythonSoftwareFoundation.Python.3.11_*\LocalCache\Roaming\`.
+
+## Línea de comandos
+
 Después de configurar las credenciales y dependencias una sola vez, el flujo
 completo se ejecuta pasando únicamente la URL de una playlist:
 

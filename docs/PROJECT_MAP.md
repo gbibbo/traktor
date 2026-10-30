@@ -99,14 +99,15 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_organize.py` | Unit tests de organize.py: build por alcance, add congelado, link congelado/rebuild, catálogo por alcance, ensamblado con --folder, orden a mano y quitar fusiones |
 | `test_duplicates.py` | Unit tests de la regla de temas repetidos, la detección por capas, las decisiones, remove_tracks y la exclusión en Library |
 | `test_playlist_review.py` | Unit tests del generador de la página de revisión |
-| `test_review_app.py` | Unit tests de la app local: token y Host/Origin, audio con rangos, fusiones (aplicar, eliminar y deshacer), orden a mano, carpetas dentro/fuera de la biblioteca, carátulas |
-| `test_dj_export.py` | Unit tests de rekordbox.xml / NML / M3U8, bpm_key desde tags, orden por energía, ventanas |
+| `test_review_app.py` | Unit tests de la app local: token y Host/Origin, audio con rangos, fusiones (aplicar, eliminar y deshacer), orden a mano, carpetas dentro/fuera de la biblioteca, carátulas || `test_dj_export.py` | Unit tests de rekordbox.xml / NML / M3U8, bpm_key desde tags, orden por energía, ventanas |
 | `test_usb_package.py` | Paquete portátil: nombres FAT32, ubicación por playlist, plantilla NML y `.ps1` real, m3u8 relativos, copia y verificación |
 
 En `tests/` (raíz): `test_check_staged.py` (chequeo pre-commit sobre repos git temporales),
 `test_status_doc.py` (`docs/STATUS.md` con sus tres secciones y a lo sumo 6 KB) y
 `test_spotify_soulseek_orchestrator.py` (`download_JIJIJI/`) y `test_soulseek_safety.py`
-(tamaño/duración, descarga exacta, límites de procesos, carátulas y antivirus en consolidación).
+(tamaño/duración, descarga exacta, límites de procesos, carátulas y antivirus en consolidación), y
+`test_descargas_app.py` (app de descargas: estado de cada tema por fase, guardado parcial, run
+colgado, historial, ajustes, token y Host, cierre de procesos huérfanos).
 
 ## Arnés de agentes y git
 
@@ -183,6 +184,15 @@ que ambos orígenes producen MP3 con el mismo criterio de nombres y etiquetas.
 Al completar ambas ramas, el orquestador mueve todo el audio sin duplicados a
 `download_JIJIJI/Playlists_DOWNLOAD/<nombre>/`; el run conserva sólo tres JSON
 principales y un subdirectorio `diagnostics/` con el detalle técnico.
+
+| Archivo (`download_JIJIJI/app/`) | Descripción |
+| :--- | :--- |
+| `descargas_app.py` | App local (http.server, solo 127.0.0.1 y con token; una instancia; se apaga sola sin ventana ni descarga): vista previa de la playlist con autorización propia, salida de audio de Windows (elegir, probar con tono grabado, medidor del loopback), carpetas de destino y de trabajo, lanzar/detener/reanudar el orquestador, estado de cada tema leído de los JSON del run (también de runs lanzados desde la terminal), historial y guardado parcial de un run con error (`consolidate_audio` sin conjunto esperado). Ajustes y token en `%APPDATA%\traktor_descargas` |
+| `index.html` | Interfaz (una página, sin dependencias salvo la fuente Figtree): biblioteca, vista de playlist con tabla de temas y estado, barra inferior con progreso, salida de audio y carpeta |
+| `run_job.py` | Ejecuta el orquestador y lo interrumpe como un Ctrl+C cuando aparece un archivo de señal |
+| `audio_devices.ps1` | Lista las salidas de audio y fija la predeterminada (IMMDeviceEnumerator + IPolicyConfig) |
+| `crear_acceso_directo.ps1` | Crea «Descargar playlists» en el Escritorio (`.venv\Scripts\pythonw.exe`, `icon.ico`) |
+| `icon.svg`, `icon.ico` | Icono de la ventana y del acceso directo |
 
 ## Revisión de playlists (`tools/playlist_review/`)
 

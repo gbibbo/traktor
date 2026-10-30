@@ -43,6 +43,23 @@ la ponen última. Al mover a `_copias` una copia repetida de esa carpeta, test_2
 (`test_block1_common` esperaba 243). **Regla:** nunca mover ni borrar archivos de la carpeta de otro
 dataset. `dedupe.move_copies` las protege con `protected_roots`.
 
+## Windows local
+
+### El Python de la Microsoft Store virtualiza %APPDATA%
+
+Lo que ese Python escribe en `%APPDATA%` (token `traktor_spotify_token.json`, ajustes de la app de
+descargas) queda en `%LOCALAPPDATA%\Packages\PythonSoftwareFoundation.Python.3.11_*\LocalCache\Roaming\`.
+Los procesos de ese Python lo ven en `%APPDATA%`; PowerShell y el Explorador, no. Al buscar esos
+archivos fuera de Python, hay que mirar en la ruta virtualizada. Lo que se copia a `%APPDATA%` desde
+fuera (`sockseek.conf`) sí se lee, porque la lectura cae a la carpeta real.
+
+### Un Job Object no agrupa a los hijos del Python de la Store
+
+`AssignProcessToJobObject` no captura a los procesos que lanza ese Python (ya corre dentro de su
+propio contenedor), y al detener el orquestador quedó un `sockseek.exe` huérfano con la sesión de
+Soulseek abierta. La app de descargas sigue el árbol por PID padre y guarda la hora de creación de
+cada proceso para no cerrar uno que reutilizó el PID (`ProcessTree` en `descargas_app.py`).
+
 ## Entorno HPC (ver también memory/MEMORY.md)
 
 [REEMPLAZADO 2026-09-12 por DECISIONS 2026-09-12, punto 4: Surrey HPC ya no existe; se trabaja en CPU local (AGENTS.md). Se conserva como registro.]
