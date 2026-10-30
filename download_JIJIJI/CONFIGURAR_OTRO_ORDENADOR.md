@@ -15,23 +15,31 @@ El repo es **público**. Por eso las claves no están en Git y hay que llevarlas
 | Qué | Dónde va en la PC nueva | Cómo se consigue |
 |---|---|---|
 | Código y esta guía | `C:\VS\traktor\` | `git clone` (paso 2) |
-| `.env`: Client ID, Client secret y redirect URI de Spotify | `C:\VS\traktor\.env` | se copia por pendrive desde la PC actual (paso 0) |
-| `sockseek.conf`: usuario y contraseña de Soulseek | `%APPDATA%\sockseek\sockseek.conf` | se copia por pendrive desde la PC actual (paso 0) |
+| `.env`: Client ID, Client secret y redirect URI de Spotify | `C:\VS\traktor\.env` | ya está en el pendrive; `instalar_claves.bat` lo pone en su lugar (paso 5) |
+| `sockseek.conf`: usuario y contraseña de Soulseek | `%APPDATA%\sockseek\sockseek.conf` | ya está en el pendrive; `instalar_claves.bat` lo pone en su lugar (paso 5) |
 | `sockseek.exe` 3.0.5 | `C:\VS\traktor\tools\sockseek\sockseek.exe` | se descarga de GitHub (paso 4) |
 | ffmpeg, Python 3.12, Spotify de escritorio | instalados en Windows | winget (paso 1) |
 | Autorizaciones de Spotify (tokens) | `C:\VS\traktor\.spotify_token_cache` y `%APPDATA%\traktor_spotify_token.json` | se crean solas al autorizar en el navegador (paso 8); no se copian |
 
-## Paso 0. En la PC actual: copiar las dos claves a un pendrive
+## Paso 0. Las claves en el pendrive (ya hecho)
+
+Están en el pendrive SanDisk (el de `TRAKTOR ML`), carpeta `traktor_claves`,
+copiadas el 2026-10-30:
+
+* `.env` y `sockseek.conf`: las dos claves;
+* `instalar_claves.bat`: las copia a su lugar en la PC nueva (pasos 5 y 6a);
+* `LEEME.txt`: qué es cada cosa.
+
+Son contraseñas: no las mandes por mail ni por chat, y no las subas a Git.
+Cuando el paso 10 funcione en la PC nueva, borra `traktor_claves` del pendrive.
+
+Para repetirlo alguna vez desde la PC actual (pendrive en `D:`):
 
 ```powershell
-$usb = "E:\traktor_claves"          # cambia E: por la letra del pendrive
-New-Item -ItemType Directory -Force $usb | Out-Null
-Copy-Item C:\VS\traktor\.env $usb
-Copy-Item "$env:APPDATA\sockseek\sockseek.conf" $usb
+New-Item -ItemType Directory -Force D:\traktor_claves | Out-Null
+Copy-Item C:\VS\traktor\.env D:\traktor_claves\
+Copy-Item "$env:APPDATA\sockseek\sockseek.conf" D:\traktor_claves\
 ```
-
-Esos dos archivos son contraseñas. No los mandes por mail ni por chat, y no los
-subas a Git. Cuando termines el paso 6, bórralos del pendrive.
 
 ## Paso 1. Programas base
 
@@ -98,15 +106,14 @@ El orquestador busca `sockseek.exe` en esa carpeta (o en el PATH). La carpeta
 
 ## Paso 5. Cuenta de Soulseek (`sockseek.conf`)
 
-Copia el archivo que trajiste en el pendrive:
+Con el pendrive conectado, haz **doble clic en `traktor_claves\instalar_claves.bat`**.
+Copia `sockseek.conf` a `%APPDATA%\sockseek\` y `.env` a la raíz del repo, así que
+también resuelve el paso 6a. Funciona con cualquier letra de pendrive. Si el repo
+no está en `C:\VS\traktor`, ejecútalo desde una terminal con la ruta:
+`instalar_claves.bat D:\otra\carpeta\traktor`.
 
-```powershell
-New-Item -ItemType Directory -Force "$env:APPDATA\sockseek" | Out-Null
-Copy-Item E:\traktor_claves\sockseek.conf "$env:APPDATA\sockseek\sockseek.conf"
-```
-
-Si prefieres escribirlo a mano (`notepad "$env:APPDATA\sockseek\sockseek.conf"`),
-el contenido es:
+Sin el pendrive, créalo a mano (`notepad "$env:APPDATA\sockseek\sockseek.conf"`).
+El contenido es:
 
 ```ini
 username = <tu usuario de Soulseek>
@@ -126,12 +133,8 @@ password = <tu contraseña de Soulseek>
 
 ### 6a. El archivo `.env`
 
-```powershell
-Copy-Item E:\traktor_claves\.env C:\VS\traktor\.env
-```
-
-Tiene que quedar en la raíz del repo, con este contenido (los valores son los
-de la PC actual):
+Si corriste `instalar_claves.bat` en el paso 5, ya está en su lugar. Tiene que
+quedar en la raíz del repo, con este contenido (los valores son los de la PC actual):
 
 ```dotenv
 SPOTIFY_CLIENT_ID=<Client ID de la app de Spotify>
@@ -143,8 +146,6 @@ SPOTIFY_REDIRECT_URI=http://127.0.0.1:8888/callback
 # SPOTIFY_PLAYLISTS_ROOT=D:/Musica/Descargas
 # SPOTIFY_DOWNLOAD_ROOT=D:/Musica/Descargas/_runs
 ```
-
-Ya puedes borrar `E:\traktor_claves` del pendrive.
 
 ### 6b. La app en el dashboard de Spotify
 
