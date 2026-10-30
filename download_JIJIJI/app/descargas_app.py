@@ -13,6 +13,8 @@ PURPOSE: App local para bajar playlists de Spotify (Soulseek + grabación por lo
          Uso: .venv\\Scripts\\pythonw.exe download_JIJIJI\\app\\descargas_app.py [--port N] [--no-window]
 CHANGELOG:
   - 2026-10-30: Creación inicial.
+  - 2026-10-30: Temas que Soulseek no pudo dar: «se grabará» y su grabación (recorded_failed/);
+                run «incompleto» (partial) con lo que sí llegó a la carpeta.
 """
 from __future__ import annotations
 
@@ -206,14 +208,25 @@ def run_state(run_dir: Path, *, alive: bool | None = None, current_download: int
     availability_files = json_candidates(run_dir, "soulseek_availability*.json")
     availability = read_json(availability_files[-1]) if availability_files else None
     missing = read_json(run_dir / "soulseek_missing.json")
-    progress = (read_json(run_dir / "recorded_missing" / "recording_progress.json")
-                or next((read_json(p) for p in reversed(json_candidates(run_dir, "*recording_progress.json"))), None))
+    failed_list = read_json(run_dir / orch.FAILED_JSON_NAME)  # lo que Soulseek no pudo dar: se graba
+    progress = read_json(run_dir / "recorded_missing" / "recording_progress.json")
+    failed_progress = read_json(run_dir / orch.RECORDED_FAILED_DIR / "recording_progress.json")
+    for archived in json_candidates(run_dir / "diagnostics", "*recording_progress.json"):
+        # Run terminado: los dos checkpoints se archivan con nombres que dependen del orden;
+        # se reconocen por la lista que grabaron.
+        data = read_json(archived) or {}
+        if Path(str(data.get("source_json") or "")).name == orch.FAILED_JSON_NAME:
+            failed_progress = failed_progress or data
+        else:
+            progress = progress or data
     consolidation = read_json(run_dir / "consolidation_report.json")
 
     if alive is None:
         alive = raw_status in ACTIVE_STATUSES and now - newest_mtime(run_dir) < STALE_SECONDS
     if raw_status == "completed":
         status = "done"
+    elif raw_status == "partial":
+        status = "partial"
     elif raw_status == "resumable":
         status = "paused"
     elif raw_status == "failed":
@@ -232,20 +245,30 @@ def run_state(run_dir: Path, *, alive: bool | None = None, current_download: int
         for row in (read_json(path) or {}).get("tracks") or []:
             if isinstance(row, dict) and isinstance(row.get("position"), int):
                 downloads[row["position"]] = row
-    recorded = {int(t["playlist_position"]): t for t in (progress or {}).get("tracks") or []
+    def positions(manifest: dict[str, Any] | None) -> list[int]:
+        return [int(t["playlist_position"]) for t in (manifest or {}).get("tracks") or []
+                if isinstance(t, dict) and isinstance(t.get("playlist_position"), int)]
+
+    recorded = {int(t["playlist_position"]): t for p in (progress, failed_progress) for t in (p or {}).get("tracks") or []
                 if isinstance(t, dict) and isinstance(t.get("playlist_position"), int)}
-    missing_positions = [int(t["playlist_position"]) for t in (missing or {}).get("tracks") or []
-                         if isinstance(t, dict) and isinstance(t.get("playlist_position"), int)]
+    missing_positions = positions(missing)
+    failed_positions = positions(failed_list)
     completed_recordings = int((progress or {}).get("completed_count") or 0)
+    completed_failed = int((failed_progress or {}).get("completed_count") or 0)
     consolidated = {str(r.get("spotify_id")): r for r in (consolidation or {}).get("tracks") or [] if isinstance(r, dict)}
 
     recording_now = None
     recording_since = None
-    if (phase == "transfer" and (run_dir / "recorder_ready.json").exists()
-            and completed_recordings < len(missing_positions)):
-        recording_now = missing_positions[completed_recordings]
-        marks = [run_dir / "recorder_ready.json", run_dir / "recorded_missing" / "recording_progress.json"]
-        recording_since = max((p.stat().st_mtime for p in marks if p.exists()), default=None)
+    if phase == "transfer" and (run_dir / "recorder_ready.json").exists():
+        if completed_recordings < len(missing_positions):
+            recording_now = missing_positions[completed_recordings]
+            folder = "recorded_missing"
+        elif failed_list is not None and completed_failed < len(failed_positions):
+            recording_now = failed_positions[completed_failed]
+            folder = orch.RECORDED_FAILED_DIR
+        if recording_now is not None:
+            marks = [run_dir / "recorder_ready.json", run_dir / folder / "recording_progress.json"]
+            recording_since = max((p.stat().st_mtime for p in marks if p.exists()), default=None)
 
     rows = (availability or {}).get("tracks") or []
     available_order = [int(r["position"]) for r in rows if isinstance(r, dict)
@@ -274,28 +297,41 @@ def run_state(run_dir: Path, *, alive: bool | None = None, current_download: int
             state = "recorded"
         elif pos in missing_positions:
             state = "recording" if pos == recording_now else "to_record"
+        elif pos in downloads and downloads[pos].get("status") in DOWNLOADED:
+            state = "downloaded"
+            detail = Path(str(downloads[pos].get("output") or "")).name or None
+        elif pos in failed_positions or (pos in downloads and status == "running"):
+            # No se pudo bajar: el orquestador lo graba de Spotify (al terminar las descargas).
+            state = "recording" if pos == recording_now else "to_record"
+            reason = friendly_failure(downloads[pos]) if pos in downloads else "La búsqueda en Soulseek falló"
+            detail = reason + ". Se graba de Spotify" + ("" if failed_list is not None else " al terminar las descargas")
         elif pos in downloads:
-            if downloads[pos].get("status") in DOWNLOADED:
-                state = "downloaded"
-                detail = Path(str(downloads[pos].get("output") or "")).name or None
-            else:
-                state = "failed"
-                detail = friendly_failure(downloads[pos])
+            state = "failed"
+            detail = friendly_failure(downloads[pos])
         elif pos == downloading_now:
             state = "downloading"
         elif row.get("status") in {"available", "available_quality_unknown"}:
             state = "queued"
+        elif status == "running":
+            state = "to_record"
+            detail = "La búsqueda en Soulseek falló. Se graba de Spotify al terminar las descargas"
         else:
             state = "search_error"
             detail = str(row.get("error") or "Error al buscar en Soulseek")
         tracks.append({"pos": pos, **meta, "state": state, "detail": detail})
 
+    partial = bool((consolidation or {}).get("partial"))
+    missing_ids = set((consolidation or {}).get("missing_spotify_ids") or [])
+    if missing_ids:  # run incompleto ya cerrado: lo que no llegó a la carpeta
+        for track in tracks:
+            if track["id"] in missing_ids and track["state"] not in {"downloaded", "recorded"}:
+                track["state"] = "failed"
+                track["detail"] = "No se consiguió: " + str(report.get("reason") or "falló también la grabación")
     counts = collections.Counter(t["state"] for t in tracks)
     name = ((availability or {}).get("playlist") or {}).get("name") \
         or ((missing or {}).get("source_playlist") or {}).get("name") \
         or report.get("playlist_name") or (consolidation or {}).get("playlist_name")
     playlist_id = report.get("playlist_id") or (RUN_DIR_RE.match(run_dir.name) or [None, None, None, None])[3]
-    partial = bool((consolidation or {}).get("partial"))
     return {
         "run": run_dir.name,
         "run_dir": str(run_dir),
@@ -313,7 +349,8 @@ def run_state(run_dir: Path, *, alive: bool | None = None, current_download: int
         "missing_count": len(missing_positions) if missing is not None else None,
         "recording_since": recording_since,
         "final_output": report.get("final_output"),
-        "saved_to": consolidation.get("playlist_directory") if partial else None,  # guardado parcial desde la app
+        "reason": report.get("reason"),
+        "saved_to": consolidation.get("playlist_directory") if partial else None,  # guardado parcial
         "saved_count": consolidation.get("audio_count") if partial else None,
         "tracks": tracks,
     }
@@ -590,6 +627,8 @@ class DownloadJob:
             outcome = "done"
         elif self.returncode == 75:
             outcome = "paused"
+        elif self.returncode == orch.EXIT_PARTIAL:
+            outcome = "partial"
         elif self.returncode == 130 or self.stop_requested:
             outcome = "stopped"
         else:
@@ -1122,7 +1161,7 @@ class App:
             try:
                 folder, _moved, report = orch.consolidate_audio(
                     run_dir, run_dir / "soulseek", run_dir / "recorded_missing", library, name,
-                    expected_spotify_ids=None)
+                    expected_spotify_ids=None, extra_recorded_dirs=(run_dir / orch.RECORDED_FAILED_DIR,))
                 report["partial"] = True
                 write_json(run_dir / "consolidation_report.json", report)
                 self.saving = {"run": run_name, "status": "done", "folder": str(folder), "count": report["audio_count"]}

@@ -452,3 +452,139 @@ def test_truncated_conversion_is_not_promoted(tmp_path):
             D.finalize(src, out, track(), local, False, require_cover=False)
     tags.assert_not_called()
     assert not list(out.iterdir())
+
+
+# ---------------------------------------------------------------------------
+# Elegir y verificar candidatos (2026-10-30, run «Jazz-Bossa mío»)
+# ---------------------------------------------------------------------------
+
+def spotify_track(title="Track", artists=("Artist",), seconds=300, album="Album", isrc=None, position_id="t1"):
+    return D.track_from_report({
+        "spotify_id": position_id, "uri": f"spotify:track:{position_id}", "url": "",
+        "title": title, "artists": list(artists), "album": album,
+        "album_artists": list(artists), "duration_ms": seconds * 1000,
+        "album_id": None, "release_date": None, "track_number": None,
+        "total_tracks": None, "disc_number": None, "isrc": isrc, "cover_url": None,
+    })
+
+
+def local_file(name, artists, seconds, isrc=None, title=None, fmt="flac"):
+    return D.LocalFile(Path(name), seconds, 900, fmt, tag_title=title, tag_artists=list(artists), isrc=isrc)
+
+
+def test_combined_artist_tags_are_split():
+    assert {"toquinho", "vinicius", "toquinho e vinicius"} <= set(D.artist_names("Toquinho e Vinícius"))
+    assert {"stan getz", "joao gilberto"} <= set(D.artist_names("Stan Getz & Joao Gilberto"))
+    assert D.artist_names("Daft Punk") == ["daft punk"]
+
+
+def test_duet_written_in_one_tag_is_accepted():
+    spotify = spotify_track("Águas De Março", ["Elis Regina", "Antônio Carlos Jobim"], 214)
+    local = local_file("01 Aguas de Março.flac", ["António Carlos Jobim & Elis Regina"], 211, title="Águas de Março")
+    accepted, _, _, reasons = D.score_candidate(spotify, local)
+    assert accepted, reasons
+
+
+def test_exact_isrc_accepts_differently_written_artist_but_not_another_isrc():
+    spotify = spotify_track("Samba Pra Vinícius", ["Toquinho", "Chico Buarque"], 154, isrc="BRMCA7400010")
+    same = local_file("07 Samba pra Vinicius.mp3", ["Vários Artistas"], 155, isrc="BRMCA7400010",
+                      title="Samba pra Vinicius", fmt="flac")
+    accepted, _, _, reasons = D.score_candidate(spotify, same)
+    assert accepted and any("ISRC exacto" in r for r in reasons)
+    other = local_file("07 Samba pra Vinicius.mp3", ["Vários Artistas"], 155, isrc="BRXXX0000001",
+                       title="Samba pra Vinicius")
+    accepted, _, _, reasons = D.score_candidate(spotify, other)
+    assert not accepted and reasons[0].startswith("artista mismatch")
+
+
+def test_another_performer_is_still_rejected():
+    spotify = spotify_track("A Felicidade", ["Antônio Carlos Jobim"], 125)
+    local = local_file("A felicidade.flac", ["Ella Fitzgerald"], 126, title="A felicidade")
+    accepted, _, _, reasons = D.score_candidate(spotify, local)
+    assert not accepted and reasons[0].startswith("artista mismatch")
+
+
+def test_candidates_with_spotify_duration_and_album_come_first():
+    spotify = spotify_track("Chega De Saudade", ["Antônio Carlos Jobim"], 233, album="Inédito")
+    cands = [
+        candidate(filename="Jobim/10-Antonio Carlos Jobim - Chega De Saudade.flac", length_s=259),
+        candidate(filename="Jobim/Live/Chega de Saudade.flac", length_s=236),
+        candidate(filename="Tom Jobim - Inédito - 02 - Chega de Saudade.flac", length_s=233),
+        candidate(filename="Jobim/Chega De Saudade.flac", length_s=258),
+    ]
+    order = [c["length_s"] for c in D.rank_candidates(spotify, cands)]
+    assert order == [233, 236, 258, 259]
+
+
+def test_explicit_extended_keeps_priority_for_dj_music():
+    spotify = spotify_track("Track", ["Artist"], 200)
+    cands = [candidate(filename="Artist - Track (Radio Edit).mp3", length_s=200),
+             candidate(filename="Artist - Track (Extended Mix).mp3", length_s=380)]
+    assert D.rank_candidates(spotify, cands)[0]["length_s"] == 380
+    assert D.rank_candidates(spotify, cands, prefer_extended=False)[0]["length_s"] == 200
+
+
+def _fake_transfer(names):
+    def run(cmd, incoming, expected_bytes, config):
+        incoming = Path(next(s.split("=", 1)[1] for s in cmd if s.startswith("--output-dir=")))
+        remote = next(s for s in cmd if s.startswith("slsk://"))
+        names.append(remote)
+        (incoming / Path(remote).name).write_bytes(b"audio")
+        return 0
+    return run
+
+
+def test_rejected_download_tries_the_next_candidate(tmp_path):
+    names = []
+    cands = [candidate(filename="Music/first.mp3"), candidate(filename="Music/second.mp3")]
+    with mock.patch.object(D, "find_sockseek", return_value="sockseek"), mock.patch.object(
+        D, "_check_antivirus_ready"
+    ), mock.patch.object(D, "_write_sockseek_safe_config"), mock.patch.object(
+        D, "_validate_download"
+    ), mock.patch.object(D, "_run_sockseek_transfer", side_effect=_fake_transfer(names)):
+        files = D.download_with_sockseek(track(), tmp_path, availability=D.AvailabilityCheck("available", 2, cands),
+                                         verify=lambda path: path.name == "second.mp3")
+    assert [Path(n).name for n in names] == ["first.mp3", "second.mp3"]
+    assert len(files) == 1 and files[0].name == "second.mp3" and files[0].is_file()
+    assert [p.name for p in tmp_path.rglob("*.mp3")] == ["second.mp3"]  # el rechazado se borró
+
+
+def test_transfers_per_track_are_bounded(tmp_path):
+    names = []
+    cands = [candidate(filename=f"Music/{i}.mp3") for i in range(6)]
+    with mock.patch.object(D, "find_sockseek", return_value="sockseek"), mock.patch.object(
+        D, "_check_antivirus_ready"
+    ), mock.patch.object(D, "_write_sockseek_safe_config"), mock.patch.object(
+        D, "_validate_download"
+    ), mock.patch.object(D, "_run_sockseek_transfer", side_effect=_fake_transfer(names)):
+        files = D.download_with_sockseek(track(), tmp_path, availability=D.AvailabilityCheck("available", 6, cands),
+                                         verify=lambda path: False)
+    assert files == [] and len(names) == D.MAX_CANDIDATE_TRANSFERS
+    assert not list(tmp_path.rglob("*.mp3"))
+
+
+def test_fallback_lists_undownloaded_and_errored_tracks_in_playlist_order():
+    t = {i: spotify_track(position_id=f"t{i}") for i in range(1, 6)}
+    available = [(1, t[1], None), (2, t[2], None), (3, t[3], None)]
+    rows = [{"position": 1, "status": "finalized"}, {"position": 2, "status": "verification_failed"},
+            {"position": 3, "status": "already_finalized"}]
+    errors = [(5, t[5], "timeout")]
+    assert [p for p, _ in D.fallback_tracks(available, rows, errors)] == [2, 5]
+    assert [p for p, _ in D.fallback_tracks(available, rows[:1], [])] == [2, 3]
+
+
+def test_inferred_extended_needs_the_full_artist_not_a_part():
+    spotify = spotify_track("Tomara", ["Vinícius de Moraes", "Marilia Medalha", "Toquinho"], 132)
+    other_version = local_file("06 Tomara.flac", ["Vinicius de Moraes, Toquinho & Maria Creuza"], 186.7, title="Tomara")
+    accepted, _, _, reasons = D.score_candidate(spotify, other_version)
+    assert not accepted and reasons[0].startswith("duración mismatch")
+    single = local_file("Tomara.flac", ["Toquinho"], 160, title="Tomara")
+    accepted, _, extended, _ = D.score_candidate(spotify, single)
+    assert accepted and extended  # la regla de siempre, con el artista completo
+
+
+def test_title_in_the_file_name_beats_title_in_the_folder():
+    spotify = spotify_track("Wave", ["Antônio Carlos Jobim", "Frank Sinatra"], 200)
+    cands = [candidate(filename="Jobim/Wave (1967)/04 - Batidinha.flac", length_s=197),
+             candidate(filename="Sinatra & Jobim/07 - Wave.flac", length_s=201)]
+    assert D.rank_candidates(spotify, cands)[0]["filename"].endswith("07 - Wave.flac")

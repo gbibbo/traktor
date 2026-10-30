@@ -7,7 +7,10 @@ CHANGELOG:
 
 from __future__ import annotations
 
+import argparse
+import contextlib
 import importlib.util
+import io
 import json
 import math
 import os
@@ -643,6 +646,252 @@ class ResumeTests(unittest.TestCase):
 
         self.assertEqual(code, 0)
         self.assertEqual(status["status"], "natural_end")
+
+
+class FallbackRecordingTests(unittest.TestCase):
+    """Temas que Soulseek no pudo dar: se graban, se reanudan y, si aun así faltan, se guarda lo que hay."""
+
+    @staticmethod
+    def manifest(positions: list[int]) -> dict:
+        tracks = [{"playlist_position": p, "spotify": {"spotify_id": f"id{p}"}} for p in positions]
+        playlists = [{"url": "https://open.spotify.com/playlist/x", "start_index": 0,
+                      "end_index": len(tracks), "track_count": len(tracks)}] if tracks else None
+        return {"missing_count": len(tracks), "tracks": tracks, "generated_missing_playlists": playlists}
+
+    @staticmethod
+    def write(path: Path, payload: dict) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+    def make_run(self, root: Path, stamp: str = "20261030-100000") -> Path:
+        run_dir = root / f"{stamp}_PL1"
+        run_dir.mkdir(parents=True)
+        self.write(run_dir / "orchestration_report.json", {"status": "failed"})
+        return run_dir
+
+    def test_pending_missing_recording_is_resumed_first(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run_dir = self.make_run(Path(temp_dir))
+            self.write(run_dir / "soulseek_missing.json", self.manifest([3, 4]))
+            self.write(run_dir / "recorded_missing" / "recording_progress.json",
+                       {"completed_count": 1, "total_tracks": 2, "status": "recording"})
+            self.write(run_dir / ORCHESTRATOR.FAILED_JSON_NAME, self.manifest([1]))
+            point = ORCHESTRATOR.resume_point(Path(temp_dir), "PL1")
+            self.assertEqual(point[0], "missing")
+            self.assertEqual(point[1], run_dir)
+
+    def test_failed_tracks_resume_after_the_download_finished(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run_dir = self.make_run(Path(temp_dir))
+            self.write(run_dir / "soulseek_missing.json", self.manifest([3]))
+            self.write(run_dir / "recorded_missing" / "recording_progress.json",
+                       {"completed_count": 1, "total_tracks": 1, "status": "completed"})
+            self.write(run_dir / ORCHESTRATOR.FAILED_JSON_NAME, self.manifest([1, 2]))
+            point = ORCHESTRATOR.resume_point(Path(temp_dir), "PL1")
+            self.assertEqual((point[0], point[1], point[3]), ("failed", run_dir, None))
+
+            self.write(run_dir / ORCHESTRATOR.RECORDED_FAILED_DIR / "recording_progress.json",
+                       {"completed_count": 1, "total_tracks": 2, "status": "recording"})
+            self.assertEqual(ORCHESTRATOR.resume_point(Path(temp_dir), "PL1")[3]["completed_count"], 1)
+
+            self.write(run_dir / ORCHESTRATOR.RECORDED_FAILED_DIR / "recording_progress.json",
+                       {"completed_count": 2, "total_tracks": 2, "status": "completed"})
+            self.assertIsNone(ORCHESTRATOR.resume_point(Path(temp_dir), "PL1"))
+
+    def test_finished_or_still_downloading_runs_are_not_resumed_as_failed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run_dir = self.make_run(Path(temp_dir))
+            self.write(run_dir / "soulseek_missing.json", self.manifest([]))
+            self.assertIsNone(ORCHESTRATOR.resume_point(Path(temp_dir), "PL1"))  # sin lista de no bajados
+            self.write(run_dir / ORCHESTRATOR.FAILED_JSON_NAME, self.manifest([1]))
+            self.assertEqual(ORCHESTRATOR.resume_point(Path(temp_dir), "PL1")[0], "failed")
+            self.write(run_dir / "orchestration_report.json", {"status": "partial"})
+            self.assertIsNone(ORCHESTRATOR.resume_point(Path(temp_dir), "PL1"))
+
+    @mock.patch.object(ORCHESTRATOR, "_validate_final_mp3", side_effect=ORCHESTRATOR.embedded_spotify_id)
+    def test_recorded_failed_tracks_are_consolidated(self, validator) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            run_dir = root / "run"
+            ConsolidationTests.tagged_file(run_dir / "soulseek" / "A - One.mp3", "id1")
+            ConsolidationTests.tagged_file(run_dir / "recorded_failed" / "A - Two.mp3", "id2")
+            args = (run_dir, run_dir / "soulseek", run_dir / "recorded_missing", root / "lib", "Lista")
+            with self.assertRaises(ORCHESTRATOR.IncompleteAudio):
+                ORCHESTRATOR.consolidate_audio(*args, expected_spotify_ids={"id1", "id2", "id3"},
+                                               extra_recorded_dirs=(run_dir / "recorded_failed",))
+            self.assertTrue((run_dir / "soulseek" / "A - One.mp3").exists())  # nada se movió
+            _, _, report = ORCHESTRATOR.consolidate_audio(*args, expected_spotify_ids={"id1", "id2"},
+                                                          extra_recorded_dirs=(run_dir / "recorded_failed",))
+            self.assertEqual(report["audio_count"], 2)
+            self.assertEqual({r["origin"] for r in report["tracks"]}, {"soulseek", "loopback"})
+
+    @mock.patch.object(ORCHESTRATOR, "_validate_final_mp3", side_effect=ORCHESTRATOR.embedded_spotify_id)
+    def test_incomplete_run_saves_what_it_has(self, validator) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            run_dir = root / "run"
+            self.write(run_dir / "soulseek_availability.json", {"playlist": {"name": "Lista"}, "tracks": [
+                {"spotify": {"spotify_id": "id1"}}, {"spotify": {"spotify_id": "id2"}}]})
+            ConsolidationTests.tagged_file(run_dir / "soulseek" / "A - One.mp3", "id1")
+            summary_path = run_dir / "orchestration_report.json"
+            summary = {"status": "running"}
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = ORCHESTRATOR.finish_partial(
+                    run_dir=run_dir,
+                    audio_dirs=(run_dir / "soulseek", run_dir / "recorded_missing", run_dir / "recorded_failed"),
+                    playlists_root=root / "lib", playlist_id="PL1", summary=summary,
+                    summary_path=summary_path, reason="faltó uno")
+            self.assertEqual(code, ORCHESTRATOR.EXIT_PARTIAL)
+            self.assertTrue((root / "lib" / "Lista" / "A - One.mp3").is_file())
+            saved = json.loads(summary_path.read_text(encoding="utf-8"))
+            self.assertEqual((saved["status"], saved["missing_spotify_ids"]), ("partial", ["id2"]))
+            self.assertTrue(json.loads((run_dir / "consolidation_report.json").read_text(encoding="utf-8"))["partial"])
+
+    def test_incomplete_run_without_audio_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run_dir = Path(temp_dir) / "run"
+            run_dir.mkdir()
+            summary_path = run_dir / "orchestration_report.json"
+            with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(ORCHESTRATOR.WorkflowError):
+                ORCHESTRATOR.finish_partial(
+                    run_dir=run_dir,
+                    audio_dirs=(run_dir / "soulseek", run_dir / "recorded_missing", run_dir / "recorded_failed"),
+                    playlists_root=Path(temp_dir) / "lib", playlist_id="PL1", summary={},
+                    summary_path=summary_path, reason="nada")
+            self.assertEqual(json.loads(summary_path.read_text(encoding="utf-8"))["status"], "failed")
+
+
+class FakeProcess:
+    """Proceso simulado: `step()` decide cuándo termina y qué archivos deja."""
+
+    def __init__(self, step):
+        self.step = step
+        self.returncode = None
+
+    def poll(self):
+        if self.returncode is None:
+            self.returncode = self.step()
+        return self.returncode
+
+    def terminate(self):
+        if self.returncode is None:
+            self.returncode = 0
+
+    kill = terminate
+
+    def wait(self, timeout=None):
+        return self.returncode
+
+
+class WorkflowSimulationTests(unittest.TestCase):
+    """run_workflow de punta a punta con descargador, grabador y reproductor simulados."""
+
+    PID = "PL1"
+
+    @staticmethod
+    def track(n: int) -> dict:
+        return {"spotify_id": f"id{n}", "title": f"Tema {n}", "artists": ["Artista"]}
+
+    def manifest(self, positions, playlists=True, error=None):
+        tracks = [{"playlist_position": p, "spotify": self.track(p)} for p in positions]
+        generated = None
+        if tracks and playlists:
+            generated = [{"url": "https://open.spotify.com/playlist/b1", "start_index": 0,
+                          "end_index": len(tracks), "track_count": len(tracks)}]
+        if tracks and error:
+            generated = [{"url": "", "error": error}]
+        return {"missing_count": len(tracks), "tracks": tracks, "generated_missing_playlists": generated}
+
+    def popen(self, failed_playlists_error=None):
+        calls = []
+
+        def fake(cmd, env=None):
+            script = Path(cmd[2]).name
+            arg = lambda flag: Path(cmd[cmd.index(flag) + 1])  # noqa: E731
+            calls.append((script, cmd))
+            if script == "spotify_soulseek_download.py":
+                write = FallbackRecordingTests.write
+                write(arg("--availability-report"), {"playlist": {"name": "Lista"}, "tracks": [
+                    {"position": p, "spotify": self.track(p), "status": s}
+                    for p, s in ((1, "available"), (2, "available"), (3, "missing"))]})
+                write(arg("--missing-json"), self.manifest([3]))
+                gate = arg("--download-gate")
+
+                def step():
+                    if not gate.exists():
+                        return None
+                    ConsolidationTests.tagged_file(arg("--output") / "Artista - Tema 1.mp3", "id1")
+                    write(arg("--failed-json"), self.manifest([2], error=failed_playlists_error))
+                    return 3  # el tema 2 no se pudo bajar
+                return FakeProcess(step)
+            if script == "playlist_loopback_recorder.py":
+                manifest = json.loads(Path(cmd[3]).read_text(encoding="utf-8"))
+                out = arg("--output-dir")
+                FallbackRecordingTests.write(arg("--ready-file"), {"status": "ready"})
+                polls = []
+
+                def step():
+                    polls.append(1)
+                    if len(polls) < 2:
+                        return None  # el descargador termina mientras se graba
+                    for t in manifest["tracks"]:
+                        ConsolidationTests.tagged_file(out / f"Artista - {t['spotify']['title']}.mp3",
+                                                       t["spotify"]["spotify_id"])
+                    n = len(manifest["tracks"])
+                    FallbackRecordingTests.write(out / "recording_progress.json", {
+                        "completed_count": n, "total_tracks": n, "status": "completed",
+                        "source_json": str(Path(cmd[3])),
+                        "tracks": [{"playlist_position": t["playlist_position"]} for t in manifest["tracks"]]})
+                    return 0
+                return FakeProcess(step)
+            FallbackRecordingTests.write(arg("--ready-file"), {"status": "ready"})  # reproductor
+            return FakeProcess(lambda: None)
+        return fake, calls
+
+    def run_flow(self, root: Path, **kwargs):
+        fake, calls = self.popen(**kwargs)
+        args = argparse.Namespace(playlist_url=f"https://open.spotify.com/playlist/{self.PID}",
+                                  output_root=root / "runs", library_root=root / "lib",
+                                  manifest_timeout=30.0, recorder_timeout=30.0, fresh=False)
+        with mock.patch.object(ORCHESTRATOR.subprocess, "Popen", side_effect=fake), \
+                mock.patch.object(ORCHESTRATOR, "validate_environment"), \
+                mock.patch.object(ORCHESTRATOR, "find_required_program", return_value=root / "tool.exe"), \
+                mock.patch.object(ORCHESTRATOR, "_validate_final_mp3", side_effect=ORCHESTRATOR.embedded_spotify_id), \
+                mock.patch.object(ORCHESTRATOR.time, "sleep"), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            code = ORCHESTRATOR.run_workflow(args)
+        run_dir = next((root / "runs").iterdir())
+        report = json.loads((run_dir / "orchestration_report.json").read_text(encoding="utf-8"))
+        return code, calls, run_dir, report
+
+    def test_undownloaded_track_is_recorded_and_the_playlist_completes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            code, calls, run_dir, report = self.run_flow(root)
+            self.assertEqual(code, 0)
+            self.assertEqual(report["status"], "completed")
+            self.assertEqual(report["soulseek_returncode"], 3)
+            self.assertEqual(sorted(p.name for p in (root / "lib" / "Lista").iterdir()),
+                             ["Artista - Tema 1.mp3", "Artista - Tema 2.mp3", "Artista - Tema 3.mp3"])
+            recorders = [cmd for script, cmd in calls if script == "playlist_loopback_recorder.py"]
+            self.assertEqual([Path(c[c.index("--output-dir") + 1]).name for c in recorders],
+                             ["recorded_missing", ORCHESTRATOR.RECORDED_FAILED_DIR])
+            downloader = next(cmd for script, cmd in calls if script == "spotify_soulseek_download.py")
+            self.assertIn("--failed-json", downloader)
+            status = run_dir / "diagnostics" / "spotify_playback_status.json"
+            self.assertFalse(status.exists() and "stalled" in status.read_text(encoding="utf-8"))
+
+    def test_without_playlists_to_record_the_run_saves_what_it_has(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            code, calls, run_dir, report = self.run_flow(root, failed_playlists_error="Spotify 429")
+            self.assertEqual(code, ORCHESTRATOR.EXIT_PARTIAL)
+            self.assertEqual(report["status"], "partial")
+            self.assertEqual(report["missing_spotify_ids"], ["id2"])
+            self.assertIn("Spotify 429", report["reason"])
+            self.assertEqual(sorted(p.name for p in (root / "lib" / "Lista").iterdir()),
+                             ["Artista - Tema 1.mp3", "Artista - Tema 3.mp3"])
+            self.assertEqual(sum(script == "playlist_loopback_recorder.py" for script, _ in calls), 1)
 
 
 class EnvironmentSetupTests(unittest.TestCase):

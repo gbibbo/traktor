@@ -181,9 +181,13 @@ git-ignorado, y las dos autorizaciones de Spotify). La grabación crea checkpoin
 reanuda el lote correcto desde la primera pista pendiente. El grabador reutiliza el
 escritor canónico de metadata y cover de `spotify_soulseek_download.py`, por lo
 que ambos orígenes producen MP3 con el mismo criterio de nombres y etiquetas.
-Al completar ambas ramas, el orquestador mueve todo el audio sin duplicados a
-`download_JIJIJI/Playlists_DOWNLOAD/<nombre>/`; el run conserva sólo tres JSON
-principales y un subdirectorio `diagnostics/` con el detalle técnico.
+De cada tema disponible se prueban hasta 4 archivos (duración y álbum de Spotify primero) y cada
+uno se verifica antes de aceptarlo; lo que aun así no se pudo bajar queda en
+`soulseek_failed.json` y se graba al final en `recorded_failed/` (reanudable por separado).
+Al completar las ramas, el orquestador mueve todo el audio sin duplicados a
+`download_JIJIJI/Playlists_DOWNLOAD/<nombre>/`; el run conserva sólo los JSON
+principales y un subdirectorio `diagnostics/` con el detalle técnico. Si falta algún tema,
+guarda lo conseguido y termina como `partial` (código 3).
 
 | Archivo (`download_JIJIJI/app/`) | Descripción |
 | :--- | :--- |

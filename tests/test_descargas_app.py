@@ -81,9 +81,48 @@ def test_transfer_states(tmp_path):
     assert tracks[1]["state"] == "downloaded" and tracks[1]["detail"] == "Artista 1 - Tema 1.mp3"
     assert tracks[2]["state"] == "downloading"
     assert tracks[3]["state"] == "recording"
-    assert tracks[4]["state"] == "search_error"
+    assert tracks[4]["state"] == "to_record"          # la búsqueda falló: se graba al final
     assert state["counts"]["downloaded"] == 1 and state["counts"]["recording"] == 1
     assert state["recording_since"] is not None
+
+
+def test_undownloaded_tracks_are_recorded_after_the_download(tmp_path):
+    run = make_run(tmp_path)
+    availability(run, ["available", "available", "available", "missing"])
+    write(run / "soulseek_missing.json", {"tracks": [{"playlist_position": 4}]})
+    write(run / "recorded_missing" / "recording_progress.json",
+          {"completed_count": 1, "tracks": [{"playlist_position": 4}], "source_json": str(run / "soulseek_missing.json")})
+    write(run / "spotify_reconcile_report.json", {"tracks": [
+        {"position": 1, "status": "finalized"},
+        {"position": 2, "status": "verification_failed",
+         "candidates": [{"accepted": False, "reasons": ["artista mismatch (0.5)"]}]},
+        {"position": 3, "status": "download_error", "error": "timeout"}]})
+    tracks = by_pos(APP.run_state(run, alive=True))
+    assert tracks[2]["state"] == "to_record" and "al terminar las descargas" in tracks[2]["detail"]
+
+    write(run / "soulseek_failed.json", {"tracks": [{"playlist_position": 2}, {"playlist_position": 3}]})
+    write(run / "recorded_failed" / "recording_progress.json",
+          {"completed_count": 1, "tracks": [{"playlist_position": 2}], "source_json": str(run / "soulseek_failed.json")})
+    write(run / "recorder_ready.json", {"status": "ready"})
+    tracks = by_pos(APP.run_state(run, alive=True))
+    assert [tracks[p]["state"] for p in (1, 2, 3, 4)] == ["downloaded", "recorded", "recording", "recorded"]
+
+
+def test_partial_run_shows_what_is_missing(tmp_path):
+    run = make_run(tmp_path, status="partial")
+    write(run / "orchestration_report.json", {"status": "partial", "reason": "Spotify falló", "final_output": "D:/m/Lista"})
+    diag = run / "diagnostics"
+    write(diag / "soulseek_availability.json", {"playlist": {"name": "Lista"}, "tracks": [
+        {"position": 1, "spotify": spotify(1), "status": "available"},
+        {"position": 2, "spotify": spotify(2), "status": "available"}]})
+    write(run / "soulseek_failed.json", {"tracks": [{"playlist_position": 2}]})
+    write(run / "consolidation_report.json", {"partial": True, "playlist_directory": "D:/m/Lista", "audio_count": 1,
+                                              "missing_spotify_ids": ["id2"], "tracks": [
+        {"spotify_id": "id1", "origin": "soulseek", "destination": "D:/m/Lista/a.mp3"}]})
+    state = APP.run_state(run)
+    assert state["status"] == "partial" and state["reason"] == "Spotify falló"
+    assert [t["state"] for t in state["tracks"]] == ["downloaded", "failed"]
+    assert state["counts"]["failed"] == 1 and state["final_output"] == "D:/m/Lista"
 
 
 def test_current_download_from_log_wins(tmp_path):

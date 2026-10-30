@@ -3,6 +3,9 @@
 PURPOSE: Run the complete Spotify -> Soulseek + loopback fallback workflow.
 
 CHANGELOG:
+- 2026-10-30: Record from Spotify the tracks Soulseek could not deliver (soulseek_failed.json,
+              recorded_failed/), resumable on their own; a downloader exit code 3 no longer stalls the
+              recording; a run that still misses tracks saves what it has ("partial", exit code 3).
 - 2026-10-30: Load .env before parsing so it can set the runs and playlists roots.
 - 2026-10-05: Revalidate final MP3s and existing duplicates before consolidation.
 - 2026-09-29: Record missing tracks sequentially in Spotify batches of up to 10.
@@ -32,7 +35,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 for _stream in (sys.stdout, sys.stderr):
@@ -48,6 +51,11 @@ DEFAULT_RUNS_DIR = SCRIPT_DIR / "runs"
 DEFAULT_PLAYLISTS_DIR = SCRIPT_DIR / "Playlists_DOWNLOAD"
 MANIFEST_POLL_SECONDS = 0.25
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg"}
+FAILED_JSON_NAME = "soulseek_failed.json"       # temas que Soulseek no pudo dar: se graban de Spotify
+RECORDED_FAILED_DIR = "recorded_failed"
+# El descargador termina con 0 (todo bajado) o 3 (faltan temas, listados en FAILED_JSON_NAME).
+DOWNLOADER_FINISHED_CODES = {0, 3}
+EXIT_PARTIAL = 3
 
 
 class WorkflowError(RuntimeError):
@@ -56,6 +64,10 @@ class WorkflowError(RuntimeError):
 
 class ResumeAvailable(WorkflowError):
     """Playback stopped, but completed per-track checkpoints remain reusable."""
+
+
+class IncompleteAudio(WorkflowError):
+    """The final audio set does not cover the whole playlist."""
 
 
 def playlist_id_from_url(value: str) -> str:
@@ -274,15 +286,10 @@ def read_json_dict(path: Path) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
-def resumable_run(
-    runs_root: Path,
-    playlist_id: str,
-) -> tuple[Path, dict[str, Any], dict[str, Any]] | None:
-    """Find the newest compatible run with at least one pending recording."""
+def _runs_for_playlist(runs_root: Path, playlist_id: str) -> list[Path]:
     if not runs_root.is_dir():
-        return None
-
-    candidates = sorted(
+        return []
+    return sorted(
         (
             path
             for path in runs_root.iterdir()
@@ -291,28 +298,85 @@ def resumable_run(
         key=lambda path: path.name,
         reverse=True,
     )
-    for run_dir in candidates:
+
+
+def _pending_recording(
+    manifest: dict[str, Any] | None,
+    progress: dict[str, Any] | None,
+    *,
+    require_progress: bool = True,
+) -> bool:
+    """Recording list with tracks still to record (and, if it started, a coherent checkpoint)."""
+    if manifest is None:
+        return False
+    missing_count = manifest.get("missing_count")
+    if not isinstance(missing_count, int) or missing_count <= 0:
+        return False
+    if not missing_playlist_batches(manifest):
+        return False
+    if progress is None:
+        return not require_progress
+    completed_count = progress.get("completed_count")
+    if not isinstance(completed_count, int):
+        return False
+    if progress.get("total_tracks") != missing_count:
+        return False
+    if progress.get("status") == "completed":
+        return False
+    return 0 <= completed_count < missing_count
+
+
+def _recording_complete(manifest: dict[str, Any], progress: dict[str, Any] | None) -> bool:
+    missing_count = manifest.get("missing_count")
+    if missing_count == 0:
+        return True
+    return bool(progress) and progress.get("completed_count") == missing_count
+
+
+def resumable_run(
+    runs_root: Path,
+    playlist_id: str,
+) -> tuple[Path, dict[str, Any], dict[str, Any]] | None:
+    """Find the newest compatible run with at least one pending recording of missing tracks."""
+    for run_dir in _runs_for_playlist(runs_root, playlist_id):
         manifest = final_missing_manifest(run_dir / "soulseek_missing.json")
         progress = read_json_dict(
             run_dir / "recorded_missing" / "recording_progress.json"
         )
-        if manifest is None or progress is None:
+        if _pending_recording(manifest, progress):
+            assert manifest is not None and progress is not None
+            return run_dir, manifest, progress
+    return None
+
+
+def resume_point(
+    runs_root: Path,
+    playlist_id: str,
+) -> tuple[str, Path, dict[str, Any], dict[str, Any] | None] | None:
+    """Where to continue the newest unfinished run of this playlist.
+
+    ("missing", run, manifest, progress): the recording of tracks missing from Soulseek stopped.
+    ("failed", run, manifest, progress|None): the download finished and the recording of the
+    tracks it could not deliver (FAILED_JSON_NAME) is pending.
+    """
+    for run_dir in _runs_for_playlist(runs_root, playlist_id):
+        report = read_json_dict(run_dir / "orchestration_report.json") or {}
+        if report.get("status") in {"completed", "partial"}:
             continue
-        missing_count = manifest.get("missing_count")
-        completed_count = progress.get("completed_count")
-        if not isinstance(missing_count, int) or missing_count <= 0:
-            continue
-        if not isinstance(completed_count, int):
-            continue
-        if progress.get("total_tracks") != missing_count:
-            continue
-        if not 0 <= completed_count < missing_count:
-            continue
-        if progress.get("status") == "completed":
-            continue
-        if not missing_playlist_batches(manifest):
-            continue
-        return run_dir, manifest, progress
+        manifest = final_missing_manifest(run_dir / "soulseek_missing.json")
+        progress = read_json_dict(run_dir / "recorded_missing" / "recording_progress.json")
+        if _pending_recording(manifest, progress):
+            assert manifest is not None
+            return "missing", run_dir, manifest, progress
+        failed = final_missing_manifest(run_dir / FAILED_JSON_NAME)
+        failed_progress = read_json_dict(run_dir / RECORDED_FAILED_DIR / "recording_progress.json")
+        if (
+            manifest is not None
+            and _recording_complete(manifest, progress)
+            and _pending_recording(failed, failed_progress, require_progress=False)
+        ):
+            assert failed is not None
+            return "failed", run_dir, failed, failed_progress
     return None
 
 
@@ -453,11 +517,19 @@ def consolidate_audio(
     playlists_root: Path,
     playlist_name: str,
     expected_spotify_ids: set[str] | None = None,
+    *,
+    extra_recorded_dirs: tuple[Path, ...] = (),
 ) -> tuple[Path, dict[str, str], dict[str, Any]]:
-    """Move every final MP3 into one playlist directory without duplicates."""
+    """Move every final MP3 into one playlist directory without duplicates.
+
+    With `expected_spotify_ids`, a different final set raises IncompleteAudio before moving
+    anything; without it, whatever valid audio exists is moved (partial save).
+    """
     run_root = run_dir.resolve()
     sources: list[tuple[str, Path]] = []
-    for origin, root in (("soulseek", soulseek_dir), ("loopback", recorded_dir)):
+    roots = [("soulseek", soulseek_dir), ("loopback", recorded_dir)]
+    roots += [("loopback", extra) for extra in extra_recorded_dirs]
+    for origin, root in roots:
         if root.is_dir():
             sources.extend(
                 (origin, path)
@@ -474,7 +546,7 @@ def consolidate_audio(
     if expected_spotify_ids is not None and found_ids != expected_spotify_ids:
         missing = sorted(expected_spotify_ids - found_ids)
         unexpected = sorted(found_ids - expected_spotify_ids)
-        raise WorkflowError(
+        raise IncompleteAudio(
             "El conjunto de audio final no coincide con la playlist: "
             f"faltan={missing}, inesperados={unexpected}"
         )
@@ -550,6 +622,7 @@ def simplify_completed_run(run_dir: Path, moved_paths: dict[str, str]) -> Path:
         if json_path.name in {
             "orchestration_report.json",
             "soulseek_missing.json",
+            FAILED_JSON_NAME,
             "consolidation_report.json",
         }:
             continue
@@ -592,6 +665,273 @@ def simplify_completed_run(run_dir: Path, moved_paths: dict[str, str]) -> Path:
     return diagnostics
 
 
+def record_batches(
+    *,
+    label: str,
+    manifest_path: Path,
+    batches: list[dict[str, Any]],
+    total: int,
+    completed_count: int,
+    recorded_dir: Path,
+    run_dir: Path,
+    env: dict[str, str],
+    args: argparse.Namespace,
+    summary: dict[str, Any],
+    summary_path: Path,
+    keys: tuple[str, str, str],
+    downloader: subprocess.Popen[Any] | None = None,
+    on_first_playback: Callable[[], None] | None = None,
+) -> int:
+    """Record the tracks of a recording list in its Spotify batches; return the completed count.
+
+    `keys` are the summary fields (completed tracks, completed batches, active batch).
+    """
+    recorder_ready = run_dir / "recorder_ready.json"
+    player_ready = run_dir / "player_ready.json"
+    playback_status = run_dir / "spotify_playback_status.json"
+    done_key, batches_key, active_key = keys
+    completed_batches: list[dict[str, Any]] = list(summary.get(batches_key) or [])
+    recorder: subprocess.Popen[Any] | None = None
+    player: subprocess.Popen[Any] | None = None
+    first_playback = True
+    try:
+        while completed_count < total:
+            batch = batch_for_completed(batches, completed_count)
+            if batch is None:
+                raise WorkflowError(
+                    f"No existe un lote para la pista pendiente {completed_count + 1}."
+                )
+            batch_number = int(batch["batch_number"])
+            batch_count = int(batch["batch_count"])
+            batch_start = int(batch["start_index"])
+            batch_end = int(batch["end_index"])
+            local_offset = completed_count - batch_start
+            tracks_this_process = batch_end - completed_count
+
+            recorder_ready.unlink(missing_ok=True)
+            player_ready.unlink(missing_ok=True)
+            playback_status.unlink(missing_ok=True)
+
+            recorder_cmd = [
+                sys.executable,
+                "-u",
+                str(SCRIPT_DIR / "playlist_loopback_recorder.py"),
+                str(manifest_path),
+                "--output-dir",
+                str(recorded_dir),
+                "--ready-file",
+                str(recorder_ready),
+                "--resume",
+                "--max-tracks",
+                str(tracks_this_process),
+                "--watchdog-file",
+                str(playback_status),
+            ]
+            print(
+                f"\n[grabación] Abriendo grabador ({label}) para lote {batch_number}/{batch_count} "
+                f"({tracks_this_process} tema(s))..."
+            )
+            recorder = subprocess.Popen(recorder_cmd, env=env)
+            wait_for_ready_file(
+                recorder,
+                recorder_ready,
+                args.recorder_timeout,
+                label="grabador",
+            )
+
+            print(
+                f"\n[grabación] Reproduciendo lote Spotify ({label}) {batch_number}/{batch_count} "
+                f"desde su posición {local_offset + 1}..."
+            )
+            player_cmd = [
+                sys.executable,
+                "-u",
+                str(SCRIPT_DIR / "spotify_playlist.py"),
+                str(batch["url"]),
+                "--offset-position",
+                str(local_offset),
+                "--ready-file",
+                str(player_ready),
+                "--watchdog-file",
+                str(playback_status),
+            ]
+            player = subprocess.Popen(player_cmd, env=env)
+            wait_for_ready_file(
+                player,
+                player_ready,
+                args.recorder_timeout,
+                label="reproductor de Spotify",
+            )
+            if first_playback:
+                first_playback = False
+                if on_first_playback is not None:
+                    on_first_playback()
+
+            summary[active_key] = batch_number
+            summary[done_key] = completed_count
+            write_summary(summary_path, summary)
+
+            while recorder.poll() is None:
+                downloader_code_now = downloader.poll() if downloader is not None else None
+                if downloader_code_now is not None and downloader_code_now not in DOWNLOADER_FINISHED_CODES:
+                    write_summary(
+                        playback_status,
+                        {
+                            "status": "stalled",
+                            "error": (
+                                "Soulseek downloader exited with code "
+                                f"{downloader_code_now}"
+                            ),
+                        },
+                    )
+                player_code_now = player.poll()
+                if player_code_now is not None and player_code_now not in {0, 75}:
+                    write_summary(
+                        playback_status,
+                        {
+                            "status": "stalled",
+                            "error": f"Spotify player exited with code {player_code_now}",
+                        },
+                    )
+                time.sleep(0.5)
+
+            recorder_code = int(recorder.returncode or 0)
+            terminate_process(player)
+            player = None
+            recorder = None
+            summary["recorder_returncode"] = recorder_code
+
+            progress = read_json_dict(recorded_dir / "recording_progress.json") or {}
+            completed_now = progress.get("completed_count", completed_count)
+            if recorder_code in {75, 130}:
+                summary["status"] = "resumable"
+                summary[done_key] = completed_now
+                write_summary(summary_path, summary)
+                terminate_process(downloader)
+                raise ResumeAvailable(
+                    "Spotify se detuvo. Se conservaron "
+                    f"{completed_now}/{total} pistas ({label}); relanza el mismo comando "
+                    "para continuar desde la primera pendiente."
+                )
+            if recorder_code != 0:
+                raise WorkflowError(
+                    f"El grabador del lote {batch_number} ({label}) terminó con código "
+                    f"{recorder_code}."
+                )
+            if not isinstance(completed_now, int) or completed_now != batch_end:
+                raise WorkflowError(
+                    f"El lote {batch_number} ({label}) terminó en {completed_now}; "
+                    f"se esperaba {batch_end}."
+                )
+
+            completed_batches.append(
+                {
+                    "batch_number": batch_number,
+                    "start_index": completed_count,
+                    "end_index": completed_now,
+                    "status": "completed",
+                }
+            )
+            completed_count = completed_now
+            summary[done_key] = completed_count
+            summary[batches_key] = completed_batches
+            summary.pop(active_key, None)
+            write_summary(summary_path, summary)
+            print(
+                f"Lote {batch_number}/{batch_count} ({label}) completo: "
+                f"{completed_count}/{total} pistas grabadas."
+            )
+        return completed_count
+    finally:
+        terminate_process(player)
+        terminate_process(recorder)
+
+
+def playlist_identity(
+    run_dir: Path,
+    playlist_id: str,
+) -> tuple[str, set[str] | None]:
+    """Playlist name and the Spotify IDs it should contain, from the newest availability report."""
+    reports = sorted(
+        run_dir.glob("soulseek_availability*.json"),
+        key=lambda path: path.stat().st_mtime,
+    )
+    availability = read_json_dict(reports[-1]) if reports else None
+    missing = read_json_dict(run_dir / "soulseek_missing.json") or {}
+    name = str(
+        ((availability or {}).get("playlist") or {}).get("name")
+        or (missing.get("source_playlist") or {}).get("name")
+        or playlist_id
+    )
+    if availability is None:
+        return name, None
+    expected = {
+        str((row.get("spotify") or {}).get("spotify_id"))
+        for row in availability.get("tracks") or []
+        if isinstance(row, dict) and (row.get("spotify") or {}).get("spotify_id")
+    }
+    return name, expected
+
+
+def finish_partial(
+    *,
+    run_dir: Path,
+    audio_dirs: tuple[Path, Path, Path],
+    playlists_root: Path,
+    playlist_id: str,
+    summary: dict[str, Any],
+    summary_path: Path,
+    reason: str,
+) -> int:
+    """Save the valid audio that exists even though the playlist is not complete."""
+    print(f"\nNo se consiguieron todos los temas: {reason}")
+    soulseek_dir, recorded_dir, failed_dir = audio_dirs
+    playlist_name, expected_ids = playlist_identity(run_dir, playlist_id)
+    if not any(d.is_dir() and any(d.rglob("*.mp3")) for d in audio_dirs):
+        summary["status"] = "failed"
+        summary["reason"] = reason
+        write_summary(summary_path, summary)
+        raise WorkflowError(reason)
+    summary["status"] = "consolidating"
+    summary["playlist_name"] = playlist_name
+    write_summary(summary_path, summary)
+    playlist_dir, moved_paths, consolidation = consolidate_audio(
+        run_dir,
+        soulseek_dir,
+        recorded_dir,
+        playlists_root,
+        playlist_name,
+        expected_spotify_ids=None,
+        extra_recorded_dirs=(failed_dir,),
+    )
+    found = {str(row["spotify_id"]) for row in consolidation["tracks"]}
+    missing_ids = sorted((expected_ids or set()) - found)
+    consolidation.update({"partial": True, "reason": reason, "missing_spotify_ids": missing_ids})
+    write_summary(run_dir / "consolidation_report.json", consolidation)
+    diagnostics_dir = simplify_completed_run(run_dir, moved_paths)
+    summary.pop("soulseek_output", None)
+    summary.pop("recorded_output", None)
+    summary.pop("playlists_root", None)
+    summary.update(
+        {
+            "status": "partial",
+            "reason": reason,
+            "final_output": str(playlist_dir),
+            "audio_files": consolidation["audio_count"],
+            "missing_spotify_ids": missing_ids,
+            "diagnostics": str(diagnostics_dir),
+        }
+    )
+    write_summary(summary_path, summary)
+    total = len(expected_ids) if expected_ids else None
+    print("\n=== FLUJO INCOMPLETO ===")
+    print(f"Playlist : {playlist_dir}")
+    print(f"Audios   : {consolidation['audio_count']}" + (f" de {total}" if total else ""))
+    print(f"Faltan   : {len(missing_ids)} (Spotify IDs en {summary_path})")
+    print(f"Motivo   : {reason}")
+    return EXIT_PARTIAL
+
+
 def run_workflow(args: argparse.Namespace) -> int:
     playlist_id = playlist_id_from_url(args.playlist_url)
     playlist_url = canonical_playlist_url(args.playlist_url)
@@ -604,17 +944,16 @@ def run_workflow(args: argparse.Namespace) -> int:
     runs_root = args.output_root.expanduser().resolve()
     runs_root.mkdir(parents=True, exist_ok=True)
     playlists_root = args.library_root.expanduser().resolve()
-    resume_data = None if args.fresh else resumable_run(runs_root, playlist_id)
-    is_resume = resume_data is not None
+    resume = None if args.fresh else resume_point(runs_root, playlist_id)
+    mode = resume[0] if resume is not None else "fresh"
+    is_resume = resume is not None
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    run_dir = (
-        resume_data[0]
-        if resume_data is not None
-        else runs_root / f"{timestamp}_{playlist_id}"
-    )
+    run_dir = resume[1] if resume is not None else runs_root / f"{timestamp}_{playlist_id}"
     soulseek_dir = run_dir / "soulseek"
     recorded_dir = run_dir / "recorded_missing"
+    failed_dir = run_dir / RECORDED_FAILED_DIR
     missing_json = run_dir / "soulseek_missing.json"
+    failed_json = run_dir / FAILED_JSON_NAME
     if is_resume:
         availability_json = run_dir / f"soulseek_availability_resume_{timestamp}.json"
         downloader_missing_json = run_dir / f"soulseek_missing_resume_{timestamp}.json"
@@ -623,15 +962,11 @@ def run_workflow(args: argparse.Namespace) -> int:
         availability_json = run_dir / "soulseek_availability.json"
         downloader_missing_json = missing_json
         soulseek_report = run_dir / "spotify_reconcile_report.json"
-    recorder_ready = run_dir / "recorder_ready.json"
-    player_ready = run_dir / "player_ready.json"
-    playback_status = run_dir / "spotify_playback_status.json"
     download_gate = run_dir / "start_soulseek_downloads.signal"
     summary_path = run_dir / "orchestration_report.json"
     if is_resume:
-        recorder_ready.unlink(missing_ok=True)
-        player_ready.unlink(missing_ok=True)
-        playback_status.unlink(missing_ok=True)
+        for signal in ("recorder_ready.json", "player_ready.json", "spotify_playback_status.json"):
+            (run_dir / signal).unlink(missing_ok=True)
         download_gate.unlink(missing_ok=True)
     else:
         run_dir.mkdir(parents=True, exist_ok=False)
@@ -639,94 +974,176 @@ def run_workflow(args: argparse.Namespace) -> int:
     print("\n=== FLUJO AUTOMÁTICO SPOTIFY / SOULSEEK ===")
     print(f"Playlist : {playlist_url}")
     print(f"Run      : {run_dir}")
-    if is_resume:
-        assert resume_data is not None
-        completed = int(resume_data[2]["completed_count"])
-        total = int(resume_data[2]["total_tracks"])
-        print(f"Resume   : {completed}/{total} pistas ya conservadas")
+    if resume is not None:
+        progress = resume[3] or {}
+        completed = int(progress.get("completed_count") or 0)
+        total = int(resume[2]["missing_count"])
+        what = "pistas ya conservadas" if mode == "missing" else "temas no bajados ya grabados"
+        print(f"Resume   : {completed}/{total} {what}")
 
     downloader: subprocess.Popen[Any] | None = None
-    recorder: subprocess.Popen[Any] | None = None
-    player: subprocess.Popen[Any] | None = None
     summary: dict[str, Any] = {
         "source_playlist": playlist_url,
         "playlist_id": playlist_id,
         "run_dir": str(run_dir),
         "missing_json": str(missing_json),
+        "failed_json": str(failed_json),
         "soulseek_output": str(soulseek_dir),
         "recorded_output": str(recorded_dir),
+        "recorded_failed_output": str(failed_dir),
         "playlists_root": str(playlists_root),
         "status": "running",
         "resumed": is_resume,
+        "resume_phase": mode if is_resume else None,
     }
     write_summary(summary_path, summary)
 
-    try:
-        downloader_cmd = [
-            sys.executable,
-            "-u",
-            str(SCRIPT_DIR / "spotify_soulseek_download.py"),
-            playlist_url,
-            "--output",
-            str(soulseek_dir),
-            "--missing-json",
-            str(downloader_missing_json),
-            "--availability-report",
-            str(availability_json),
-            "--report",
-            str(soulseek_report),
-            "--download-gate",
-            str(download_gate),
-            "--download-gate-timeout",
-            str(args.manifest_timeout),
-        ]
-        if is_resume:
-            downloader_cmd.append("--no-missing-playlist")
-        print("\n[1/3] Analizando disponibilidad en Soulseek...")
-        downloader = subprocess.Popen(downloader_cmd, env=env)
-
-        if is_resume:
-            assert resume_data is not None
-            manifest = resume_data[1]
-        else:
-            manifest = wait_for_missing_manifest(
-                downloader,
-                missing_json,
-                args.manifest_timeout,
-            )
-        missing_count = int(manifest["missing_count"])
-        summary["missing_count"] = missing_count
-        if is_resume:
-            summary["completed_before_resume"] = int(
-                resume_data[2]["completed_count"]
-            )
-        if is_resume:
-            print(f"\nSesión recuperada: {missing_count} tema(s) en la playlist de faltantes.")
-        else:
-            print(f"\nPreflight completo: {missing_count} tema(s) faltante(s).")
-
-        recorder_code: int | None = None
-        completed_count = (
-            int(resume_data[2]["completed_count"])
-            if resume_data is not None
-            else 0
+    def partial(reason: str) -> int:
+        return finish_partial(
+            run_dir=run_dir,
+            audio_dirs=(soulseek_dir, recorded_dir, failed_dir),
+            playlists_root=playlists_root,
+            playlist_id=playlist_id,
+            summary=summary,
+            summary_path=summary_path,
+            reason=reason,
         )
-        completed_batches: list[dict[str, Any]] = []
 
-        if missing_count:
-            batches = missing_playlist_batches(manifest)
-            if not batches:
-                raw = manifest.get("generated_missing_playlists") or []
+    try:
+        if mode != "failed":
+            # Una lista vieja no puede pasar por el final de esta descarga.
+            failed_json.unlink(missing_ok=True)
+            downloader_cmd = [
+                sys.executable,
+                "-u",
+                str(SCRIPT_DIR / "spotify_soulseek_download.py"),
+                playlist_url,
+                "--output",
+                str(soulseek_dir),
+                "--missing-json",
+                str(downloader_missing_json),
+                "--failed-json",
+                str(failed_json),
+                "--availability-report",
+                str(availability_json),
+                "--report",
+                str(soulseek_report),
+                "--download-gate",
+                str(download_gate),
+                "--download-gate-timeout",
+                str(args.manifest_timeout),
+            ]
+            if is_resume:
+                downloader_cmd.append("--no-missing-playlist")
+            print("\n[1/4] Analizando disponibilidad en Soulseek...")
+            downloader = subprocess.Popen(downloader_cmd, env=env)
+
+            if mode == "missing":
+                assert resume is not None
+                manifest = resume[2]
+            else:
+                manifest = wait_for_missing_manifest(
+                    downloader,
+                    missing_json,
+                    args.manifest_timeout,
+                )
+            missing_count = int(manifest["missing_count"])
+            summary["missing_count"] = missing_count
+            completed_count = 0
+            if mode == "missing":
+                assert resume is not None and resume[3] is not None
+                completed_count = int(resume[3]["completed_count"])
+                summary["completed_before_resume"] = completed_count
+                print(f"\nSesión recuperada: {missing_count} tema(s) en la playlist de faltantes.")
+            else:
+                print(f"\nPreflight completo: {missing_count} tema(s) faltante(s).")
+
+            if missing_count:
+                batches = missing_playlist_batches(manifest)
+                if not batches:
+                    raw = manifest.get("generated_missing_playlists") or []
+                    errors = [
+                        str(item.get("error"))
+                        for item in raw
+                        if isinstance(item, dict) and item.get("error")
+                    ]
+                    detail = "; ".join(errors) or "Spotify no devolvió playlists válidas"
+                    raise WorkflowError(
+                        "No se pudieron obtener las playlists de faltantes: " + detail
+                    )
+                summary["missing_playlists"] = [
+                    {
+                        "batch_number": batch["batch_number"],
+                        "start_index": batch["start_index"],
+                        "end_index": batch["end_index"],
+                        "track_count": batch["track_count"],
+                        "url": batch["url"],
+                    }
+                    for batch in batches
+                ]
+                write_summary(summary_path, summary)
+                print("\n[2/4] Grabando de Spotify los temas que no están en Soulseek...")
+                record_batches(
+                    label="faltantes",
+                    manifest_path=missing_json,
+                    batches=batches,
+                    total=missing_count,
+                    completed_count=completed_count,
+                    recorded_dir=recorded_dir,
+                    run_dir=run_dir,
+                    env=env,
+                    args=args,
+                    summary=summary,
+                    summary_path=summary_path,
+                    keys=("completed_recordings", "completed_batches", "active_batch"),
+                    downloader=downloader,
+                    on_first_playback=lambda: release_downloads(download_gate),
+                )
+            else:
+                print("\nNo hay faltantes: no es necesario reproducir ni grabar Spotify.")
+            if not download_gate.exists():
+                release_downloads(download_gate)
+
+            print("\n[3/4] Esperando a que terminen las descargas de Soulseek...")
+            while downloader.poll() is None:
+                time.sleep(0.5)
+            downloader_code = int(downloader.returncode or 0)
+            summary["soulseek_returncode"] = downloader_code
+            write_summary(summary_path, summary)
+            failed_manifest = (
+                final_missing_manifest(failed_json)
+                if downloader_code in DOWNLOADER_FINISHED_CODES
+                else None
+            )
+            if failed_manifest is None:
+                return partial(
+                    f"La descarga Soulseek terminó con código {downloader_code} "
+                    "sin la lista de temas para grabar."
+                )
+            failed_completed = 0
+        else:
+            assert resume is not None
+            failed_manifest = resume[2]
+            failed_completed = int((resume[3] or {}).get("completed_count") or 0)
+            summary["completed_failed_before_resume"] = failed_completed
+            print("\nLa descarga de Soulseek ya había terminado: sigo con la grabación pendiente.")
+
+        failed_count = int(failed_manifest["missing_count"])
+        summary["failed_count"] = failed_count
+        if failed_count:
+            failed_batches = missing_playlist_batches(failed_manifest)
+            if not failed_batches:
+                raw = failed_manifest.get("generated_missing_playlists") or []
                 errors = [
                     str(item.get("error"))
                     for item in raw
                     if isinstance(item, dict) and item.get("error")
                 ]
-                detail = "; ".join(errors) or "Spotify no devolvió playlists válidas"
-                raise WorkflowError(
-                    "No se pudieron obtener las playlists de faltantes: " + detail
+                return partial(
+                    "No se pudieron crear las playlists de Spotify para grabar los temas "
+                    "que no se bajaron: " + ("; ".join(errors) or "Spotify no devolvió playlists válidas")
                 )
-            summary["missing_playlists"] = [
+            summary["failed_playlists"] = [
                 {
                     "batch_number": batch["batch_number"],
                     "start_index": batch["start_index"],
@@ -734,201 +1151,44 @@ def run_workflow(args: argparse.Namespace) -> int:
                     "track_count": batch["track_count"],
                     "url": batch["url"],
                 }
-                for batch in batches
+                for batch in failed_batches
             ]
             write_summary(summary_path, summary)
-
-            downloads_released = False
-            while completed_count < missing_count:
-                batch = batch_for_completed(batches, completed_count)
-                if batch is None:
-                    raise WorkflowError(
-                        f"No existe un lote para la pista pendiente {completed_count + 1}."
-                    )
-                batch_number = int(batch["batch_number"])
-                batch_count = int(batch["batch_count"])
-                batch_start = int(batch["start_index"])
-                batch_end = int(batch["end_index"])
-                local_offset = completed_count - batch_start
-                tracks_this_process = batch_end - completed_count
-
-                recorder_ready.unlink(missing_ok=True)
-                player_ready.unlink(missing_ok=True)
-                playback_status.unlink(missing_ok=True)
-
-                recorder_cmd = [
-                    sys.executable,
-                    "-u",
-                    str(SCRIPT_DIR / "playlist_loopback_recorder.py"),
-                    str(missing_json),
-                    "--output-dir",
-                    str(recorded_dir),
-                    "--ready-file",
-                    str(recorder_ready),
-                    "--resume",
-                    "--max-tracks",
-                    str(tracks_this_process),
-                    "--watchdog-file",
-                    str(playback_status),
-                ]
-                print(
-                    f"\n[2/3] Abriendo grabador para lote {batch_number}/{batch_count} "
-                    f"({tracks_this_process} tema(s))..."
-                )
-                recorder = subprocess.Popen(recorder_cmd, env=env)
-                wait_for_ready_file(
-                    recorder,
-                    recorder_ready,
-                    args.recorder_timeout,
-                    label="grabador",
-                )
-
-                print(
-                    f"\n[3/3] Reproduciendo lote Spotify {batch_number}/{batch_count} "
-                    f"desde su posición {local_offset + 1}..."
-                )
-                player_cmd = [
-                    sys.executable,
-                    "-u",
-                    str(SCRIPT_DIR / "spotify_playlist.py"),
-                    str(batch["url"]),
-                    "--offset-position",
-                    str(local_offset),
-                    "--ready-file",
-                    str(player_ready),
-                    "--watchdog-file",
-                    str(playback_status),
-                ]
-                player = subprocess.Popen(player_cmd, env=env)
-                wait_for_ready_file(
-                    player,
-                    player_ready,
-                    args.recorder_timeout,
-                    label="reproductor de Spotify",
-                )
-                if not downloads_released:
-                    release_downloads(download_gate)
-                    downloads_released = True
-
-                summary["active_batch"] = batch_number
-                summary["completed_recordings"] = completed_count
-                write_summary(summary_path, summary)
-
-                while recorder.poll() is None:
-                    downloader_code_now = downloader.poll()
-                    if downloader_code_now not in {None, 0}:
-                        write_summary(
-                            playback_status,
-                            {
-                                "status": "stalled",
-                                "error": (
-                                    "Soulseek downloader exited with code "
-                                    f"{downloader_code_now}"
-                                ),
-                            },
-                        )
-                    player_code_now = player.poll()
-                    if player_code_now is not None and player_code_now not in {0, 75}:
-                        write_summary(
-                            playback_status,
-                            {
-                                "status": "stalled",
-                                "error": f"Spotify player exited with code {player_code_now}",
-                            },
-                        )
-                    time.sleep(0.5)
-
-                recorder_code = int(recorder.returncode or 0)
-                terminate_process(player)
-                player = None
-                recorder = None
-
-                progress = read_json_dict(recorded_dir / "recording_progress.json") or {}
-                completed_now = progress.get("completed_count", completed_count)
-                if recorder_code in {75, 130}:
-                    summary["status"] = "resumable"
-                    summary["completed_recordings"] = completed_now
-                    summary["recorder_returncode"] = recorder_code
-                    write_summary(summary_path, summary)
-                    terminate_process(downloader)
-                    raise ResumeAvailable(
-                        "Spotify se detuvo. Se conservaron "
-                        f"{completed_now}/{missing_count} pistas; relanza el mismo comando "
-                        "para continuar desde la primera pendiente."
-                    )
-                if recorder_code != 0:
-                    raise WorkflowError(
-                        f"El grabador del lote {batch_number} terminó con código "
-                        f"{recorder_code}."
-                    )
-                if not isinstance(completed_now, int) or completed_now != batch_end:
-                    raise WorkflowError(
-                        f"El lote {batch_number} terminó en {completed_now}; "
-                        f"se esperaba {batch_end}."
-                    )
-
-                completed_batches.append(
-                    {
-                        "batch_number": batch_number,
-                        "start_index": completed_count,
-                        "end_index": completed_now,
-                        "status": "completed",
-                    }
-                )
-                completed_count = completed_now
-                summary["completed_recordings"] = completed_count
-                summary["completed_batches"] = completed_batches
-                summary.pop("active_batch", None)
-                write_summary(summary_path, summary)
-                print(
-                    f"Lote {batch_number}/{batch_count} completo: "
-                    f"{completed_count}/{missing_count} pistas grabadas."
-                )
-        else:
-            print("\nNo hay faltantes: no es necesario reproducir ni grabar Spotify.")
-            release_downloads(download_gate)
-
-        while downloader.poll() is None:
-            time.sleep(0.5)
-        downloader_code = int(downloader.returncode or 0)
-        summary["soulseek_returncode"] = downloader_code
-        summary["recorder_returncode"] = recorder_code
-
-        if downloader_code != 0:
-            summary["status"] = "failed"
-            write_summary(summary_path, summary)
-            raise WorkflowError(
-                f"La descarga Soulseek terminó con código {downloader_code}."
+            print(
+                f"\n[4/4] Grabando de Spotify {failed_count} tema(s) que Soulseek tenía "
+                "pero no se pudieron bajar..."
+            )
+            record_batches(
+                label="no bajados",
+                manifest_path=failed_json,
+                batches=failed_batches,
+                total=failed_count,
+                completed_count=failed_completed,
+                recorded_dir=failed_dir,
+                run_dir=run_dir,
+                env=env,
+                args=args,
+                summary=summary,
+                summary_path=summary_path,
+                keys=("completed_failed_recordings", "completed_failed_batches", "active_failed_batch"),
             )
 
-        availability = read_json_dict(availability_json)
-        if availability is None:
-            raise WorkflowError(
-                f"No se pudo leer el reporte final de disponibilidad: {availability_json}"
-            )
-        playlist_data = availability.get("playlist") or {}
-        playlist_name = str(
-            playlist_data.get("name")
-            or (manifest.get("source_playlist") or {}).get("name")
-            or playlist_id
-        )
-        expected_ids = {
-            str((row.get("spotify") or {}).get("spotify_id"))
-            for row in availability.get("tracks") or []
-            if isinstance(row, dict) and (row.get("spotify") or {}).get("spotify_id")
-        }
-
+        playlist_name, expected_ids = playlist_identity(run_dir, playlist_id)
         summary["status"] = "consolidating"
         summary["playlist_name"] = playlist_name
         write_summary(summary_path, summary)
-        playlist_dir, moved_paths, consolidation = consolidate_audio(
-            run_dir,
-            soulseek_dir,
-            recorded_dir,
-            playlists_root,
-            playlist_name,
-            expected_spotify_ids=expected_ids,
-        )
+        try:
+            playlist_dir, moved_paths, consolidation = consolidate_audio(
+                run_dir,
+                soulseek_dir,
+                recorded_dir,
+                playlists_root,
+                playlist_name,
+                expected_spotify_ids=expected_ids,
+                extra_recorded_dirs=(failed_dir,),
+            )
+        except IncompleteAudio as exc:
+            return partial(str(exc))
         consolidation_path = run_dir / "consolidation_report.json"
         write_summary(consolidation_path, consolidation)
         diagnostics_dir = simplify_completed_run(run_dir, moved_paths)
@@ -959,12 +1219,11 @@ def run_workflow(args: argparse.Namespace) -> int:
         write_summary(summary_path, summary)
         raise
     except WorkflowError:
-        summary["status"] = "failed"
-        write_summary(summary_path, summary)
+        if summary.get("status") != "failed":
+            summary["status"] = "failed"
+            write_summary(summary_path, summary)
         raise
     finally:
-        terminate_process(player)
-        terminate_process(recorder)
         terminate_process(downloader)
 
 

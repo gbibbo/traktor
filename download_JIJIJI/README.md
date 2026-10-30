@@ -21,8 +21,9 @@ Abre una ventana propia (Edge en modo app) servida por `app/descargas_app.py` so
 * elegir la **carpeta de destino** (`--library-root`) y, en avanzado, la de trabajo (`--output-root`);
 * **Descargar**, **Detener** (como un Ctrl+C: el run queda interrumpido y se cierran también
   `sockseek` y `ffmpeg`, nunca Spotify), **Continuar** o **Empezar de cero** (`--fresh`);
-* seguir cada tema: en Soulseek, bajando, bajado, se grabará, grabando, grabado o «no se pudo»
-  (con el motivo de la verificación). También se siguen los runs lanzados desde la terminal;
+* seguir cada tema: en Soulseek, bajando, bajado, se grabará (también lo que no se pudo bajar,
+  con el motivo), grabando, grabado o «no se pudo». También se siguen los runs lanzados desde la
+  terminal. Un run «Incompleta» ya guardó lo que consiguió y dice qué falta;
 * si un run terminó con error, **«Guardar los temas listos»** mueve a la carpeta de destino los
   MP3 que sí están, con la misma validación de la consolidación (audio, tamaño, antivirus,
   Spotify Track ID) y sin duplicar.
@@ -51,8 +52,31 @@ El orquestador:
 5. cuando el grabador confirma que está listo, reproduce ese lote en Spotify;
 6. libera la descarga de Soulseek y procesa secuencialmente los demás lotes,
    creando un proceso nuevo de reproducción y grabación para cada grupo de 10;
-7. mueve todos los MP3 a `Playlists_DOWNLOAD/<nombre de playlist>/`, elimina
+7. cuando termina la descarga, graba de Spotify los temas que Soulseek tenía pero no
+   se pudieron bajar (ningún archivo pasó la verificación) o cuya consulta falló:
+   el descargador los deja en `soulseek_failed.json` con sus propias playlists
+   privadas y se graban en `recorded_failed/`;
+8. mueve todos los MP3 a `Playlists_DOWNLOAD/<nombre de playlist>/`, elimina
    duplicados por Spotify Track ID y limpia los intermedios del run.
+
+Si aun así falta algún tema (por ejemplo, Spotify no pudo crear las playlists para
+grabar), igual se guarda en la carpeta todo lo que se consiguió: el run queda como
+`partial`, con los Spotify IDs que faltan en `orchestration_report.json`, y el
+orquestador termina con código 3. «Volver a intentar» (o el mismo comando) hace una
+descarga nueva; lo que ya está en la carpeta no se duplica.
+
+## Elección del archivo en Soulseek
+
+De cada tema se prueban hasta 4 archivos de los que encontró el preflight, en este
+orden: la Extended explícita (si Spotify no apunta ya a una), los de la duración de
+Spotify (±8 s) y después el resto. Dentro de cada grupo van primero los que llevan el
+título en el nombre del archivo, luego los de una carpeta con el nombre del álbum de
+Spotify y luego los de duración más cercana. Cada archivo bajado se verifica (título,
+artista, duración, variantes e ISRC) y, si no pasa, se borra y se prueba el siguiente.
+La etiqueta de artista se compara también separada (`A & B`, `A e B`, `A, B`,
+`feat.`), y un ISRC idéntico al de Spotify acepta la grabación aunque el artista esté
+escrito de otra forma. La Extended inferida (sin «extended» en el nombre y al menos
+20 s más larga) solo se acepta si el artista coincide sin separar.
 
 Los MP3 grabados y los descargados por Soulseek pasan por el mismo finalizador:
 usan el nombre `Artista principal - Título.mp3`, las etiquetas oficiales de
@@ -134,6 +158,10 @@ Al ejecutar nuevamente exactamente el mismo comando, el orquestador:
 2. valida los MP3 ya terminados y no los sobrescribe;
 3. selecciona la playlist de 10 temas que contiene la primera pista pendiente;
 4. inicia Spotify desde esa pista dentro del lote y desde el segundo cero.
+
+Si lo que se cortó fue la grabación de los temas que no se pudieron bajar (la descarga
+de Soulseek ya había terminado), no se vuelve a descargar: se sigue grabando desde el
+primero pendiente de `recorded_failed/` y después se arma la carpeta.
 
 El fragmento del tema interrumpido no se reutiliza: solo se conservan temas
 completos, y por eso la captura WAV parcial se elimina. Para ignorar

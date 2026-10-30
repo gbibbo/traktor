@@ -6,6 +6,13 @@ spotify_soulseek_download.py
 PURPOSE: Reconcile a Spotify playlist against Soulseek and download matches.
 
 CHANGELOG:
+- 2026-10-30: Try up to MAX_CANDIDATE_TRANSFERS candidates per track, the Spotify duration
+              and album first, verifying each one before accepting it (it used to keep the first
+              file that transferred, and a rejection lost the track).
+- 2026-10-30: Split combined artist tags ("A & B", "A e B") and accept an exact ISRC even when the
+              artist tag is written differently.
+- 2026-10-30: --failed-json: tracks that could not be downloaded (or whose preflight failed) go to
+              private Spotify playlists so the orchestrator can record them.
 - 2026-10-05: Monitor transfers, bound ffmpeg and verify/rebuild cover images.
 - 2026-10-05: Gate exact Soulseek files by size, content and mandatory antivirus.
 - 2026-09-29: Split missing tracks into private Spotify playlists of 10 tracks.
@@ -65,7 +72,7 @@ import warnings
 from dataclasses import asdict, dataclass, fields
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 for _stream in (sys.stdout, sys.stderr):
@@ -114,6 +121,9 @@ DEFAULT_REDIRECT = "http://127.0.0.1:48721/callback"
 SCOPES = "playlist-read-private playlist-read-collaborative playlist-modify-private"
 REQUIRED_SCOPES = set(SCOPES.split())
 DEFAULT_MISSING_PLAYLIST_BATCH_SIZE = 10
+DURATION_TOLERANCE_S = 8          # misma versión que Spotify (no Extended)
+MAX_CANDIDATE_TRANSFERS = 4       # archivos que se llegan a bajar por tema hasta que uno pase la verificación
+DOWNLOADED_STATUSES = {"finalized", "already_finalized"}
 ALLOWED_AUDIO_FORMATS = {"mp3", "flac", "wav"}
 SIZE_MARGIN = 0.15
 TAG_ALLOWANCE_BYTES = 2 * 1024 * 1024
@@ -922,9 +932,24 @@ def _candidate_title(track: Track, f: LocalFile) -> str:
     return re.sub(r"\s+", " ", normalized).strip()
 
 
-def _artist_similarity(track: Track, f: LocalFile) -> float:
+_ARTIST_SEPARATORS = re.compile(
+    r"\s*(?:[,;/&+]|\b(?:and|e|y|x|feat|ft|featuring|with|vs)\b\.?)\s*", re.IGNORECASE
+)
+
+
+def artist_names(value: str) -> list[str]:
+    """El nombre completo y sus partes: «Toquinho e Vinícius» -> [toquinho e vinicius, toquinho, vinicius].
+    Conservar el nombre completo hace que separar nunca baje la similitud de un dúo con nombre propio."""
+    names = [norm(value), *(norm(part) for part in _ARTIST_SEPARATORS.split(value or ""))]
+    return list(dict.fromkeys(name for name in names if name))
+
+
+def _artist_similarity(track: Track, f: LocalFile, *, split: bool = True) -> float:
     target = [norm(a) for a in track.artists if norm(a)]
-    local = [norm(a) for a in (f.tag_artists or []) if norm(a)]
+    if split:
+        local = [name for a in (f.tag_artists or []) for name in artist_names(a)]
+    else:
+        local = [norm(a) for a in (f.tag_artists or []) if norm(a)]
     if local:
         return max((sim(a, b) for a in target for b in local), default=0.0)
 
@@ -965,11 +990,16 @@ def score_candidate(
     title_s = sim(track.title, title_raw)
     base_s = sim(base_t, base_c)
     art_s = _artist_similarity(track, f)
+    # El ISRC identifica la grabación: si coincide, un artista escrito de otra forma en la etiqueta
+    # («Toquinho e Vinícius» frente a Toquinho, Chico Buarque) no la descarta.
+    isrc_exact = bool(track.isrc and f.isrc and norm(track.isrc) == norm(f.isrc))
 
     if base_s < 0.88:
         return False, 0.0, False, [f"título base mismatch ({base_s:.3f})"]
-    if art_s < 0.88:
+    if art_s < 0.88 and not isrc_exact:
         return False, 0.0, False, [f"artista mismatch ({art_s:.3f})"]
+    if art_s < 0.88:
+        reasons.append(f"artista distinto en la etiqueta ({art_s:.3f}), aceptado por ISRC exacto")
 
     tv = variants(track.title)
     cv = variants(title_raw + " " + _candidate_stem(f))
@@ -1026,14 +1056,16 @@ def score_candidate(
                     f"extended con duración rara ({delta:+.1f}s, {ratio:.2f}x)"
                 ]
             dur_s = 1.0
-        elif abs(delta) <= 8:
-            dur_s = max(0.0, 1.0 - abs(delta) / 8.0)
+        elif abs(delta) <= DURATION_TOLERANCE_S:
+            dur_s = max(0.0, 1.0 - abs(delta) / DURATION_TOLERANCE_S)
         elif (
             prefer_extended
             and delta >= 20
             and ratio <= 1.9
             and base_s >= 0.985
-            and art_s >= 0.985
+            # Sin separar «A & B»: una Extended inferida es la regla más arriesgada y no se amplía
+            # (con la separación entraba otra versión, p. ej. «Tomara» con Maria Creuza, +54 s).
+            and _artist_similarity(track, f, split=False) >= 0.985
             and not (cv - {"original"})
         ):
             inferred_extended = True
@@ -1514,14 +1546,61 @@ def write_missing_json(
     write_report(path, payload)
 
 
+def rank_candidates(
+    track: Track,
+    candidates: list[dict[str, Any]],
+    prefer_extended: bool = True,
+) -> list[dict[str, Any]]:
+    """Orden en que se prueban los candidatos del preflight.
+
+    1. Extended explícita en el nombre, si se prefiere y Spotify no apunta ya a una Extended.
+    2. La duración de Spotify (± DURATION_TOLERANCE_S): la misma versión.
+    3. El resto (puede pasar como Extended inferida o ser otra versión).
+    Dentro de cada grupo, primero los que tienen el título en el nombre del archivo (no solo en la
+    carpeta: «Wave (1967)/04 - Batidinha»), después los de una carpeta con el nombre del álbum de
+    Spotify y, salvo en las Extended, los de duración más cercana; si empatan, el orden de sockseek.
+    """
+    duration = track.duration_s
+    album = norm(track.album)
+    title = norm(strip_variants(track.title))
+    spotify_extended = "extended" in variants(track.title)
+
+    def key(item: tuple[int, dict[str, Any]]) -> tuple[int, int, int, float, int]:
+        index, candidate = item
+        raw = str(candidate.get("filename") or "")
+        name = norm(raw)
+        file_name = norm(re.split(r"[\\/]", raw)[-1])
+        length = candidate.get("length_s")
+        delta = abs(float(length) - duration) if isinstance(length, (int, float)) and duration > 0 else None
+        if prefer_extended and not spotify_extended and re.search(r"\bextended\b", name):
+            tier = 0
+        elif delta is not None and delta <= DURATION_TOLERANCE_S:
+            tier = 1
+        else:
+            tier = 2
+        titled = bool(title) and re.search(rf"\b{re.escape(title)}\b", file_name) is not None
+        same_album = bool(album) and re.search(rf"\b{re.escape(album)}\b", name) is not None
+        closeness = 0.0 if tier == 0 or delta is None else delta
+        return (tier, 0 if titled else 1, 0 if same_album else 1, closeness, index)
+
+    return [candidate for _, candidate in sorted(enumerate(candidates), key=key)]
+
+
 def download_with_sockseek(
     track: Track,
     out_dir: Path,
     length_tol: int = 60,
     *,
     availability: AvailabilityCheck | None = None,
+    verify: Callable[[Path], bool] | None = None,
+    max_transfers: int = MAX_CANDIDATE_TRANSFERS,
+    prefer_extended: bool = True,
 ) -> list[Path]:
-    """Download only preflight-approved single files, scan before exposing to parsers."""
+    """Download only preflight-approved single files, scan before exposing to parsers.
+
+    With `verify`, each file that passes the safety gates is checked as the right track; a rejected
+    file is deleted and the next candidate is tried, up to `max_transfers` transfers.
+    """
     bin_ = find_sockseek()
     out_dir.mkdir(parents=True, exist_ok=True)
     _check_antivirus_ready()  # Require a working scanner before any network transfer.
@@ -1530,7 +1609,10 @@ def download_with_sockseek(
         if check.error:
             raise RuntimeError(check.error)
         return []
-    for candidate in check.candidates:
+    transfers = 0
+    for candidate in rank_candidates(track, check.candidates, prefer_extended):
+        if transfers >= max_transfers:
+            break
         if not _safe_audio_filename(str(candidate.get("filename") or "")) or _audio_size_error(candidate):
             continue
         username = candidate.get("username")
@@ -1538,6 +1620,8 @@ def download_with_sockseek(
             continue
         remote_path = candidate["filename"].replace("\\", "/")
         link = "slsk://" + urllib.parse.quote(username, safe="") + "/" + urllib.parse.quote(remote_path, safe="/")
+        transfers += 1
+        destination: Path | None = None
         # Each attempt is isolated. Rejected and incomplete payloads are removed.
         with tempfile.TemporaryDirectory(prefix="incoming_", dir=out_dir) as tmp:
             incoming = Path(tmp)
@@ -1567,9 +1651,14 @@ def download_with_sockseek(
                 _validate_download(path, candidate)
                 destination = Path(tempfile.mkdtemp(prefix="verified_", dir=out_dir)) / path.name
                 shutil.move(str(path), destination)
-                return [destination]
             except (RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
                 print(f"    ! candidato bloqueado: {exc}")
+        if destination is None:
+            continue
+        if verify is None or verify(destination):
+            return [destination]
+        print(f"    ✗ no pasó la verificación: {destination.name}; pruebo otro candidato")
+        shutil.rmtree(destination.parent, ignore_errors=True)
     return []
 
 
@@ -1990,6 +2079,21 @@ def finalize(
 # Reporte
 # ---------------------------------------------------------------------------
 
+def fallback_tracks(
+    available_tracks: list[tuple[int, Track, AvailabilityCheck]],
+    rows: list[dict[str, Any]],
+    preflight_errors: list[tuple[int, Track, str]],
+) -> list[tuple[int, Track]]:
+    """Temas sin MP3 al terminar: disponibles que no se pudieron bajar y consultas con error.
+
+    Los MISSING del preflight no entran: ya están en la lista de faltantes que se graba primero.
+    """
+    finalized = {row["position"] for row in rows if row.get("status") in DOWNLOADED_STATUSES}
+    pending = [(position, track) for position, track, _ in available_tracks if position not in finalized]
+    pending += [(position, track) for position, track, _ in preflight_errors]
+    return sorted(pending, key=lambda item: item[0])
+
+
 def _track_report(track: Track) -> dict[str, Any]:
     data = asdict(track)
     data["duration_seconds"] = round(track.duration_s, 3)
@@ -2125,6 +2229,15 @@ def main() -> int:
         help=(
             "Ruta JSON de no disponibles con metadata Spotify completa y orden de "
             "playlist (default: output/soulseek_missing.json)"
+        ),
+    )
+    ap.add_argument(
+        "--failed-json",
+        default=None,
+        help=(
+            "Al terminar, escribir aquí (mismo formato que --missing-json) los temas que no se "
+            "pudieron bajar o cuya consulta falló, con sus playlists privadas de Spotify para "
+            "grabarlos. Se escribe siempre, aunque esté vacío: indica que la descarga terminó."
         ),
     )
     ap.add_argument(
@@ -2447,12 +2560,39 @@ def main() -> int:
             "candidates": [],
         }
 
+        best: LocalFile | None = None
+        best_score = -1.0
+        best_ext = False
+        best_reasons: list[str] = []
+
+        def verify(path: Path) -> bool:
+            """Cada archivo bajado se verifica antes de aceptarlo; si no pasa, se prueba otro."""
+            nonlocal best, best_score, best_ext, best_reasons
+            local = inspect(path)
+            if not local:
+                row["candidates"].append({"path": str(path), "accepted": False,
+                                          "reasons": ["no se pudo leer el audio"]})
+                return False
+            accepted, score, extended, reasons = score_candidate(
+                track,
+                local,
+                prefer_extended=not args.no_extended,
+            )
+            row["candidates"].append(
+                _candidate_report(local, accepted, score, extended, reasons)
+            )
+            if accepted:
+                best, best_score, best_ext, best_reasons = local, score, extended, reasons
+            return accepted
+
         try:
             files = download_with_sockseek(
                 track,
                 staging,
                 length_tol=args.length_tol,
                 availability=availability,
+                verify=verify,
+                prefer_extended=not args.no_extended,
             )
         except Exception as exc:
             print(f"    ✗ error descarga: {exc}")
@@ -2462,44 +2602,13 @@ def main() -> int:
             failed += 1
             continue
 
-        if not files:
-            print("    ✗ preflight tenía resultados, pero la descarga no produjo archivo")
-            row["status"] = "availability_changed_or_download_failed"
-            rows.append(row)
-            failed += 1
-            continue
-
-        candidates: list[LocalFile] = []
-        for path in files:
-            local = inspect(path)
-            if local:
-                candidates.append(local)
-
-        best: LocalFile | None = None
-        best_score = -1.0
-        best_ext = False
-        best_reasons: list[str] = []
-
-        for candidate in candidates:
-            accepted, score, extended, reasons = score_candidate(
-                track,
-                candidate,
-                prefer_extended=not args.no_extended,
-            )
-            row["candidates"].append(
-                _candidate_report(candidate, accepted, score, extended, reasons)
-            )
-            if accepted and score > best_score:
-                best_score = score
-                best = candidate
-                best_ext = extended
-                best_reasons = reasons
-
-        if not best:
-            print("    ✗ ningún candidato descargado pasó la verificación")
-            for candidate in candidates:
-                print(f"       - {candidate.path.name}")
-            row["status"] = "verification_failed"
+        if not files or best is None:
+            if row["candidates"]:
+                print(f"    ✗ ninguno de los {len(row['candidates'])} archivos bajados pasó la verificación")
+                row["status"] = "verification_failed"
+            else:
+                print("    ✗ preflight tenía resultados, pero la descarga no produjo archivo")
+                row["status"] = "availability_changed_or_download_failed"
             rows.append(row)
             failed += 1
             continue
@@ -2617,8 +2726,35 @@ def main() -> int:
                 print(f"Playlist Spotify de faltantes: {batch['url']}")
     print(f"Reporte final: {report_path}")
 
+    if args.failed_json:
+        fallback = fallback_tracks(available_tracks, rows, preflight_errors)
+        fallback_playlists: list[dict[str, Any]] | None = None
+        if fallback:
+            print(f"\nCreando playlists privadas de Spotify con {len(fallback)} tema(s) para grabar…")
+            try:
+                fallback_playlists = sp.create_missing_playlists(
+                    pl_name,
+                    [track for _, track in fallback],
+                    name=f"No se pudieron bajar - {pl_name} - " + time.strftime("%Y-%m-%d %H%M"),
+                    batch_size=args.missing_playlist_batch_size,
+                )
+                for batch in fallback_playlists:
+                    print(f"Playlist Spotify para grabar: {batch['url']}")
+            except Exception as exc:
+                print(f"No se pudieron crear las playlists para grabar: {exc}", file=sys.stderr)
+                fallback_playlists = [{"id": "", "name": "", "url": "", "error": str(exc)}]
+        write_missing_json(
+            Path(args.failed_json).expanduser().resolve(),
+            source_playlist_name=pl_name,
+            source_playlist=args.playlist,
+            missing=fallback,
+            generated_playlists=fallback_playlists,
+            playlist_batch_size=args.missing_playlist_batch_size,
+        )
+
     # Éxito significa: todos los que estaban disponibles fueron finalizados y no hubo
-    # errores de consulta. Los MISSING son un resultado válido del preflight.
+    # errores de consulta. Los MISSING son un resultado válido del preflight; con
+    # --failed-json, los demás quedan listados para grabarlos.
     return (
         0
         if ok == len(available_tracks)

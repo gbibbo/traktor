@@ -547,7 +547,7 @@ const STATE = {
   failed: ["No se pudo", "amber", icon("warn")],
   search_error: ["Error al buscar", "amber", icon("warn")],
 };
-const RUN_LABEL = { running: "Bajando", done: "Lista", paused: "En pausa", stopped: "Se cortó", failed: "Con problemas" };
+const RUN_LABEL = { running: "Bajando", done: "Lista", partial: "Incompleta", paused: "En pausa", stopped: "Se cortó", failed: "Con problemas" };
 
 // ---------------------------------------------------------------- render: biblioteca
 function renderLibrary() {
@@ -644,10 +644,11 @@ function statusHtml(v, tracks) {
   const done = (c.downloaded || 0) + (c.recorded || 0);
   const phase = live ? ((run && run.phase) || "preflight") : null;
   const status = live ? "running" : run.status;
-  const idx = { preflight: 0, transfer: 1, consolidating: 2 }[phase] ?? (status === "done" ? 3 : 1);
+  const finished = status === "done" || status === "partial";
+  const idx = { preflight: 0, transfer: 1, consolidating: 2 }[phase] ?? (finished ? 3 : 1);
   const names = ["Buscar en Soulseek", "Bajar y grabar", "Guardar en tu carpeta"];
   const phases = names.map((n, i) => {
-    const cls = status === "done" || i < idx ? "done" : i === idx && live ? "on" : "";
+    const cls = finished || i < idx ? "done" : i === idx && live ? "on" : "";
     return `<span class="phase ${cls}"><span class="b">${cls === "done" ? "✓" : i + 1}</span>${n}</span>`;
   }).join('<span class="phase-sep"></span>');
   const pct = total ? Math.round((done / total) * 100) : 0;
@@ -669,8 +670,14 @@ function statusHtml(v, tracks) {
     if (phase === "preflight") {
       html += `<div class="note">${icon("info")}<div><b>Buscando ${total ? plural(total, "tema", "temas") : "los temas"} en Soulseek</b><p>Tarda unos minutos. Después empieza a bajar y, si falta algo, a grabar.</p></div></div>`;
     } else if ((c.to_record || 0) + (c.recording || 0) > 0) {
-      html += `<div class="note blue">${icon("speaker")}<div><b>Grabando desde Spotify</b><p>Los temas que no están en Soulseek se graban mientras suenan. No reproduzcas otra cosa ni toques Spotify hasta que termine.</p></div></div>`;
+      html += `<div class="note blue">${icon("speaker")}<div><b>Grabando desde Spotify</b><p>Lo que no está en Soulseek, o no se pudo bajar bien, se graba mientras suena. No reproduzcas otra cosa ni toques Spotify hasta que termine.</p></div></div>`;
     }
+  } else if (status === "partial") {
+    const missing = total - done;
+    html += `<div class="note amber">${icon("warn")}<div><b>Se guardaron ${done} de ${total} temas; ${missing === 1 ? "falta 1" : `faltan ${missing}`}</b>
+      <p>${esc(run.reason || "Algunos temas no se pudieron bajar ni grabar.")} Pasa el ratón sobre «No se pudo» para ver cuáles. «Volver a intentar» los busca de nuevo; lo que ya está en la carpeta no se duplica.</p>
+      <p><code>${esc(run.final_output || "")}</code></p>
+      <div class="row"><button class="pill white small" data-open-folder="${esc(run.final_output || "")}">${icon("folder", "sm")}Abrir carpeta</button></div></div></div>`;
   } else if (status === "done") {
     html += `<div class="note green">${icon("check")}<div><b>¡Lista! ${plural(done, "tema guardado", "temas guardados")}</b><p><code>${esc(run.final_output || "")}</code></p>
       <div class="row"><button class="pill white small" data-open-folder="${esc(run.final_output || "")}">${icon("folder", "sm")}Abrir carpeta</button></div></div></div>`;
@@ -724,7 +731,7 @@ function renderPlaylist() {
   else if (extLive) { label = "Bajando desde la terminal"; sub = "Para detenerla, usa Ctrl+C en esa ventana"; iconName = "stop"; disabled = true; }
   else if (otherBusy) { label = "Descargar"; sub = "Espera a que termine la otra descarga"; disabled = true; }
   else if (status === "paused" || status === "stopped") { label = "Continuar"; sub = "Sigue desde el primer tema pendiente"; }
-  else if (status === "failed") { label = "Volver a intentar"; sub = "Empieza una descarga nueva de la playlist"; }
+  else if (status === "failed" || status === "partial") { label = "Volver a intentar"; sub = "Empieza una descarga nueva de la playlist"; }
   else if (status === "done") { label = "Bajar otra vez"; sub = "Agrega lo nuevo; lo que ya está no se duplica"; }
   else { label = "Descargar"; sub = tracks.length ? `${plural(tracks.length, "tema", "temas")} · ${fmtTotal(totalMs)}` : "Soulseek primero; lo que falte, se graba"; }
 
@@ -1104,6 +1111,7 @@ async function tick(once = false) {
 function announce(job) {
   const open = (path) => ({ label: "Abrir carpeta", run: () => openFolder(path) });
   if (job.outcome === "done") toast("¡Playlist lista!", "ok", S.view.run && S.view.run.final_output ? open(S.view.run.final_output) : undefined);
+  else if (job.outcome === "partial") toast("Terminó, pero faltan temas: se guardó lo que se consiguió.", "", S.view.run && S.view.run.final_output ? open(S.view.run.final_output) : undefined);
   else if (job.outcome === "paused") toast("Spotify se detuvo: la descarga quedó en pausa. Pulsa «Continuar».");
   else if (job.outcome === "stopped") toast("Descarga detenida. Puedes continuarla cuando quieras.");
   else toast(job.error ? `Terminó con un problema: ${job.error.slice(0, 160)}` : "La descarga terminó con un error.", "err");
@@ -1117,7 +1125,7 @@ async function pollLog() {
       const box = $("#drawer-log .drawer-body");
       const atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 30;
       $("#log").innerHTML = d.lines.map((l) => {
-        const cls = /✓|COMPLETADO|Guardado:|→ /.test(l) ? "ok" : /✗|ERROR|falló|Traceback/i.test(l) ? "bad" : /PAUSADO|!|\?/.test(l.slice(0, 6)) ? "warn" : /^===|^\[\d\/3\]/.test(l) ? "head" : "";
+        const cls = /✓|COMPLETADO|Guardado:|→ /.test(l) ? "ok" : /✗|ERROR|falló|Traceback/i.test(l) ? "bad" : /PAUSADO|!|\?/.test(l.slice(0, 6)) ? "warn" : /^===|^\[\d\/4\]|^\[grabación\]/.test(l) ? "head" : "";
         return `<span class="${cls}">${esc(l)}</span>`;
       }).join("\n");
       if (atEnd) box.scrollTop = box.scrollHeight;
