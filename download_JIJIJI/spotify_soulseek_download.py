@@ -6,6 +6,10 @@ spotify_soulseek_download.py
 PURPOSE: Reconcile a Spotify playlist against Soulseek and download matches.
 
 CHANGELOG:
+- 2026-10-30: Preflight timeout scales with the playlist (Sockseek's 34 searches / 220 s limiter made
+              every playlist above ~100 tracks time out at the fixed 600 s); --preflight-status tells
+              the orchestrator how long to wait; a preflight that failed for every track is not sent
+              to recording.
 - 2026-10-30: Try up to MAX_CANDIDATE_TRANSFERS candidates per track, the Spotify duration
               and album first, verifying each one before accepting it (it used to keep the first
               file that transferred, and a rejection lost the track).
@@ -123,6 +127,18 @@ REQUIRED_SCOPES = set(SCOPES.split())
 DEFAULT_MISSING_PLAYLIST_BATCH_SIZE = 10
 DURATION_TOLERANCE_S = 8          # misma versión que Spotify (no Extended)
 MAX_CANDIDATE_TRANSFERS = 4       # archivos que se llegan a bajar por tema hasta que uno pase la verificación
+# Sockseek limita las búsquedas a 34 cada 220 s (Soulseek banea 30 min si se pasa): una playlist de
+# 152 temas necesita al menos 4 esperas de 220 s. El preflight no puede tener un tope fijo.
+SOULSEEK_SEARCHES_PER_WINDOW = 34
+SOULSEEK_SEARCH_WINDOW_S = 220
+MIN_PREFLIGHT_TIMEOUT_S = 600.0
+
+
+def preflight_timeout_for(track_count: int) -> float:
+    """Tope del preflight: esperas del limitador de búsquedas + ~6 s por búsqueda + 5 min de margen."""
+    waits = max(0, math.ceil(track_count / SOULSEEK_SEARCHES_PER_WINDOW) - 1)
+    estimate = 300.0 + waits * SOULSEEK_SEARCH_WINDOW_S + track_count * 6.0
+    return max(MIN_PREFLIGHT_TIMEOUT_S, estimate)
 DOWNLOADED_STATUSES = {"finalized", "already_finalized"}
 ALLOWED_AUDIO_FORMATS = {"mp3", "flac", "wav"}
 SIZE_MARGIN = 0.15
@@ -2083,14 +2099,19 @@ def fallback_tracks(
     available_tracks: list[tuple[int, Track, AvailabilityCheck]],
     rows: list[dict[str, Any]],
     preflight_errors: list[tuple[int, Track, str]],
+    *,
+    total_tracks: int | None = None,
 ) -> list[tuple[int, Track]]:
     """Temas sin MP3 al terminar: disponibles que no se pudieron bajar y consultas con error.
 
     Los MISSING del preflight no entran: ya están en la lista de faltantes que se graba primero.
+    Si falló la consulta de TODOS los temas, el problema es la búsqueda (tiempo agotado, sesión
+    de Soulseek) y no los temas: no se mandan a grabar.
     """
     finalized = {row["position"] for row in rows if row.get("status") in DOWNLOADED_STATUSES}
     pending = [(position, track) for position, track, _ in available_tracks if position not in finalized]
-    pending += [(position, track) for position, track, _ in preflight_errors]
+    if not (total_tracks and len(preflight_errors) >= total_tracks):
+        pending += [(position, track) for position, track, _ in preflight_errors]
     return sorted(pending, key=lambda item: item[0])
 
 
@@ -2262,10 +2283,19 @@ def main() -> int:
     ap.add_argument(
         "--preflight-timeout",
         type=float,
-        default=600.0,
+        default=None,
         help=(
             "Timeout total para el batch único de preflight Soulseek "
-            "(default 600s)"
+            "(default: según la cantidad de temas, por el límite de 34 búsquedas cada 220 s; "
+            "mínimo 600 s)"
+        ),
+    )
+    ap.add_argument(
+        "--preflight-status",
+        default=None,
+        help=(
+            "Escribir aquí, al lanzar el preflight, cuántos temas busca y su tope de tiempo "
+            "(el orquestador espera ese tiempo)"
         ),
     )
     ap.add_argument(
@@ -2359,13 +2389,30 @@ def main() -> int:
     available_tracks: list[tuple[int, Track, AvailabilityCheck]] = []
     missing_tracks: list[tuple[int, Track]] = []
     preflight_errors: list[tuple[int, Track, str]] = []
+    preflight_timeout = (
+        args.preflight_timeout
+        if args.preflight_timeout is not None
+        else preflight_timeout_for(len(tracks))
+    )
     print(
         f"Lanzando {len(tracks)} consultas como un único batch de Sockseek..."
     )
+    if len(tracks) > SOULSEEK_SEARCHES_PER_WINDOW:
+        waits = math.ceil(len(tracks) / SOULSEEK_SEARCHES_PER_WINDOW) - 1
+        print(
+            f"Soulseek permite {SOULSEEK_SEARCHES_PER_WINDOW} búsquedas cada "
+            f"{SOULSEEK_SEARCH_WINDOW_S} s: con {len(tracks)} temas la búsqueda tarda al menos "
+            f"{waits * SOULSEEK_SEARCH_WINDOW_S // 60} min (tope {preflight_timeout / 60:.0f} min)."
+        )
+    if args.preflight_status:
+        write_report(
+            Path(args.preflight_status).expanduser().resolve(),
+            {"tracks": len(tracks), "timeout_s": preflight_timeout, "started_at": time.time()},
+        )
     batch_checks = check_soulseek_availability_batch(
         tracks,
         length_tol=args.length_tol,
-        timeout=args.preflight_timeout,
+        timeout=preflight_timeout,
     )
 
     for i, (track, check) in enumerate(zip(tracks, batch_checks), 1):
@@ -2727,7 +2774,7 @@ def main() -> int:
     print(f"Reporte final: {report_path}")
 
     if args.failed_json:
-        fallback = fallback_tracks(available_tracks, rows, preflight_errors)
+        fallback = fallback_tracks(available_tracks, rows, preflight_errors, total_tracks=len(tracks))
         fallback_playlists: list[dict[str, Any]] | None = None
         if fallback:
             print(f"\nCreando playlists privadas de Spotify con {len(fallback)} tema(s) para grabar…")

@@ -894,6 +894,60 @@ class WorkflowSimulationTests(unittest.TestCase):
             self.assertEqual(sum(script == "playlist_loopback_recorder.py" for script, _ in calls), 1)
 
 
+class SearchFailureTests(unittest.TestCase):
+    """Run del 2026-10-30 con 152 temas: el preflight agotó su tiempo y todo fue a grabarse."""
+
+    def test_deadline_extends_to_what_the_preflight_announced(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            status = Path(temp_dir) / "preflight_status.json"
+            base = ORCHESTRATOR.time.monotonic() + 10
+            self.assertEqual(ORCHESTRATOR.manifest_deadline(base, status), base)
+            status.write_text(json.dumps({"tracks": 152, "timeout_s": 2092,
+                                          "started_at": ORCHESTRATOR.time.time() - 100}), encoding="utf-8")
+            remaining = ORCHESTRATOR.manifest_deadline(base, status) - ORCHESTRATOR.time.monotonic()
+            self.assertAlmostEqual(remaining, 2092 - 100 + 300, delta=5)
+
+    def test_failed_search_is_detected_and_never_resumed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run_dir = Path(temp_dir) / "20261030-183518_PL1"
+            write = FallbackRecordingTests.write
+            write(run_dir / "orchestration_report.json", {"status": "resumable"})
+            write(run_dir / "soulseek_availability.json", {"tracks": [
+                {"status": "error", "error": "timeout del preflight Soulseek batch (600s)"}] * 3})
+            write(run_dir / "soulseek_missing.json", FallbackRecordingTests.manifest([]))
+            write(run_dir / ORCHESTRATOR.FAILED_JSON_NAME, FallbackRecordingTests.manifest([1, 2, 3]))
+            self.assertIn("timeout", ORCHESTRATOR.preflight_failed_entirely(run_dir))
+            self.assertIsNone(ORCHESTRATOR.resume_point(Path(temp_dir), "PL1"))
+            write(run_dir / "soulseek_availability.json", {"tracks": [
+                {"status": "error", "error": "x"}, {"status": "available"}]})
+            self.assertIsNone(ORCHESTRATOR.preflight_failed_entirely(run_dir))
+            self.assertEqual(ORCHESTRATOR.resume_point(Path(temp_dir), "PL1")[0], "failed")
+
+    def test_workflow_stops_instead_of_recording_the_whole_playlist(self) -> None:
+        sim = WorkflowSimulationTests()
+        fake, calls = sim.popen()
+
+        def failing(cmd, env=None):
+            process = fake(cmd, env)
+            if Path(cmd[2]).name == "spotify_soulseek_download.py":
+                FallbackRecordingTests.write(Path(cmd[cmd.index("--availability-report") + 1]), {
+                    "playlist": {"name": "Lista"},
+                    "tracks": [{"position": p, "spotify": sim.track(p), "status": "error",
+                                "error": "timeout del preflight Soulseek batch (600s)"} for p in (1, 2, 3)]})
+                FallbackRecordingTests.write(Path(cmd[cmd.index("--missing-json") + 1]), sim.manifest([]))
+            return process
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            args = argparse.Namespace(playlist_url="https://open.spotify.com/playlist/PL1", output_root=root / "runs",
+                                      library_root=root / "lib", manifest_timeout=30.0, recorder_timeout=30.0,
+                                      fresh=False)
+            with mock.patch.object(ORCHESTRATOR.subprocess, "Popen", side_effect=failing),                     mock.patch.object(ORCHESTRATOR, "validate_environment"),                     mock.patch.object(ORCHESTRATOR, "find_required_program", return_value=root / "tool.exe"),                     mock.patch.object(ORCHESTRATOR.time, "sleep"),                     contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()),                     self.assertRaisesRegex(ORCHESTRATOR.WorkflowError, "búsqueda en Soulseek falló"):
+                ORCHESTRATOR.run_workflow(args)
+            self.assertFalse(any(script == "playlist_loopback_recorder.py" for script, _ in calls))
+            downloader = next(cmd for script, cmd in calls if script == "spotify_soulseek_download.py")
+            self.assertIn("--preflight-status", downloader)
+
+
 class EnvironmentSetupTests(unittest.TestCase):
     def test_env_file_sets_default_output_roots(self) -> None:
         def fake_load_environment() -> None:

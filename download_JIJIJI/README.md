@@ -29,6 +29,8 @@ Abre una ventana propia (Edge en modo app) servida por `app/descargas_app.py` so
   Spotify Track ID) y sin duplicar.
 
 Cerrar la ventana no corta la descarga: la app sigue y el acceso directo la vuelve a abrir.
+Si el código cambió desde que se abrió (un `git pull`, por ejemplo), el acceso directo la
+reinicia, salvo que haya una descarga en curso.
 Sin ventana ni descarga, se apaga sola. Ajustes, caché de portadas, token de la vista previa y
 `app.log` van en `%APPDATA%\traktor_descargas`; con el Python de la Microsoft Store, esa carpeta
 está virtualizada en
@@ -45,7 +47,11 @@ completo se ejecuta pasando únicamente la URL de una playlist:
 
 El orquestador:
 
-1. ejecuta el preflight de Soulseek sobre toda la playlist;
+1. ejecuta el preflight de Soulseek sobre toda la playlist. Sockseek permite 34
+   búsquedas cada 220 s (más que eso le vale a la cuenta un bloqueo de 30 minutos), así
+   que una playlist de 150 temas pasa unos 15 minutos solo esperando. El tope de tiempo se
+   calcula según la cantidad de temas y el orquestador lo espera. Si la búsqueda falla
+   para todos los temas, el run se corta sin grabar nada: el problema es la búsqueda;
 2. pausa la descarga de los temas disponibles en una barrera de sincronización;
 3. divide los faltantes en playlists privadas de Spotify de hasta 10 temas;
 4. abre el grabador WASAPI loopback para el primer lote pendiente;

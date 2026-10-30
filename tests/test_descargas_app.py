@@ -278,3 +278,14 @@ def test_process_tree_closes_orphans():
     time.sleep(0.5)
     assert not [p for p in orphans if APP.process_created(p) is not None]
     assert APP.keep_spotify("Spotify.exe") and not APP.keep_spotify("sockseek.exe")
+
+
+def test_search_failed_for_every_track(tmp_path):
+    run = make_run(tmp_path, status="resumable")
+    write(run / "soulseek_availability.json", {"playlist": {"name": "Larga"}, "tracks": [
+        {"position": i, "spotify": spotify(i), "status": "error", "error": "timeout del preflight Soulseek batch (600s)"}
+        for i in (1, 2, 3)]})
+    write(run / "soulseek_failed.json", {"tracks": [{"playlist_position": i} for i in (1, 2, 3)]})
+    state = APP.run_state(run)
+    assert state["status"] == "failed" and "timeout" in state["preflight_error"]
+    assert {t["state"] for t in state["tracks"]} == {"search_error"}

@@ -43,6 +43,17 @@ la ponen última. Al mover a `_copias` una copia repetida de esa carpeta, test_2
 (`test_block1_common` esperaba 243). **Regla:** nunca mover ni borrar archivos de la carpeta de otro
 dataset. `dedupe.move_copies` las protege con `protected_roots`.
 
+## Descargas (`download_JIJIJI/`)
+
+### Sockseek limita las búsquedas: un tope fijo de preflight rompe las playlists largas
+
+Sockseek hace como máximo 34 búsquedas cada 220 s (Soulseek banea 30 minutos si se excede;
+`--searches-per-time`, `--searches-renew-time`). El preflight lanza una búsqueda por tema en un
+único proceso, así que 152 temas necesitan al menos 4 esperas de 220 s (880 s). Con el tope fijo
+de 600 s, los dos intentos del 2026-10-30 agotaron el tiempo, perdieron todo el lote y los 152
+temas quedaron como error. El tope ahora se calcula con `preflight_timeout_for(n)`. Un preflight
+que falla para todos los temas es un problema de la búsqueda: no se manda la playlist a grabar.
+
 ## Windows local
 
 ### El Python de la Microsoft Store virtualiza %APPDATA%

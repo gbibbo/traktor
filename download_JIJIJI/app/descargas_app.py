@@ -15,6 +15,10 @@ CHANGELOG:
   - 2026-10-30: Creación inicial.
   - 2026-10-30: Temas que Soulseek no pudo dar: «se grabará» y su grabación (recorded_failed/);
                 run «incompleto» (partial) con lo que sí llegó a la carpeta.
+  - 2026-10-30: Un run cuya búsqueda en Soulseek falló para todos los temas se muestra como tal
+                (no «en pausa» ni «se grabará»).
+  - 2026-10-30: Si el código cambió, el acceso directo reinicia la app abierta (salvo con una
+                descarga en curso) en vez de reutilizarla con el código viejo.
 """
 from __future__ import annotations
 
@@ -22,6 +26,7 @@ import argparse
 import collections
 import colorsys
 import ctypes
+import hashlib
 import io
 import json
 import math
@@ -320,6 +325,13 @@ def run_state(run_dir: Path, *, alive: bool | None = None, current_download: int
             detail = str(row.get("error") or "Error al buscar en Soulseek")
         tracks.append({"pos": pos, **meta, "state": state, "detail": detail})
 
+    search_error = orch.preflight_failed_entirely(run_dir)
+    if search_error:  # la búsqueda en Soulseek falló entera: no es algo que se continúe ni se grabe
+        if status != "running":
+            status = "failed"
+        for track in tracks:
+            if track["state"] not in {"downloaded", "recorded"}:
+                track["state"], track["detail"] = "search_error", search_error
     partial = bool((consolidation or {}).get("partial"))
     missing_ids = set((consolidation or {}).get("missing_spotify_ids") or [])
     if missing_ids:  # run incompleto ya cerrado: lo que no llegó a la carpeta
@@ -350,6 +362,7 @@ def run_state(run_dir: Path, *, alive: bool | None = None, current_download: int
         "recording_since": recording_since,
         "final_output": report.get("final_output"),
         "reason": report.get("reason"),
+        "preflight_error": search_error,
         "saved_to": consolidation.get("playlist_directory") if partial else None,  # guardado parcial
         "saved_count": consolidation.get("audio_count") if partial else None,
         "tracks": tracks,
@@ -991,7 +1004,12 @@ class App:
         self.port = 0
         self.last_seen = time.time()
         self.saving: dict[str, Any] | None = None
+        self.httpd: ThreadingHTTPServer | None = None
         self.playlists: dict[str, Any] = read_json(self.playlists_path) or {}
+
+    def busy(self) -> bool:
+        """Algo que no se puede cortar: una descarga lanzada desde la app o un guardado."""
+        return bool((self.job and self.job.alive) or (self.saving and self.saving.get("status") == "running"))
 
     # ---- ajustes y carpetas ----
     def runs_root(self) -> Path:
@@ -1244,7 +1262,7 @@ def make_handler(app: App):
                 if path == "/icon.svg":
                     return self._send(200, (APP_DIR / "icon.svg").read_bytes(), "image/svg+xml")
                 if path == "/api/ping":
-                    return self._json(200, {"app": APP_ID})
+                    return self._json(200, {"app": APP_ID, "version": VERSION, "busy": app.busy()})
                 if path == "/api/state":
                     return self._json(200, app.state())
                 if path == "/api/history":
@@ -1302,6 +1320,12 @@ def make_handler(app: App):
                     return self._json(200, {"devices": app.set_device(str(body.get("id") or ""))})
                 if path == "/api/audio/test":
                     return self._json(200, app.test_audio())
+                if path == "/api/shutdown":  # la abre de nuevo el acceso directo con código nuevo
+                    if app.busy():
+                        raise RuntimeError("Hay una descarga en curso.")
+                    if app.httpd is not None:
+                        threading.Thread(target=app.httpd.shutdown, daemon=True).start()
+                    return self._json(200, {"ok": True})
                 if path == "/api/audio/monitor":
                     if body.get("stop"):
                         app.monitor.stop()
@@ -1346,7 +1370,18 @@ def open_window(url: str) -> None:
     webbrowser.open(url)
 
 
-def running_instance(info_path: Path) -> str | None:
+def code_version() -> str:
+    """Huella del código que usa la app (ella misma y los scripts de descarga que importa)."""
+    files = sorted([*APP_DIR.glob("*.py"), *APP_DIR.glob("*.html"), *APP_DIR.glob("*.ps1"), *DOWNLOAD_DIR.glob("*.py")])
+    stamp = "|".join(f"{p.name}:{p.stat().st_mtime_ns}:{p.stat().st_size}" for p in files)
+    return hashlib.sha1(stamp.encode("utf-8")).hexdigest()[:12]  # hash() cambia en cada proceso
+
+
+VERSION = code_version()
+
+
+def running_instance(info_path: Path) -> dict[str, Any] | None:
+    """La app ya abierta: {url, version, busy, token}, o None si no hay ninguna."""
     info = read_json(info_path) or {}
     port = info.get("port")
     if not isinstance(port, int):
@@ -1355,7 +1390,28 @@ def running_instance(info_path: Path) -> str | None:
         data = http_get_json(f"http://127.0.0.1:{port}/api/ping", timeout=1.5)
     except Exception:  # noqa: BLE001
         return None
-    return f"http://127.0.0.1:{port}/" if data.get("app") == APP_ID else None
+    if data.get("app") != APP_ID:
+        return None
+    return {"url": f"http://127.0.0.1:{port}/", "port": port, "version": data.get("version"),
+            "busy": bool(data.get("busy")), "token": info.get("token")}
+
+
+def stop_instance(instance: dict[str, Any], info_path: Path) -> bool:
+    """Pide a una app vieja (código anterior, sin descarga en curso) que se cierre."""
+    if not instance.get("token"):
+        return False
+    req = urllib.request.Request(f"{instance['url']}api/shutdown", data=b"{}", method="POST",
+                                 headers={"X-App-Token": instance["token"], "Content-Type": "application/json"})
+    try:
+        urllib.request.urlopen(req, timeout=3).read()  # noqa: S310 (127.0.0.1)
+    except Exception:  # noqa: BLE001
+        return False
+    deadline = time.time() + 10
+    while time.time() < deadline:
+        if running_instance(info_path) is None:
+            return True
+        time.sleep(0.3)
+    return False
 
 
 def redirect_output(log_path: Path) -> None:
@@ -1381,15 +1437,20 @@ def main() -> int:
 
     existing = running_instance(info_path)
     if existing:
-        if not args.no_window:
-            open_window(existing)
-        return 0
+        stale = existing["version"] != VERSION
+        if stale and not existing["busy"] and stop_instance(existing, info_path):
+            print(f"[{datetime.now():%H:%M:%S}] Código actualizado: se reinicia la app.", flush=True)
+        else:  # misma versión, o una descarga en curso que no se corta
+            if not args.no_window:
+                open_window(existing["url"])
+            return 0
 
     app = App(args.config_dir)
     app.port = free_port(args.port)
     httpd = ThreadingHTTPServer(("127.0.0.1", app.port), make_handler(app))
+    app.httpd = httpd
     url = f"http://127.0.0.1:{app.port}/"
-    write_json(info_path, {"port": app.port, "pid": os.getpid()})
+    write_json(info_path, {"port": app.port, "pid": os.getpid(), "token": app.token, "version": VERSION})
     print(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] Descargas abierto en {url}", flush=True)
     threading.Thread(target=app.checks_now, daemon=True).start()
     if not args.no_window:

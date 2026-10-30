@@ -588,3 +588,18 @@ def test_title_in_the_file_name_beats_title_in_the_folder():
     cands = [candidate(filename="Jobim/Wave (1967)/04 - Batidinha.flac", length_s=197),
              candidate(filename="Sinatra & Jobim/07 - Wave.flac", length_s=201)]
     assert D.rank_candidates(spotify, cands)[0]["filename"].endswith("07 - Wave.flac")
+
+
+def test_preflight_timeout_follows_the_search_limiter():
+    assert D.preflight_timeout_for(19) == D.MIN_PREFLIGHT_TIMEOUT_S
+    assert D.preflight_timeout_for(34) == D.MIN_PREFLIGHT_TIMEOUT_S
+    # 152 temas: 4 esperas de 220 s, que solas ya superaban el tope fijo de 600 s del 2026-10-30
+    assert D.preflight_timeout_for(152) == 300 + 4 * 220 + 152 * 6
+    assert D.preflight_timeout_for(152) > 4 * D.SOULSEEK_SEARCH_WINDOW_S + 152 * 5 / 2
+
+
+def test_search_that_failed_for_every_track_is_not_sent_to_recording():
+    t = {i: spotify_track(position_id=f"t{i}") for i in range(1, 4)}
+    errors = [(i, t[i], "timeout del preflight Soulseek batch (600s)") for i in (1, 2, 3)]
+    assert D.fallback_tracks([], [], errors, total_tracks=3) == []
+    assert [p for p, _ in D.fallback_tracks([], [], errors[:1], total_tracks=3)] == [1]

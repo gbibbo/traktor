@@ -3,6 +3,9 @@
 PURPOSE: Run the complete Spotify -> Soulseek + loopback fallback workflow.
 
 CHANGELOG:
+- 2026-10-30: Wait for the preflight as long as the downloader says it needs (long playlists hit
+              Sockseek's search limiter); a preflight that failed for every track stops the run
+              instead of sending the whole playlist to recording, and such runs are never resumed.
 - 2026-10-30: Record from Spotify the tracks Soulseek could not deliver (soulseek_failed.json,
               recorded_failed/), resumable on their own; a downloader exit code 3 no longer stalls the
               recording; a run that still misses tracks saves what it has ("partial", exit code 3).
@@ -326,6 +329,19 @@ def _pending_recording(
     return 0 <= completed_count < missing_count
 
 
+def preflight_failed_entirely(run_dir: Path) -> str | None:
+    """Si la consulta a Soulseek falló para TODOS los temas, el error común; si no, None.
+
+    Es un problema de la búsqueda (tiempo agotado, sesión), no de los temas: no hay que grabarlos.
+    """
+    reports = sorted(run_dir.glob("soulseek_availability*.json"), key=lambda path: path.stat().st_mtime)
+    availability = read_json_dict(reports[-1]) if reports else None
+    rows = [row for row in (availability or {}).get("tracks") or [] if isinstance(row, dict)]
+    if not rows or any(row.get("status") != "error" for row in rows):
+        return None
+    return str(rows[0].get("error") or "error desconocido")
+
+
 def _recording_complete(manifest: dict[str, Any], progress: dict[str, Any] | None) -> bool:
     missing_count = manifest.get("missing_count")
     if missing_count == 0:
@@ -374,19 +390,36 @@ def resume_point(
             manifest is not None
             and _recording_complete(manifest, progress)
             and _pending_recording(failed, failed_progress, require_progress=False)
+            and preflight_failed_entirely(run_dir) is None  # runs del 2026-10-30 con el preflight caído
         ):
             assert failed is not None
             return "failed", run_dir, failed, failed_progress
     return None
 
 
+def manifest_deadline(base_deadline: float, status_path: Path | None) -> float:
+    """El preflight avisa cuántos temas busca y su tope: hay que esperarlo (más un margen para
+    crear las playlists de faltantes), aunque supere el tope fijo del orquestador."""
+    status = read_json_dict(status_path) if status_path is not None else None
+    if not status:
+        return base_deadline
+    try:
+        started = float(status["started_at"])
+        preflight_timeout = float(status["timeout_s"])
+    except (KeyError, TypeError, ValueError):
+        return base_deadline
+    elapsed = max(0.0, time.time() - started)
+    return max(base_deadline, time.monotonic() - elapsed + preflight_timeout + 300.0)
+
+
 def wait_for_missing_manifest(
     process: subprocess.Popen[Any],
     path: Path,
     timeout: float,
+    status_path: Path | None = None,
 ) -> dict[str, Any]:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
+    base_deadline = time.monotonic() + timeout
+    while time.monotonic() < manifest_deadline(base_deadline, status_path):
         payload = final_missing_manifest(path)
         if payload is not None:
             return payload
@@ -954,6 +987,7 @@ def run_workflow(args: argparse.Namespace) -> int:
     failed_dir = run_dir / RECORDED_FAILED_DIR
     missing_json = run_dir / "soulseek_missing.json"
     failed_json = run_dir / FAILED_JSON_NAME
+    preflight_status = run_dir / "preflight_status.json"
     if is_resume:
         availability_json = run_dir / f"soulseek_availability_resume_{timestamp}.json"
         downloader_missing_json = run_dir / f"soulseek_missing_resume_{timestamp}.json"
@@ -1024,6 +1058,8 @@ def run_workflow(args: argparse.Namespace) -> int:
                 str(downloader_missing_json),
                 "--failed-json",
                 str(failed_json),
+                "--preflight-status",
+                str(preflight_status),
                 "--availability-report",
                 str(availability_json),
                 "--report",
@@ -1046,7 +1082,16 @@ def run_workflow(args: argparse.Namespace) -> int:
                     downloader,
                     missing_json,
                     args.manifest_timeout,
+                    status_path=preflight_status,
                 )
+                search_error = preflight_failed_entirely(run_dir)
+                if search_error is not None:
+                    raise WorkflowError(
+                        "La búsqueda en Soulseek falló para todos los temas "
+                        f"({search_error}). No se graba nada: el problema es la búsqueda, no los "
+                        "temas. Revisa que la cuenta de Soulseek no esté abierta en otra PC y "
+                        "vuelve a intentar."
+                    )
             missing_count = int(manifest["missing_count"])
             summary["missing_count"] = missing_count
             completed_count = 0

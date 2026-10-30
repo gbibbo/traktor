@@ -685,6 +685,10 @@ function statusHtml(v, tracks) {
     html += `<div class="note blue">${icon("info")}<div><b>En pausa: Spotify se detuvo</b><p>Lo grabado se conservó. Pulsa «Continuar» y sigue desde el primer tema pendiente.</p>${errLine(job)}</div></div>`;
   } else if (status === "stopped") {
     html += `<div class="note">${icon("info")}<div><b>La descarga se cortó antes de terminar</b><p>Pulsa «Continuar»: retoma lo grabado si se puede; si no, vuelve a empezar.</p>${errLine(job)}</div></div>`;
+  } else if (status === "failed" && run.preflight_error) {
+    html += `<div class="note amber">${icon("warn")}<div><b>La búsqueda en Soulseek no terminó: no se bajó ni se grabó nada</b>
+      <p>Soulseek permite 34 búsquedas cada 220 segundos, así que una playlist larga tarda: con ${total} temas, unos ${Math.max(1, Math.round((Math.ceil(total / 34) - 1) * 220 / 60))} minutos solo en esperas. La app ahora espera lo necesario. Si vuelve a fallar, revisa que la cuenta de Soulseek no esté abierta en otra PC.</p>
+      <p style="margin-top:6px"><code>${esc(run.preflight_error)}</code></p></div></div>`;
   } else if (status === "failed") {
     const savedTo = run.saved_to;
     html += `<div class="note amber">${icon("warn")}<div><b>${failed ? `${plural(failed, "tema no se pudo", "temas no se pudieron")} bajar` : "La descarga terminó con un error"}</b>
