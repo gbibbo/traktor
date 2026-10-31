@@ -48,6 +48,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `phase5_export.py` | CPU: Export M3U Traktor (UTF-8, rutas Windows) → playlists/V4_<N>/; `--formats m3u8,rekordbox,traktor`, `--rep`, `--out-root` |
 | `usb_package.py` | Paquete portátil para Rekordbox y Traktor: copia la música ordenada por playlist a un pendrive/disco + `rekordbox.xml` y `traktor.nml` con sus plantillas y `Preparar Rekordbox.bat` / `Preparar Traktor.bat`, m3u8 relativos; reanudable, `--verify hash`; `--refresh <paquete>` rehace todo lo que no es audio desde los tags actuales del paquete |
 | `package_tags.py` | Red: etiquetas y carátula de los temas de un paquete (no de la biblioteca): `lookup` (Beatport, Deezer de respaldo) → `plan` (plan.csv, summary.json, carátulas 600x600) → `write --target` (respaldo JSON, audio verificado) / `revert`; salida en artifacts/v4/package_tags/<paquete> |
+| `traktor_collection.py` | Playlists de un paquete directo en `collection.nml` de Traktor (cerrado, con respaldo): `prepare` (saca los temas sin carátula para que Traktor los relea; texto desde los tags) y `playlists` (carpeta con todas las playlists; no escribe si falta un tema) |
 | `rekordbox_prepare.ps1` | «Preparar Rekordbox» del paquete (otra PC, sin Python): escribe `rekordbox.xml` con la letra y carpeta del paquete y cuenta los archivos que faltan |
 | `traktor_prepare.ps1` | «Preparar Traktor» del paquete (otra PC, sin Python): usa los temas de su `collection.nml` (ficha y análisis tal cual), el paquete solo para faltantes; `_informe.txt` |
 
@@ -103,6 +104,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_playlist_review.py` | Unit tests del generador de la página de revisión |
 | `test_review_app.py` | Unit tests de la app local: token y Host/Origin, audio con rangos, fusiones (aplicar, eliminar y deshacer), orden a mano, carpetas dentro/fuera de la biblioteca, carátulas || `test_dj_export.py` | Unit tests de rekordbox.xml / NML / M3U8, bpm_key desde tags, orden por energía, ventanas |
 | `test_usb_package.py` | Paquete portátil: nombres FAT32, ubicación por playlist, plantillas NML y rekordbox.xml con sus `.ps1` reales, m3u8 relativos, copia, verificación y `--refresh` |
+| `test_traktor_collection.py` | traktor_collection.py con paquete y colección falsos: qué se saca, texto actualizado, rechazo si faltan temas, carpeta en orden y reemplazable |
 | `test_package_tags.py` | package_tags.py sin red: limpieza local de artista/título/mezcla, verificación de Deezer, reglas del plan, escritura y reversión en un MP3 mínimo (audio intacto) |
 
 En `tests/` (raíz): `test_check_staged.py` (chequeo pre-commit sobre repos git temporales),

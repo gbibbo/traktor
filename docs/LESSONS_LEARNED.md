@@ -79,6 +79,15 @@ letra. El pendrive cambia de letra entre computadoras y un NML preparado en la l
 playlists del paquete se rearman en cada PC con su `.bat` (`usb_package.py`), o se copia el paquete a
 `C:\TRAKTOR ML` y se prepara desde ahí.
 
+### Traktor 4.4: "Import Playlist" toma una sola playlist y no lee carátulas
+
+Un NML con una carpeta y 51 playlists entró como una sola playlist (la primera), y sus temas sin
+carátula: Traktor usa los datos del NML y solo lee la carátula del archivo (a su caché propia,
+`Coverart/`) al agregarlo desde el disco. Lo que funciona: arrastrar la carpeta de música a Track
+Collection y escribir las playlists en `collection.nml` con Traktor cerrado (`traktor_collection.py`).
+Traktor a veces queda abierto sin ventana al cerrarse y sin "LOG CLOSE" en `Logs/Traktor.log`: una
+vez no guardó la colección; otra la guardó y siguió colgado. Mirar la hora de `collection.nml`.
+
 ### Python no abre rutas de más de 260 caracteres en esta PC
 
 Sin LongPathsEnabled, `Path.exists()` da False en silencio para rutas largas: un paquete probado

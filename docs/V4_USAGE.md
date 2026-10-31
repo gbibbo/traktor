@@ -184,6 +184,19 @@ python src/v4/pipeline/usb_package.py --refresh "D:\TRAKTOR ML"
 --backup <backup.json> --target <copia>`); `--refresh` rehace XML, NML, m3u8, CSV y LEEME con los
 tags nuevos.
 
+**Traktor: las 51 playlists en la colección (2026-10-30).** "Import Playlist" de Traktor 4.4 toma
+una sola playlist de un NML con carpetas, y un tema importado desde un NML no lee la carátula del
+archivo. Con Traktor cerrado (respaldo en `artifacts/v4/traktor_backups/`):
+```
+python src/v4/pipeline/traktor_collection.py prepare --package "C:\TRAKTOR ML"
+#  en Traktor: arrastrar C:\TRAKTOR ML\Musica a Track Collection; cerrar con la X
+python src/v4/pipeline/traktor_collection.py playlists --package "C:\TRAKTOR ML"
+```
+`prepare` saca de la colección los temas del paquete sin carátula en Traktor (si el archivo la tiene
+y no hay cues propios) y actualiza el texto de los demás; `playlists` no escribe si falta algún tema.
+Traktor 4.4 a veces queda abierto sin ventana al cerrarse: mirar que `collection.nml` tenga la hora
+del cierre y que el proceso haya terminado antes de `playlists`.
+
 ---
 
 ## 1. Requisitos (referencia histórica HPC / entornos remotos)

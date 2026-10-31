@@ -21,6 +21,10 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
      pisa (Beatport devolvía otras ediciones: compilados, otro sello).
    - Carátula donde falta o está rota: Beatport confirmado, Deezer verificado, o Beatport B sin
      confirmar (mismo artista, título y mezcla).
+3. **Traktor en esta PC: las playlists se escriben en `collection.nml`** (`traktor_collection.py`,
+   Traktor cerrado, respaldo), porque "Import Playlist" tomó una sola playlist y sin carátulas.
+   Gabriel aprobó el plan, agregó `C:\TRAKTOR ML\Musica` a Track Collection desde Traktor y autorizó
+   terminar el proceso de Traktor que quedó colgado al cerrar (la colección ya estaba guardada).
 
 ## 2026-10-05
 

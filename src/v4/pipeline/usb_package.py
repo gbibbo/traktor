@@ -21,7 +21,9 @@ PURPOSE: Paquete portátil de una organización para tocar con Rekordbox o Trakt
 CHANGELOG:
   - 2026-10-30: Rekordbox en el paquete (plantilla + Preparar Rekordbox.bat) y --refresh (con
                 --refresh, artista, título, mezcla y año del NML/XML salen de los tags de cada
-                archivo). El tamaño del LEEME sale de las copias del paquete.
+                archivo). El tamaño del LEEME sale de las copias del paquete. El LEEME avisa que
+                Traktor importa una sola playlist del NML y remite a traktor_collection.py;
+                read_package_specs lee playlists y ubicaciones de _organizacion.csv.
   - 2026-10-10: Preparar Traktor usa los temas de la colección local (ya analizados) y deja la copia
                 del paquete solo para los que faltan; el CSV suma nombre, carpeta y duración originales.
   - 2026-10-10: Creación inicial (Gabriel toca con Traktor desde el pendrive en otra computadora).
@@ -228,7 +230,7 @@ Musica\\                Los temas, ordenados en carpetas igual que las playlists
 Preparar Rekordbox.bat  Arma rekordbox.xml para esta computadora (ver abajo).
 rekordbox.xml           Las playlists para Rekordbox (con el orden sugerido).
 Preparar Traktor.bat    Arma traktor.nml para esta computadora.
-traktor.nml             Las playlists para Traktor (con el orden sugerido).
+traktor.nml             Las playlists para Traktor (Traktor importa solo una: ver abajo).
 Playlists m3u8\\         Las mismas playlists en formato m3u8 (respaldo para otros programas).
 _organizacion.csv       Lista de temas por playlist (lo usan los .bat).
 _informe.txt            Lo escribe Preparar Traktor.bat: que archivo usa cada tema.
@@ -250,18 +252,16 @@ Como cargarlo en Rekordbox (Windows, con controladora)
 
 Como cargarlo en Traktor (Windows)
 ----------------------------------
-1. Cerrar Traktor si esta abierto (asi su coleccion en disco esta al dia).
-2. Doble clic en "Preparar Traktor.bat". Busca cada tema en la coleccion de Traktor de esta
-   computadora: los que ya estan se usan tal cual (con su analisis y sus cue points); los que no,
-   salen de la copia de este paquete. Muestra cuantos hay de cada tipo.
-   - "Copia del paquete: 0": todo es local; el pendrive no hace falta para tocar.
-   - Si hay temas de la copia del paquete y no queres tocar con el pendrive enchufado: copiar esta
-     carpeta entera a la raiz de un disco (C:\\TRAKTOR ML o D:\\TRAKTOR ML; no dentro de Documentos:
-     las rutas quedarian largas) y volver a hacer doble clic en Preparar Traktor.bat desde ahi.
-3. Abrir Traktor. En el panel izquierdo: clic derecho sobre "Playlists" > "Import Playlist" >
-   elegir traktor.nml de la carpeta donde corriste Preparar Traktor.bat.
-4. Aparece la carpeta "{root_label}" con las playlists. Ordenar por la columna "#" para ver
-   el orden sugerido. Solo los temas de la copia del paquete necesitan analisis.
+Ojo: "Import Playlist" de Traktor 4 toma UNA sola playlist de traktor.nml, y los temas que entran
+asi no muestran la caratula. Lo que funciona:
+1. Abrir Traktor y arrastrar la carpeta Musica de este paquete a "Track Collection" (Traktor lee
+   titulos y caratulas). Cerrar Traktor con la X y esperar a que se cierre del todo.
+2. Las {n_playlists} playlists, en una PC con el repo TRAKTOR ML y Traktor cerrado:
+   python src/v4/pipeline/traktor_collection.py playlists --package "<esta carpeta>"
+   Aparece la carpeta "{root_label}" debajo de Playlists, con el orden sugerido.
+   Sin el repo: en Traktor, Explorer > esta carpeta > Musica (cada subcarpeta es una playlist).
+"Preparar Traktor.bat" arma traktor.nml para esta PC (usa los temas que Traktor ya tiene
+analizados); sirve para importar una playlist suelta.
 """
 
 
@@ -398,10 +398,8 @@ def _root_label(package_dir: Path) -> str:
     return node.get("NAME")
 
 
-def refresh_package(package_dir: Path) -> int:
-    """Rehace NML, rekordbox.xml, plantillas, scripts, m3u8, CSV y LEEME de un paquete existente
-    a partir de su _organizacion.csv y de los tags actuales de sus archivos (sin copiar audio)."""
-    from src.v4.common.tags import read_release_tags, read_tags
+def read_package_specs(package_dir: Path) -> Tuple[pd.DataFrame, List[PlaylistSpec], List[Placement]]:
+    """Playlists (en orden) y ubicación de cada tema, leídas de _organizacion.csv del paquete."""
     org = pd.read_csv(package_dir / "_organizacion.csv", encoding="utf-8-sig", dtype=str, keep_default_na=False)
     specs: List[PlaylistSpec] = []
     by_key: Dict[Tuple[str, str], PlaylistSpec] = {}
@@ -413,6 +411,14 @@ def refresh_package(package_dir: Path) -> int:
         by_key[(r.carpeta, r.playlist)].track_uids.append(r.track_uid)
     placements = [Placement(r.track_uid, r.carpeta, r.playlist, int(r.posicion), r.archivo, r.origen)
                   for r in org.itertuples()]
+    return org, specs, placements
+
+
+def refresh_package(package_dir: Path) -> int:
+    """Rehace NML, rekordbox.xml, plantillas, scripts, m3u8, CSV y LEEME de un paquete existente
+    a partir de su _organizacion.csv y de los tags actuales de sus archivos (sin copiar audio)."""
+    from src.v4.common.tags import read_release_tags, read_tags
+    org, specs, placements = read_package_specs(package_dir)
     files = unique_files(placements)
     missing = [p.rel_path for p in files if not (package_dir / p.rel_path).exists()]
     if missing:
