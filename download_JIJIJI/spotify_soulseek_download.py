@@ -6,6 +6,11 @@ spotify_soulseek_download.py
 PURPOSE: Reconcile a Spotify playlist against Soulseek and download matches.
 
 CHANGELOG:
+- 2026-11-02: The preflight reports its progress as it goes (sockseek --progress-json: searched and
+              found, in --preflight-status and every 10 tracks in the output) and leaves Sockseek's
+              own log next to it (sockseek_preflight.log).
+- 2026-11-02: Spotify authorization link for the app to show (copy it to another browser), 5 min to
+              authorize; reading a playlist prints its progress and every rate-limit wait.
 - 2026-11-02: A failed Sockseek transfer prints its exit code and the tail of Sockseek's output
               (it used to be skipped in silence and its temporary log deleted).
 - 2026-10-30: Preflight timeout scales with the playlist (Sockseek's 34 searches / 220 s limiter made
@@ -1399,17 +1404,35 @@ def _write_sockseek_preflight_csv(path: Path, tracks: list[Track]) -> None:
             )
 
 
+def _search_outcome(line: bytes) -> bool | None:
+    """--progress-json line of a finished search: True if it found files, False if not; None otherwise."""
+    if not line.startswith(b"{") or b"track_state" not in line[:64]:  # los resultados son listas largas
+        return None
+    try:
+        event = json.loads(line)
+    except ValueError:
+        return None
+    data = event.get("data") if isinstance(event, dict) and event.get("type") == "track_state" else None
+    if not isinstance(data, dict) or data.get("lifecycleState") != "Terminal":
+        return None
+    return data.get("terminalOutcome") == "Succeeded"
+
+
 def check_soulseek_availability_batch(
     tracks: list[Track],
     *,
     length_tol: int = 60,
     timeout: float = 600.0,
+    on_progress: Callable[[int, int], None] | None = None,
+    log_file: Path | None = None,
 ) -> list[AvailabilityCheck]:
     """Preflight all tracks in one Sockseek process and one Soulseek session.
 
     No audio is downloaded because --print json-all sets Sockseek to print-only
     mode.  The CSV row order is the Spotify playlist order, and Sockseek's JobList
-    renderer emits one compact JSON array per child job in that same order.
+    renderer emits one compact JSON array per child job in that same order, all at the end.
+    --progress-json adds one event line per search as it happens: `on_progress(searched,
+    found)` follows them, and the events are left out of the results.
     """
     if not tracks:
         return []
@@ -1436,29 +1459,47 @@ def check_soulseek_availability_batch(
             "--pref-min-bitrate=320",
             "--print",
             "json-all",
+            "--progress-json",
         ]
+        if log_file is not None:
+            cmd.append(f"--log-file={log_file}")
 
+        stdout_lines: list[bytes] = []
+        stderr_chunks: list[bytes] = []
+        searched = found = 0
+
+        def read_stdout(stream: Any) -> None:
+            nonlocal searched, found
+            for line in iter(stream.readline, b""):
+                stdout_lines.append(line)
+                outcome = _search_outcome(line)
+                if outcome is None:
+                    continue
+                searched, found = min(searched + 1, len(tracks)), found + int(outcome)
+                if on_progress is not None:
+                    on_progress(searched, found)
+
+        timed_out = False
         try:
-            completed = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=timeout,
-                check=False,
+            process = subprocess.Popen(
+                cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE
             )
-        except subprocess.TimeoutExpired:
-            message = f"timeout del preflight Soulseek batch ({timeout:.0f}s)"
-            return [
-                AvailabilityCheck(
-                    status="error",
-                    result_count=0,
-                    candidates=[],
-                    error=message,
-                )
-                for _ in tracks
+            readers = [
+                threading.Thread(target=read_stdout, args=(process.stdout,), daemon=True),
+                threading.Thread(target=lambda: stderr_chunks.append(process.stderr.read()), daemon=True),
             ]
+            for reader in readers:
+                reader.start()
+            try:
+                process.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                timed_out = True
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait()
+                for reader in readers:
+                    reader.join(timeout=10)
         except FileNotFoundError:
             return [
                 AvailabilityCheck(
@@ -1469,12 +1510,27 @@ def check_soulseek_availability_batch(
                 )
                 for _ in tracks
             ]
+        if timed_out:
+            message = f"timeout del preflight Soulseek batch ({timeout:.0f}s)"
+            return [
+                AvailabilityCheck(
+                    status="error",
+                    result_count=0,
+                    candidates=[],
+                    error=message,
+                )
+                for _ in tracks
+            ]
 
-        stdout = (completed.stdout or "").lstrip("\ufeff").strip()
+        stdout = b"".join(stdout_lines).decode("utf-8", errors="replace").lstrip("\ufeff").strip()
+        stderr = b"".join(stderr_chunks).decode("utf-8", errors="replace")
         try:
-            raw_values = _decode_concatenated_json_values(stdout)
+            raw_values = [
+                value for value in _decode_concatenated_json_values(stdout)
+                if not (isinstance(value, dict) and "type" in value)  # eventos de --progress-json
+            ]
         except json.JSONDecodeError as exc:
-            detail = (completed.stderr or stdout or "sin salida").strip()
+            detail = (stderr or stdout or "sin salida").strip()
             message = f"salida JSON batch inválida de sockseek: {exc}; {detail[:500]}"
             return [
                 AvailabilityCheck(
@@ -1487,7 +1543,7 @@ def check_soulseek_availability_batch(
             ]
 
         if len(raw_values) != len(tracks):
-            detail = (completed.stderr or "").strip()
+            detail = stderr.strip()
             message = (
                 "sockseek devolvió un número inesperado de resultados de preflight: "
                 f"{len(raw_values)} para {len(tracks)} temas"
@@ -2181,6 +2237,20 @@ def write_report(path: Path, payload: dict[str, Any]) -> None:
     )
 
 
+def _replace_report(path: Path, payload: dict[str, Any]) -> None:
+    """Rewrite a report others poll without ever exposing a half-written file. On Windows the
+    replace fails while a reader has it open: retry briefly, and skip this update if it persists."""
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    for attempt in range(5):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            time.sleep(0.05 * (attempt + 1))
+    tmp.unlink(missing_ok=True)
+
+
 def wait_for_download_gate(path: Path, timeout: float) -> bool:
     """Wait until an orchestrator releases downloads by creating ``path``."""
     print(f"\nDescarga en espera de la señal del orquestador: {path}")
@@ -2433,15 +2503,27 @@ def main() -> int:
             f"{SOULSEEK_SEARCH_WINDOW_S} s: con {len(tracks)} temas la búsqueda tarda al menos "
             f"{waits * SOULSEEK_SEARCH_WINDOW_S // 60} min (tope {preflight_timeout / 60:.0f} min)."
         )
-    if args.preflight_status:
-        write_report(
-            Path(args.preflight_status).expanduser().resolve(),
-            {"tracks": len(tracks), "timeout_s": preflight_timeout, "started_at": time.time()},
-        )
+    status_path = Path(args.preflight_status).expanduser().resolve() if args.preflight_status else None
+    status = {"tracks": len(tracks), "timeout_s": preflight_timeout, "started_at": time.time()}
+    if status_path is not None:
+        write_report(status_path, status)
+    printed = 0
+
+    def on_progress(searched: int, found: int) -> None:
+        nonlocal printed
+        if status_path is not None:
+            _replace_report(status_path, {**status, "searched": searched, "found": found})
+        if searched - printed >= 10 or searched == len(tracks):
+            printed = searched
+            print(f"Soulseek: {searched}/{len(tracks)} temas buscados, {found} encontrados", flush=True)
+
     batch_checks = check_soulseek_availability_batch(
         tracks,
         length_tol=args.length_tol,
         timeout=preflight_timeout,
+        on_progress=on_progress,
+        # Junto al estado, en la carpeta de la descarga: qué hizo sockseek en cada búsqueda.
+        log_file=status_path.with_name("sockseek_preflight.log") if status_path is not None else None,
     )
 
     for i, (track, check) in enumerate(zip(tracks, batch_checks), 1):

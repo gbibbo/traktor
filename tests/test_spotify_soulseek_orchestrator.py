@@ -1,6 +1,7 @@
 """PURPOSE: Test Spotify/Soulseek synchronization, metadata and consolidation.
 
 CHANGELOG:
+- 2026-11-02: A failed read of the preflight status does not shrink the wait for the manifest.
 - 2026-10-30: Cover .env output roots and the absolute player token cache.
 - 2026-10-05: Isolate placement tests from the mandatory audio/AV gate.
 """
@@ -158,6 +159,20 @@ class ManifestHandshakeTests(unittest.TestCase):
         batches = ORCHESTRATOR.missing_playlist_batches(manifest)
         self.assertEqual([batch["track_count"] for batch in batches], [10, 1])
         self.assertEqual(ORCHESTRATOR.batch_for_completed(batches, 10), batches[1])
+
+    def test_failed_status_read_does_not_shrink_the_wait(self) -> None:
+        # The status file is rewritten with the search progress: a read that fails (base deadline,
+        # already past) must not end a wait the preflight had extended.
+        path = self.write_payload({"missing_count": 1, "tracks": [{}], "generated_missing_playlist": None})
+        final = {"missing_count": 0, "tracks": [], "generated_missing_playlist": None}
+        reads = iter([None, None, final])
+        process = mock.Mock(poll=mock.Mock(return_value=None))
+        deadlines = iter([ORCHESTRATOR.time.monotonic() + 60, 0.0, 0.0, 0.0])
+        with mock.patch.object(ORCHESTRATOR, "manifest_deadline", side_effect=lambda *a: next(deadlines)), \
+                mock.patch.object(ORCHESTRATOR, "final_missing_manifest", side_effect=lambda *a: next(reads)), \
+                mock.patch.object(ORCHESTRATOR, "MANIFEST_POLL_SECONDS", 0):
+            payload = ORCHESTRATOR.wait_for_missing_manifest(process, path, 0, status_path=path)
+        self.assertEqual(payload, final)
 
 
 class PlaylistBatchTests(unittest.TestCase):

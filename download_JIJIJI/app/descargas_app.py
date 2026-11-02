@@ -22,6 +22,10 @@ CHANGELOG:
   - 2026-11-02: Cada descarga deja toda su salida, con hora, en <runs>/logs/ (la ventana guarda
                 solo las últimas líneas y las pierde al cerrarse); app.log anota el motivo de
                 cada error HTTP, no solo el código.
+  - 2026-11-02: Enlace de autorización de Spotify copiable (el navegador predeterminado puede no
+                ser el de las contraseñas); «Conectar» dice si ya estaba conectado; Spotify de
+                escritorio cerrado es un aviso, no un error; carpeta de destino ausente explicada.
+  - 2026-11-02: Avance de la búsqueda en Soulseek (temas buscados y encontrados).
 """
 from __future__ import annotations
 
@@ -247,6 +251,9 @@ def run_state(run_dir: Path, *, alive: bool | None = None, current_download: int
         phase = "consolidating" if raw_status == "consolidating" else ("transfer" if availability else "preflight")
     else:
         phase = None
+    search_status = read_json(run_dir / "preflight_status.json") if phase == "preflight" else None
+    search = {"searched": int(search_status.get("searched") or 0), "found": int(search_status.get("found") or 0),
+              "total": int(search_status.get("tracks") or 0)} if search_status else None
 
     downloads: dict[int, dict[str, Any]] = {}
     for path in json_candidates(run_dir, "spotify_reconcile_report*.json"):  # en orden: el último manda
@@ -356,6 +363,7 @@ def run_state(run_dir: Path, *, alive: bool | None = None, current_download: int
         "status": status,
         "raw_status": raw_status,
         "phase": phase,
+        "search": search,  # avance de la búsqueda en Soulseek (solo mientras busca)
         "alive": bool(alive),
         "started": run_started(run_dir),
         "total": len(tracks),

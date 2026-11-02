@@ -3,6 +3,8 @@
 PURPOSE: Run the complete Spotify -> Soulseek + loopback fallback workflow.
 
 CHANGELOG:
+- 2026-11-02: The preflight wait never shrinks when a read of its status file (now rewritten with
+              the search progress) fails.
 - 2026-10-30: Wait for the preflight as long as the downloader says it needs (long playlists hit
               Sockseek's search limiter); a preflight that failed for every track stops the run
               instead of sending the whole playlist to recording, and such runs are never resumed.
@@ -418,8 +420,12 @@ def wait_for_missing_manifest(
     timeout: float,
     status_path: Path | None = None,
 ) -> dict[str, Any]:
-    base_deadline = time.monotonic() + timeout
-    while time.monotonic() < manifest_deadline(base_deadline, status_path):
+    base_deadline = deadline = time.monotonic() + timeout
+    while True:
+        # El estado se reescribe con el avance de la búsqueda: una lectura fallida no acorta el plazo.
+        deadline = max(deadline, manifest_deadline(base_deadline, status_path))
+        if time.monotonic() >= deadline:
+            break
         payload = final_missing_manifest(path)
         if payload is not None:
             return payload

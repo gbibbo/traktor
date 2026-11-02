@@ -2,6 +2,7 @@
 
 CHANGELOG: 2026-10-05: Cover size gates, live limits, bounded conversion and images.
            2026-11-02: A failed transfer prints Sockseek's last lines, never credentials.
+           2026-11-02: Preflight progress from --progress-json, kept out of the results.
 """
 
 from __future__ import annotations
@@ -387,6 +388,45 @@ def test_monitor_accepts_exact_size_and_excludes_config(tmp_path):
            "import sys; from pathlib import Path; Path(sys.argv[1]).write_bytes(b'x'*1024)",
            str(tmp_path / "song.mp3")]
     assert D._run_sockseek_transfer(cmd, tmp_path, 1024, config) == 0
+
+
+FAKE_SOCKSEEK = """
+import json, time
+def state(title, outcome):
+    print(json.dumps({"type": "track_state", "data": {"artist": "A", "title": title,
+          "lifecycleState": "Terminal", "terminalOutcome": outcome}}), flush=True)
+print(json.dumps({"type": "search_start", "data": {"artist": "A", "title": "1"}}), flush=True)
+state("1", "Succeeded"); time.sleep(0.05); state("2", "Succeeded"); time.sleep(0.05); state("3", "Failed")
+print("[]"); print("[]"); print("[]")
+raise SystemExit(1)
+"""
+
+
+def test_preflight_reports_progress_and_ignores_progress_events(tmp_path):
+    seen, commands = [], []
+    real_popen = D.subprocess.Popen
+
+    def fake_popen(cmd, **kwargs):
+        commands.append(cmd)
+        return real_popen([sys.executable, "-c", FAKE_SOCKSEEK], **kwargs)
+
+    with mock.patch.object(D, "find_sockseek", return_value="sockseek"), \
+            mock.patch.object(D, "_write_sockseek_safe_config"), \
+            mock.patch.object(D.subprocess, "Popen", side_effect=fake_popen):
+        checks = D.check_soulseek_availability_batch(
+            [track(), track(), track()], timeout=30, on_progress=lambda *p: seen.append(p),
+            log_file=tmp_path / "sockseek_preflight.log")
+    assert seen == [(1, 1), (2, 2), (3, 2)]
+    assert [c.status for c in checks] == ["missing"] * 3  # three empty results, not the events
+    assert "--progress-json" in commands[0] and f"--log-file={tmp_path / 'sockseek_preflight.log'}" in commands[0]
+
+
+def test_search_outcome_reads_only_finished_searches():
+    assert D._search_outcome(b'{"type":"track_state","data":{"lifecycleState":"Terminal","terminalOutcome":"Succeeded"}}\n')
+    assert D._search_outcome(b'{"type":"track_state","data":{"lifecycleState":"Terminal","terminalOutcome":"Failed"}}') is False
+    assert D._search_outcome(b'{"type":"track_state","data":{"lifecycleState":"Searching"}}') is None
+    assert D._search_outcome(b'{"type":"search_start","data":{}}') is None
+    assert D._search_outcome(b'[{"User":{}}]') is None
 
 
 def test_failed_transfer_prints_sockseek_tail_without_credentials(tmp_path, capsys):

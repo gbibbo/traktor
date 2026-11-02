@@ -38,6 +38,8 @@ está virtualizada en
 `app.log` anota la app (aperturas, cierres, errores con su motivo). La salida completa de cada
 descarga (orquestador, Soulseek, grabación), con hora, queda en
 `<carpeta de runs>\logs\<fecha-hora>_<playlist>.log`; la ventana muestra solo las últimas líneas.
+La búsqueda en Soulseek muestra cuántos temas lleva buscados y encontrados, y deja el registro
+propio de sockseek en `sockseek_preflight.log`, dentro de la carpeta de esa descarga.
 
 ## Línea de comandos
 

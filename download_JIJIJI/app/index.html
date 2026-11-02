@@ -657,7 +657,8 @@ function statusHtml(v, tracks) {
     const cls = finished || i < idx ? "done" : i === idx && live ? "on" : "";
     return `<span class="phase ${cls}"><span class="b">${cls === "done" ? "✓" : i + 1}</span>${n}</span>`;
   }).join('<span class="phase-sep"></span>');
-  const pct = total ? Math.round((done / total) * 100) : 0;
+  const search = live && phase === "preflight" && run && run.search && run.search.total ? run.search : null;
+  const pct = search ? Math.round((search.searched / search.total) * 100) : total ? Math.round((done / total) * 100) : 0;
   const chips = [
     [c.downloaded, "Bajados de Soulseek", "var(--green)"],
     [c.recorded, "Grabados de Spotify", "var(--purple)"],
@@ -665,16 +666,22 @@ function statusHtml(v, tracks) {
     [(c.queued || 0) + (c.downloading || 0), "Por bajar", "var(--muted)"],
     [(c.failed || 0) + (c.search_error || 0), "No se pudieron", "var(--amber)"],
   ].filter(([n]) => n > 0).map(([n, l, col]) => `<span class="chip"><i style="background:${col}"></i>${n} ${l}</span>`).join("");
-  const indet = live && phase === "preflight";
+  const indet = live && phase === "preflight" && !search;
+  const counter = search
+    ? `<span class="chip">${search.searched} de ${search.total} buscados</span><span class="chip"><i style="background:var(--green)"></i>${search.found} encontrados</span>`
+    : `<span class="chip">${done} de ${total || "?"} listos</span>${chips}`;
   if (live || total) html += `<div class="status"><div class="phases">${phases}</div>
     <div class="bar ${indet ? "indet" : ""}"><i style="width:${pct}%"></i></div>
-    <div class="chips"><span class="chip">${done} de ${total || "?"} listos</span>${chips}</div></div>`;
+    <div class="chips">${counter}</div></div>`;
 
   const failed = (c.failed || 0) + (c.search_error || 0);
   const saving = S.st && S.st.saving && S.st.saving.run === (run && run.run) ? S.st.saving : null;
   if (live) {
     if (phase === "preflight") {
-      html += `<div class="note">${icon("info")}<div><b>Buscando ${total ? plural(total, "tema", "temas") : "los temas"} en Soulseek</b><p>Tarda unos minutos. Después empieza a bajar y, si falta algo, a grabar.</p></div></div>`;
+      const n = (search && search.total) || total;
+      const waits = Math.max(0, Math.ceil(n / 34) - 1);
+      html += `<div class="note">${icon("info")}<div><b>${search ? `Buscando en Soulseek: ${search.searched} de ${plural(search.total, "tema", "temas")}` : `Buscando ${n ? plural(n, "tema", "temas") : "los temas"} en Soulseek`}</b>
+        <p>${waits ? `Soulseek deja hacer 34 búsquedas cada 220 segundos, así que avanza a saltos y se queda quieto unos minutos entre tandas (con ${n} temas, unos ${Math.round((waits * 220) / 60)} minutos solo en esperas). ` : "Tarda unos minutos. "}Después empieza a bajar y, si falta algo, a grabar.</p></div></div>`;
     } else if ((c.to_record || 0) + (c.recording || 0) > 0) {
       html += `<div class="note blue">${icon("speaker")}<div><b>Grabando desde Spotify</b><p>Lo que no está en Soulseek, o no se pudo bajar bien, se graba mientras suena. No reproduzcas otra cosa ni toques Spotify hasta que termine.</p></div></div>`;
     }
@@ -811,7 +818,9 @@ function renderPlayer() {
         <div style="min-width:0"><div class="a">${esc(cur.title)}</div><div class="b"><span class="eq ${rec ? "red" : ""}"><i></i><i></i><i></i><i></i></span>${esc(line)}</div></div>`;
     } else {
       const phase = a && a.phase;
-      const txt = !a || phase === "preflight" ? "Buscando en Soulseek…" : phase === "consolidating" ? "Guardando en tu carpeta…" : "Trabajando…";
+      const s = a && a.search;
+      const txt = !a || phase === "preflight" ? `Buscando en Soulseek…${s && s.total ? ` ${s.searched}/${s.total}` : ""}`
+        : phase === "consolidating" ? "Guardando en tu carpeta…" : "Trabajando…";
       now = `<div class="ph">${icon("music")}</div><div style="min-width:0"><div class="a">${esc((a && a.name) || "Preparando")}</div><div class="b"><span class="spin"></span>${esc(txt)}</div></div>`;
     }
     const pct = total ? (done / total) * 100 : 0;
