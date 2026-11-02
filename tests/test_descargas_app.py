@@ -11,6 +11,7 @@ CHANGELOG:
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 import os
 import subprocess
@@ -372,6 +373,94 @@ def test_server_security_and_settings(server, tmp_path):
     status, body = request(server, "/api/open-folder", body={"path": "C:/Windows"}, token=server.token)
     assert status == 400                                                          # fuera de las carpetas de descargas
     assert request(server, "/api/run?id=../../etc")[0] == 400
+
+
+def mp3_with_tags(path: Path, spotify_id: str, title: str) -> Path:
+    """Un MP3 de verdad (frames MPEG-1 Layer III de 128 kbps, ~1,3 s) con etiquetas y carátula."""
+    from mutagen.id3 import APIC, ID3, TIT2, TPE1, TSRC, TXXX
+    from PIL import Image
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes((b"\xff\xfb\x90\x64" + b"\x00" * 413) * 50)
+    cover = io.BytesIO()
+    Image.new("RGB", (32, 24), "red").save(cover, "PNG")
+    tags = ID3()
+    tags.add(TIT2(encoding=3, text=[title]))
+    tags.add(TPE1(encoding=3, text=["Artista 1"]))
+    tags.add(TSRC(encoding=3, text=["USRC10000001"]))
+    tags.add(TXXX(encoding=3, desc="Spotify Track ID", text=[spotify_id]))
+    tags.add(APIC(encoding=3, mime="image/png", type=3, desc="", data=cover.getvalue()))
+    tags.save(path, v2_version=3)
+    return path
+
+
+def track_run(tmp_path: Path) -> tuple[Path, Path]:
+    """Run con el tema 1 ya en la carpeta final (bajado de Soulseek) y el 2 sin archivo."""
+    run = make_run(tmp_path / "runs", status="completed")
+    rows = [{"position": i, "spotify": {**spotify(i), "isrc": "USRC10000001" if i == 1 else None},
+             "status": "available", "top_candidates": [{"username": "peer1", "filename": "música\\Tema 1 (orig).flac"}]}
+            for i in (1, 2)]
+    write(run / "soulseek_availability.json", {"playlist": {"name": "Mi playlist"}, "tracks": rows})
+    final = mp3_with_tags(tmp_path / "lib" / "Mi playlist" / "Artista 1 - Tema 1.mp3", "id1", "Tema 1")
+    write(run / "consolidation_report.json", {"tracks": [{"spotify_id": "id1", "origin": "soulseek", "destination": str(final)}]})
+    write(run / "spotify_reconcile_report.json", {"tracks": [{
+        "position": 1, "status": "finalized", "output": str(final),
+        "selected": {"path": "C:/tmp/verified_x/Tema 1 (orig).flac", "extended": False, "reasons": ["ISRC exacto", "base=1.000"]},
+        "candidates": [
+            {"path": "C:/tmp/verified_y/Tema 1 (Remix).flac", "accepted": False, "reasons": ["versión conflictiva: remix"]},
+            {"path": "C:/tmp/verified_x/Tema 1 (orig).flac", "accepted": True, "format": "flac", "bitrate_kbps": 900.0,
+             "length_s": 200.0, "tag_title": "Tema 1", "tag_artists": ["Artista 1"], "isrc": "USRC10000001"}]}]})
+    return run, final
+
+
+def test_downloaded_track_can_be_inspected(tmp_path):
+    run, final = track_run(tmp_path)
+    write(tmp_path / "cfg" / "settings.json", {"library_root": str(tmp_path / "lib"), "runs_root": str(tmp_path / "runs")})
+    app = APP.App(tmp_path / "cfg")
+    tracks = by_pos(APP.run_state(run))
+    assert tracks[1]["file"] == str(final) and tracks[2]["file"] is None
+    detail = app.track_detail(run.name, 1)
+    checks = {c["label"]: c for c in detail["checks"]}
+    assert checks["Título (origen)"]["ok"] and checks["Artistas (origen)"]["ok"] and checks["ISRC (origen)"]["ok"]
+    assert checks["Spotify Track ID (final)"]["ok"] and checks["Duración"]["ok"] is False  # 1,3 s frente a 200 s
+    assert detail["source"]["user"] == "peer1" and detail["source"]["rejected"][0]["file"] == "Tema 1 (Remix).flac"
+    tags = {t["label"]: t["value"] for t in detail["tags"]}
+    assert tags["Título"] == "Tema 1" and tags["ISRC"] == "USRC10000001" and tags["Carátula"].startswith("image/png, 32×24")
+    props = {p["label"]: p["value"] for p in detail["properties"]}
+    assert props["Formato"] == "MP3" and props["Bitrate"].startswith("128 kbps") and props["Frecuencia"] == "44100 Hz"
+    assert APP.embedded_cover(final)[1] == "image/png"
+    with pytest.raises(ValueError, match="todavía no tiene"):
+        app.track_detail(run.name, 2)
+    report = json.loads((run / "consolidation_report.json").read_text(encoding="utf-8"))
+    report["tracks"][0]["destination"] = str(mp3_with_tags(tmp_path / "otra" / "x.mp3", "id1", "Tema 1"))
+    write(run / "consolidation_report.json", report)
+    with pytest.raises(ValueError, match="fuera de las carpetas"):
+        app.track_detail(run.name, 1)  # el informe no puede servir archivos de cualquier lado
+
+
+def test_playback_is_blocked_while_a_download_may_record(tmp_path):
+    write(tmp_path / "cfg" / "settings.json", {"library_root": str(tmp_path / "lib"), "runs_root": str(tmp_path / "runs")})
+    app = APP.App(tmp_path / "cfg")
+    assert app.playback_block_reason() is None
+    run = make_run(tmp_path / "runs")
+    app.job = type("Job", (), {"alive": True, "run_dir": run})()
+    assert "grabando" in app.playback_block_reason()
+    (run / APP.orch.DEFER_SIGNAL).write_text("1", encoding="utf-8")
+    assert app.playback_block_reason() is None  # grabación pospuesta: se puede escuchar
+
+
+def test_track_audio_is_served_with_ranges(server, tmp_path):
+    run, final = track_run(tmp_path)
+    query = f"run={run.name}&pos=1"
+    assert request(server, f"/api/track/audio?{query}")[0] == 403  # sin token en la URL
+    req = urllib.request.Request(f"http://127.0.0.1:{server.port}/api/track/audio?{query}&t={server.token}",
+                                 headers={"Range": "bytes=0-99"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        assert resp.status == 206 and resp.headers["Content-Range"] == f"bytes 0-99/{final.stat().st_size}"
+        assert resp.read() == final.read_bytes()[:100]
+    with urllib.request.urlopen(f"http://127.0.0.1:{server.port}/api/track/cover?{query}&t={server.token}", timeout=10) as resp:
+        assert resp.status == 200 and resp.headers["Content-Type"] == "image/png" and resp.read()[:4] == b"\x89PNG"
+    server.job = type("Job", (), {"alive": True, "run_dir": None})()  # una descarga que puede grabar
+    assert request(server, f"/api/track/audio?{query}&t={server.token}")[0] == 409
 
 
 @pytest.mark.skipif(os.name != "nt", reason="árbol de procesos de Windows")

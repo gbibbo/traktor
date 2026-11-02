@@ -203,6 +203,25 @@ svg { display: block; flex: none; }
 .tt .n1 { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tt .n2 { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
 .tr.now .n1 { color: var(--green); }
+.tr.has-file { cursor: pointer; }
+.rowplay { display: none; color: var(--text); }
+.rowplay .ico { width: 16px; height: 16px; }
+.tr.has-file:hover .rowplay { display: inline-flex; } .tr.has-file:hover .n0 { display: none; }
+.tr.playing .n1 { color: var(--green); }
+.drawer.wide { width: 560px; }
+.tk-head { display: flex; gap: 16px; align-items: center; margin-bottom: 14px; }
+.tk-head img, .tk-head .ph { width: 96px; height: 96px; border-radius: 6px; object-fit: cover; background: var(--elev2); flex: none; }
+.tk-head b { display: block; font-size: 18px; } .tk-head span { color: var(--muted); }
+#tr-audio { width: 100%; margin: 4px 0 10px; }
+.tk-sec { margin-top: 20px; } .tk-sec h4 { margin: 0 0 8px; font-size: 14px; }
+.kv { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 6px 12px; font-size: 13px; }
+.kv > div:nth-child(odd) { color: var(--muted); } .kv > div:nth-child(even) { word-break: break-word; }
+.vt { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.vt th { text-align: left; color: var(--muted); font-weight: 600; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.vt td { padding: 6px; border-bottom: 1px solid var(--line); vertical-align: top; word-break: break-word; }
+.vt .ok { color: var(--green); } .vt .bad { color: var(--amber); } .vt .unk { color: var(--muted2); }
+.reasons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.reasons span { font-size: 11.5px; background: rgba(255,255,255,.07); border-radius: 999px; padding: 3px 9px; color: #ddd; }
 .alb { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dur { color: var(--muted); font-variant-numeric: tabular-nums; }
 .st { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; white-space: nowrap; max-width: 100%;
@@ -432,6 +451,21 @@ details summary::before { content: "▸ "; } details[open] summary::before { con
       <button class="pill green small" id="btn-connect2" hidden>Conectar con Spotify</button>
     </div>
     <div id="connect-link"></div>
+  </div>
+</div>
+
+<div class="drawer wide" id="drawer-track">
+  <div class="drawer-head"><h3>Detalles del tema</h3><button class="round" data-close="drawer-track" title="Cerrar"><svg class="ico md"><use href="#i-x"/></svg></button></div>
+  <div class="drawer-body">
+    <div id="tr-head"></div>
+    <audio id="tr-audio" controls preload="none"></audio>
+    <div id="tr-block" class="small" hidden></div>
+    <div class="btnrow">
+      <button class="pill ghost small" id="tr-reveal"><svg class="ico sm"><use href="#i-folder"/></svg>Abrir ubicación</button>
+      <button class="pill ghost small" id="tr-open"><svg class="ico sm"><use href="#i-ext"/></svg>Abrir con el reproductor</button>
+      <button class="pill ghost small" id="tr-copy"><svg class="ico sm"><use href="#i-clip"/></svg>Copiar ruta</button>
+    </div>
+    <div id="tr-body"></div>
   </div>
 </div>
 
@@ -801,10 +835,13 @@ function renderPlaylist() {
 function trackRow(t) {
   const st = t.state && STATE[t.state];
   const now = t.state === "downloading" || t.state === "recording";
-  const num = now ? `<span class="eq ${t.state === "recording" ? "red" : ""}"><i></i><i></i><i></i><i></i></span>` : t.pos;
+  const playing = S.track && S.track.playing && S.track.pos === t.pos && S.track.run === (S.view.run && S.view.run.run);
+  let num = now || playing ? `<span class="eq ${t.state === "recording" ? "red" : ""}"><i></i><i></i><i></i><i></i></span>` : t.pos;
+  if (t.file && !now) num = `<span class="n0">${num}</span><button class="rowplay" data-play="${t.pos}" title="Escuchar">${icon("play")}</button>`;
   const cover = t.cover ? `<img src="${esc(t.cover)}" alt="" loading="lazy">` : `<div class="ph">${icon("music", "sm")}</div>`;
   const stHtml = st ? `<span class="st ${st[1]}" title="${esc(t.detail || st[0])}">${st[2]}<span>${st[0]}</span></span>` : `<span class="st muted">—</span>`;
-  return `<div class="tr ${now ? "now" : ""}"><div class="num">${num}</div>
+  const cls = [now ? "now" : "", t.file ? "has-file" : "", playing ? "playing" : ""].join(" ");
+  return `<div class="tr ${cls}" ${t.file ? `data-track="${t.pos}" title="Ver el archivo: escucharlo, su metadata y su ubicación"` : ""}><div class="num">${num}</div>
     <div class="tt">${cover}<div style="min-width:0"><div class="n1">${esc(t.title)}</div><div class="n2">${esc((t.artists || []).join(", "))}</div></div></div>
     <div class="alb">${esc(t.album)}</div><div>${stHtml}</div><div class="dur r">${fmtDur(t.duration_ms)}</div></div>`;
 }
@@ -863,6 +900,7 @@ function render() {
   $("#nav-home").classList.toggle("on", S.view.kind === "home");
   renderLibrary();
   renderPlayer();
+  updateTrackBlock();
   const link = (S.st && S.st.connecting && S.st.connect_url) || "";
   if ($("#connect-link").dataset.url !== link) {  // sin redibujar en cada vuelta: se perdería la selección
     $("#connect-link").dataset.url = link;
@@ -874,6 +912,7 @@ function render() {
 // ---------------------------------------------------------------- navegación
 async function openPlaylist(url, { push = true } = {}) {
   const prev = S.view;
+  if (S.track && (!prev.run || prev.url !== url)) closeTrack();  // otra playlist: el panel del tema sobra
   S.view = { kind: "playlist", loading: true, url };
   S.lastViewHtml = "";
   render();
@@ -893,6 +932,7 @@ async function openPlaylist(url, { push = true } = {}) {
 }
 
 function goHome(push = true) {
+  closeTrack();
   S.view = { kind: "home" };
   if (push && location.hash) history.pushState(null, "", location.pathname);
   S.lastViewHtml = "";
@@ -1082,16 +1122,112 @@ function authLinkHtml(url) {
     <div class="small">Pégalo en Chrome u otro navegador de este ordenador; cuando aceptes, la app sigue sola.</div>`;
 }
 
-async function copyText(text, btn) {
+async function copyText(text, btn, done = "Enlace copiado: pégalo en la barra de direcciones de tu navegador.") {
   try { await navigator.clipboard.writeText(text); }
   catch {
     const input = btn.parentElement.querySelector("input");
-    if (!input) return fail(new Error("No se pudo copiar: selecciona el enlace y cópialo con Ctrl+C."));
+    if (!input) return fail(new Error("No se pudo copiar: selecciona el texto y cópialo con Ctrl+C."));
     input.select();
     document.execCommand("copy");
   }
-  toast("Enlace copiado: pégalo en la barra de direcciones de tu navegador.", "ok");
+  toast(done, "ok");
 }
+
+// ---------------------------------------------------------------- un tema ya bajado: escucharlo y revisarlo
+const trackUrl = (kind) => `/api/track/${kind}?run=${encodeURIComponent(S.track.run)}&pos=${S.track.pos}&t=${encodeURIComponent(TOKEN)}`;
+
+function closeTrack() {
+  $("#tr-audio").pause();
+  $("#drawer-track").classList.remove("open");
+}
+
+async function openTrack(pos, play = false) {
+  const run = S.view.run && S.view.run.run;
+  if (!run) return;
+  const audio = $("#tr-audio");
+  if (!S.track || S.track.run !== run || S.track.pos !== pos) {
+    audio.pause();
+    audio.removeAttribute("src");
+    audio.load();
+    S.track = { run, pos, playing: false };
+  }
+  $("#drawer-settings").classList.remove("open");
+  $("#drawer-log").classList.remove("open");
+  $("#drawer-track").classList.add("open");
+  $("#tr-head").innerHTML = `<div class="small">Leyendo el archivo…</div>`;
+  $("#tr-body").innerHTML = "";
+  try {
+    const d = await api(`/api/track/meta?run=${encodeURIComponent(run)}&pos=${pos}`);
+    if (!S.track || S.track.run !== run || S.track.pos !== pos) return;  // se eligió otro mientras cargaba
+    S.track.data = d;
+    renderTrack(d, viewTracks(S.view).find((t) => t.pos === pos));
+    updateTrackBlock();
+    if (play && !(S.st && S.st.playback_block)) audio.play().catch(() => { /* lo avisa el evento error */ });
+  } catch (e) { $("#tr-head").innerHTML = ""; fail(e); }
+}
+
+function renderTrack(d, t) {
+  const sp = d.spotify || {};
+  const src = d.source || {};
+  const mark = (ok) => ok === true ? `<span class="ok">✓</span>` : ok === false ? `<span class="bad">≠</span>` : `<span class="unk">–</span>`;
+  const kv = (pairs) => `<div class="kv">${pairs.map(([k, v]) => `<div>${esc(k)}</div><div>${v}</div>`).join("")}</div>`;
+  $("#tr-head").innerHTML = `<div class="tk-head"><img src="${esc(trackUrl("cover"))}" alt="">
+    <div style="min-width:0"><b>${esc(sp.title || (t && t.title) || "")}</b><span>${esc((sp.artists || (t && t.artists) || []).join(", "))}</span>
+    <div class="small">${esc([sp.album, sp.release_date, sp.label].filter(Boolean).join(" · "))}</div>
+    ${sp.url ? `<div class="small" style="margin-top:4px"><a href="${esc(sp.url)}" target="_blank" rel="noopener">Abrir en Spotify</a></div>` : ""}</div></div>`;
+  const img = $("#tr-head img");
+  img.addEventListener("error", () => {  // sin carátula incrustada: la de Spotify
+    if (t && t.cover && img.src !== t.cover) img.src = t.cover; else img.style.visibility = "hidden";
+  });
+
+  let origin;
+  if (src.origin === "soulseek") {
+    const quality = [src.format && String(src.format).toUpperCase(), src.bitrate_kbps && `${Math.round(src.bitrate_kbps)} kbps`,
+      src.length_s && fmtDur(src.length_s * 1000)].filter(Boolean).join(" · ");
+    origin = kv([["Origen", `Soulseek${src.user ? ` · usuario ${esc(src.user)}` : ""}`], ["Archivo original", esc(src.file || "—")],
+      ["Calidad original", esc(quality || "—")]]) +
+      (src.reasons && src.reasons.length ? `<div class="small" style="margin-top:10px">Por qué se aceptó:</div><div class="reasons">${src.reasons.map((r) => `<span>${esc(r)}</span>`).join("")}</div>` : "") +
+      (src.rejected && src.rejected.length ? `<div class="small" style="margin-top:10px">Archivos probados y descartados:</div>${src.rejected.map((r) => `<div class="small" style="margin-top:4px">· ${esc(r.file)}: ${esc((r.reasons || []).join("; "))}</div>`).join("")}` : "");
+  } else if (src.origin === "loopback") {
+    origin = kv([["Origen", "Grabado de Spotify mientras sonaba"],
+      ...(src.start_s != null ? [["Tramo grabado", `${fmtDur(src.start_s * 1000)} → ${fmtDur(src.end_s * 1000)}`]] : []),
+      ...(src.difference_s != null ? [["Diferencia con Spotify", `${Number(src.difference_s).toFixed(1)} s`]] : [])]);
+  } else {
+    origin = `<div class="small">No hay registro del origen de este archivo.</div>`;
+  }
+
+  $("#tr-body").innerHTML = `
+    <div class="tk-sec"><h4>Verificación</h4>
+      <table class="vt"><tr><th>Campo</th><th>Spotify</th><th>Archivo</th><th></th></tr>
+      ${(d.checks || []).map((c) => `<tr><td>${esc(c.label)}</td><td>${esc(c.spotify ?? "—")}</td><td>${esc(c.file ?? "—")}${c.note ? `<div class="small">${esc(c.note)}</div>` : ""}</td><td>${mark(c.ok)}</td></tr>`).join("")}</table>
+      ${src.origin === "soulseek" ? `<div class="small" style="margin-top:6px">«Origen» son las etiquetas del archivo que llegó de Soulseek, antes de reescribirlas con los datos de Spotify: son las que identifican la grabación.</div>` : ""}</div>
+    <div class="tk-sec"><h4>Origen</h4>${origin}</div>
+    <div class="tk-sec"><h4>Archivo</h4>${kv([["Ruta", `<code>${esc(d.path)}</code>`], ...(d.properties || []).map((p) => [p.label, esc(p.value)])])}</div>
+    <div class="tk-sec"><h4>Etiquetas (${(d.tags || []).length})</h4>${(d.tags || []).length ? kv(d.tags.map((g) => [g.label, esc(g.value)])) : `<div class="small">El archivo no tiene etiquetas.</div>`}</div>`;
+}
+
+// Lo que suena sale por la salida que se graba: con una descarga que puede estar grabando, no se escucha.
+function updateTrackBlock() {
+  const reason = S.st && S.st.playback_block;
+  const audio = $("#tr-audio");
+  $("#tr-block").hidden = !reason;
+  $("#tr-block").textContent = reason || "";
+  audio.hidden = Boolean(reason);
+  $("#tr-open").disabled = Boolean(reason);
+  if (reason && !audio.paused) {
+    audio.pause();
+    toast(`Se pausó la reproducción. ${reason}`);
+  }
+  if (!reason && S.track && S.track.data && !audio.getAttribute("src")) audio.src = trackUrl("audio");
+}
+
+const trAudio = $("#tr-audio");
+for (const ev of ["play", "pause", "ended"]) {
+  trAudio.addEventListener(ev, () => { if (S.track) S.track.playing = !trAudio.paused; S.lastViewHtml = ""; render(); });
+}
+trAudio.addEventListener("error", () => {
+  if (trAudio.getAttribute("src")) toast((S.st && S.st.playback_block) || "No se pudo reproducir el archivo.", "err");
+});
 
 // ---------------------------------------------------------------- popovers
 function placePop(pop, anchor) {
@@ -1231,11 +1367,17 @@ $("#scroll").addEventListener("scroll", () => $("#topbar").classList.toggle("sol
 document.addEventListener("click", (e) => {
   const t = e.target.closest("button, a, [data-close]");
   if (!t) {
+    const row = e.target.closest("[data-track]");  // un tema con archivo: sus detalles
+    if (row) { openTrack(Number(row.dataset.track)); return; }
     if (!e.target.closest(".pop")) closePops();
     return;
   }
-  if (t.dataset.close) { $(`#${t.dataset.close}`).classList.remove("open"); return; }
+  if (t.dataset.close) {
+    if (t.dataset.close === "drawer-track") closeTrack(); else $(`#${t.dataset.close}`).classList.remove("open");
+    return;
+  }
   if (t.dataset.copy) { copyText(t.dataset.copy, t); return; }
+  if (t.dataset.play) { openTrack(Number(t.dataset.play), true); return; }
   if (t.dataset.url) { openPlaylist(t.dataset.url); return; }
   if (t.dataset.openFolder !== undefined) { openFolder(t.dataset.openFolder); return; }
   if (t.dataset.savePartial) {
@@ -1263,8 +1405,11 @@ document.addEventListener("click", (e) => {
     case "btn-pick-runs": pickFolder("runs_root"); break;
     case "btn-open-lib": openFolder(S.st.settings.library_root); break;
     case "btn-open-runs": openFolder(S.st.settings.runs_root); break;
-    case "btn-settings": $("#drawer-log").classList.remove("open"); $("#drawer-settings").classList.toggle("open"); if ($("#drawer-settings").classList.contains("open")) loadChecks(); break;
-    case "btn-log": $("#drawer-settings").classList.remove("open"); $("#drawer-log").classList.toggle("open"); pollLog(); break;
+    case "btn-settings": closeTrack(); $("#drawer-log").classList.remove("open"); $("#drawer-settings").classList.toggle("open"); if ($("#drawer-settings").classList.contains("open")) loadChecks(); break;
+    case "btn-log": closeTrack(); $("#drawer-settings").classList.remove("open"); $("#drawer-log").classList.toggle("open"); pollLog(); break;
+    case "tr-reveal": if (S.track) api("/api/track/reveal", { run: S.track.run, pos: S.track.pos }).catch(fail); break;
+    case "tr-open": if (S.track) api("/api/track/open", { run: S.track.run, pos: S.track.pos }).catch(fail); break;
+    case "tr-copy": if (S.track && S.track.data) copyText(S.track.data.path, t, "Ruta copiada."); break;
     case "btn-recheck": loadChecks(true); break;
     case "btn-connect": case "btn-connect2": connectSpotify(); break;
     default: break;
@@ -1281,7 +1426,7 @@ document.addEventListener("change", (e) => {
   }
 });
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") { closePops(); document.querySelectorAll(".drawer.open, .modal-bg.open").forEach((d) => d.classList.remove("open")); }
+  if (e.key === "Escape") { closePops(); closeTrack(); document.querySelectorAll(".drawer.open, .modal-bg.open").forEach((d) => d.classList.remove("open")); }
 });
 $("#modal-start").addEventListener("click", (e) => { if (e.target.id === "modal-start") e.currentTarget.classList.remove("open"); });
 

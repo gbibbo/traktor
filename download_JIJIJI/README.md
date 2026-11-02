@@ -28,6 +28,12 @@ Abre una ventana propia (Edge en modo app) servida por `app/descargas_app.py` so
   Soulseek, va ya a la carpeta de destino y la playlist queda en «Grabación pendiente».
   **«Grabar ahora»** graba solo lo pendiente (sin volver a buscar ni bajar) y lo agrega a la
   misma carpeta. Desde la terminal: la misma orden sin `--defer-recording`;
+* **revisar un tema ya bajado**: clic en la fila (o ▶ para escucharlo). Muestra la verificación
+  contra Spotify (título, artistas e ISRC del archivo que llegó de Soulseek, duración y Spotify Track
+  ID), de dónde salió (usuario, archivo original, por qué se aceptó y qué se descartó, o el tramo
+  grabado), las propiedades del audio y todas sus etiquetas, y abre su ubicación o el reproductor.
+  No se puede escuchar mientras una descarga pueda grabar (sonaría en la grabación), salvo con la
+  grabación pospuesta;
 * seguir cada tema: en Soulseek, bajando, bajado, se grabará (también lo que no se pudo bajar,
   con el motivo), grabando, grabado o «no se pudo». También se siguen los runs lanzados desde la
   terminal. Un run «Incompleta» ya guardó lo que consiguió y dice qué falta;

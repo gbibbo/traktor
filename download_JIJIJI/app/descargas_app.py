@@ -28,6 +28,9 @@ CHANGELOG:
   - 2026-11-02: Avance de la búsqueda en Soulseek (temas buscados y encontrados).
   - 2026-11-02: Posponer la grabación («Grabar después» al empezar, o durante la descarga) y
                 «Grabar ahora» para una playlist con la grabación pendiente.
+  - 2026-11-02: Un tema ya bajado se puede escuchar (no mientras una descarga pueda grabar: sonaría
+                en la grabación), revisar (verificación contra Spotify, origen, propiedades y todas
+                las etiquetas) y abrir en el Explorador o en el reproductor.
 """
 from __future__ import annotations
 
@@ -50,6 +53,7 @@ import tempfile
 import threading
 import time
 import traceback
+import unicodedata
 import urllib.parse
 import urllib.request
 import webbrowser
@@ -301,6 +305,14 @@ def run_state(run_dir: Path, *, alive: bool | None = None, current_download: int
         elif (run_dir / "start_soulseek_downloads.signal").exists():
             downloading_now = pending_downloads[0]
 
+    def track_file(pos: int, spotify_id: str) -> str | None:
+        """El audio del tema, si ya existe: en la carpeta final o, antes de guardarlo, en la del run."""
+        download = downloads.get(pos) or {}
+        options = [(consolidated.get(spotify_id) or {}).get("destination"),
+                   download.get("output") if download.get("status") in DOWNLOADED else None,
+                   (recorded.get(pos) or {}).get("output")]
+        return next((str(p) for p in options if p and Path(str(p)).is_file()), None)
+
     tracks: list[dict[str, Any]] = []
     for row in rows:
         if not isinstance(row, dict) or not isinstance(row.get("position"), int):
@@ -337,7 +349,7 @@ def run_state(run_dir: Path, *, alive: bool | None = None, current_download: int
         else:
             state = "search_error"
             detail = str(row.get("error") or "Error al buscar en Soulseek")
-        tracks.append({"pos": pos, **meta, "state": state, "detail": detail})
+        tracks.append({"pos": pos, **meta, "state": state, "detail": detail, "file": track_file(pos, str(meta["id"]))})
 
     search_error = orch.preflight_failed_entirely(run_dir)
     if search_error:  # la búsqueda en Soulseek falló entera: no es algo que se continúe ni se grabe
@@ -540,6 +552,178 @@ class ProcessTree:
 
 def keep_spotify(name: str) -> bool:
     return name.lower() == "spotify.exe"
+
+
+# ---------------------------------------------------------------------------
+# Un tema ya bajado: escucharlo y revisar su archivo
+# ---------------------------------------------------------------------------
+
+AUDIO_TYPES = {".mp3": "audio/mpeg", ".flac": "audio/flac", ".wav": "audio/wav"}
+TAG_LABELS = {
+    "TIT2": "Título", "TPE1": "Artista", "TPE2": "Artista del álbum", "TALB": "Álbum", "TDRC": "Fecha",
+    "TYER": "Año", "TDOR": "Fecha original", "TRCK": "Pista", "TPOS": "Disco", "TCON": "Género", "TPUB": "Sello",
+    "TSRC": "ISRC", "TBPM": "BPM", "TKEY": "Tonalidad", "TCOP": "Copyright", "TCOM": "Compositor",
+    "TPE4": "Remixer", "TENC": "Codificado por", "TSSE": "Codificador", "TLEN": "Duración (ms)", "TMED": "Medio",
+    "COMM": "Comentario", "USLT": "Letra", "APIC": "Carátula", "WXXX": "URL", "WOAS": "URL de la fuente",
+}
+
+
+def _image_summary(mime: str, data: bytes) -> str:
+    size = f"{len(data) // 1024} KB"
+    try:
+        from PIL import Image
+        with Image.open(io.BytesIO(data)) as img:  # solo la cabecera
+            return f"{mime or 'imagen'}, {img.width}×{img.height}, {size}"
+    except Exception:  # noqa: BLE001
+        return f"{mime or 'imagen'}, {size}"
+
+
+def audio_details(path: Path) -> dict[str, Any]:
+    """Propiedades del audio y todas sus etiquetas, para mostrarlas tal cual."""
+    import mutagen
+    audio = mutagen.File(path)
+    if audio is None or not getattr(audio, "info", None):
+        raise ValueError("No se pudo leer el archivo de audio.")
+    info = audio.info
+    stat = path.stat()
+    props: list[tuple[str, str]] = [("Formato", path.suffix[1:].upper())]
+    if getattr(info, "length", None):
+        props.append(("Duración", f"{int(info.length // 60)}:{info.length % 60:04.1f}"))
+    if getattr(info, "bitrate", None):
+        mode = str(getattr(info, "bitrate_mode", "") or "").rsplit(".", 1)[-1]
+        props.append(("Bitrate", f"{info.bitrate / 1000:.0f} kbps" + (f" ({mode})" if mode and mode != "UNKNOWN" else "")))
+    if getattr(info, "sample_rate", None):
+        props.append(("Frecuencia", f"{info.sample_rate} Hz"))
+    if getattr(info, "bits_per_sample", None):
+        props.append(("Profundidad", f"{info.bits_per_sample} bits"))
+    if getattr(info, "channels", None):
+        props.append(("Canales", {1: "mono", 2: "estéreo"}.get(info.channels, str(info.channels))))
+    encoder = " ".join(str(x) for x in (getattr(info, "encoder_info", ""), getattr(info, "encoder_settings", "")) if x)
+    if encoder:
+        props.append(("Codificador", encoder))
+    props.append(("Tamaño", f"{stat.st_size / 1_048_576:.1f} MB"))
+    props.append(("Modificado", datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M")))
+
+    tags: list[dict[str, str]] = []
+    for key, value in (audio.tags.items() if audio.tags is not None else []):
+        frame_id = key.split(":", 1)[0]
+        if frame_id == "TXXX":
+            label, text = value.desc, "; ".join(str(t) for t in value.text)
+        elif frame_id == "APIC":
+            label, text = TAG_LABELS["APIC"], _image_summary(value.mime, value.data)
+        elif frame_id in {"WXXX", "WOAS"}:
+            label, text = TAG_LABELS[frame_id], str(getattr(value, "url", value))
+        elif hasattr(value, "text"):
+            label, text = TAG_LABELS.get(frame_id, frame_id), "; ".join(str(t) for t in value.text)
+        elif isinstance(value, list):  # Vorbis (FLAC): clave → valores
+            label, text = key, "; ".join(str(v) for v in value)
+        else:
+            label, text = TAG_LABELS.get(frame_id, key), str(value)
+        tags.append({"key": key, "label": label, "value": text})
+    for picture in getattr(audio, "pictures", []) or []:
+        tags.append({"key": "PICTURE", "label": "Carátula", "value": _image_summary(picture.mime, picture.data)})
+    return {"properties": [{"label": k, "value": v} for k, v in props], "tags": tags,
+            "length_s": getattr(info, "length", None)}
+
+
+def embedded_cover(path: Path) -> tuple[bytes, str] | None:
+    import mutagen
+    audio = mutagen.File(path)
+    if audio is None:
+        return None
+    for picture in getattr(audio, "pictures", []) or []:
+        return picture.data, picture.mime or "image/jpeg"
+    if audio.tags is not None and hasattr(audio.tags, "getall"):
+        for frame in audio.tags.getall("APIC"):
+            return frame.data, frame.mime or "image/jpeg"
+    return None
+
+
+def _tag_value(tags: list[dict[str, str]], *keys: str) -> str | None:
+    return next((t["value"] for t in tags if t["key"].split(":", 1)[0] in keys or t["label"] in keys), None)
+
+
+def track_source(run_dir: Path, pos: int, availability_rows: list[Any]) -> dict[str, Any]:
+    """De dónde salió el archivo: el de Soulseek que pasó la verificación (y los descartados), o la grabación."""
+    row = None
+    for path in json_candidates(run_dir, "spotify_reconcile_report*.json"):  # en orden: el último manda
+        for item in (read_json(path) or {}).get("tracks") or []:
+            if isinstance(item, dict) and item.get("position") == pos and item.get("status") in DOWNLOADED:
+                row = item
+    if row is not None:
+        candidates = [c for c in row.get("candidates") or [] if isinstance(c, dict)]
+        chosen = next((c for c in candidates if c.get("accepted")), {})
+        selected = row.get("selected") or {}
+        name = Path(str(selected.get("path") or chosen.get("path") or "")).name
+        preflight = next((r for r in availability_rows if isinstance(r, dict) and r.get("position") == pos), {})
+        user = next((c.get("username") for c in preflight.get("top_candidates") or []
+                     if Path(str(c.get("filename") or "").replace("\\", "/")).name == name), None)
+        return {"origin": "soulseek", "file": name, "user": user, "format": chosen.get("format"),
+                "bitrate_kbps": chosen.get("bitrate_kbps"), "length_s": chosen.get("length_s"),
+                "tag_title": chosen.get("tag_title"), "tag_artists": chosen.get("tag_artists"), "isrc": chosen.get("isrc"),
+                "extended": bool(selected.get("extended")), "reasons": selected.get("reasons") or chosen.get("reasons") or [],
+                "rejected": [{"file": Path(str(c.get("path") or "")).name, "reasons": c.get("reasons") or []}
+                             for c in candidates if not c.get("accepted")]}
+    progress_files = [run_dir / "recorded_missing" / "recording_progress.json",
+                      run_dir / orch.RECORDED_FAILED_DIR / "recording_progress.json",
+                      *json_candidates(run_dir / "diagnostics", "*recording_progress.json")]
+    for path in progress_files:
+        for item in (read_json(path) or {}).get("tracks") or []:
+            if isinstance(item, dict) and item.get("playlist_position") == pos:
+                return {"origin": "loopback", "start_s": item.get("start_sec"), "end_s": item.get("end_sec"),
+                        "difference_s": item.get("duration_difference_sec")}
+    return {"origin": None}
+
+
+def _fold(text: Any) -> str:
+    plain = unicodedata.normalize("NFKD", str(text)).encode("ascii", "ignore").decode().casefold()
+    return re.sub(r"[^0-9a-z]+", " ", plain).strip()
+
+
+def _same_text(a: Any, b: Any) -> bool | None:
+    return None if not a or not b else _fold(a) == _fold(b)
+
+
+def _artists_match(spotify_artists: list[str], found: list[str]) -> bool | None:
+    """Alguno de Spotify en la etiqueta («A & B», «A, B» o separados)."""
+    if not found:
+        return None
+    joined = f" {_fold(' '.join(found))} "
+    return any(_fold(a) and f" {_fold(a)} " in joined for a in spotify_artists)
+
+
+def track_checks(spotify: dict[str, Any], source: dict[str, Any], tags: list[dict[str, str]],
+                 length_s: float | None) -> list[dict[str, Any]]:
+    """Spotify frente al archivo de origen (lo que identifica la grabación) y al archivo final."""
+    artists = [str(a) for a in spotify.get("artists") or []]
+    checks: list[dict[str, Any]] = []
+    if source.get("origin") == "soulseek":
+        found = [str(a) for a in source.get("tag_artists") or []]
+        checks += [
+            {"label": "Título (origen)", "spotify": spotify.get("title"), "file": source.get("tag_title"),
+             "ok": _same_text(spotify.get("title"), source.get("tag_title"))},
+            {"label": "Artistas (origen)", "spotify": ", ".join(artists), "file": ", ".join(found) or None,
+             "ok": _artists_match(artists, found)},
+            {"label": "ISRC (origen)", "spotify": spotify.get("isrc"), "file": source.get("isrc"),
+             "ok": None if not (spotify.get("isrc") and source.get("isrc"))
+             else str(spotify["isrc"]).upper() == str(source["isrc"]).upper()},
+        ]
+    spotify_s = (spotify.get("duration_ms") or 0) / 1000
+    if length_s and spotify_s:
+        delta = length_s - spotify_s
+        extended = source.get("extended")
+        checks.append({"label": "Duración", "spotify": fmt_seconds(spotify_s), "file": f"{fmt_seconds(length_s)} ({delta:+.0f} s)",
+                       "ok": True if abs(delta) <= 3 else (None if extended else False),
+                       "note": "Extended: más larga a propósito" if extended and abs(delta) > 3 else None})
+    embedded = _tag_value(tags, "Spotify Track ID")
+    checks.append({"label": "Spotify Track ID (final)", "spotify": spotify.get("spotify_id"), "file": embedded,
+                   "ok": None if not embedded else embedded == spotify.get("spotify_id")})
+    return checks
+
+
+def fmt_seconds(seconds: float) -> str:
+    total = int(round(seconds))
+    return f"{total // 60}:{total % 60:02d}"
 
 
 # ---------------------------------------------------------------------------
@@ -1161,6 +1345,65 @@ class App:
             raise ValueError("La carpeta ya no existe.")
         os.startfile(str(target))  # noqa: S606 (Explorador de Windows)
 
+    # ---- un tema ya bajado ----
+    def playback_block_reason(self) -> str | None:
+        """Lo que suena por la salida predeterminada queda en la grabación: mientras una descarga pueda grabar,
+        no se escucha nada (salvo que tenga la grabación pospuesta)."""
+        if self.job and self.job.alive:
+            run_dir = self.job.run_dir
+        else:
+            external = self.live_external()
+            if external is None:
+                return None
+            run_dir = self.runs_root() / external["run"]
+        if run_dir is not None and (run_dir / orch.DEFER_SIGNAL).exists():
+            return None
+        return ("Hay una descarga en curso que puede estar grabando: lo que suene ahora quedaría en la grabación. "
+                "Para escuchar, pospón la grabación o espera a que termine.")
+
+    def _track(self, run_name: str, pos: int) -> tuple[Path, Path, dict[str, Any], dict[str, Any]]:
+        """El archivo de un tema lo resuelve el servidor a partir del run: la página nunca manda rutas."""
+        if not RUN_DIR_RE.match(run_name):
+            raise ValueError("Descarga desconocida.")
+        run_dir = self.runs_root() / run_name
+        state = run_state(run_dir)
+        track = next((t for t in state["tracks"] if t["pos"] == pos), None)
+        if not track or not track.get("file"):
+            raise ValueError("Ese tema todavía no tiene un archivo para revisar.")
+        path = Path(track["file"])
+        roots = [self.library_root(), self.runs_root(), *(Path(p) for p in (state.get("final_output"),) if p)]
+        if path.suffix.lower() not in AUDIO_TYPES or not any(is_inside(path, root) for root in roots):
+            raise ValueError("Ese archivo está fuera de las carpetas de descargas.")
+        return run_dir, path, track, state
+
+    def track_detail(self, run_name: str, pos: int) -> dict[str, Any]:
+        run_dir, path, track, _ = self._track(run_name, pos)
+        details = audio_details(path)
+        availability_files = json_candidates(run_dir, "soulseek_availability*.json")
+        rows = ((read_json(availability_files[-1]) or {}).get("tracks") or []) if availability_files else []
+        spotify = next((r.get("spotify") or {} for r in rows if isinstance(r, dict) and r.get("position") == pos), {})
+        source = track_source(run_dir, pos, rows)
+        return {"run": run_name, "pos": pos, "path": str(path), "track": track,
+                "spotify": {k: spotify.get(k) for k in ("spotify_id", "url", "title", "artists", "album", "release_date",
+                                                         "label", "isrc", "duration_ms")},
+                "properties": details["properties"], "tags": details["tags"], "source": source,
+                "checks": track_checks(spotify, source, details["tags"], details["length_s"]),
+                "playback_block": self.playback_block_reason()}
+
+    def track_file(self, run_name: str, pos: int) -> Path:
+        return self._track(run_name, pos)[1]
+
+    def reveal_track(self, run_name: str, pos: int) -> None:
+        path = self.track_file(run_name, pos)
+        # Las comillas no pueden estar en un nombre de archivo de Windows: la ruta va entera.
+        subprocess.Popen(f'explorer /select,"{path}"')  # noqa: S602,S607 (Explorador de Windows)
+
+    def open_track(self, run_name: str, pos: int) -> None:
+        reason = self.playback_block_reason()
+        if reason:
+            raise RuntimeError(reason)
+        os.startfile(str(self.track_file(run_name, pos)))  # noqa: S606 (reproductor predeterminado)
+
     def disk(self) -> dict[str, Any]:
         root = self.library_root()
         probe = next((p for p in [root, *root.parents] if p.exists()), None)
@@ -1326,6 +1569,7 @@ class App:
                 "external": self.live_external(), "preview_auth": self.preview.authorized(),
                 "connecting": self.preview.connecting, "connect_error": self.preview.connect_error,
                 "connect_url": self.preview.auth_url if self.preview.connecting else None,
+                "playback_block": self.playback_block_reason(),
                 "monitor": self.monitor.level(), "saving": self.saving}
 
 
@@ -1392,12 +1636,69 @@ def make_handler(app: App):
                     return self._json(200, {"devices": app.devices(), "busy": app.busy_reason()})
                 if path == "/api/audio/level":
                     return self._json(200, app.monitor.level())
+                if path.startswith("/api/track/"):
+                    run_name, pos = query.get("run", [""])[0], int(query.get("pos", ["0"])[0] or 0)
+                    if path == "/api/track/meta":
+                        return self._json(200, app.track_detail(run_name, pos))
+                    # El audio y la carátula se cargan desde <audio>/<img>, que no mandan cabeceras: token en la URL.
+                    if not secrets.compare_digest(query.get("t", [""])[0], app.token):
+                        return self._json(403, {"error": "No autorizado"})
+                    if path == "/api/track/audio":
+                        reason = app.playback_block_reason()
+                        if reason:
+                            return self._json(409, {"error": reason})
+                        file = app.track_file(run_name, pos)
+                        return self._send_file(file, AUDIO_TYPES[file.suffix.lower()])
+                    if path == "/api/track/cover":
+                        cover = embedded_cover(app.track_file(run_name, pos))
+                        if cover is None:
+                            return self._json(404, {"error": "Sin carátula"})
+                        return self._send(200, cover[0], cover[1])
             except (ValueError, RuntimeError) as exc:
                 return self._json(400, {"error": str(exc)})
             except Exception as exc:  # noqa: BLE001
                 traceback.print_exc()
                 return self._json(500, {"error": f"{type(exc).__name__}: {exc}"})
             return self._json(404, {"error": "no existe"})
+
+        def _send_file(self, file: Path, ctype: str) -> None:
+            """Con Range (206): el <audio> lo necesita para adelantar y atrasar."""
+            size = file.stat().st_size
+            start, end, code = 0, size - 1, 200
+            m = re.fullmatch(r"bytes=(\d*)-(\d*)", self.headers.get("Range") or "")
+            if m and (m.group(1) or m.group(2)):
+                if m.group(1):
+                    start = int(m.group(1))
+                    end = min(int(m.group(2)), size - 1) if m.group(2) else size - 1
+                else:  # los últimos N bytes
+                    start = max(0, size - int(m.group(2)))
+                if start > end:
+                    self.send_response(416)
+                    self.send_header("Content-Range", f"bytes */{size}")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                code = 206
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(end - start + 1))
+            self.send_header("Accept-Ranges", "bytes")
+            self.send_header("Cache-Control", "no-store")
+            if code == 206:
+                self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+            self.end_headers()
+            remaining = end - start + 1
+            try:
+                with file.open("rb") as fh:
+                    fh.seek(start)
+                    while remaining > 0:
+                        chunk = fh.read(min(65536, remaining))
+                        if not chunk:
+                            break
+                        self.wfile.write(chunk)
+                        remaining -= len(chunk)
+            except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+                pass  # el <audio> corta la conexión al adelantar: es normal
 
         def do_POST(self):  # noqa: N802
             origin = self.headers.get("Origin")
@@ -1432,6 +1733,10 @@ def make_handler(app: App):
                     return self._json(200, {"ok": True})
                 if path == "/api/spotify/connect":
                     return self._json(200, {"opening": app.preview.connect()})
+                if path in ("/api/track/reveal", "/api/track/open"):
+                    run_name, pos = str(body.get("run") or ""), int(body.get("pos") or 0)
+                    (app.reveal_track if path == "/api/track/reveal" else app.open_track)(run_name, pos)
+                    return self._json(200, {"ok": True})
                 if path == "/api/audio/default":
                     return self._json(200, {"devices": app.set_device(str(body.get("id") or ""))})
                 if path == "/api/audio/test":
