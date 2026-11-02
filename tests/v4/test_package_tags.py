@@ -1,8 +1,10 @@
 """
 PURPOSE: Tests de package_tags.py (etiquetas y carátula de los temas del paquete portátil): limpieza
-         local de artista y título, mezcla en el título, verificación de Deezer, reglas del plan y
-         escritura con respaldo y vuelta atrás sobre un MP3 mínimo (el audio no cambia).
+         local de artista y título, mezcla en el título, verificación de Deezer, reglas del plan,
+         segunda búsqueda (rescue) y escritura con respaldo y vuelta atrás sobre un MP3 mínimo (el
+         audio no cambia).
 CHANGELOG:
+  - 2026-11-02: rescue_pick, B sin confirmar (Genre y Album vacíos), plan con rescue.csv y missing_after.
   - 2026-10-30: Creación inicial.
 """
 import io
@@ -17,7 +19,8 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from src.v4.common.tags import audio_payload_hash, read_release_tags, read_tags  # noqa: E402
 from src.v4.pipeline.package_tags import (  # noqa: E402
-    cover_state, deezer_pick, local_fields, plan_row, run_revert, title_with_mix, write_file,
+    cover_options, cover_state, deezer_pick, local_fields, missing_after, plan_row, rescue_pick, run_revert,
+    title_with_mix, write_file,
 )
 
 
@@ -42,6 +45,8 @@ from src.v4.pipeline.package_tags import (  # noqa: E402
      ("Khan, Julee Cruise", "Say Goodbye feat. Julee Cruise", "LoSoul 'She's Home' Mix")),
     ("Foremost Poets", "Moonraker", "Foremost Poets - Moonraker ( Accapella ).mp3",
      ("Foremost Poets", "Moonraker", "Accapella")),
+    # artista de relleno en el tag: manda el del nombre de archivo
+    ("various", "Feel the Fun", "Electric Tease - Feel the Fun.mp3", ("Electric Tease", "Feel the Fun", "")),
 ])
 def test_local_fields(artist, title, filename, expected):
     r = local_fields(artist, title, "", filename)
@@ -109,6 +114,85 @@ def test_plan_row_local_and_title_mix():
     p = plan_row(_row(level="B", confirmed="False", bp_image="https://b/{w}x{h}/i.jpg", loc_title="T", loc_artist="A",
                       cur_title="T", cur_artist="A"))
     assert p["cover_source"] == "beatport_B_sin_confirmar" and p["new_artist"] == "" and p["new_title"] == ""
+
+
+def test_rescue_pick():
+    c = lambda artist, title, dur, mix="": {"artist": artist, "title": title, "mix": mix, "duration": dur,  # noqa: E731
+                                            "album": "Alb", "genre": "House", "cover": "https://x/c.jpg"}
+    # sin artista: título y duración (la canción con feat. es la misma)
+    cands = [c("Otro", "Chica Cascada", 250.0), c("Puna", "Chica Cascada (feat. Mariana Paraway)", 328.887)]
+    hit = rescue_pick("", "Chica Cascada", "", 328.89, "Chica Cascada.mp3", cands)
+    assert hit["artist"] == "Puna" and hit["why"] == "título y duración"
+    assert rescue_pick("", "Chica Cascada", "", 400.0, "Chica Cascada.mp3", cands) is None   # otra duración
+    assert rescue_pick("Unknown Artist", "Chica Cascada", "", 328.89, "x.mp3", cands)["artist"] == "Puna"
+    # un título genérico no alcanza; si el archivo nombra una mezcla, tiene que ser la misma
+    assert rescue_pick("", "Untitled", "", 300.0, "Untitled.mp3", [c("X", "Untitled", 300.0)]) is None
+    assert rescue_pick("", "Tonight", "Andre Butano Remix", 300.0, "Tonight (Andre Butano Remix).mp3",
+                       [c("X", "Tonight (Y Remix)", 300.0)]) is None
+    # artista y título escritos juntos en el nombre de archivo
+    hit = rescue_pick("", "Dr. Kucho! Hale Bopp", "Original Mix", 389.0, "Dr. Kucho! Hale Bopp (Original Mix).mp3",
+                      [c("Dr. Kucho!", "Hale Bopp", 390.5, "Original Mix")])
+    assert hit["why"].startswith("artista y título en el nombre")
+    # con artista: otro artista no; misma mezcla sin "Explicit"
+    assert rescue_pick("Polo & Pan", "Bakara", "", 420.5, "x.mp3", [c("Otro", "Bakara", 420.0)]) is None
+    hit = rescue_pick("Robyn, SG Lewis", "Impact", "Soulwax Remix - Explicit", None, "x.mp3",
+                      [c("Robyn", "Impact (Soulwax Remix)", 380.0)])
+    assert hit["why"] == "artista, título y mezcla"
+    # solo título: duración exacta. Beatport/iTunes +-0.5 s; Deezer da segundos enteros truncados
+    assert rescue_pick("", "Magnetic", "", 440.06, "Magnetic.mp3", [c("Molac", "Magnetic", 439.2)]) is None
+    assert rescue_pick("", "Oiga Leon", "", 499.96, "Oiga Leon.mp3", [c("F. Allendes", "Oiga Leon", 499)])
+    assert rescue_pick("", "Body Tonic", "", 445.73, "Body Tonic.mp3", [c("D. Lewis", "Body Tonic", 443)]) is None
+    # el nombre de archivo nombra otra mezcla que los tags: solo con duración exacta
+    ext = [c("Stainless", "Losing Your Mind (Extended Mix)", 319)]
+    assert rescue_pick("Stainless", "Losing Your Mind", "Extended Mix", 365.35,
+                       "Stainless - Losing your mind (Carl Cox Remix).mp3", ext) is None
+    assert rescue_pick("Circulation", "Orange", "Mix 2", 483.01, "Circulation - Orange (Mix 2).mp3",
+                       [c("Circulation", "Orange (Mix B)", 483.003)])["why"] == "artista, título y duración"
+
+
+def test_plan_row_b_unconfirmed_and_rescue():
+    # B sin confirmar: Genre y Album vacíos se completan; Label y Released no
+    r = _row(level="B", confirmed="False", cur_title="Ingonyama", cur_artist="Ace Ventura", loc_artist="Ace Ventura",
+             loc_title="Ingonyama", new_genre="Psy-Trance", bp_original_genre="Psy-Trance", new_label="Iboga",
+             new_released="2015-01-01", bp_release_name="Paradise Engineering", cover_state="ok")
+    p = plan_row(r)
+    assert (p["new_genre"], p["new_album"], p["new_label"], p["new_released"]) == \
+           ("Psy-Trance", "Paradise Engineering", "", "")
+    assert plan_row({**r, "cur_genre": "Trance", "cur_album": "X"})["new_genre"] == ""
+    # rescue: completa artista, álbum, género y carátula; no pisa lo que hay
+    r = _row(cur_title="Chica Cascada", loc_title="Chica Cascada", rs_src="rescue_itunes", rs_why="título y duración",
+             rs_artist="Puna", rs_title="Chica Cascada (feat. Mariana Paraway)", rs_album="Vol. 2 - Single",
+             rs_genre="Electronic", rs_cover="https://is1/600x600bb.jpg")
+    p = plan_row(r)
+    assert (p["new_artist"], p["new_album"], p["new_genre"], p["new_title"]) == \
+           ("Puna", "Vol. 2 - Single", "Electronic", "")
+    assert (p["cover_url"], p["cover_source"]) == ("https://is1/600x600bb.jpg", "rescue_itunes")
+    assert missing_after(r, p) == [] and missing_after(r, plan_row({**r, "rs_src": "", "rs_cover": ""})) == \
+           ["cover", "artist", "album", "genre"]
+    p = plan_row({**r, "cur_artist": "Puna X", "cur_album": "Mine", "cover_state": "ok"})
+    assert (p["new_artist"], p["new_album"], p["cover_url"]) == ("", "", "")
+    # si la de Beatport ya no se puede bajar, el plan prueba la siguiente
+    opts = cover_options({**r, "level": "B", "confirmed": "True", "bp_image": "https://b/{w}x{h}/i.jpg"})
+    assert opts == [("https://b/600x600/i.jpg", "beatport"), ("https://is1/600x600bb.jpg", "rescue_itunes")]
+    # artista y título juntos en el nombre: el título sale del candidato
+    p = plan_row(_row(cur_title="Dr. Kucho! Hale Bopp (Original Mix)", loc_title="Dr. Kucho! Hale Bopp",
+                      loc_mix="Original Mix", rs_src="rescue_beatport", rs_why="artista y título en el nombre, y duración",
+                      rs_artist="Dr. Kucho!", rs_title="Hale Bopp"))
+    assert (p["new_artist"], p["new_title"]) == ("Dr. Kucho!", "Hale Bopp")
+
+
+def test_missing_table():
+    import pandas as pd
+    from src.v4.pipeline.package_tags import missing_table
+    row = lambda archivo, **kw: {"archivo": archivo, "level": "D", "cover_state": "none", "cover_file": "",  # noqa: E731
+                                 **{f"{p}_{f}": "" for p in ("cur", "new") for f in ("artist", "album", "genre")}, **kw}
+    plan = pd.DataFrame([row("a.mp3", cover_file="c.jpg", cur_artist="A", new_album="Alb", cur_genre="House"),
+                         row("b.mp3", cover_state="ok", cur_artist="Unknown Artist", new_album="X"),
+                         row("c.wav")])
+    m = missing_table(plan).set_index("archivo")
+    assert list(m.index) == ["a.mp3", "b.mp3"]                      # el WAV no se escribe: va aparte
+    assert not m.loc["a.mp3", ["cover", "artist", "album", "genre"]].any()
+    assert m.loc["b.mp3", ["cover", "artist", "album", "genre"]].tolist() == [False, True, False, True]
 
 
 def _tiny_mp3(path: Path, frames: int = 20) -> Path:

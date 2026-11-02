@@ -4,7 +4,7 @@ Se inyecta al abrir cada sesión de Claude Code (hook `SessionStart` en `.claude
 Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. Tope 6 KB
 (`tests/test_status_doc.py`). La historia vive en `git log`, `docs/DECISIONS.md` y `docs/reports/`.
 
-## CURRENT STATE (2026-10-30)
+## CURRENT STATE (2026-11-02)
 
 - **Foco: MVP sobre la biblioteca completa** para Rekordbox y Traktor, en CPU local (DECISIONS
   2026-09-27). Dataset `musica` = `Música/` en la raíz del repo (git-ignorada): 3086 archivos, 2303
@@ -32,9 +32,9 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
   1087 archivos (Genre 785, Released 658, Label 463, Artist 395, Remixers 349), 0 errores, track_uid
   intacto. Catálogo refrescado (respaldo
   `catalog_before_beatport_tags_20260929.parquet`). Los 110 sin confirmar conservan su género.
-- **Pendrive `D:\TRAKTOR ML` (copia en `C:\TRAKTOR ML`)** (DECISIONS 2026-10-30): tags y carátulas
-  con `package_tags.py` ("Título (Mezcla)", 1587/1760 con carátula); Rekordbox: `Preparar
-  Rekordbox.bat`. Traktor de esta PC: 51 playlists en `collection.nml` (`traktor_collection.py`).
+- **Pendrive `D:\TRAKTOR ML` (copia en `C:\TRAKTOR ML`)** (DECISIONS 2026-10-30, 11-02): tags y
+  carátulas con `package_tags.py` (1630/1760 con carátula; sin fuente: 123 sin carátula, 7 WAV);
+  Rekordbox: `Preparar Rekordbox.bat`. Traktor de esta PC: metadata previa al 11-02.
 - **`download_JIJIJI/`**: playlists de Spotify por Soulseek, grabando por loopback lo que falte
   (se puede posponer); entrada `spotify_soulseek_orchestrator.py`; otra PC:
   `CONFIGURAR_OTRO_ORDENADOR.md`. App «Descargar playlists» (`app/`); log de cada descarga en
@@ -46,6 +46,7 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 1. GABRIEL: probar el pendrive en Rekordbox con la controladora. LOCAL: los tags corregidos están
    solo en el paquete; pasarlos a `Música/` antes del próximo `usb_package.py` (si no, los pisa).
    `Preparar Traktor.bat` del pendrive sigue armando un NML: Traktor importa una sola playlist.
+   Refrescar Traktor de esta PC (`traktor_collection.py`).
 2. GABRIEL: probar la app local (`Abrir TRAKTOR ML.bat`): agregar música nueva, fusiones de temas
    (clic derecho, papelera), orden a mano (⇅), preparar para Rekordbox/Traktor y deshacer.
    Y volver a probar la app de descargas; LOCAL revisa su log después.

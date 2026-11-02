@@ -175,11 +175,15 @@ con las del original):
 ```
 python src/v4/pipeline/package_tags.py lookup --package "D:\TRAKTOR ML" --folder "A1 (" --out-dir <prueba>
 python src/v4/pipeline/package_tags.py lookup --package "D:\TRAKTOR ML" --low-priority
+python src/v4/pipeline/package_tags.py rescue --package "D:\TRAKTOR ML"   # 2.ª búsqueda de los incompletos
 python src/v4/pipeline/package_tags.py plan --package "D:\TRAKTOR ML"   # Title = "Título (Mezcla)"
 python src/v4/pipeline/package_tags.py write --package "D:\TRAKTOR ML" --target "D:\TRAKTOR ML" --folder "A1 (" --dry-run
 python src/v4/pipeline/package_tags.py write --package "D:\TRAKTOR ML" --target "D:\TRAKTOR ML" --target "C:\TRAKTOR ML"
 python src/v4/pipeline/usb_package.py --refresh "D:\TRAKTOR ML"
 ```
+`rescue` busca de nuevo (Deezer, iTunes, Beatport por título; caché en `artifacts/v4/itunes_cache`)
+solo los temas que el plan deja sin carátula, artista, álbum o género, y `plan` usa `rescue.csv` para
+completar lo vacío; `summary.json` > `missing_after` dice lo que sigue faltando.
 `write` guarda un respaldo por copia en `artifacts/v4/package_tags/<paquete>/backups/` (`revert
 --backup <backup.json> --target <copia>`); `--refresh` rehace XML, NML, m3u8, CSV y LEEME con los
 tags nuevos.

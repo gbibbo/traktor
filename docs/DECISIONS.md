@@ -6,6 +6,18 @@ anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_impl
 Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 `[REEMPLAZADO <fecha> por <decisión>: <lo que rige ahora>]` (o `[REFUTADO …]` si era un error).
 
+## 2026-11-02
+
+1. **Temas del paquete que quedaron incompletos** (Gabriel pidió revisarlos y corregirlos; reglas del
+   agente, escritas en las dos copias con respaldo): segunda búsqueda `package_tags.py rescue`
+   (Deezer, iTunes, Beatport por título) solo para lo que falta, y el plan completa solo campos
+   vacíos (Artist, Album, Genre, carátula). Beatport B sin confirmar (mismo tema, otra edición)
+   completa Genre y Album, no Label ni Released. Sin artista en el archivo, el tema se acepta solo
+   con título y duración exacta (+-0.5 s; Deezer, segundos enteros): con +-3 s un título común
+   ("Magnetic") daba otro tema. Resultado: 81 de 236 encontrados; con carátula 1630/1760.
+   Siguen sin fuente 123 temas sin carátula (bootlegs, rips, ediciones de DJ) y los 7 WAV (no se
+   escriben: Traktor no lee sus tags).
+
 ## 2026-10-30
 
 1. **El pendrive es para Rekordbox con controladora** (no para CDJ): el paquete portátil lleva

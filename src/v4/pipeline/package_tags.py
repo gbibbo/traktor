@@ -1,10 +1,14 @@
 """
 PURPOSE: Etiquetas y carátula de los temas de un paquete portátil (usb_package.py) para que Rekordbox,
          Traktor y el explorador de archivos muestren bien cada tema. Trabaja sobre las copias del
-         paquete (pendrive o carpeta en disco), nunca sobre la biblioteca original. Tres pasos:
+         paquete (pendrive o carpeta en disco), nunca sobre la biblioteca original. Cuatro pasos:
            - lookup: busca cada tema de _organizacion.csv en Beatport (beatport.py: misma caché y
              mismas reglas de match que beatport_lookup.py) y, si Beatport no lo confirma, en Deezer
              (solo carátula y álbum: artista, título y mezcla verificados). -> lookup.csv
+           - rescue: segunda búsqueda, solo para los temas que el plan deja sin carátula, artista,
+             álbum o género: Deezer con más variantes, iTunes y Beatport por título. Con artista en el
+             archivo, el mismo criterio que Deezer (artista en común, título, mezcla o duración); sin
+             artista (el nombre de archivo es solo el título), título y duración (+-3 s). -> rescue.csv
            - plan: valor nuevo de cada campo al lado del actual -> plan.csv + summary.json, y baja
              las carátulas (600x600, JPEG limpio) a covers/. No toca el audio.
                * Title siempre del archivo, limpio (número de pista, "(9A)", catálogo, "Artista - "
@@ -16,9 +20,12 @@ PURPOSE: Etiquetas y carátula de los temas de un paquete portátil (usb_package
                  solo está en el nombre de archivo pasa a Remixers; álbum de Deezer si falta.
                * Genre no cambia salvo que esté vacío. El comentario (tonalidad, energía, Vocal) no
                  se toca.
+               * Beatport B sin confirmar (mismo artista, título y mezcla en otra edición): Genre y
+                 Album solo si faltan; Label y Released no (dependen de la edición).
+               * rescue.csv completa solo lo vacío: Artist (o "Unknown Artist"), Album y Genre.
                * Carátula solo si falta o está rota (no se decodifica, o WEBP): Beatport confirmado,
-                 Deezer verificado, o Beatport B sin confirmar (mismo artista, título y mezcla; se
-                 cuenta aparte). Una "image/jpg" válida queda con el tipo "image/jpeg".
+                 Deezer verificado, Beatport B sin confirmar (mismo artista, título y mezcla; se
+                 cuenta aparte) o la segunda búsqueda. Una "image/jpg" válida queda con el tipo "image/jpeg".
              Title = "Título (Mezcla)" sin "Original Mix" (Gabriel, 2026-10-30); --title-mix separate
              deja la mezcla solo en Remixers.
            - write: aplica plan.csv a una o varias copias del paquete (--target). Por archivo:
@@ -26,6 +33,9 @@ PURPOSE: Etiquetas y carátula de los temas de un paquete portátil (usb_package
              del archivo, relectura y control de que el audio sin tags no cambió. WAV no se escribe
              (Traktor no lee sus tags; el texto llega por el XML/NML).
 CHANGELOG:
+  - 2026-11-02: Paso rescue (Deezer, iTunes, Beatport por título) para los temas que quedaron sin
+    carátula, artista, álbum o género; B sin confirmar completa Genre y Album vacíos; summary.json
+    cuenta lo que sigue faltando.
   - 2026-10-30: Creación inicial (pendrive para Rekordbox con controladora: metadata y carátulas).
 """
 from __future__ import annotations
@@ -49,8 +59,8 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.v4.common.beatport import (  # noqa: E402
-    BeatportBlocked, BeatportClient, clean_text, is_version_text, mix_core, norm, split_local_artists,
-    split_title_mix, strip_feat,
+    SAME_CUT_TOLERANCE_S, BeatportBlocked, BeatportClient, clean_text, is_version_text, mix_core, norm,
+    split_local_artists, split_title_mix, strip_feat,
 )
 from src.v4.common.config_loader import load_config  # noqa: E402
 from src.v4.common.path_resolver import resolve_artifacts_root  # noqa: E402
@@ -65,13 +75,23 @@ VORBIS_KEYS = {"title": "title", "artist": "artist", "remixers": "remixer", "alb
 WRITABLE = (".mp3", ".flac", ".aif", ".aiff")
 COVER_PX = 600
 DEEZER_SEARCH = "https://api.deezer.com/search"
+ITUNES_SEARCH = "https://itunes.apple.com/search"
 _EXTRA_JUNK = [re.compile(p, re.I) for p in (
     r"\bvk\.com\S*", r"\bwww\.\S+", r"\S+\.(?:com|net|org|ru)\b",
 )]
+# Artista de relleno: cuenta como vacío
+_PLACEHOLDER_ARTISTS = {"", "unknown artist", "unknown", "various", "various artists", "va", "artist"}
+# Títulos que solos no identifican un tema (sin artista no se buscan por título y duración)
+_GENERIC_TITLES = {"untitled", "unknown", "intro", "outro", "track", "sin titulo"}
+_TAG_WORDS = {"explicit", "clean"}     # "Soulwax Remix - Explicit": no es parte de la mezcla
 
 
 def _s(v) -> str:
     return "" if v is None or (isinstance(v, float) and pd.isna(v)) else str(v).strip()
+
+
+def no_artist(s: str) -> bool:
+    return norm(s) in _PLACEHOLDER_ARTISTS
 
 
 # ---------------------------------------------------------------------------
@@ -197,6 +217,7 @@ def local_fields(tag_artist: str, tag_title: str, tag_remixer: str, filename: st
     está en el nombre de archivo ('Heliopolis' / '... (Silinder Remix).mp3') se recupera."""
     f_artist, f_title = _split(_amp_in_mix(Path(filename).stem))
     artist = _clean(_amp(tag_artist or ""))
+    artist = "" if no_artist(artist) else artist           # 'various', 'Unknown Artist': el del nombre de archivo
     tag_title = _amp_in_mix(tag_title or "")
     title = _clean(tag_title)
     t_artist, t_title = _split(tag_title)
@@ -296,6 +317,120 @@ def deezer_pick(artist: str, title: str, mix: str, duration_s: Optional[float],
         if mix_core(mix) != mix_core(mix_c) and not same_dur:
             continue
         ok.append((not same_dur, abs(float(c.get("duration") or 0) - (duration_s or 0)), c))
+    return min(ok, key=lambda x: (x[0], x[1]))[2] if ok else None
+
+
+# ---------------------------------------------------------------------------
+# Segunda búsqueda (rescue): iTunes y criterio común a las tres fuentes
+# ---------------------------------------------------------------------------
+
+class ItunesClient:
+    """Búsqueda pública de iTunes (sin clave; Apple pide no pasar de ~20 pedidos por minuto) con caché
+    en disco por consulta."""
+
+    def __init__(self, cache_dir: Path, min_interval: float = 3.2, offline: bool = False):
+        self.cache_dir = Path(cache_dir)
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.min_interval, self.offline = min_interval, offline
+        self._last, self._session, self.n_requests = 0.0, None, 0
+
+    def search(self, q: str) -> List[dict]:
+        q = re.sub(r"\s+", " ", q or "").strip()
+        if not q:
+            return []
+        path = self.cache_dir / f"{hashlib.sha1(q.encode('utf-8')).hexdigest()}.json"
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8"))["results"]
+        if self.offline:
+            return []
+        import requests
+        if self._session is None:
+            self._session = requests.Session()
+        data = None
+        for attempt in range(4):
+            wait = self._last + self.min_interval - time.monotonic()
+            if wait > 0:
+                time.sleep(wait)
+            self._last = time.monotonic()
+            self.n_requests += 1
+            try:
+                r = self._session.get(ITUNES_SEARCH, params={"term": q, "entity": "song", "media": "music",
+                                                             "limit": 25}, timeout=20)
+                if r.status_code in (403, 429, 503):        # cuota: esperar y repetir
+                    time.sleep(20 * (attempt + 1))
+                    continue
+                data = r.json()
+            except Exception:  # noqa: BLE001
+                time.sleep(3 * (attempt + 1))
+                continue
+            break
+        if data is None:
+            return []
+        results = [{"artist": x.get("artistName") or "", "title": x.get("trackName") or "",
+                    "album": x.get("collectionName") or "", "genre": x.get("primaryGenreName") or "",
+                    "duration": (x.get("trackTimeMillis") or 0) / 1000.0 or None,
+                    "cover": (x.get("artworkUrl100") or "").replace("100x100bb", f"{COVER_PX}x{COVER_PX}bb")}
+                   for x in data.get("results") or []]
+        path.write_text(json.dumps({"query": q, "results": results}, ensure_ascii=False), encoding="utf-8")
+        return results
+
+
+def beatport_candidates(results: List[dict]) -> List[dict]:
+    """Resultados de BeatportClient.search con las claves de rescue_pick."""
+    return [{"artist": ", ".join(c["artists"]), "title": c["title"], "mix": c["mix"],
+             "album": c.get("release_name") or "", "genre": c.get("genre") or "", "duration": c.get("length_s"),
+             "cover": (c.get("release_image") or "").replace("{w}", str(COVER_PX)).replace("{h}", str(COVER_PX))}
+            for c in results if not c.get("is_dj_edit") and not c.get("is_ugc_remix")]
+
+
+def exact_duration(file_s: float, cand_s: float) -> bool:
+    """La misma grabación: Deezer da segundos enteros (truncados); Beatport décimas e iTunes
+    milisegundos, y el MP3 suma a lo sumo unas décimas. Con +-3 s, un título común ('Magnetic')
+    encuentra por azar otro tema entre decenas de candidatos con el mismo nombre."""
+    d = file_s - float(cand_s)
+    return 0 <= d < 1.2 if float(cand_s).is_integer() else abs(d) <= 0.5
+
+
+def rescue_pick(artist: str, title: str, mix: str, duration_s: Optional[float], filename: str,
+                candidates: List[dict]) -> Optional[dict]:
+    """Candidato del mismo tema en la segunda búsqueda; primero los de duración exacta.
+    Con artista: artista en común, título parecido (>= 0.85) y la misma mezcla o la duración exacta.
+    Sin artista: título casi igual (>= 0.9, no genérico) y duración exacta, o el artista y el título
+    del candidato escritos en el nombre de archivo ('Dr. Kucho! Hale Bopp') y +-3 s; si el archivo
+    nombra una mezcla, la misma. Si el nombre de archivo nombra otra mezcla que el candidato (tags y
+    nombre no coinciden), solo con duración exacta. Devuelve el candidato con 'why' (el criterio)."""
+    target = mix_core(mix) - _TAG_WORDS
+    in_name = mix_core(split_mix(_clean(Path(filename).stem))[1]) - _TAG_WORDS
+    hay = f" {norm(Path(filename).stem)} "
+    ok = []
+    for c in candidates:
+        base_c, mix_c = split_title_mix(c.get("title") or "")
+        if not base_c:
+            continue
+        core_c = mix_core(mix_c or c.get("mix") or "") - _TAG_WORDS
+        cd = c.get("duration")
+        known = duration_s is not None and bool(cd)
+        near = known and abs(float(cd) - duration_s) <= SAME_CUT_TOLERANCE_S
+        exact = known and exact_duration(duration_s, cd)
+        if in_name and in_name != core_c and not exact:
+            continue
+        tsim = SequenceMatcher(None, norm(strip_feat(title)), norm(strip_feat(base_c))).ratio()
+        if not no_artist(artist):
+            if not _same_artist(artist, c.get("artist") or "") or tsim < 0.85 or not (target == core_c or exact):
+                continue
+            why = "artista, título y " + ("duración" if exact else "mezcla")
+        else:
+            named = f" {norm(base_c)} " in hay and any(
+                f" {norm(a)} " in hay for a in _ARTIST_SEP.split(c.get("artist") or "") if norm(a))
+            if target and target != core_c:
+                continue
+            if named and near:
+                why = "artista y título en el nombre, y duración"
+            elif exact and tsim >= 0.9 and norm(strip_feat(title)) not in _GENERIC_TITLES:
+                why = "título y duración"
+            else:
+                continue
+        ok.append((not exact, abs(float(cd or 0) - (duration_s or 0)), {**c, "why": why}))
     return min(ok, key=lambda x: (x[0], x[1]))[2] if ok else None
 
 
@@ -442,7 +577,28 @@ def plan_row(r: dict, title_mix: str = "in-title") -> Dict[str, str]:
         new.update(artist=_s(r.get("loc_artist")), title=base if separate or not mix else title_with_mix(base, mix))
         if _s(r.get("dz_album")) and not cur["album"]:
             new["album"] = _s(r.get("dz_album"))
+        if r.get("level") == "B":
+            # B sin confirmar: el mismo tema en otra edición. Género y álbum solo donde faltan; sello y
+            # fecha no (son de la edición)
+            if _s(r.get("bp_release_name")) and not cur["album"] and not new["album"]:
+                new["album"] = _s(r.get("bp_release_name"))
+            genre = _s(r.get("bp_original_genre")) or _s(r.get("new_genre"))
+            if genre and not cur["genre"]:
+                new["genre"] = genre
         source = "deezer" if _s(r.get("dz_cover")) else "local"
+    if _s(r.get("rs_src")):
+        # Segunda búsqueda (rescue.csv): solo lo que sigue vacío
+        if no_artist(new["artist"] or cur["artist"]) and _s(r.get("rs_artist")):
+            new["artist"] = _s(r.get("rs_artist"))
+            if _s(r.get("rs_why")).startswith("artista y título en el nombre"):
+                # el título del archivo traía también el artista: sale del candidato
+                base_c, _ = split_title_mix(_s(r.get("rs_title")))
+                loc_mix = _s(r.get("loc_mix"))
+                new["title"] = base_c if title_mix == "separate" and new["remixers"] == loc_mix \
+                    else title_with_mix(base_c, loc_mix)
+        for f in ("album", "genre"):
+            if not cur[f] and not new[f]:
+                new[f] = _s(r.get(f"rs_{f}"))
     # Solo lo que cambia de verdad
     for f in FIELDS:
         if not new[f]:
@@ -450,20 +606,125 @@ def plan_row(r: dict, title_mix: str = "in-title") -> Dict[str, str]:
         same = cur[f][:10] == new[f][:10] if f == "released" else cur[f] == new[f]
         if same:
             new[f] = ""
-    cover_url, cover_source = "", ""
-    state = _s(r.get("cover_state"))
-    if state in ("none", "bad"):
-        img = _s(r.get("bp_image"))
-        if confirmed and img:
-            cover_url, cover_source = img.replace("{w}", str(COVER_PX)).replace("{h}", str(COVER_PX)), "beatport"
-        elif _s(r.get("dz_cover")):
-            cover_url, cover_source = _s(r.get("dz_cover")), "deezer"
-        elif r.get("level") == "B" and img:
-            # mismo artista, título y mezcla, sin sello/fecha/duración iguales: otra edición del tema
-            cover_url = img.replace("{w}", str(COVER_PX)).replace("{h}", str(COVER_PX))
-            cover_source = "beatport_B_sin_confirmar"
+    cover_url, cover_source = (cover_options(r) or [("", "")])[0]
     return {**{f"new_{f}": new[f] for f in FIELDS}, "source": source, "cover_url": cover_url,
             "cover_source": cover_source}
+
+
+def cover_options(r: dict) -> List[Tuple[str, str]]:
+    """Carátulas posibles (url, fuente) para un tema sin carátula válida, en orden de preferencia; el
+    plan usa la primera que se puede bajar."""
+    if _s(r.get("cover_state")) not in ("none", "bad"):
+        return []
+    confirmed = _truthy(r.get("confirmed")) and r.get("level") in ("A", "B")
+    img = _s(r.get("bp_image")).replace("{w}", str(COVER_PX)).replace("{h}", str(COVER_PX))
+    out = [(img, "beatport")] if confirmed and img else []
+    if _s(r.get("dz_cover")):
+        out.append((_s(r.get("dz_cover")), "deezer"))
+    if not confirmed and r.get("level") == "B" and img:
+        # mismo artista, título y mezcla, sin sello/fecha/duración iguales: otra edición del tema
+        out.append((img, "beatport_B_sin_confirmar"))
+    if _s(r.get("rs_cover")):
+        out.append((_s(r.get("rs_cover")), _s(r.get("rs_src"))))
+    return out
+
+
+def missing_after(r: dict, p: dict) -> List[str]:
+    """Lo que el tema sigue sin tener con el plan p: cover, artist, album, genre."""
+    out = ["cover"] if _s(r.get("cover_state")) in ("none", "bad") and not p["cover_url"] else []
+    if no_artist(p["new_artist"] or _s(r.get("cur_artist"))):
+        out.append("artist")
+    return out + [f for f in ("album", "genre") if not p[f"new_{f}"] and not _s(r.get(f"cur_{f}"))]
+
+
+def plan_input(r: dict) -> dict:
+    """Fila de lookup.csv con la limpieza local recalculada (cambiar sus reglas no obliga a repetir
+    las búsquedas)."""
+    loc = local_fields(r.get("cur_artist", ""), r.get("cur_title", ""), "", r.get("nombre_original", ""))
+    r.update(loc_artist=loc["artist"], loc_title=loc["title"], loc_mix=loc["mix"])
+    return r
+
+
+# ---------------------------------------------------------------------------
+# rescue
+# ---------------------------------------------------------------------------
+
+def rescue_one(r: dict, dz: DeezerClient, it: ItunesClient, bp: BeatportClient) -> Dict[str, object]:
+    """Busca un tema incompleto en Deezer, iTunes y Beatport (por título), en ese orden; el primero
+    que rescue_pick acepta."""
+    artist = "" if no_artist(r["loc_artist"]) else r["loc_artist"]
+    title, mix = r["loc_title"], r["loc_mix"]
+    dur = float(r["duration_s"]) if _s(r.get("duration_s")) else None
+    filename = _s(r.get("nombre_original")) or Path(r["archivo"]).name
+    stem = _clean(Path(filename).stem)
+    first = (split_local_artists(artist) or [artist])[0] if artist else ""
+    core = " ".join(sorted(mix_core(mix) - _TAG_WORDS))
+    if artist:
+        queries = {"rescue_deezer": [f'artist:"{first}" track:"{title}"', f"{first} {title} {core}", f"{first} {title}"],
+                   "rescue_itunes": [f"{first} {title} {core}", f"{first} {title}"],
+                   "rescue_beatport": [f"{title} {core}"]}
+    else:
+        queries = {"rescue_deezer": [stem, f"{title} {core}"], "rescue_itunes": [stem],
+                   "rescue_beatport": [stem, f"{title} {core}"]}
+    search = {"rescue_deezer": dz.search, "rescue_itunes": it.search,
+              "rescue_beatport": lambda q: beatport_candidates(bp.search(q))}
+    for src, qs in queries.items():
+        for q in dict.fromkeys(re.sub(r"\s+", " ", x).strip() for x in qs):
+            hit = rescue_pick(artist, title, mix, dur, filename, search[src](q)) if q else None
+            if hit:
+                return {"rs_src": src, "rs_why": hit["why"], "rs_query": q, "rs_artist": hit.get("artist") or "",
+                        "rs_title": hit.get("title") or "", "rs_album": hit.get("album") or "",
+                        "rs_genre": hit.get("genre") or "", "rs_duration": hit.get("duration"),
+                        "rs_cover": hit.get("cover") or ""}
+    return {"rs_src": ""}
+
+
+def run_rescue(out_dir: Path, artifacts_root: Path, folder: Optional[str] = None, limit: Optional[int] = None,
+               offline: bool = False) -> int:
+    lk = pd.read_csv(out_dir / "lookup.csv", encoding="utf-8-sig", dtype=str).fillna("")
+    if folder:
+        lk = lk[lk["archivo"].str.contains(folder, case=False, regex=False)]
+    covers = artifacts_root.parent / "cover_cache"
+    todo = []
+    for r in lk.to_dict("records"):
+        if Path(r["archivo"]).suffix.lower() in WRITABLE:
+            r = plan_input(r)
+            miss = missing_after(r, plan_row(r))
+            # una carátula que ya no se puede bajar no cuenta (la caché evita bajar de nuevo las que sí)
+            if cover_options(r) and not offline and not any(fetch_cover(u, covers) for u, _ in cover_options(r)):
+                miss.insert(0, "cover")
+            if miss:
+                todo.append((r, miss))
+    todo = todo[:limit] if limit else todo
+    out_csv = out_dir / "rescue.csv"
+    rows: Dict[str, dict] = {}
+    if out_csv.exists():   # reanudable
+        rows = {x["track_uid"]: x for x in pd.read_csv(out_csv, encoding="utf-8-sig", dtype=str).fillna("")
+                .to_dict("records")}
+    print(f"[rescue] {len(todo)} temas incompletos ({sum(r['track_uid'] in rows for r, _ in todo)} ya buscados) "
+          f"-> {out_csv}", flush=True)
+    dz = DeezerClient(artifacts_root.parent / "deezer_cache", offline=offline)
+    it = ItunesClient(artifacts_root.parent / "itunes_cache", offline=offline)
+    bp = BeatportClient(artifacts_root.parent / "beatport_cache", offline=offline)
+    status = 0
+    try:
+        for i, (r, miss) in enumerate(todo, 1):
+            if r["track_uid"] not in rows:
+                rows[r["track_uid"]] = {"track_uid": r["track_uid"], "archivo": r["archivo"],
+                                        "missing": ", ".join(miss), **rescue_one(r, dz, it, bp)}
+            if i % 25 == 0 or i == len(todo):
+                found = sum(1 for x, _ in todo[:i] if _s(rows[x["track_uid"]].get("rs_src")))
+                print(f"[rescue] {i}/{len(todo)} encontrados={found} deezer={dz.n_requests} "
+                      f"itunes={it.n_requests} beatport={bp.n_requests}", flush=True)
+            if i % 50 == 0:
+                pd.DataFrame(rows.values()).to_csv(out_csv, index=False, encoding="utf-8-sig")
+    except BeatportBlocked as exc:
+        print(f"[ERROR] {exc}. Guardo lo hecho; la caché permite retomar.")
+        status = 2
+    out = pd.DataFrame(rows.values())
+    out.to_csv(out_csv, index=False, encoding="utf-8-sig")
+    print(f"[rescue] por fuente: {out['rs_src'].fillna('').replace('', 'nada').value_counts().to_dict()}")
+    return status
 
 
 def fetch_cover(url: str, cache_dir: Path) -> Optional[Path]:
@@ -498,32 +759,54 @@ def fetch_cover(url: str, cache_dir: Path) -> Optional[Path]:
 
 def run_plan(out_dir: Path, artifacts_root: Path, title_mix: str = "in-title") -> int:
     lk = pd.read_csv(out_dir / "lookup.csv", encoding="utf-8-sig", dtype=str).fillna("")
+    rescue: Dict[str, dict] = {}
+    if (out_dir / "rescue.csv").exists():
+        rs = pd.read_csv(out_dir / "rescue.csv", encoding="utf-8-sig", dtype=str).fillna("")
+        rescue = {x["track_uid"]: {k: v for k, v in x.items() if k.startswith("rs_")} for x in rs.to_dict("records")}
     rows = []
     covers = artifacts_root.parent / "cover_cache"
     for i, r in enumerate(lk.to_dict("records"), 1):
-        # la limpieza local se recalcula acá: cambiar sus reglas no obliga a repetir las búsquedas
-        loc = local_fields(r.get("cur_artist", ""), r.get("cur_title", ""), "", r.get("nombre_original", ""))
-        r.update(loc_artist=loc["artist"], loc_title=loc["title"], loc_mix=loc["mix"])
+        r = plan_input({**r, **rescue.get(r["track_uid"], {})})
         p = plan_row(r, title_mix)
         cover_file = ""
         if p["cover_url"]:
-            f = fetch_cover(p["cover_url"], covers)
-            cover_file = str(f) if f else ""
-            if not f:
+            for url, src in cover_options(r):    # si una no baja (Beatport la borró), la siguiente
+                f = fetch_cover(url, covers)
+                if f:
+                    cover_file, p["cover_url"], p["cover_source"] = str(f), url, src
+                    break
+            else:
                 p["cover_source"] = f"falló:{p['cover_source']}"
         rows.append({"track_uid": r["track_uid"], "archivo": r["archivo"], "level": r["level"],
                      "confirmed": r["confirmed"], "cover_state": r["cover_state"],
                      **{f"cur_{f}": _s(r.get(f"cur_{f}")) for f in FIELDS}, **p, "cover_file": cover_file,
                      "bp_url": r.get("bp_url", ""), "dz_title": r.get("dz_title", ""),
-                     "dz_artist": r.get("dz_artist", "")})
+                     "dz_artist": r.get("dz_artist", ""), "rs_src": r.get("rs_src", ""),
+                     "rs_why": r.get("rs_why", ""), "rs_artist": r.get("rs_artist", ""),
+                     "rs_title": r.get("rs_title", "")})
         if i % 100 == 0:
             print(f"[plan] {i}/{len(lk)}", flush=True)
     plan = pd.DataFrame(rows)
     plan.to_csv(out_dir / "plan.csv", index=False, encoding="utf-8-sig")
+    miss = missing_table(plan)
+    miss["falta"] = miss.apply(lambda m: ", ".join(f for f in ("cover", "artist", "album", "genre") if m[f]), axis=1)
+    miss[miss["falta"] != ""][["archivo", "level", "falta"]].to_csv(out_dir / "missing.csv", index=False,
+                                                                     encoding="utf-8-sig")
     summary = summarize_plan(plan)
     (out_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return 0
+
+
+def missing_table(plan: pd.DataFrame) -> pd.DataFrame:
+    """Lo que cada tema sigue sin tener después de escribir el plan (True = falta), solo en los
+    formatos que se escriben (WAV aparte)."""
+    w = plan[plan["archivo"].map(lambda a: Path(a).suffix.lower() in WRITABLE)].fillna("")
+    after = {f: w[f"new_{f}"].where(w[f"new_{f}"] != "", w[f"cur_{f}"]) for f in ("artist", "album", "genre")}
+    return pd.DataFrame({"archivo": w["archivo"], "level": w["level"],
+                         "cover": ~(w["cover_state"].isin(["ok", "mime"]) | (w["cover_file"] != "")),
+                         "artist": after["artist"].map(no_artist), "album": after["album"] == "",
+                         "genre": after["genre"] == ""})
 
 
 def summarize_plan(plan: pd.DataFrame) -> dict:
@@ -538,6 +821,12 @@ def summarize_plan(plan: pd.DataFrame) -> dict:
                          for f in FIELDS}
     has_cover = plan["cover_state"].isin(["ok", "mime"]) | (plan["cover_file"].fillna("") != "")
     out["with_cover_after"] = int(has_cover.sum())
+    miss = missing_table(plan)
+    out["missing_after"] = {f: int(miss[f].sum()) for f in ("cover", "artist", "album", "genre")}
+    out["incomplete_after"] = int(miss[["cover", "artist", "album", "genre"]].any(axis=1).sum())
+    out["not_writable"] = int((~plan["archivo"].map(lambda a: Path(a).suffix.lower() in WRITABLE)).sum())
+    if "rs_src" in plan:
+        out["rescue_found"] = plan["rs_src"].fillna("").replace("", "ninguno").value_counts().to_dict()
     out["files_touched"] = int(((plan[[f"new_{f}" for f in FIELDS]].fillna("") != "").any(axis=1)
                                 | (plan["cover_file"].fillna("") != "") | (plan["cover_state"] == "mime")).sum())
     return out
@@ -755,18 +1044,19 @@ def run_revert(backup_json: Path, target: Path) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description="Etiquetas y carátulas de los temas de un paquete portátil")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("lookup", "plan", "write", "revert"):
+    for name in ("lookup", "rescue", "plan", "write", "revert"):
         p = sub.add_parser(name)
         p.add_argument("--out-dir", default=None, help="Carpeta de lookup.csv / plan.csv "
                        "(por defecto artifacts/v4/package_tags/<paquete>, junto a beatport_cache)")
         p.add_argument("--config", default=None)
-        if name == "lookup":
+        if name in ("lookup", "rescue"):
             p.add_argument("--package", required=True, help="Carpeta del paquete (la que tiene _organizacion.csv)")
             p.add_argument("--folder", default=None)
             p.add_argument("--limit", type=int, default=None)
             p.add_argument("--offline", action="store_true")
-            p.add_argument("--min-interval", type=float, default=1.2)
             p.add_argument("--low-priority", action="store_true")
+        if name == "lookup":
+            p.add_argument("--min-interval", type=float, default=1.2)
         if name == "plan":
             p.add_argument("--package", required=True)
             p.add_argument("--title-mix", choices=("in-title", "separate"), default="in-title")
@@ -791,6 +1081,8 @@ def main() -> int:
         r"[^A-Za-z0-9]+", "_", package.name).strip("_")
     if args.cmd == "lookup":
         return run_lookup(package, out_dir, artifacts_root, args.folder, args.limit, args.offline, args.min_interval)
+    if args.cmd == "rescue":
+        return run_rescue(out_dir, artifacts_root, args.folder, args.limit, args.offline)
     if args.cmd == "plan":
         return run_plan(out_dir, artifacts_root, args.title_mix)
     if args.cmd == "write":
