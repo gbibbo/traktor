@@ -4,6 +4,7 @@ PURPOSE: Tests de la app de descargas (download_JIJIJI/app/descargas_app.py): es
          ajustes, seguridad del servidor local y seguimiento de procesos huérfanos. Sin red.
 CHANGELOG:
   - 2026-10-30: Creación inicial.
+  - 2026-11-02: La salida de cada descarga queda en <runs>/logs/.
 """
 from __future__ import annotations
 
@@ -207,6 +208,24 @@ def test_job_command(tmp_path):
     assert cmd[2].endswith("run_job.py") and "--fresh" not in cmd
     assert cmd[cmd.index("--library-root") + 1] == "D:/Musica" and cmd[cmd.index("--output-root") + 1] == "D:/runs"
     assert APP.build_job_command(tmp_path / "stop", "u", settings, fresh=True)[-1] == "--fresh"
+
+
+def test_job_output_is_kept_in_a_log(tmp_path, monkeypatch):
+    script = "print('Buscando en Soulseek…'); print('ERROR: algo falló'); raise SystemExit(3)"
+    monkeypatch.setattr(APP, "build_job_command", lambda *args: [sys.executable, "-c", script])
+    settings = {"library_root": str(tmp_path / "lib"), "runs_root": str(tmp_path / "runs")}
+    job = APP.DownloadJob(f"https://open.spotify.com/playlist/{PID}", settings, fresh=False)
+    job.start()
+    deadline = time.time() + 30
+    while job.alive and time.time() < deadline:
+        time.sleep(0.05)
+    assert job.returncode == 3 and job.error == "algo falló"
+    assert job.log_path is not None and job.log_path.parent == tmp_path / "runs" / APP.JOB_LOG_DIR
+    assert job.log_path.name.endswith(f"_{PID}.log")
+    text = job.log_path.read_text(encoding="utf-8")
+    assert f"Playlist : https://open.spotify.com/playlist/{PID}" in text
+    assert "] Buscando en Soulseek…" in text and "] ERROR: algo falló" in text and "Fin: código de salida 3" in text
+    assert APP.list_runs(tmp_path / "runs") == []  # la carpeta de logs no es un run
 
 
 def test_settings_merge_saved_values(tmp_path):

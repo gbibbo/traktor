@@ -19,6 +19,9 @@ CHANGELOG:
                 (no «en pausa» ni «se grabará»).
   - 2026-10-30: Si el código cambió, el acceso directo reinicia la app abierta (salvo con una
                 descarga en curso) en vez de reutilizarla con el código viejo.
+  - 2026-11-02: Cada descarga deja toda su salida, con hora, en <runs>/logs/ (la ventana guarda
+                solo las últimas líneas y las pierde al cerrarse); app.log anota el motivo de
+                cada error HTTP, no solo el código.
 """
 from __future__ import annotations
 
@@ -530,6 +533,7 @@ def keep_spotify(name: str) -> bool:
 # ---------------------------------------------------------------------------
 
 _DOWNLOAD_LINE = re.compile(r"^\[(\d+)/(\d+) \| Spotify #(\d+)\]")
+JOB_LOG_DIR = "logs"  # dentro de la carpeta de runs; no es un run (RUN_DIR_RE no la toma)
 
 
 def build_job_command(stop_file: Path, url: str, settings: dict[str, str], fresh: bool) -> list[str]:
@@ -559,18 +563,64 @@ class DownloadJob:
         self.proc: subprocess.Popen[str] | None = None
         self.tree: ProcessTree | None = None
         self.killed: list[str] = []
+        self.log_path: Path | None = None
+        self._log_file: io.TextIOBase | None = None
+        self._log_lock = threading.Lock()
 
     def start(self) -> None:
         Path(self.settings["runs_root"]).mkdir(parents=True, exist_ok=True)
         Path(self.settings["library_root"]).mkdir(parents=True, exist_ok=True)
         env = dict(os.environ, PYTHONUNBUFFERED="1", PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
-        self.proc = subprocess.Popen(
-            build_job_command(self.stop_file, self.url, self.settings, self.fresh), cwd=REPO_ROOT,
-            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-            encoding="utf-8", errors="replace", env=env, creationflags=CREATE_NO_WINDOW)
+        cmd = build_job_command(self.stop_file, self.url, self.settings, self.fresh)
+        self._open_log(cmd)
+        try:
+            self.proc = subprocess.Popen(
+                cmd, cwd=REPO_ROOT,
+                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                encoding="utf-8", errors="replace", env=env, creationflags=CREATE_NO_WINDOW)
+        except Exception as exc:
+            self._log(f"No se pudo lanzar la descarga: {type(exc).__name__}: {exc}")
+            self._close_log()
+            raise
         self.tree = ProcessTree(self.proc.pid)
         threading.Thread(target=self._read, daemon=True).start()
         threading.Thread(target=self._watch_tree, daemon=True).start()
+
+    def _open_log(self, cmd: list[str]) -> None:
+        """Toda la salida de la descarga queda también en <runs>/logs/: la ventana guarda solo las últimas
+        líneas y las pierde al cerrarse la app."""
+        stamp = datetime.fromtimestamp(self.started).strftime("%Y%m%d-%H%M%S")
+        path = Path(self.settings["runs_root"]) / JOB_LOG_DIR / f"{stamp}_{self.playlist_id or 'playlist'}.log"
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self._log_file = open(path, "a", encoding="utf-8", buffering=1)  # noqa: SIM115 (vive lo que la descarga)
+        except OSError as exc:
+            self.lines.append(f"No se pudo crear el log de la descarga ({path}): {exc}")
+            return
+        self.log_path = path
+        self._log(f"Descarga {self.id} · app {VERSION} · {datetime.fromtimestamp(self.started):%Y-%m-%d %H:%M:%S}")
+        self._log(f"Playlist : {self.url}{' (desde cero)' if self.fresh else ''}")
+        self._log(f"Ajustes  : {json.dumps(self.settings, ensure_ascii=False)}")
+        self._log(f"Comando  : {subprocess.list2cmdline(cmd)}")
+
+    def _log(self, line: str) -> None:
+        with self._log_lock:
+            if self._log_file is None:
+                return
+            try:
+                self._log_file.write(f"[{datetime.now():%H:%M:%S}] {line}\n")
+            except (OSError, ValueError):  # disco lleno o archivo cerrado: la descarga sigue igual
+                pass
+
+    def _close_log(self) -> None:
+        with self._log_lock:
+            if self._log_file is not None:
+                self._log_file.close()
+                self._log_file = None
+
+    def _note(self, line: str) -> None:
+        self.lines.append(line)
+        self._log(line)
 
     def _watch_tree(self) -> None:
         while self.alive and self.tree:
@@ -583,14 +633,14 @@ class DownloadJob:
             self.tree.scan()
             self.killed += self.tree.kill_leftovers(keep_spotify)
             if self.killed:
-                self.lines.append("Procesos que quedaban abiertos, cerrados: " + ", ".join(self.killed))
+                self._note("Procesos que quedaban abiertos, cerrados: " + ", ".join(self.killed))
 
     def _read(self) -> None:
         assert self.proc is not None and self.proc.stdout is not None
         expect_auth_url = False
         for raw in self.proc.stdout:
             line = raw.rstrip("\r\n")
-            self.lines.append(line)
+            self._note(line)
             text = line.strip()
             if expect_auth_url and text.startswith("https://"):
                 self.auth_url, expect_auth_url = text, False
@@ -610,6 +660,8 @@ class DownloadJob:
         returncode = self.proc.wait()
         self._cleanup()
         self.stop_file.unlink(missing_ok=True)
+        self._log(f"Fin: código de salida {returncode}{' (detenida desde la app)' if self.stop_requested else ''}")
+        self._close_log()
         self.ended = time.time()
         self.returncode = returncode
 
@@ -620,6 +672,7 @@ class DownloadJob:
     def stop(self) -> None:
         """Como un Ctrl+C: el orquestador marca el run como interrumpido; si no termina en 20 s, se cierra todo."""
         self.stop_requested = True
+        self._log("Detención pedida desde la app.")
         if self.tree:
             self.tree.scan()
         self.stop_file.write_text("stop\n", encoding="utf-8")
@@ -1227,10 +1280,12 @@ def make_handler(app: App):
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "TraktorDescargas/1"
+        error_reason: str | None = None  # lo pone _json para que el log diga el motivo, no solo el código
 
         def log_message(self, fmt, *args):  # silencioso salvo errores
             if len(args) > 1 and str(args[1]).startswith(("4", "5")):
-                sys.stderr.write("[HTTP] " + fmt % args + "\n")
+                reason = f" · {self.error_reason}" if self.error_reason else ""
+                sys.stderr.write(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] [HTTP] " + fmt % args + reason + "\n")
 
         def _host_ok(self) -> bool:
             host = (self.headers.get("Host") or "").lower()
@@ -1246,6 +1301,7 @@ def make_handler(app: App):
             self.wfile.write(body)
 
         def _json(self, code: int, obj: Any) -> None:
+            self.error_reason = obj.get("error") if code >= 400 and isinstance(obj, dict) else None
             self._send(code, json.dumps(obj, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8")
 
         def do_GET(self):  # noqa: N802

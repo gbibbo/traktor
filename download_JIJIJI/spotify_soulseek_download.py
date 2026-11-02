@@ -6,6 +6,8 @@ spotify_soulseek_download.py
 PURPOSE: Reconcile a Spotify playlist against Soulseek and download matches.
 
 CHANGELOG:
+- 2026-11-02: A failed Sockseek transfer prints its exit code and the tail of Sockseek's output
+              (it used to be skipped in silence and its temporary log deleted).
 - 2026-10-30: Preflight timeout scales with the playlist (Sockseek's 34 searches / 220 s limiter made
               every playlist above ~100 tracks time out at the fixed 600 s); --preflight-status tells
               the orchestrator how long to wait; a preflight that failed for every track is not sent
@@ -148,6 +150,9 @@ TRANSFER_POLL_SECONDS = 0.1
 TRANSFER_TIMEOUT_SECONDS = 360
 MIN_DISK_FREE_BYTES = 64 * 1024 * 1024
 MAX_PROCESS_LOG_BYTES = 2 * 1024 * 1024
+FAILED_TRANSFER_LOG_LINES = 12    # lo último que dijo sockseek cuando una transferencia falla
+_CREDENTIAL_LINE = re.compile(r"pass|token|secret", re.IGNORECASE)
+_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 FFMPEG_TIMEOUT_SECONDS = 180
 MAX_COVER_PIXELS = 16_000_000
 _DANGEROUS_SUFFIX = re.compile(
@@ -252,6 +257,18 @@ def _check_antivirus_ready() -> None:
         _scan_antivirus(probe)
 
 
+def _print_failed_transfer_log(code: int, log: Any) -> None:
+    """Without this the temporary log vanishes and a failed transfer leaves no trace; lines that
+    mention credentials are left out."""
+    log.seek(max(0, os.fstat(log.fileno()).st_size - 4096))
+    text = _ANSI_ESCAPE.sub("", log.read().decode("utf-8", errors="replace"))
+    lines = [line.strip() for line in re.split(r"[\r\n]+", text)
+             if line.strip() and not _CREDENTIAL_LINE.search(line)]
+    print(f"    ! sockseek terminó con código {code}")
+    for line in lines[-FAILED_TRANSFER_LOG_LINES:]:
+        print(f"      sockseek> {line}")
+
+
 def _run_sockseek_transfer(cmd: list[str], incoming: Path, expected_bytes: int, config: Path) -> int:
     """Watch received bytes while the CLI runs; always reap it before cleaning files."""
     limit = min(expected_bytes, MAX_SOURCE_BYTES)
@@ -285,6 +302,8 @@ def _run_sockseek_transfer(cmd: list[str], incoming: Path, expected_bytes: int, 
                     raise RuntimeError("timeout de transferencia Soulseek")
                 code = process.poll()
                 if code is not None:
+                    if code != 0:
+                        _print_failed_transfer_log(code, log)
                     return code
                 try:
                     process.wait(timeout=TRANSFER_POLL_SECONDS)
@@ -1660,6 +1679,7 @@ def download_with_sockseek(
                     continue
                 files = [p for p in incoming.rglob("*") if p.is_file() and p != safe_config]
                 if len(files) != 1:
+                    print(f"    ! sockseek dejó {len(files)} archivos en vez de 1; candidato descartado")
                     continue
                 path = files[0]
                 if not path.resolve().is_relative_to(incoming.resolve()):

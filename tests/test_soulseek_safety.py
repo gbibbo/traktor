@@ -1,6 +1,7 @@
 """PURPOSE: Verify Soulseek download gates offline, including fail-closed antivirus.
 
 CHANGELOG: 2026-10-05: Cover size gates, live limits, bounded conversion and images.
+           2026-11-02: A failed transfer prints Sockseek's last lines, never credentials.
 """
 
 from __future__ import annotations
@@ -386,6 +387,16 @@ def test_monitor_accepts_exact_size_and_excludes_config(tmp_path):
            "import sys; from pathlib import Path; Path(sys.argv[1]).write_bytes(b'x'*1024)",
            str(tmp_path / "song.mp3")]
     assert D._run_sockseek_transfer(cmd, tmp_path, 1024, config) == 0
+
+
+def test_failed_transfer_prints_sockseek_tail_without_credentials(tmp_path, capsys):
+    cmd = [sys.executable, "-c",
+           "print('Login: ok'); print('Password: hunter2'); print('\\x1b[31mPeer rejected the transfer\\x1b[0m');"
+           " raise SystemExit(3)"]
+    assert D._run_sockseek_transfer(cmd, tmp_path, 1024, tmp_path / "sockseek.conf") == 3
+    out = capsys.readouterr().out
+    assert "código 3" in out and "sockseek> Peer rejected the transfer" in out and "sockseek> Login: ok" in out
+    assert "hunter2" not in out and "\x1b" not in out
 
 
 def test_no_free_space_prevents_starting_transfer(tmp_path):

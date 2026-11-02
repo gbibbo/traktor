@@ -35,6 +35,9 @@ Sin ventana ni descarga, se apaga sola. Ajustes, caché de portadas, token de la
 `app.log` van en `%APPDATA%\traktor_descargas`; con el Python de la Microsoft Store, esa carpeta
 está virtualizada en
 `%LOCALAPPDATA%\Packages\PythonSoftwareFoundation.Python.3.11_*\LocalCache\Roaming\`.
+`app.log` anota la app (aperturas, cierres, errores con su motivo). La salida completa de cada
+descarga (orquestador, Soulseek, grabación), con hora, queda en
+`<carpeta de runs>\logs\<fecha-hora>_<playlist>.log`; la ventana muestra solo las últimas líneas.
 
 ## Línea de comandos
 
