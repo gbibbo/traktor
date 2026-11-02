@@ -34,6 +34,7 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; } /* si no, .pill (inline-flex) muestra los botones ocultos */
 html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: var(--font);
   -webkit-font-smoothing: antialiased; font-size: 14px; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
@@ -225,6 +226,10 @@ svg { display: block; flex: none; }
 .connect { display: flex; align-items: center; gap: 18px; background: rgba(255,255,255,.05); border-radius: 8px; padding: 20px 22px; margin-bottom: 24px; }
 .connect b { display: block; font-size: 16px; margin-bottom: 4px; }
 .connect span { color: var(--muted); }
+.authlink { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+.authlink input { flex: 1; min-width: 180px; height: 32px; padding: 0 10px; border-radius: 6px; border: 1px solid #535353;
+  background: rgba(0,0,0,.3); color: var(--muted); font: 12px "Cascadia Mono", Consolas, monospace; }
+.authlink + .small { margin-top: 6px; }
 
 /* ---------- barra inferior ---------- */
 .player { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 30%) minmax(0, 40%) minmax(0, 30%); align-items: center; padding: 0 8px; }
@@ -426,6 +431,7 @@ details summary::before { content: "▸ "; } details[open] summary::before { con
       <button class="pill ghost small" id="btn-recheck"><svg class="ico sm"><use href="#i-refresh"/></svg>Volver a comprobar</button>
       <button class="pill green small" id="btn-connect2" hidden>Conectar con Spotify</button>
     </div>
+    <div id="connect-link"></div>
   </div>
 </div>
 
@@ -635,8 +641,8 @@ function statusHtml(v, tracks) {
   const live = runIsLive(v);
   let html = "";
   if (job && job.alive && job.auth_url) {
-    html += `<div class="note blue">${icon("info")}<div><b>Autoriza en el navegador</b><p>Spotify pide permiso para leer la playlist (una sola vez por ordenador). Si no se abrió solo, ábrelo aquí:</p>
-      <div class="row"><a class="pill white small" href="${esc(job.auth_url)}" target="_blank" rel="noopener">Abrir la autorización</a></div></div></div>`;
+    html += `<div class="note blue">${icon("info")}<div style="flex:1"><b>Autoriza en el navegador</b><p>Spotify pide permiso para leer la playlist (una sola vez por ordenador). Se abrió el navegador predeterminado; si prefieres otro, copia el enlace y pégalo allí.</p>
+      ${authLinkHtml(job.auth_url)}</div></div>`;
   }
   if (!run && !live) return html;
   const c = (run && run.counts) || {};
@@ -759,7 +765,8 @@ function renderPlaylist() {
     const connecting = S.st && S.st.connecting;
     html += `<div class="connect">${icon("info")}<div style="flex:1"><b>Conecta con Spotify para ver los temas</b>
       <span>Una sola vez: se abre el navegador, aceptas y listo. También puedes descargar sin verlos.</span>
-      ${S.st && S.st.connect_error ? `<div class="small" style="color:var(--red);margin-top:6px">${esc(S.st.connect_error)}</div>` : ""}</div>
+      ${S.st && S.st.connect_error ? `<div class="small" style="color:var(--red);margin-top:6px">${esc(S.st.connect_error)}</div>` : ""}
+      ${connecting && S.st.connect_url ? authLinkHtml(S.st.connect_url) : ""}</div>
       <button class="pill white" id="btn-connect" ${connecting ? "disabled" : ""}>${connecting ? "Esperando al navegador…" : "Conectar"}</button></div>`;
   }
   if (v.error) html += `<div class="note amber">${icon("warn")}<div><b>No se pudo leer la playlist</b><p>${esc(v.error)}</p></div></div>`;
@@ -834,6 +841,11 @@ function render() {
   $("#nav-home").classList.toggle("on", S.view.kind === "home");
   renderLibrary();
   renderPlayer();
+  const link = (S.st && S.st.connecting && S.st.connect_url) || "";
+  if ($("#connect-link").dataset.url !== link) {  // sin redibujar en cada vuelta: se perdería la selección
+    $("#connect-link").dataset.url = link;
+    $("#connect-link").innerHTML = link ? authLinkHtml(link) : "";
+  }
   $("#btn-settings").classList.toggle("badge-dot", S.checks.some((c) => c.ok === false && c.key !== "spotify_app" && c.key !== "preview"));
 }
 
@@ -1027,7 +1039,32 @@ async function loadChecks(refresh = false) {
 }
 
 async function connectSpotify() {
-  try { await api("/api/spotify/connect", {}); toast("Se abrió el navegador: acepta el permiso de Spotify."); await tick(true); } catch (e) { fail(e); }
+  try {
+    const d = await api("/api/spotify/connect", {});
+    toast(d.opening ? "Se abrió el navegador predeterminado: acepta el permiso de Spotify, o copia el enlace a otro navegador."
+      : "Spotify ya está conectado.", d.opening ? "" : "ok");
+    await tick(true);
+    loadChecks(true);
+  } catch (e) { fail(e); }
+}
+
+// Enlace de autorización de Spotify: el navegador predeterminado puede no ser el que tiene las contraseñas.
+function authLinkHtml(url) {
+  return `<div class="authlink"><input readonly value="${esc(url)}" aria-label="Enlace de autorización de Spotify">
+    <button class="pill white small" data-copy="${esc(url)}">${icon("clip", "sm")}Copiar enlace</button>
+    <a class="pill ghost small" href="${esc(url)}" target="_blank" rel="noopener">Abrir</a></div>
+    <div class="small">Pégalo en Chrome u otro navegador de este ordenador; cuando aceptes, la app sigue sola.</div>`;
+}
+
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch {
+    const input = btn.parentElement.querySelector("input");
+    if (!input) return fail(new Error("No se pudo copiar: selecciona el enlace y cópialo con Ctrl+C."));
+    input.select();
+    document.execCommand("copy");
+  }
+  toast("Enlace copiado: pégalo en la barra de direcciones de tu navegador.", "ok");
 }
 
 // ---------------------------------------------------------------- popovers
@@ -1168,6 +1205,7 @@ document.addEventListener("click", (e) => {
     return;
   }
   if (t.dataset.close) { $(`#${t.dataset.close}`).classList.remove("open"); return; }
+  if (t.dataset.copy) { copyText(t.dataset.copy, t); return; }
   if (t.dataset.url) { openPlaylist(t.dataset.url); return; }
   if (t.dataset.openFolder !== undefined) { openFolder(t.dataset.openFolder); return; }
   if (t.dataset.savePartial) {

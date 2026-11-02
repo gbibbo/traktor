@@ -124,6 +124,7 @@ AUTHORIZE_URL = "https://accounts.spotify.com/authorize"
 TOKEN_URL = "https://accounts.spotify.com/api/token"
 API_ROOT = "https://api.spotify.com/v1"
 DEFAULT_REDIRECT = "http://127.0.0.1:48721/callback"
+AUTH_WAIT_S = 300                 # tiempo para autorizar, también copiando el enlace a otro navegador
 SCOPES = "playlist-read-private playlist-read-collaborative playlist-modify-private"
 REQUIRED_SCOPES = set(SCOPES.split())
 DEFAULT_MISSING_PLAYLIST_BATCH_SIZE = 10
@@ -455,6 +456,7 @@ class Spotify:
         self.session = requests.Session()
         self._token: dict[str, Any] | None = None
         self._album_cache: dict[str, dict[str, Any]] = {}
+        self.on_auth_url: Callable[[str], None] | None = None  # la app muestra el enlace para copiarlo
 
     def _save(self, token: dict[str, Any]):
         token = dict(token)
@@ -529,6 +531,9 @@ class Spotify:
         t = threading.Thread(target=server.handle_request, daemon=True)
         t.start()
         print("Abre esta URL si el navegador no se abre solo:\n", url)
+        print(f"(Tienes {AUTH_WAIT_S // 60} minutos; sirve cualquier navegador de este ordenador.)")
+        if self.on_auth_url is not None:
+            self.on_auth_url(url)
         try:
             import webbrowser
 
@@ -536,7 +541,7 @@ class Spotify:
         except Exception:
             pass
 
-        t.join(timeout=180)
+        t.join(timeout=AUTH_WAIT_S)
         server.server_close()
         if _Callback.error:
             raise RuntimeError(f"Auth Spotify falló: {_Callback.error}")
@@ -624,6 +629,7 @@ class Spotify:
                     delay = max(1.0, min(float(retry_after), 30.0))
                 except ValueError:
                     delay = 1.0
+                print(f"Spotify pide esperar {delay:.0f} s (demasiados pedidos seguidos)…", flush=True)
                 time.sleep(delay)
                 continue
 
@@ -661,6 +667,7 @@ class Spotify:
                     delay = max(1.0, min(float(retry_after), 30.0))
                 except ValueError:
                     delay = 1.0
+                print(f"Spotify pide esperar {delay:.0f} s (demasiados pedidos seguidos)…", flush=True)
                 time.sleep(delay)
                 continue
 
@@ -866,6 +873,8 @@ class Spotify:
                     )
                 )
             url = str(page.get("next")) if page.get("next") else None
+            # Un pedido por álbum: en playlists largas tarda, y así se ve que avanza.
+            print(f"Leyendo la playlist en Spotify: {len(tracks)}/{page.get('total') or '?'} temas…", flush=True)
 
         return name, tracks
 

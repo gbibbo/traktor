@@ -568,8 +568,14 @@ class DownloadJob:
         self._log_lock = threading.Lock()
 
     def start(self) -> None:
-        Path(self.settings["runs_root"]).mkdir(parents=True, exist_ok=True)
-        Path(self.settings["library_root"]).mkdir(parents=True, exist_ok=True)
+        for key, what in (("runs_root", "de trabajo"), ("library_root", "de destino")):
+            folder = Path(self.settings[key])
+            try:
+                folder.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                raise RuntimeError(f"No se puede usar la carpeta {what} {folder}: "
+                                   + ("¿está conectado el disco? " if not Path(folder.anchor).exists() else "")
+                                   + "Conéctalo o elige otra carpeta abajo a la derecha.") from exc
         env = dict(os.environ, PYTHONUNBUFFERED="1", PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
         cmd = build_job_command(self.stop_file, self.url, self.settings, self.fresh)
         self._open_log(cmd)
@@ -652,8 +658,9 @@ class DownloadJob:
                 self.error = text[len("ERROR:"):].strip()
             elif text.startswith("PAUSADO:"):
                 self.paused = text[len("PAUSADO:"):].strip()
-            elif text.startswith("Descargas de Soulseek liberadas") or text.startswith("Señal recibida"):
-                self.auth_url = None
+            elif text.startswith(("Descargas de Soulseek liberadas", "Señal recibida", "Leyendo la playlist en Spotify",
+                                  "Spotify falló")):
+                self.auth_url = None  # ya autorizó (o falló): el aviso sobra
             m = _DOWNLOAD_LINE.match(text)
             if m:
                 self.current_download = int(m.group(3))
@@ -754,6 +761,7 @@ class SpotifyPreview:
         self.token_path = token_path
         self.connecting = False
         self.connect_error: str | None = None
+        self.auth_url: str | None = None  # mientras se espera la autorización: para copiarlo a otro navegador
         self._client = None
 
     def client(self):
@@ -763,25 +771,36 @@ class SpotifyPreview:
             client_id = os.environ.get("SPOTIFY_CLIENT_ID") or ""
             self._client = dl.Spotify(client_id)
             self._client.cache = self.token_path  # no comparte el token del descargador
+            self._client.on_auth_url = self._set_auth_url
         return self._client
+
+    def _set_auth_url(self, url: str) -> None:
+        self.auth_url = url
 
     def authorized(self) -> bool:
         token = read_json(self.token_path) or {}
         return bool(token.get("refresh_token"))
 
-    def connect(self) -> None:
+    def connect(self) -> bool:
+        """True si hay que autorizar en el navegador; False si ya estaba conectado (no se abre nada)."""
         if self.connecting:
-            return
-        self.connecting, self.connect_error = True, None
+            return True
+        try:
+            self._ensure_token()
+            return False
+        except NeedsAuth:
+            pass
+        self.connecting, self.connect_error, self.auth_url = True, None, None
 
         def target() -> None:
             try:
-                self.client().token()  # abre el navegador si hace falta
+                self.client().token()  # abre el navegador
             except Exception as exc:  # noqa: BLE001
                 self.connect_error = f"{type(exc).__name__}: {exc}"
             finally:
-                self.connecting = False
+                self.connecting, self.auth_url = False, None
         threading.Thread(target=target, daemon=True).start()
+        return True
 
     def _ensure_token(self) -> None:
         sp = self.client()
@@ -1015,6 +1034,7 @@ def antivirus_ok() -> bool | None:
 
 def environment_checks(preview: SpotifyPreview) -> list[dict[str, Any]]:
     orch.load_environment()
+    spotify_open = process_running("Spotify.exe")
     keys = all(os.environ.get(k) for k in ("SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET", "SPOTIFY_REDIRECT_URI"))
     av = antivirus_ok()
     return [
@@ -1032,8 +1052,11 @@ def environment_checks(preview: SpotifyPreview) -> list[dict[str, Any]]:
          "fix": "Haz el paso 8a una vez: spotify_playlist.py <playlist> --start-only."},
         {"key": "preview", "label": "Vista previa de playlists", "ok": preview.authorized(),
          "fix": "Pulsa «Conectar» para ver los temas antes de bajar."},
-        {"key": "spotify_app", "label": "Spotify de escritorio abierto", "ok": process_running("Spotify.exe"),
-         "fix": "Abre Spotify con tu cuenta Premium antes de grabar."},
+        # Cerrado no es un error: solo la grabación lo necesita (ok None = aviso informativo, no problema).
+        {"key": "spotify_app", "label": f"Spotify de escritorio {'abierto' if spotify_open else 'cerrado'}",
+         "ok": True if spotify_open else None,
+         "fix": "Solo hace falta para grabar: ábrelo con tu cuenta Premium antes de que empiece la grabación. "
+                "Buscar y bajar de Soulseek no lo necesitan."},
     ]
 
 
@@ -1268,6 +1291,7 @@ class App:
         return {"settings": self.settings, "disk": self.disk(), "job": self.job.public() if self.job else None,
                 "external": self.live_external(), "preview_auth": self.preview.authorized(),
                 "connecting": self.preview.connecting, "connect_error": self.preview.connect_error,
+                "connect_url": self.preview.auth_url if self.preview.connecting else None,
                 "monitor": self.monitor.level(), "saving": self.saving}
 
 
@@ -1370,8 +1394,7 @@ def make_handler(app: App):
                     app.open_folder(str(body.get("path") or ""))
                     return self._json(200, {"ok": True})
                 if path == "/api/spotify/connect":
-                    app.preview.connect()
-                    return self._json(200, {"ok": True})
+                    return self._json(200, {"opening": app.preview.connect()})
                 if path == "/api/audio/default":
                     return self._json(200, {"devices": app.set_device(str(body.get("id") or ""))})
                 if path == "/api/audio/test":

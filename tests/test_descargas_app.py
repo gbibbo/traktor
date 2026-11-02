@@ -4,7 +4,8 @@ PURPOSE: Tests de la app de descargas (download_JIJIJI/app/descargas_app.py): es
          ajustes, seguridad del servidor local y seguimiento de procesos huérfanos. Sin red.
 CHANGELOG:
   - 2026-10-30: Creación inicial.
-  - 2026-11-02: La salida de cada descarga queda en <runs>/logs/.
+  - 2026-11-02: La salida de cada descarga queda en <runs>/logs/. Enlace de autorización de Spotify
+                (copiable), «Conectar» cuando ya está conectado y carpeta de destino que no existe.
 """
 from __future__ import annotations
 
@@ -226,6 +227,71 @@ def test_job_output_is_kept_in_a_log(tmp_path, monkeypatch):
     assert f"Playlist : https://open.spotify.com/playlist/{PID}" in text
     assert "] Buscando en Soulseek…" in text and "] ERROR: algo falló" in text and "Fin: código de salida 3" in text
     assert APP.list_runs(tmp_path / "runs") == []  # la carpeta de logs no es un run
+
+
+def run_fake_job(tmp_path, monkeypatch, script: str, settings: dict | None = None):
+    monkeypatch.setattr(APP, "build_job_command", lambda *args: [sys.executable, "-c", script])
+    settings = settings or {"library_root": str(tmp_path / "lib"), "runs_root": str(tmp_path / "runs")}
+    job = APP.DownloadJob(f"https://open.spotify.com/playlist/{PID}", settings, fresh=False)
+    job.start()
+    deadline = time.time() + 30
+    while job.alive and time.time() < deadline:
+        time.sleep(0.05)
+    return job
+
+
+AUTH_LINES = "print('Abre esta URL si el navegador no se abre solo:\\n', 'https://accounts.spotify.com/authorize?x=1')"
+
+
+def test_job_auth_link_is_shown_until_spotify_answers(tmp_path, monkeypatch):
+    job = run_fake_job(tmp_path, monkeypatch, AUTH_LINES)
+    assert job.auth_url == "https://accounts.spotify.com/authorize?x=1"
+    job = run_fake_job(tmp_path, monkeypatch, AUTH_LINES + "; print('Leyendo la playlist en Spotify: 50/152 temas…')")
+    assert job.auth_url is None
+
+
+def test_missing_destination_is_explained(tmp_path, monkeypatch):
+    blocker = tmp_path / "archivo"
+    blocker.write_text("x", encoding="utf-8")
+    settings = {"library_root": str(blocker / "musica"), "runs_root": str(tmp_path / "runs")}
+    job = APP.DownloadJob(f"https://open.spotify.com/playlist/{PID}", settings, fresh=False)
+    with pytest.raises(RuntimeError, match="No se puede usar la carpeta de destino"):
+        job.start()
+    assert job.proc is None
+
+
+def test_spotify_connect_says_whether_a_browser_is_needed(tmp_path, monkeypatch):
+    monkeypatch.setenv("SPOTIFY_CLIENT_ID", "test-client")
+    token = tmp_path / "token.json"
+    write(token, {"access_token": "a", "refresh_token": "r", "expires_at": time.time() + 600,
+                  "scope": "playlist-read-private playlist-read-collaborative playlist-modify-private"})
+    preview = APP.SpotifyPreview(token)
+    assert preview.connect() is False and not preview.connecting  # ya conectado: no se abre nada
+
+    token.unlink()
+    release = threading.Event()
+
+    class FakeClient:
+        _token = None
+
+        def _load(self):
+            return None
+
+        def token(self):  # como dl.Spotify._login: avisa el enlace y espera la autorización
+            preview._set_auth_url("https://accounts.spotify.com/authorize?y=2")
+            release.wait(10)
+            return "nuevo"
+
+    preview._client = FakeClient()
+    assert preview.connect() is True
+    deadline = time.time() + 5
+    while preview.auth_url is None and time.time() < deadline:
+        time.sleep(0.02)
+    assert preview.connecting and preview.auth_url == "https://accounts.spotify.com/authorize?y=2"
+    release.set()
+    while preview.connecting and time.time() < deadline + 5:
+        time.sleep(0.02)
+    assert not preview.connecting and preview.auth_url is None
 
 
 def test_settings_merge_saved_values(tmp_path):
