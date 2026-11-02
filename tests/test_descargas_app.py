@@ -6,6 +6,7 @@ CHANGELOG:
   - 2026-10-30: Creación inicial.
   - 2026-11-02: La salida de cada descarga queda en <runs>/logs/. Enlace de autorización de Spotify
                 (copiable), «Conectar» cuando ya está conectado y carpeta de destino que no existe.
+                Avance de la búsqueda; grabación pospuesta (comando, estado e interruptor).
 """
 from __future__ import annotations
 
@@ -212,6 +213,32 @@ def test_job_command(tmp_path):
     assert cmd[2].endswith("run_job.py") and "--fresh" not in cmd
     assert cmd[cmd.index("--library-root") + 1] == "D:/Musica" and cmd[cmd.index("--output-root") + 1] == "D:/runs"
     assert APP.build_job_command(tmp_path / "stop", "u", settings, fresh=True)[-1] == "--fresh"
+    assert APP.build_job_command(tmp_path / "stop", "u", settings, False, True)[-1] == "--defer-recording"
+
+
+def test_postponed_recording_run(tmp_path):
+    run = make_run(tmp_path, status="recording_deferred")
+    report = json.loads((run / "orchestration_report.json").read_text(encoding="utf-8"))
+    write(run / "orchestration_report.json", {**report, "pending_recordings": 2, "final_output": "D:/Musica/Mi playlist"})
+    availability(run, ["available", "available", "missing"])
+    write(run / "consolidation_report.json", {"tracks": [{"spotify_id": "id1", "origin": "soulseek",
+                                                          "destination": "D:/Musica/Mi playlist/Tema 1.mp3"}]})
+    write(run / "soulseek_missing.json", {"missing_count": 1, "tracks": [{"playlist_position": 3}]})
+    state = APP.run_state(run)
+    assert (state["status"], state["pending_recordings"], state["defer"]) == ("deferred", 2, False)
+    assert by_pos(state)[1]["state"] == "downloaded" and by_pos(state)[3]["state"] == "to_record"
+
+
+def test_recording_can_be_postponed_during_the_download(tmp_path):
+    run = make_run(tmp_path)
+    job = APP.DownloadJob(f"https://open.spotify.com/playlist/{PID}", {"library_root": "x", "runs_root": "y"}, False)
+    with pytest.raises(RuntimeError, match="empezando"):
+        job.set_defer(True)  # todavía no se sabe en qué carpeta trabaja
+    job.run_dir = run
+    job.set_defer(True)
+    assert (run / APP.orch.DEFER_SIGNAL).exists() and APP.run_state(run, alive=True)["defer"] is True
+    job.set_defer(False)
+    assert not (run / APP.orch.DEFER_SIGNAL).exists() and APP.run_state(run, alive=True)["defer"] is False
 
 
 def test_job_output_is_kept_in_a_log(tmp_path, monkeypatch):

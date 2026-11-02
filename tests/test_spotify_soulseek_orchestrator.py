@@ -2,6 +2,7 @@
 
 CHANGELOG:
 - 2026-11-02: A failed read of the preflight status does not shrink the wait for the manifest.
+              Postponed recording: from the start, during the download, and turned off again.
 - 2026-10-30: Cover .env output roots and the absolute player token cache.
 - 2026-10-05: Isolate placement tests from the mandatory audio/AV gate.
 """
@@ -817,7 +818,7 @@ class WorkflowSimulationTests(unittest.TestCase):
             generated = [{"url": "", "error": error}]
         return {"missing_count": len(tracks), "tracks": tracks, "generated_missing_playlists": generated}
 
-    def popen(self, failed_playlists_error=None):
+    def popen(self, failed_playlists_error=None, during_download=None):
         calls = []
 
         def fake(cmd, env=None):
@@ -835,6 +836,8 @@ class WorkflowSimulationTests(unittest.TestCase):
                 def step():
                     if not gate.exists():
                         return None
+                    if during_download is not None:  # p. ej. la app pospone la grabación
+                        during_download(arg("--output").parent)
                     ConsolidationTests.tagged_file(arg("--output") / "Artista - Tema 1.mp3", "id1")
                     write(arg("--failed-json"), self.manifest([2], error=failed_playlists_error))
                     return 3  # el tema 2 no se pudo bajar
@@ -863,11 +866,12 @@ class WorkflowSimulationTests(unittest.TestCase):
             return FakeProcess(lambda: None)
         return fake, calls
 
-    def run_flow(self, root: Path, **kwargs):
+    def run_flow(self, root: Path, defer_recording=False, **kwargs):
         fake, calls = self.popen(**kwargs)
         args = argparse.Namespace(playlist_url=f"https://open.spotify.com/playlist/{self.PID}",
                                   output_root=root / "runs", library_root=root / "lib",
-                                  manifest_timeout=30.0, recorder_timeout=30.0, fresh=False)
+                                  manifest_timeout=30.0, recorder_timeout=30.0, fresh=False,
+                                  defer_recording=defer_recording)
         with mock.patch.object(ORCHESTRATOR.subprocess, "Popen", side_effect=fake), \
                 mock.patch.object(ORCHESTRATOR, "validate_environment"), \
                 mock.patch.object(ORCHESTRATOR, "find_required_program", return_value=root / "tool.exe"), \
@@ -907,6 +911,57 @@ class WorkflowSimulationTests(unittest.TestCase):
             self.assertEqual(sorted(p.name for p in (root / "lib" / "Lista").iterdir()),
                              ["Artista - Tema 1.mp3", "Artista - Tema 3.mp3"])
             self.assertEqual(sum(script == "playlist_loopback_recorder.py" for script, _ in calls), 1)
+
+    ALL = ["Artista - Tema 1.mp3", "Artista - Tema 2.mp3", "Artista - Tema 3.mp3"]
+
+    def library(self, root: Path) -> list[str]:
+        return sorted(p.name for p in (root / "lib" / "Lista").iterdir())
+
+    @staticmethod
+    def recorders(calls) -> list[str]:
+        return [Path(c[c.index("--output-dir") + 1]).name for s, c in calls if s == "playlist_loopback_recorder.py"]
+
+    def test_postponed_recording_saves_soulseek_now_and_records_later(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            code, calls, run_dir, report = self.run_flow(root, defer_recording=True)
+            self.assertEqual(code, ORCHESTRATOR.EXIT_RESUMABLE)
+            self.assertEqual(report["status"], "recording_deferred")
+            self.assertEqual((report["saved_spotify_ids"], report["pending_recordings"]), (["id1"], 2))
+            self.assertEqual(self.recorders(calls), [])  # no se grabó nada
+            self.assertEqual(self.library(root), ["Artista - Tema 1.mp3"])  # lo de Soulseek, ya en la carpeta
+            self.assertEqual(ORCHESTRATOR.resume_point(root / "runs", self.PID)[:2], ("deferred", run_dir))
+
+            code, calls, _, report = self.run_flow(root)  # «Grabar ahora»
+            self.assertEqual(code, 0)
+            self.assertEqual(report["status"], "completed")
+            self.assertFalse(any(s == "spotify_soulseek_download.py" for s, _ in calls))  # ni busca ni baja
+            self.assertEqual(self.recorders(calls), ["recorded_missing", ORCHESTRATOR.RECORDED_FAILED_DIR])
+            self.assertEqual(self.library(root), self.ALL)
+            consolidation = json.loads((run_dir / "consolidation_report.json").read_text(encoding="utf-8"))
+            self.assertEqual(sorted(r["spotify_id"] for r in consolidation["tracks"]), ["id1", "id2", "id3"])
+
+    def test_postponing_during_the_download_keeps_what_was_recorded(self) -> None:
+        postpone = lambda run_dir: (run_dir / ORCHESTRATOR.DEFER_SIGNAL).write_text("1", encoding="utf-8")  # noqa: E731
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            code, calls, run_dir, report = self.run_flow(root, during_download=postpone)
+            self.assertEqual((code, report["status"], report["pending_recordings"]),
+                             (ORCHESTRATOR.EXIT_RESUMABLE, "recording_deferred", 1))
+            self.assertEqual(self.recorders(calls), ["recorded_missing"])  # los faltantes ya se grabaron
+            code, calls, _, report = self.run_flow(root)
+            self.assertEqual((code, report["status"]), (0, "completed"))
+            self.assertEqual(self.recorders(calls), [ORCHESTRATOR.RECORDED_FAILED_DIR])
+            self.assertEqual(self.library(root), self.ALL)
+
+    def test_turning_postponing_off_during_the_download_records_everything(self) -> None:
+        resume = lambda run_dir: (run_dir / ORCHESTRATOR.DEFER_SIGNAL).unlink()  # noqa: E731
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            code, calls, _, report = self.run_flow(root, defer_recording=True, during_download=resume)
+            self.assertEqual((code, report["status"]), (0, "completed"))
+            self.assertEqual(self.recorders(calls), ["recorded_missing", ORCHESTRATOR.RECORDED_FAILED_DIR])
+            self.assertEqual(self.library(root), self.ALL)
 
 
 class SearchFailureTests(unittest.TestCase):
@@ -955,7 +1010,7 @@ class SearchFailureTests(unittest.TestCase):
             root = Path(temp_dir)
             args = argparse.Namespace(playlist_url="https://open.spotify.com/playlist/PL1", output_root=root / "runs",
                                       library_root=root / "lib", manifest_timeout=30.0, recorder_timeout=30.0,
-                                      fresh=False)
+                                      fresh=False, defer_recording=False)
             with mock.patch.object(ORCHESTRATOR.subprocess, "Popen", side_effect=failing),                     mock.patch.object(ORCHESTRATOR, "validate_environment"),                     mock.patch.object(ORCHESTRATOR, "find_required_program", return_value=root / "tool.exe"),                     mock.patch.object(ORCHESTRATOR.time, "sleep"),                     contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()),                     self.assertRaisesRegex(ORCHESTRATOR.WorkflowError, "búsqueda en Soulseek falló"):
                 ORCHESTRATOR.run_workflow(args)
             self.assertFalse(any(script == "playlist_loopback_recorder.py" for script, _ in calls))

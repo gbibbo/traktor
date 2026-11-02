@@ -26,6 +26,8 @@ CHANGELOG:
                 ser el de las contraseñas); «Conectar» dice si ya estaba conectado; Spotify de
                 escritorio cerrado es un aviso, no un error; carpeta de destino ausente explicada.
   - 2026-11-02: Avance de la búsqueda en Soulseek (temas buscados y encontrados).
+  - 2026-11-02: Posponer la grabación («Grabar después» al empezar, o durante la descarga) y
+                «Grabar ahora» para una playlist con la grabación pendiente.
 """
 from __future__ import annotations
 
@@ -241,6 +243,8 @@ def run_state(run_dir: Path, *, alive: bool | None = None, current_download: int
         status = "partial"
     elif raw_status == "resumable":
         status = "paused"
+    elif raw_status == "recording_deferred":
+        status = "deferred"  # lo de Soulseek ya está en la carpeta; falta grabar
     elif raw_status == "failed":
         status = "failed"
     elif raw_status in ACTIVE_STATUSES or raw_status == "unknown":
@@ -364,6 +368,8 @@ def run_state(run_dir: Path, *, alive: bool | None = None, current_download: int
         "raw_status": raw_status,
         "phase": phase,
         "search": search,  # avance de la búsqueda en Soulseek (solo mientras busca)
+        "defer": status == "running" and (run_dir / orch.DEFER_SIGNAL).exists(),  # grabación pospuesta en curso
+        "pending_recordings": report.get("pending_recordings") if status == "deferred" else None,
         "alive": bool(alive),
         "started": run_started(run_dir),
         "total": len(tracks),
@@ -544,19 +550,21 @@ _DOWNLOAD_LINE = re.compile(r"^\[(\d+)/(\d+) \| Spotify #(\d+)\]")
 JOB_LOG_DIR = "logs"  # dentro de la carpeta de runs; no es un run (RUN_DIR_RE no la toma)
 
 
-def build_job_command(stop_file: Path, url: str, settings: dict[str, str], fresh: bool) -> list[str]:
+def build_job_command(stop_file: Path, url: str, settings: dict[str, str], fresh: bool,
+                      defer: bool = False) -> list[str]:
     cmd = [console_python(), "-u", str(APP_DIR / "run_job.py"), str(stop_file), url,
            "--output-root", settings["runs_root"], "--library-root", settings["library_root"]]
-    return cmd + (["--fresh"] if fresh else [])
+    return cmd + (["--fresh"] if fresh else []) + (["--defer-recording"] if defer else [])
 
 
 class DownloadJob:
-    def __init__(self, url: str, settings: dict[str, str], fresh: bool):
+    def __init__(self, url: str, settings: dict[str, str], fresh: bool, defer: bool = False):
         self.id = secrets.token_hex(4)
         self.url = orch.canonical_playlist_url(url)
         self.playlist_id = orch.playlist_id_from_url(url)
         self.settings = dict(settings)
         self.fresh = fresh
+        self.defer = defer  # grabación pospuesta al empezar; después la cambia set_defer
         self.lines: collections.deque[str] = collections.deque(maxlen=800)
         self.started = time.time()
         self.ended: float | None = None
@@ -585,7 +593,7 @@ class DownloadJob:
                                    + ("¿está conectado el disco? " if not Path(folder.anchor).exists() else "")
                                    + "Conéctalo o elige otra carpeta abajo a la derecha.") from exc
         env = dict(os.environ, PYTHONUNBUFFERED="1", PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
-        cmd = build_job_command(self.stop_file, self.url, self.settings, self.fresh)
+        cmd = build_job_command(self.stop_file, self.url, self.settings, self.fresh, self.defer)
         self._open_log(cmd)
         try:
             self.proc = subprocess.Popen(
@@ -684,6 +692,18 @@ class DownloadJob:
     def alive(self) -> bool:
         return self.proc is not None and self.returncode is None
 
+    def set_defer(self, on: bool) -> None:
+        """Posponer (o no) la grabación durante la descarga: el orquestador mira la señal antes de grabar."""
+        if self.run_dir is None:
+            raise RuntimeError("La descarga todavía está empezando: espera unos segundos.")
+        signal = self.run_dir / orch.DEFER_SIGNAL
+        if on:
+            signal.write_text("1\n", encoding="utf-8")
+        else:
+            signal.unlink(missing_ok=True)
+        self.defer = on
+        self._log("Grabación pospuesta desde la app." if on else "Grabación reactivada desde la app.")
+
     def stop(self) -> None:
         """Como un Ctrl+C: el orquestador marca el run como interrumpido; si no termina en 20 s, se cierra todo."""
         self.stop_requested = True
@@ -706,7 +726,7 @@ class DownloadJob:
             outcome = "running"
         elif self.returncode == 0:
             outcome = "done"
-        elif self.returncode == 75:
+        elif self.returncode == orch.EXIT_RESUMABLE:
             outcome = "paused"
         elif self.returncode == orch.EXIT_PARTIAL:
             outcome = "partial"
@@ -1219,7 +1239,7 @@ class App:
         result["latest_run"] = self.run_view(latest.name) if latest else None
         return result
 
-    def start(self, url: str, fresh: bool) -> dict[str, Any]:
+    def start(self, url: str, fresh: bool, defer: bool = False) -> dict[str, Any]:
         with self.lock:
             reason = self.busy_reason()
             if reason:
@@ -1229,10 +1249,16 @@ class App:
             if missing:
                 raise RuntimeError("Falta configurar: " + ", ".join(missing) + ".")
             self.monitor.stop()
-            job = DownloadJob(url, self.settings, fresh)
+            job = DownloadJob(url, self.settings, fresh, defer)
             job.start()
             self.job = job
         return job.public()
+
+    def set_defer(self, on: bool) -> dict[str, Any]:
+        if not (self.job and self.job.alive):
+            raise RuntimeError("No hay ninguna descarga de la app en curso.")
+        self.job.set_defer(on)
+        return self.job.public()
 
     def stop(self) -> dict[str, Any]:
         if not (self.job and self.job.alive):
@@ -1389,7 +1415,10 @@ def make_handler(app: App):
                 if path == "/api/preview":
                     return self._json(200, app.preview_playlist(str(body.get("url") or "")))
                 if path == "/api/start":
-                    return self._json(200, app.start(str(body.get("url") or ""), bool(body.get("fresh"))))
+                    return self._json(200, app.start(str(body.get("url") or ""), bool(body.get("fresh")),
+                                                     bool(body.get("defer"))))
+                if path == "/api/defer":
+                    return self._json(200, app.set_defer(bool(body.get("on"))))
                 if path == "/api/stop":
                     return self._json(200, app.stop())
                 if path == "/api/save-partial":

@@ -35,11 +35,10 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 - **Pendrive `D:\TRAKTOR ML` (copia en `C:\TRAKTOR ML`)** (DECISIONS 2026-10-30): tags y carátulas
   con `package_tags.py` ("Título (Mezcla)", 1587/1760 con carátula); Rekordbox: `Preparar
   Rekordbox.bat`. Traktor de esta PC: 51 playlists en `collection.nml` (`traktor_collection.py`).
-- **`download_JIJIJI/`**: descarga de playlists de Spotify por Soulseek, con grabación por loopback
-  como respaldo; entrada `spotify_soulseek_orchestrator.py`. Exige tamaño proporcional, controles
-  durante transferencia, conversión acotada, carátulas verificadas y antivirus en consolidación.
-  Instalación en otra PC: `download_JIJIJI/CONFIGURAR_OTRO_ORDENADOR.md`. App: acceso directo
-  «Descargar playlists» (`download_JIJIJI/app/`).
+- **`download_JIJIJI/`**: playlists de Spotify por Soulseek, grabando por loopback lo que falte
+  (se puede posponer); entrada `spotify_soulseek_orchestrator.py`; otra PC:
+  `CONFIGURAR_OTRO_ORDENADOR.md`. App «Descargar playlists» (`app/`); log de cada descarga en
+  `runs/logs/`, controles de seguridad en su README.
 - **Chequeo pre-commit** en `tools/git_hooks/` (audio, arrays, pesos, credenciales, archivos > 5 MB).
 
 ## OPEN ITEMS (por prioridad; LOCAL = trabajo del agente, GABRIEL = lo hace o decide Gabriel)
@@ -49,6 +48,7 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    `Preparar Traktor.bat` del pendrive sigue armando un NML: Traktor importa una sola playlist.
 2. GABRIEL: probar la app local (`Abrir TRAKTOR ML.bat`): agregar música nueva, fusiones de temas
    (clic derecho, papelera), orden a mano (⇅), preparar para Rekordbox/Traktor y deshacer.
+   Y volver a probar la app de descargas; LOCAL revisa su log después.
 3. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
    tracklists y descarga del audio se consultan antes de implementar.
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,

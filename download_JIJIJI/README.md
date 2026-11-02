@@ -13,7 +13,9 @@ Abre una ventana propia (Edge en modo app) servida por `app/descargas_app.py` so
 `127.0.0.1`. Desde ahí:
 
 * pegar el enlace de una playlist y ver portada y temas (la primera vez, «Conectar» pide permiso
-  a Spotify en el navegador; es una autorización propia de la app y no toca la del descargador);
+  a Spotify en el navegador; es una autorización propia de la app y no toca la del descargador).
+  Toda autorización de Spotify abre el navegador predeterminado y además muestra el enlace con
+  «Copiar enlace», para pegarlo en el navegador donde están las contraseñas (5 minutos);
 * elegir la **salida de audio** de Windows (abajo a la derecha). Es la salida predeterminada:
   por ahí suena Spotify y eso es lo que graba el loopback. «Probar sonido» toca un ding-dong y lo
   graba para medirlo; «Medir lo que suena» muestra el nivel mientras suena Spotify. Con una
@@ -21,6 +23,11 @@ Abre una ventana propia (Edge en modo app) servida por `app/descargas_app.py` so
 * elegir la **carpeta de destino** (`--library-root`) y, en avanzado, la de trabajo (`--output-root`);
 * **Descargar**, **Detener** (como un Ctrl+C: el run queda interrumpido y se cierran también
   `sockseek` y `ffmpeg`, nunca Spotify), **Continuar** o **Empezar de cero** (`--fresh`);
+* **posponer la grabación** (`--defer-recording`): con «Grabar después» al empezar, o con
+  «Posponer la grabación» mientras busca o baja (antes de que empiece a grabar), se baja lo de
+  Soulseek, va ya a la carpeta de destino y la playlist queda en «Grabación pendiente».
+  **«Grabar ahora»** graba solo lo pendiente (sin volver a buscar ni bajar) y lo agrega a la
+  misma carpeta. Desde la terminal: la misma orden sin `--defer-recording`;
 * seguir cada tema: en Soulseek, bajando, bajado, se grabará (también lo que no se pudo bajar,
   con el motivo), grabando, grabado o «no se pudo». También se siguen los runs lanzados desde la
   terminal. Un run «Incompleta» ya guardó lo que consiguió y dice qué falta;

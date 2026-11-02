@@ -445,6 +445,7 @@ details summary::before { content: "▸ "; } details[open] summary::before { con
     <h3 id="m-title">Bajar «<span id="m-name"></span>»</h3>
     <p class="lead">Lo que esté en Soulseek se baja. Lo que no, se graba en tiempo real mientras suena en Spotify.</p>
     <div id="m-choice"></div>
+    <div class="choice" id="m-defer-row"><label><input type="checkbox" id="m-defer"><div><b>Grabar después</b><span>Ahora solo busca y baja de Soulseek, y eso va a la carpeta. Lo que haya que grabar queda pendiente hasta que pulses «Grabar ahora».</span></div></label></div>
     <div class="sumrow"><svg class="ico"><use href="#i-folder"/></svg><div><div class="k">Se guarda en</div><div class="v" id="m-dest"></div></div><button class="pill ghost small" id="m-change-dest">Cambiar</button></div>
     <div class="sumrow"><svg class="ico"><use href="#i-speaker"/></svg><div><div class="k">Suena y se graba por</div><div class="v" id="m-dev"></div></div><button class="pill ghost small" id="m-change-dev">Cambiar</button></div>
     <div class="tips"><b>Mientras graba:</b> activa No molestar (Windows + N), no reproduzcas nada más y no toques Spotify. Todo lo que suene por esa salida queda grabado. Mantén Spotify de escritorio abierto con tu cuenta Premium.</div>
@@ -553,7 +554,8 @@ const STATE = {
   failed: ["No se pudo", "amber", icon("warn")],
   search_error: ["Error al buscar", "amber", icon("warn")],
 };
-const RUN_LABEL = { running: "Bajando", done: "Lista", partial: "Incompleta", paused: "En pausa", stopped: "Se cortó", failed: "Con problemas" };
+const RUN_LABEL = { running: "Bajando", done: "Lista", partial: "Incompleta", paused: "En pausa", stopped: "Se cortó", failed: "Con problemas",
+  deferred: "Grabación pendiente" };
 
 // ---------------------------------------------------------------- render: biblioteca
 function renderLibrary() {
@@ -685,6 +687,16 @@ function statusHtml(v, tracks) {
     } else if ((c.to_record || 0) + (c.recording || 0) > 0) {
       html += `<div class="note blue">${icon("speaker")}<div><b>Grabando desde Spotify</b><p>Lo que no está en Soulseek, o no se pudo bajar bien, se graba mientras suena. No reproduzcas otra cosa ni toques Spotify hasta que termine.</p></div></div>`;
     }
+    // Posponer la grabación: mientras no haya empezado a grabar (o para deshacerlo).
+    if (job && job.alive && run && (run.defer || !(c.recording || c.recorded || run.recording_since))) {
+      html += `<div class="choice" style="margin-bottom:24px"><label><input type="checkbox" id="defer-toggle" ${run.defer ? "checked" : ""}>
+        <div><b>Posponer la grabación</b><span>${run.defer ? "No se graba nada: lo que se baje de Soulseek va a la carpeta y la grabación queda pendiente para «Grabar ahora»." : "Actívalo si ahora no puedes grabar: se baja lo de Soulseek y la grabación queda para cuando elijas."}</span></div></label></div>`;
+    }
+  } else if (status === "deferred") {
+    const pend = run.pending_recordings || (c.to_record || 0) + (c.recording || 0);
+    html += `<div class="note blue">${icon("info")}<div><b>Grabación pendiente: ${plural(pend, "tema", "temas")} por grabar</b>
+      <p>Lo que se bajó de Soulseek${c.downloaded ? ` (${plural(c.downloaded, "tema", "temas")})` : ""} ya está en tu carpeta. Cuando puedas grabar (Spotify de escritorio abierto con tu cuenta Premium y No molestar activado), pulsa «Grabar ahora»: graba solo lo pendiente y lo agrega a la misma carpeta.</p>
+      ${run.final_output ? `<div class="row"><button class="pill white small" data-open-folder="${esc(run.final_output)}">${icon("folder", "sm")}Abrir carpeta</button></div>` : ""}</div></div>`;
   } else if (status === "partial") {
     const missing = total - done;
     html += `<div class="note amber">${icon("warn")}<div><b>Se guardaron ${done} de ${total} temas; ${missing === 1 ? "falta 1" : `faltan ${missing}`}</b>
@@ -748,6 +760,7 @@ function renderPlaylist() {
   else if (extLive) { label = "Bajando desde la terminal"; sub = "Para detenerla, usa Ctrl+C en esa ventana"; iconName = "stop"; disabled = true; }
   else if (otherBusy) { label = "Descargar"; sub = "Espera a que termine la otra descarga"; disabled = true; }
   else if (status === "paused" || status === "stopped") { label = "Continuar"; sub = "Sigue desde el primer tema pendiente"; }
+  else if (status === "deferred") { label = "Grabar ahora"; sub = `Graba ${run.pending_recordings ? plural(run.pending_recordings, "tema pendiente", "temas pendientes") : "lo pendiente"}; no vuelve a bajar`; }
   else if (status === "failed" || status === "partial") { label = "Volver a intentar"; sub = "Empieza una descarga nueva de la playlist"; }
   else if (status === "done") { label = "Bajar otra vez"; sub = "Agrega lo nuevo; lo que ya está no se duplica"; }
   else { label = "Descargar"; sub = tracks.length ? `${plural(tracks.length, "tema", "temas")} · ${fmtTotal(totalMs)}` : "Soulseek primero; lo que falte, se graba"; }
@@ -764,7 +777,7 @@ function renderPlaylist() {
       <button class="big" id="act-main" data-action="${action}" ${disabled ? "disabled" : ""} title="${esc(label)}">${icon(iconName, iconName === "stop" ? "" : "")}</button>
       <div><div class="act-label">${esc(label)}</div><div class="act-sub">${esc(sub)}</div></div>
       <div class="spacer"></div>
-      ${!live && !otherBusy && (status === "paused" || status === "stopped") ? `<button class="icon-btn" id="act-fresh" title="Ignorar lo anterior y empezar una descarga nueva">${icon("restart")}<span>Empezar de cero</span></button>` : ""}
+      ${!live && !otherBusy && (status === "paused" || status === "stopped" || status === "deferred") ? `<button class="icon-btn" id="act-fresh" title="Ignorar lo anterior y empezar una descarga nueva">${icon("restart")}<span>Empezar de cero</span></button>` : ""}
       ${finalFolder ? `<button class="icon-btn" data-open-folder="${esc(finalFolder)}" title="Abrir la carpeta con la música">${icon("folder")}<span>Abrir carpeta</span></button>` : ""}
       <a class="icon-btn" href="${esc(v.url)}" target="_blank" rel="noopener" title="Abrir la playlist en Spotify">${icon("ext")}<span>Spotify</span></a>
     </div>`;
@@ -900,22 +913,26 @@ function openStartModal(fresh) {
   $("#m-dest").textContent = S.st.settings.library_root;
   const dev = S.devices.find((d) => d.default);
   $("#m-dev").textContent = dev ? dev.name : "la salida predeterminada de Windows";
-  const resumable = v.run && (v.run.status === "paused" || v.run.status === "stopped");
+  const deferred = v.run && v.run.status === "deferred";
+  const resumable = v.run && (v.run.status === "paused" || v.run.status === "stopped" || deferred);
   $("#m-choice").innerHTML = resumable ? `<div class="choice">
-    <label><input type="radio" name="fresh" value="0" ${fresh ? "" : "checked"}><div><b>Continuar</b><span>Desde el primer tema pendiente</span></div></label>
+    <label><input type="radio" name="fresh" value="0" ${fresh ? "" : "checked"}><div><b>${deferred ? "Grabar ahora" : "Continuar"}</b><span>${deferred ? "Solo lo pendiente: no vuelve a buscar ni a bajar" : "Desde el primer tema pendiente"}</span></div></label>
     <label><input type="radio" name="fresh" value="1" ${fresh ? "checked" : ""}><div><b>Empezar de cero</b><span>Ignora la descarga anterior</span></div></label></div>` : "";
+  $("#m-defer").checked = false;
+  $("#m-defer-row").hidden = deferred && !fresh;  // retomar una grabación pospuesta es para grabar
   $("#modal-start").classList.add("open");
 }
 
 async function startDownload() {
   const sel = document.querySelector('input[name="fresh"]:checked');
   const fresh = sel ? sel.value === "1" : false;
+  const defer = !$("#m-defer-row").hidden && $("#m-defer").checked;
   const btn = $("#m-go");
   btn.disabled = true;
   try {
-    await api("/api/start", { url: S.view.url, fresh });
+    await api("/api/start", { url: S.view.url, fresh, defer });
     $("#modal-start").classList.remove("open");
-    toast("Empezó la descarga. Puedes cerrar esta ventana: sigue sola y la retomas al volver a abrir la app.", "ok");
+    toast(`Empezó la descarga${defer ? " (sin grabar: la grabación queda pendiente)" : ""}. Puedes cerrar esta ventana: sigue sola y la retomas al volver a abrir la app.`, "ok");
     await tick(true);
   } catch (e) { fail(e); }
   btn.disabled = false;
@@ -1162,6 +1179,10 @@ function announce(job) {
   const open = (path) => ({ label: "Abrir carpeta", run: () => openFolder(path) });
   if (job.outcome === "done") toast("¡Playlist lista!", "ok", S.view.run && S.view.run.final_output ? open(S.view.run.final_output) : undefined);
   else if (job.outcome === "partial") toast("Terminó, pero faltan temas: se guardó lo que se consiguió.", "", S.view.run && S.view.run.final_output ? open(S.view.run.final_output) : undefined);
+  else if (job.outcome === "paused" && (job.paused || "").startsWith("Grabación pospuesta")) {
+    toast("Grabación pospuesta: lo de Soulseek ya está en tu carpeta. Pulsa «Grabar ahora» cuando quieras.", "ok",
+      S.view.run && S.view.run.final_output ? open(S.view.run.final_output) : undefined);
+  }
   else if (job.outcome === "paused") toast("Spotify se detuvo: la descarga quedó en pausa. Pulsa «Continuar».");
   else if (job.outcome === "stopped") toast("Descarga detenida. Puedes continuarla cuando quieras.");
   else toast(job.error ? `Terminó con un problema: ${job.error.slice(0, 160)}` : "La descarga terminó con un error.", "err");
@@ -1247,6 +1268,16 @@ document.addEventListener("click", (e) => {
     case "btn-recheck": loadChecks(true); break;
     case "btn-connect": case "btn-connect2": connectSpotify(); break;
     default: break;
+  }
+});
+document.addEventListener("change", (e) => {
+  const t = e.target;
+  if (t.id === "defer-toggle") {
+    api("/api/defer", { on: t.checked })
+      .then(() => { toast(t.checked ? "Grabación pospuesta: se baja lo de Soulseek y la grabación queda pendiente." : "La grabación sigue en esta descarga."); tick(true); })
+      .catch((err) => { t.checked = !t.checked; fail(err); });
+  } else if (t.name === "fresh") {
+    $("#m-defer-row").hidden = S.view.run && S.view.run.status === "deferred" && t.value === "0";
   }
 });
 document.addEventListener("keydown", (e) => {
