@@ -91,6 +91,20 @@ descarga nueva; lo que ya está en la carpeta no se duplica.
 
 ## Elección del archivo en Soulseek
 
+En el preflight, sockseek exige el artista en la ruta, el formato y el bitrate, pero no
+el título literal: el título y la versión de cada archivo los juzga el descargador con
+las mismas reglas de la verificación, leyendo el nombre del archivo como si fuera la
+etiqueta (sin número de pista, «Artista - » ni «- Artista 124» de los pools de DJ,
+etiquetas entre corchetes ni sufijo de grupo scene, y con «Artista - Disco - 06 -
+Título»). Con `--strict-title`, sockseek pedía el «Título - Versión» de Spotify al pie
+de la letra y perdía «Título (Versión)»: en una playlist de 152 temas, 29 de los 46 «no
+disponibles» estaban. La tolerancia de duración de sockseek llega hasta 1,9× (una
+Extended); el rango de cada tema lo aplica el descargador.
+
+Si una descarga anterior de la misma playlist quedó cortada antes de guardar en la
+carpeta, sus MP3 terminados se reutilizan (`--reuse-dir`): se vuelven a verificar
+(320 kbps, Spotify Track ID, carátula) y no se bajan ni se dan por faltantes.
+
 De cada tema se prueban hasta 4 archivos de los que encontró el preflight, en este
 orden: la Extended explícita (si Spotify no apunta ya a una), los de la duración de
 Spotify (±8 s) y después el resto. Dentro de cada grupo van primero los que llevan el

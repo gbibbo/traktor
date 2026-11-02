@@ -3,6 +3,8 @@
 PURPOSE: Run the complete Spotify -> Soulseek + loopback fallback workflow.
 
 CHANGELOG:
+- 2026-11-02: The downloader gets the soulseek/ folders of earlier runs of the playlist (--reuse-dir):
+              what an interrupted run already downloaded is not downloaded again.
 - 2026-11-02: Postponed recording (--defer-recording, or DEFER_SIGNAL in the run while it
               downloads): Soulseek's tracks go to the library, the run ends "recording_deferred"
               (exit 75), and running the playlist again records only what is pending and adds it.
@@ -1187,6 +1189,10 @@ def run_workflow(args: argparse.Namespace) -> int:
             ]
             if is_resume:
                 downloader_cmd.append("--no-missing-playlist")
+            # Lo ya bajado en descargas anteriores de esta playlist (cortadas antes de guardar) no se baja de nuevo.
+            for previous in _runs_for_playlist(runs_root, playlist_id):
+                if (previous / "soulseek").is_dir() and any((previous / "soulseek").rglob("*.mp3")):
+                    downloader_cmd += ["--reuse-dir", str(previous / "soulseek")]
             print("\n[1/4] Analizando disponibilidad en Soulseek...")
             downloader = subprocess.Popen(downloader_cmd, env=env)
 

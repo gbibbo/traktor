@@ -6,6 +6,13 @@ spotify_soulseek_download.py
 PURPOSE: Reconcile a Spotify playlist against Soulseek and download matches.
 
 CHANGELOG:
+- 2026-11-02: Preflight without --strict-title: each file's title and version are judged with the
+              verification's own rules, reading the file name as its tag would be. --strict-title
+              wanted Spotify's «Title - Version» literally and lost «Title (Version)» (29 of 46
+              "missing" in a 152-track playlist). Sockseek's length tolerance reaches 1.9× (the
+              Extended rule); the per-track range stays in the classification.
+- 2026-11-02: --reuse-dir: finished MP3s of earlier runs of the playlist are checked again and reused,
+              not downloaded again nor listed as missing.
 - 2026-11-02: The preflight reports its progress as it goes (sockseek --progress-json: searched and
               found, in --preflight-status and every 10 tracks in the output) and leaves Sockseek's
               own log next to it (sockseek_preflight.log).
@@ -1295,6 +1302,58 @@ def _availability_candidate_summary(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _title_from_filename(name: str, track: Track) -> str:
+    """What the title tag of a Soulseek file would say, from its name: without the track number, the
+    leading «Artist - » or the trailing « - Artist 124» of DJ pools, and with underscores as spaces. The
+    remixer stays (it is often also a Spotify artist: «Sun - Rafael Extended Remix»)."""
+    stem = re.sub(r"^\s*\d{1,3}[\s._-]+", "", Path(name).stem).replace("_", " ")
+    if "[" not in track.title:  # «[www.dj-promo.org]», «[Material]», «[soulseek]»: no son parte del título
+        stem = re.sub(r"\s*\[[^\]]*\]\s*", " ", stem).strip()
+    parts = [p for p in re.split(r"\s+-\s+", stem) if p.strip()]
+    if len(parts) == 1:
+        parts = [p for p in re.split(r"(?<=\S)-(?=\S)", stem) if p.strip()]  # scene: artista-titulo (mix)
+    # «Artista - Disco - 06 - Título»: el título es lo que sigue al número de pista (que puede ser «365»).
+    numbered = [i for i, p in enumerate(parts[:-1]) if re.fullmatch(r"\d{1,3}", p.strip())]
+    if numbered:
+        parts = parts[numbered[-1] + 1:]
+
+    def credits_only(part: str) -> bool:
+        return not variants(part) and any(
+            norm(a) and re.search(rf"\b{re.escape(norm(a))}\b", norm(part)) for a in track.artists
+        )
+
+    if len(parts) > 1 and credits_only(parts[0]):
+        parts = parts[1:]
+    if len(parts) > 1 and credits_only(parts[-1]):
+        parts = parts[:-1]
+    title = " - ".join(parts).strip()
+    scene_group = re.search(r"-([a-z0-9]{2,8})$", title, re.I)  # «07-esh_-_peter_gunn-zzzz»
+    if " " not in Path(name).stem and scene_group and norm(scene_group.group(1)) not in norm(track.title).split():
+        title = title[: scene_group.start()].strip()
+    # BPM y tonalidad de los pools («… Extended Mix 12A 124»), salvo que sean parte del título de Spotify.
+    trailing = re.search(r"(?:\s+(?:\d{1,2}[AB]|\d{2,3}))+\s*$", title)
+    if trailing and title[: trailing.start()].strip() and not norm(track.title).endswith(norm(trailing.group())):
+        title = title[: trailing.start()].strip()
+    return title
+
+
+def _availability_title_error(track: Track, candidate: dict[str, Any]) -> str | None:
+    """The same verification as after the download, judged by the file name and what the peer announces,
+    so that another song or another version is not taken as available. Quality is checked elsewhere; the
+    artist is in the path (--strict-artist)."""
+    name = Path(str(candidate.get("filename") or "").replace("\\", "/")).name
+    local = LocalFile(
+        path=Path(name),
+        length_s=candidate.get("length_s"),
+        bitrate_kbps=None,
+        format="flac",
+        tag_title=_title_from_filename(name, track),
+        tag_artists=list(track.artists),
+    )
+    accepted, _, _, reasons = score_candidate(track, local)
+    return None if accepted else (reasons[0] if reasons else "no coincide con el tema")
+
+
 def _classify_availability_raw(raw: Any, track: Track | None = None, length_tol: int = 60) -> AvailabilityCheck:
     """Classify one Sockseek JSON result array without touching the network."""
     if not isinstance(raw, list):
@@ -1329,6 +1388,8 @@ def _classify_availability_raw(raw: Any, track: Track | None = None, length_tol:
                 track.duration_s + max(0, length_tol), track.duration_s * 1.9
             ):
                 error = "duración anunciada fuera del rango del tema/Extended"
+            else:
+                error = _availability_title_error(track, candidate)
         if error:
             candidate["rejection_reason"] = error
             continue
@@ -1443,14 +1504,20 @@ def check_soulseek_availability_batch(
         _write_sockseek_preflight_csv(batch_csv, tracks)
         safe_config = Path(tmp) / "sockseek.conf"
         _write_sockseek_safe_config(safe_config, bin_)
+        # El rango de duración real (hasta 1,9× para una Extended) lo aplica _classify_availability_raw; con
+        # la tolerancia de antes (60 s) sockseek ya descartaba la Original Mix larga de un radio edit.
+        sockseek_tol = max([length_tol] + [math.ceil(0.9 * t.duration_s) for t in tracks if t.duration_s > 0])
 
         cmd = [
             bin_,
             str(batch_csv),
             f"--config={safe_config}",
-            "--strict-title",
+            # El título lo decide _classify_availability_raw con las reglas de la verificación. --strict-title
+            # exigía el «Título - Versión» de Spotify al pie de la letra y perdía «Título (Versión)»: en una
+            # playlist de 152 temas, 29 de los 46 «no disponibles» estaban (2026-11-02).
+            "--pref-strict-title",
             "--strict-artist",
-            f"--length-tol={length_tol}",
+            f"--length-tol={sockseek_tol}",
             f"--pref-length-tol={length_tol}",
             # Required in preflight because the finalizer only supports these formats.
             "--format=flac,wav,mp3",
@@ -1903,6 +1970,36 @@ def _existing_spotify_track_id(path: Path) -> str | None:
     except Exception:
         return None
     return None
+
+
+def reusable_downloads(dirs: list[Path]) -> dict[str, Path]:
+    """Finished MP3s from earlier runs of this playlist, by Spotify Track ID (the first one found wins)."""
+    found: dict[str, Path] = {}
+    for directory in dirs:
+        if not directory.is_dir():
+            continue
+        for path in sorted(directory.rglob("*.mp3"), key=lambda p: str(p).casefold()):
+            if path.is_symlink() or not path.is_file():
+                continue
+            spotify_id = _existing_spotify_track_id(path)
+            if spotify_id and spotify_id not in found:
+                found[spotify_id] = path
+    return found
+
+
+def reuse_download(previous: Path, out: Path, spotify_id: str, *, require_cover: bool) -> Path:
+    """Bring an earlier run's finished MP3 into this run after checking it again (320 kbps, Spotify ID,
+    cover). It is moved, not copied: the earlier run was superseded and two copies would only use disk."""
+    _validate_existing_output(previous, spotify_id, require_cover=require_cover)
+    dest = out / previous.name
+    if dest.resolve() == previous.resolve():
+        return dest
+    if dest.exists():
+        _validate_existing_output(dest, spotify_id, require_cover=require_cover)
+        return dest
+    out.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(previous), str(dest))
+    return dest
 
 
 def _validate_existing_output(
@@ -2421,6 +2518,15 @@ def main() -> int:
         default=900.0,
         help="Timeout de --download-gate en segundos (default 900)",
     )
+    ap.add_argument(
+        "--reuse-dir",
+        action="append",
+        default=[],
+        help=(
+            "Carpeta con MP3 ya terminados de una descarga anterior de esta playlist (repetible): "
+            "esos temas no se vuelven a bajar ni se dan por faltantes"
+        ),
+    )
     args = ap.parse_args()
 
     if args.dry_run and args.preflight_only:
@@ -2526,8 +2632,17 @@ def main() -> int:
         log_file=status_path.with_name("sockseek_preflight.log") if status_path is not None else None,
     )
 
+    reusable = reusable_downloads([Path(d).expanduser().resolve() for d in args.reuse_dir])
+    if reusable:
+        print(f"Ya bajados en descargas anteriores de esta playlist: {len(reusable)} (no se vuelven a bajar)")
+
     for i, (track, check) in enumerate(zip(tracks, batch_checks), 1):
         print(f"[{i}/{len(tracks)}] {track.primary_artist} - {track.title}")
+
+        if track.spotify_id in reusable and check.status not in {"available", "available_quality_unknown"}:
+            # Ya está bajado y verificado: no es un faltante para grabar, aunque esta búsqueda no lo encontrara.
+            print("    ya bajado en una descarga anterior")
+            check = AvailabilityCheck(status="available", result_count=0, candidates=[])
 
         if check.status == "available":
             marker = "✓ AVAILABLE"
@@ -2717,6 +2832,20 @@ def main() -> int:
             "status": "pending",
             "candidates": [],
         }
+
+        previous = reusable.get(track.spotify_id)
+        if previous is not None:
+            try:
+                dest = reuse_download(previous, out, track.spotify_id, require_cover=not args.allow_missing_cover)
+            except (RuntimeError, OSError) as exc:
+                print(f"    ! no se pudo reutilizar {previous.name}: {exc}; se baja de nuevo")
+            else:
+                print(f"    → reutilizado de una descarga anterior: {dest.name}")
+                row.update({"status": "already_finalized", "output": str(dest),
+                            "selected": {"path": str(previous), "reasons": ["reutilizado de una descarga anterior"]}})
+                rows.append(row)
+                ok += 1
+                continue
 
         best: LocalFile | None = None
         best_score = -1.0

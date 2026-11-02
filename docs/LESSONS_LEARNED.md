@@ -54,6 +54,26 @@ de 600 s, los dos intentos del 2026-10-30 agotaron el tiempo, perdieron todo el 
 temas quedaron como error. El tope ahora se calcula con `preflight_timeout_for(n)`. Un preflight
 que falla para todos los temas es un problema de la búsqueda: no se manda la playlist a grabar.
 
+### `--strict-title` de sockseek pide el título de Spotify al pie de la letra
+
+En una playlist de 152 temas (2026-11-02), 29 de los 46 «no disponibles» estaban en Soulseek con la
+versión correcta: `--strict-title` exigía «Título - Versión» (como lo escribe Spotify) dentro del
+nombre del archivo y perdía «Título (Versión)», los nombres scene con guiones bajos, etc. Contraste
+de una sola variable sobre 17 de esos temas: con la configuración real, 2 con resultados; sin
+`--strict-title`, 16; con 15 s de búsqueda en vez de 5, 1; los 3 de control aparecieron siempre.
+Buscar por el título base no agregó ninguno. El título ahora lo juzga el descargador con las reglas
+de la verificación (`_availability_title_error`): la búsqueda nueva dio 132 disponibles contra 106.
+Ojo al leer el log de sockseek: «N results found» cuenta lo que pasa sus filtros, no lo que llegó.
+
+### Probar en Soulseek mientras baja una descarga: otra cuenta y `--no-config`
+
+Una segunda sesión con la misma cuenta corta la otra, y el descargador abre una por transferencia.
+Para buscar en paralelo hace falta otra cuenta (se crea sola al conectarse con un nombre nuevo),
+pasada con `--no-config --user=… --pass=…` y otro `--listen-port` (el 49998 lo usa la descarga).
+Con `--config=<archivo>`, sockseek usó igual la cuenta de la configuración global; no se sabe por
+qué, así que la configuración «segura» del descargador puede no aislarlo de esa configuración. Una
+contraseña que empieza con «-» tiene que ir como `--pass=-…`.
+
 ## Windows local
 
 ### El Python de la Microsoft Store virtualiza %APPDATA%

@@ -954,6 +954,16 @@ class WorkflowSimulationTests(unittest.TestCase):
             self.assertEqual(self.recorders(calls), [ORCHESTRATOR.RECORDED_FAILED_DIR])
             self.assertEqual(self.library(root), self.ALL)
 
+    def test_earlier_unsaved_downloads_are_offered_for_reuse(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            earlier = root / "runs" / f"20200101-000000_{self.PID}"
+            ConsolidationTests.tagged_file(earlier / "soulseek" / "Artista - Tema 1.mp3", "id1")
+            FallbackRecordingTests.write(earlier / "orchestration_report.json", {"status": "interrupted"})
+            _, calls, _, _ = self.run_flow(root)
+            downloader = next(cmd for script, cmd in calls if script == "spotify_soulseek_download.py")
+            self.assertEqual(downloader[downloader.index("--reuse-dir") + 1], str(earlier / "soulseek"))
+
     def test_turning_postponing_off_during_the_download_records_everything(self) -> None:
         resume = lambda run_dir: (run_dir / ORCHESTRATOR.DEFER_SIGNAL).unlink()  # noqa: E731
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -3,6 +3,8 @@
 CHANGELOG: 2026-10-05: Cover size gates, live limits, bounded conversion and images.
            2026-11-02: A failed transfer prints Sockseek's last lines, never credentials.
            2026-11-02: Preflight progress from --progress-json, kept out of the results.
+           2026-11-02: Preflight title judged like the verification (no --strict-title); reuse of
+                       finished MP3s from earlier runs.
 """
 
 from __future__ import annotations
@@ -419,6 +421,72 @@ def test_preflight_reports_progress_and_ignores_progress_events(tmp_path):
     assert seen == [(1, 1), (2, 2), (3, 2)]
     assert [c.status for c in checks] == ["missing"] * 3  # three empty results, not the events
     assert "--progress-json" in commands[0] and f"--log-file={tmp_path / 'sockseek_preflight.log'}" in commands[0]
+    # El título lo juzga la clasificación (no el --strict-title literal) y la duración llega hasta 1,9×.
+    assert "--strict-title" not in commands[0] and "--pref-strict-title" in commands[0]
+    assert "--length-tol=270" in commands[0] and "--pref-length-tol=60" in commands[0]
+
+
+def spotify_track(title, artists=("Artist",), seconds=300):
+    return D.track_from_report({
+        "spotify_id": "track-1", "uri": "spotify:track:track-1", "url": "", "title": title, "artists": list(artists),
+        "album": "Album", "album_artists": list(artists), "duration_ms": seconds * 1000, "album_id": None,
+        "release_date": None, "track_number": None, "total_tracks": None, "disc_number": None, "isrc": None,
+        "cover_url": None,
+    })
+
+
+def preflight_status(track_, name, seconds):
+    return D._classify_availability_raw(
+        [raw_candidate(filename=f"Music\\{name}", length_s=seconds, size_bytes=seconds * 40_000)], track_).status
+
+
+@pytest.mark.parametrize("name, seconds, available", [
+    ("Mita Gami - Sun (Rafael Remix).mp3", 208, True),               # «(Versión)» frente a « - Versión» de Spotify
+    ("01-mita_gami-sun_(rafael_remix).mp3", 208, True),              # nombre scene
+    ("Sun - Rafael Remix - Mita Gami 124.mp3", 208, True),           # pool de DJ: artista y BPM al final
+    ("Mita Gami - Sun (Rafael Extended Remix).mp3", 368, True),      # la Extended se prefiere
+    ("Mita Gami - Sun (Other Guy Remix).mp3", 208, False),           # otro remix
+    ("Mita Gami - Sun.mp3", 208, False),                             # la original no es el remix
+])
+def test_preflight_title_is_judged_like_the_verification(name, seconds, available):
+    sun = spotify_track("Sun - Rafael Remix", ("Mita Gami", "Rafael"), 208)
+    assert preflight_status(sun, name, seconds).startswith("available") is available
+
+
+def test_preflight_title_reads_album_names_tags_and_scene_groups():
+    aquarela = spotify_track("Aquarela", ("Toquinho",), 240)
+    assert preflight_status(aquarela, "Toquinho - Aquarela - 06 - Palavras Cruzadas.mp3", 240) == "missing"  # otra del disco
+    assert preflight_status(aquarela, "Toquinho - Aquarela - 10 - Aquarela.mp3", 240) == "available"
+    house = spotify_track("The Sound Of House", ("Jude & Frank",), 300)
+    assert preflight_status(house, "Jude & Frank - The Sound Of House (Original Mix) [www.dj-promo.org].mp3", 300) == "available"
+    assert preflight_status(spotify_track("Peter Gunn", ("Esh",), 300), "07-esh_-_peter_gunn-zzzz.mp3", 300) == "available"
+    assert preflight_status(spotify_track("365", ("Charli xcx",), 200), "Charli xcx - BRAT - 15 - 365.mp3", 200) == "available"
+
+
+def mp3_320(path, spotify_id, cover=True):
+    from mutagen.id3 import APIC, ID3, TXXX
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes((b"\xff\xfb\xe0\x64" + b"\x00" * 1040) * 40)  # MPEG-1 Layer III, 320 kbps
+    tags = ID3()
+    tags.add(TXXX(encoding=3, desc="Spotify Track ID", text=[spotify_id]))
+    if cover:
+        tags.add(APIC(encoding=3, mime="image/jpeg", type=3, desc="", data=b"\xff\xd8\xff\xe0cover"))
+    tags.save(path, v2_version=3)
+    return path
+
+
+def test_finished_downloads_are_reused_instead_of_downloaded_again(tmp_path):
+    old = mp3_320(tmp_path / "old" / "soulseek" / "Artist - Track.mp3", "track-1")
+    bare = mp3_320(tmp_path / "old" / "soulseek" / "Other.mp3", "track-2", cover=False)
+    assert D.reusable_downloads([tmp_path / "old" / "soulseek", tmp_path / "missing"]) == {"track-1": old, "track-2": bare}
+    out = tmp_path / "new" / "soulseek"
+    dest = D.reuse_download(old, out, "track-1", require_cover=True)
+    assert dest == out / "Artist - Track.mp3" and dest.exists() and not old.exists()  # movido, no copiado
+    assert D.reuse_download(dest, out, "track-1", require_cover=True) == dest          # ya está en esta descarga
+    with pytest.raises(RuntimeError, match="cover"):
+        D.reuse_download(bare, out, "track-2", require_cover=True)
+    with pytest.raises(RuntimeError, match="otro Spotify Track ID"):
+        D.reuse_download(dest, out, "track-9", require_cover=True)
 
 
 def test_search_outcome_reads_only_finished_searches():
