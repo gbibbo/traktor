@@ -28,6 +28,8 @@ CHANGELOG:
   - 2026-11-02: Avance de la búsqueda en Soulseek (temas buscados y encontrados).
   - 2026-11-02: Posponer la grabación («Grabar después» al empezar, o durante la descarga) y
                 «Grabar ahora» para una playlist con la grabación pendiente.
+  - 2026-11-02: «título base mismatch» rompía la lista de descargas (el grupo «base » se convertía a
+                número); un run ilegible ya no la vacía: se salta y queda en app.log.
   - 2026-11-02: Un tema ya bajado se puede escuchar (no mientras una descarga pueda grabar: sonaría
                 en la grabación), revisar (verificación contra Spotify, origen, propiedades y todas
                 las etiquetas) y abrir en el Explorador o en el reproductor.
@@ -175,7 +177,7 @@ _REASONS = [
     (re.compile(r"^ISRC distinto"), "ISRC distinto al de Spotify"),
     (re.compile(r"^artista mismatch"), "el artista de la etiqueta no coincide"),
     (re.compile(r"^duraci.n mismatch \(([-+]?\d+(?:\.\d+)?)s\)"), "duración distinta ({0} s)"),
-    (re.compile(r"^t.tulo (base )?mismatch|^title mismatch", re.I), "el título no coincide"),
+    (re.compile(r"^t.tulo (?:base )?mismatch|^title mismatch", re.I), "el título no coincide"),
     (re.compile(r"^identidad de versi.n", re.I), "otra versión o remix"),
 ]
 _FAILURES = {
@@ -197,7 +199,10 @@ def friendly_failure(row: dict[str, Any]) -> str:
             for rx, label in _REASONS:
                 m = rx.search(text)
                 if m:
-                    text = label.format(*(f"{float(g):+.0f}" for g in m.groups()))
+                    try:  # los grupos son números (la diferencia de duración); si no, el motivo tal cual
+                        text = label.format(*(f"{float(g):+.0f}" for g in m.groups()))
+                    except (TypeError, ValueError):
+                        pass
                     break
             if text not in reasons:
                 reasons.append(text)
@@ -414,8 +419,13 @@ def history(runs_root: Path, playlists: dict[str, Any], *, alive_run: str | None
         pid = RUN_DIR_RE.match(run_dir.name).group(3)
         if pid in seen:
             continue
+        try:
+            state = run_state(run_dir, alive=True if run_dir.name == alive_run else None)
+        except Exception:  # noqa: BLE001 (un run ilegible no vacía la lista: se ve el anterior y queda en app.log)
+            print(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] No se pudo leer {run_dir.name}:", flush=True)
+            traceback.print_exc()
+            continue
         seen.add(pid)
-        state = run_state(run_dir, alive=True if run_dir.name == alive_run else None)
         cached = playlists.get(pid) or {}
         first_cover = next((t["cover"] for t in state["tracks"] if t.get("cover")), None)
         items.append({

@@ -208,6 +208,28 @@ def test_history_keeps_latest_run_per_playlist(tmp_path):
     assert items[1]["name"] == "Cacheada"
 
 
+def test_failure_reasons_are_readable():
+    row = {"status": "verification_failed", "candidates": [
+        {"accepted": False, "reasons": ["título base mismatch (0.320)"]},
+        {"accepted": False, "reasons": ["duración mismatch (+41.0s)"]},
+        {"accepted": False, "reasons": ["título mismatch (0.700)"]}]}
+    assert APP.friendly_failure(row) == ("El archivo de Soulseek no pasó la verificación: "
+                                         "el título no coincide, duración distinta (+41 s)")
+
+
+def test_an_unreadable_run_does_not_empty_the_history(tmp_path, monkeypatch):
+    good = make_run(tmp_path, stamp="20261030-100000", pid="PlaylistBuena", status="completed")
+    make_run(tmp_path, stamp="20261031-100000", pid="PlaylistBuena", status="completed")  # la más nueva, ilegible
+    real = APP.run_state
+
+    def run_state(run_dir, **kwargs):
+        if run_dir.name.startswith("20261031"):
+            raise ValueError("could not convert string to float: 'base '")
+        return real(run_dir, **kwargs)
+    monkeypatch.setattr(APP, "run_state", run_state)
+    assert [item["run"] for item in APP.history(tmp_path, {})] == [good.name]  # se ve la anterior
+
+
 def test_job_command(tmp_path):
     settings = {"library_root": "D:/Musica", "runs_root": "D:/runs"}
     cmd = APP.build_job_command(tmp_path / "stop", "https://open.spotify.com/playlist/abc", settings, fresh=False)
