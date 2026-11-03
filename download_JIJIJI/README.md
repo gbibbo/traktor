@@ -10,7 +10,26 @@ powershell -ExecutionPolicy Bypass -File download_JIJIJI\app\crear_acceso_direct
 ```
 
 Abre una ventana propia (Edge en modo app) servida por `app/descargas_app.py` solo en
-`127.0.0.1`. Desde ahí:
+`127.0.0.1`, con tres pestañas arriba a la izquierda:
+
+* **Descargas**: bajar playlists (todo lo que sigue en esta sección).
+* **Colección**: qué música forma tu colección y cuál se elige para generar playlists. Lista la
+  carpeta de destino de las descargas, la biblioteca organizada (si está en este ordenador:
+  `Música/` del repo, según `config/v4.yaml`) y las carpetas que agregues con «Agregar carpeta»
+  («Quitar de la lista» no borra nada). De cada subcarpeta (una por playlist bajada, por ejemplo)
+  muestra temas, tamaño y último cambio, y una casilla para elegirla; lo elegido queda en
+  `collection.json`, junto a los ajustes. «Organizar», en una carpeta elegida, abre la pestaña
+  Organización con «Agregar música nueva» para esa carpeta. Los temas sueltos (fuera de
+  subcarpetas) se cuentan pero no se eligen, y no cuentan `_copias/` (temas repetidos) ni las
+  carpetas ocultas.
+* **Organización**: la app de carpetas y playlists por estilo (`src/v4/ui/review_app.py`, la misma
+  de `Abrir TRAKTOR ML.bat`). Se lanza al entrar en la pestaña, con el mismo Python, y se muestra
+  dentro de ella; se cierra cuando se cierra la app, pero después de la tarea en curso (agregar
+  música, fusiones, preparar para Rekordbox/Traktor). Necesita las dependencias del pipeline
+  (`requirements_v4.txt`) y la organización `biblioteca`; si faltan, la pestaña dice qué falta.
+  Con una descarga que puede estar grabando, avisa que no se reproduzca nada.
+
+En la pestaña Descargas:
 
 * pegar el enlace de una playlist y ver portada y temas (la primera vez, «Conectar» pide permiso
   a Spotify en el navegador; es una autorización propia de la app y no toca la del descargador).
@@ -56,9 +75,9 @@ Abre una ventana propia (Edge en modo app) servida por `app/descargas_app.py` so
   Spotify Track ID) y sin duplicar.
 
 Cerrar la ventana no corta la descarga: la app sigue y el acceso directo la vuelve a abrir.
-Si el código cambió desde que se abrió (un `git pull`, por ejemplo), el acceso directo la
-reinicia, salvo que haya una descarga en curso.
-Sin ventana ni descarga, se apaga sola. Ajustes, caché de portadas, token de la vista previa y
+Si el código cambió desde que se abrió (un `git pull`, por ejemplo, también de la Organización),
+el acceso directo la reinicia, salvo que haya una descarga o una tarea de la Organización en curso.
+Sin ventana, descarga ni tarea de la Organización, se apaga sola. Ajustes, caché de portadas, token de la vista previa y
 `app.log` van en `%APPDATA%\traktor_descargas`; con el Python de la Microsoft Store, esa carpeta
 está virtualizada en
 `%LOCALAPPDATA%\Packages\PythonSoftwareFoundation.Python.3.11_*\LocalCache\Roaming\`.

@@ -33,6 +33,10 @@ CHANGELOG:
   - 2026-11-02: Un tema ya bajado se puede escuchar (no mientras una descarga pueda grabar: sonaría
                 en la grabación), revisar (verificación contra Spotify, origen, propiedades y todas
                 las etiquetas) y abrir en el Explorador o en el reproductor.
+  - 2026-11-02: Tres pestañas: «Descargas» (lo de siempre), «Colección» (las carpetas con tu música y
+                cuáles se eligen para generar playlists; collection.json en %APPDATA%) y «Organización»
+                (src/v4/ui/review_app.py, lanzada por la app y mostrada dentro de la ventana; se cierra
+                con ella, después de la tarea en curso).
 """
 from __future__ import annotations
 
@@ -79,6 +83,8 @@ IDLE_SHUTDOWN_SECONDS = 90       # sin ventana abierta ni descarga: la app se ap
 ACTIVE_STATUSES = {"running", "consolidating"}
 DOWNLOADED = {"finalized", "already_finalized"}
 COVER_HOSTS = (".scdn.co", ".spotifycdn.com")
+REVIEW_APP = REPO_ROOT / "src" / "v4" / "ui" / "review_app.py"  # la pestaña «Organización»
+COLLECTION_AUDIO = {".mp3", ".wav", ".flac", ".aiff", ".aif", ".m4a"}  # los que analiza el pipeline (get_audio_files)
 
 import spotify_soulseek_orchestrator as orch  # noqa: E402
 
@@ -144,6 +150,16 @@ def console_python() -> str:
     exe = Path(sys.executable)
     candidate = exe.with_name("python.exe")
     return str(candidate if candidate.is_file() else exe)
+
+
+def ask_folder(initial: str, title: str, must_exist: bool) -> str:
+    """Selector de carpetas de Windows (tkinter, en un proceso aparte: el servidor no tiene ventana). '' = cancelado."""
+    code = ("import sys, tkinter as tk; from tkinter import filedialog; r = tk.Tk(); r.withdraw(); "
+            "r.attributes('-topmost', True); "
+            "p = filedialog.askdirectory(initialdir=sys.argv[1], title=sys.argv[2], mustexist=sys.argv[3] == '1'); "
+            "print(p or '')")
+    return subprocess.run([console_python(), "-c", code, initial, title, "1" if must_exist else "0"], capture_output=True,
+                          text=True, encoding="utf-8", creationflags=CREATE_NO_WINDOW).stdout.strip()
 
 
 # ---------------------------------------------------------------------------
@@ -1366,6 +1382,171 @@ def environment_checks(preview: SpotifyPreview) -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
+# Colección: las carpetas con tu música y cuáles se eligen para generar playlists
+# ---------------------------------------------------------------------------
+
+def path_key(path: Path | str) -> str:
+    """Para comparar rutas en Windows (mayúsculas y barras dan igual)."""
+    return os.path.normcase(os.path.abspath(str(path)))
+
+
+def organization_library() -> Path | None:
+    """La biblioteca que organiza la pestaña «Organización» (dataset musica de config/v4.yaml), si está en este
+    ordenador. Sin las dependencias del pipeline (PyYAML) no se sabe, y la colección sigue sin ella."""
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.append(str(REPO_ROOT))  # al final: no tapa los módulos de download_JIJIJI
+    try:
+        from src.v4.common.config_loader import load_config
+        from src.v4.common.path_resolver import resolve_dataset_audio_root
+        return resolve_dataset_audio_root("musica", load_config()).resolve()
+    except Exception:  # noqa: BLE001 (sin PyYAML o sin la carpeta)
+        return None
+
+
+def hidden_folder(name: str) -> bool:
+    """Lo que no es música de la colección: carpetas ocultas o del sistema y _copias (temas repetidos que dedupe.py
+    sacó de la organización)."""
+    return name.startswith((".", "_", "$")) or name == "System Volume Information"
+
+
+def audio_stats(folder: Path, recursive: bool = True) -> tuple[int, int, float]:
+    """(temas, bytes, modificación más reciente) de los archivos de audio de una carpeta."""
+    count = size = 0
+    newest = 0.0
+    for root, dirs, files in os.walk(folder):
+        dirs[:] = [d for d in dirs if not hidden_folder(d)] if recursive else []
+        for name in files:
+            if os.path.splitext(name)[1].lower() not in COLLECTION_AUDIO or name.startswith("._"):
+                continue
+            try:
+                st = os.stat(os.path.join(root, name))
+            except OSError:
+                continue
+            count, size, newest = count + 1, size + st.st_size, max(newest, st.st_mtime)
+    return count, size, newest
+
+
+def scan_collection(roots: list[dict[str, str]], selected: set[str]) -> list[dict[str, Any]]:
+    """Cada carpeta de la colección con sus subcarpetas (una por playlist bajada, por ejemplo): temas, tamaño y si
+    está elegida para generar playlists. Se elige por subcarpeta; los temas sueltos solo se cuentan."""
+    root_keys = {path_key(r["path"]) for r in roots}
+    out: list[dict[str, Any]] = []
+    for root in roots:
+        base = Path(root["path"])
+        entry: dict[str, Any] = {**root, "name": base.name or str(base), "exists": base.is_dir(), "folders": [],
+                                 "loose": 0, "loose_mb": 0, "missing_selected": 0}
+        if not entry["exists"]:  # disco desconectado: lo elegido se conserva
+            entry["missing_selected"] = sum(1 for key in selected if os.path.dirname(key) == path_key(base))
+            out.append(entry)
+            continue
+        try:
+            children = sorted((p for p in base.iterdir() if p.is_dir() and not hidden_folder(p.name)),
+                              key=lambda p: p.name.casefold())
+        except OSError:
+            children = []
+        for child in children:
+            if path_key(child) in root_keys:  # otra carpeta de la colección: se muestra aparte
+                continue
+            n, size, newest = audio_stats(child)
+            if n:
+                entry["folders"].append({"path": str(child), "name": child.name, "n_audio": n,
+                                         "size_mb": round(size / 2**20), "modified": newest or None,
+                                         "selected": path_key(child) in selected})
+        n, size, _ = audio_stats(base, recursive=False)
+        entry["loose"], entry["loose_mb"] = n, round(size / 2**20)
+        out.append(entry)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Organización: la app que organiza la colección (src/v4/ui/review_app.py), en un proceso propio
+# ---------------------------------------------------------------------------
+
+_SERVED_AT = re.compile(r"abierto en (http://127\.0\.0\.1:\d+/)")
+
+
+def organizer_problem(lines: list[str], code: int | None) -> str:
+    """Por qué no abrió (o se cerró) la organización, dicho para quien usa la app."""
+    text = "\n".join(lines)
+    if "No existe la organización" in text or "Audio root for dataset" in text:
+        return ("Tu música organizada no está en este ordenador: la organización se arma en el que tiene la "
+                "biblioteca (la carpeta Música/ del repo y artifacts/v4/datasets/musica/orgs/).")
+    missing = re.search(r"No module named '([^']+)'", text)
+    if missing:
+        return (f"Al Python de la app le faltan las dependencias del pipeline (no encuentra «{missing.group(1)}»): "
+                ".venv\\Scripts\\python.exe -m pip install -r requirements_v4.txt")
+    return f"La organización se cerró (código {code}). El detalle está abajo."
+
+
+class Organizer:
+    """La pestaña «Organización»: review_app.py con su propio servidor, que la ventana muestra dentro de la
+    pestaña. Usa el Python de la app (el .venv, como «Abrir TRAKTOR ML.bat») y vive lo que vive la app: al
+    cerrarse esta, se le cierra la entrada estándar y termina después de la tarea en curso."""
+
+    def __init__(self, cmd: list[str] | None = None):
+        self.cmd = cmd or [console_python(), "-u", str(REVIEW_APP), "--no-browser", "--exit-on-stdin-eof"]
+        self.proc: subprocess.Popen[str] | None = None
+        self.status = "off"  # off | starting | ready | error
+        self.url: str | None = None
+        self.error: str | None = None
+        self.lines: collections.deque[str] = collections.deque(maxlen=200)
+        self.lock = threading.Lock()
+
+    def start(self) -> dict[str, Any]:
+        with self.lock:
+            if self.status in ("starting", "ready") and self.proc is not None and self.proc.poll() is None:
+                return self.public()
+            self.status, self.url, self.error = "starting", None, None
+            self.lines.clear()
+            env = dict(os.environ, PYTHONUNBUFFERED="1", PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
+            try:
+                self.proc = subprocess.Popen(
+                    self.cmd, cwd=REPO_ROOT, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    text=True, encoding="utf-8", errors="replace", env=env, creationflags=CREATE_NO_WINDOW)
+            except OSError as exc:
+                self.status, self.error = "error", f"No se pudo abrir la organización: {exc}"
+                return self.public()
+            threading.Thread(target=self._read, args=(self.proc,), daemon=True).start()
+            return self.public()
+
+    def _read(self, proc: subprocess.Popen[str]) -> None:
+        assert proc.stdout is not None
+        for raw in proc.stdout:
+            line = raw.rstrip("\r\n")
+            self.lines.append(line)
+            print(f"[organización] {line}", flush=True)  # a app.log
+            served = _SERVED_AT.search(line)
+            if served and self.proc is proc and self.status == "starting":
+                self.url, self.status = served.group(1), "ready"
+        code = proc.wait()
+        with self.lock:
+            if self.proc is proc:
+                self.status, self.url, self.error = "error", None, organizer_problem(list(self.lines), code)
+
+    def busy(self) -> bool:
+        """Una tarea en curso (agregar música, fusiones, export): la app no se cierra ni se reinicia."""
+        if self.status != "ready" or not self.url:
+            return False
+        try:  # corto: lo consulta /api/ping, que el acceso directo espera 1,5 s
+            return bool(http_get_json(self.url + "api/ping", timeout=0.8).get("busy"))
+        except Exception:  # noqa: BLE001
+            return False
+
+    def close(self) -> None:
+        """Le cierra la entrada estándar: termina sola, después de la tarea en curso."""
+        proc = self.proc
+        if proc is not None and proc.stdin is not None:
+            try:
+                proc.stdin.close()
+            except OSError:
+                pass
+
+    def public(self) -> dict[str, Any]:
+        return {"status": self.status, "url": self.url, "error": self.error,
+                "details": list(self.lines)[-30:] if self.status == "error" else []}
+
+
+# ---------------------------------------------------------------------------
 # Estado de la app
 # ---------------------------------------------------------------------------
 
@@ -1390,11 +1571,14 @@ class App:
         self.hidden_path = config_dir / "hidden.json"  # playlist → cuándo se quitó de la lista
         self.hidden: dict[str, float] = read_json(self.hidden_path) or {}
         self.queue: list[dict[str, Any]] = []  # playlists que empiezan solas cuando termina la descarga en curso
+        self.collection_path = config_dir / "collection.json"  # {"roots": [agregadas], "selected": [subcarpetas]}
+        self.organizer = Organizer()
 
     def busy(self) -> bool:
-        """Algo que no se puede cortar: una descarga lanzada desde la app, un guardado o playlists en cola."""
+        """Algo que no se puede cortar: una descarga lanzada desde la app, un guardado, playlists en cola o una tarea
+        de la organización."""
         return bool((self.job and self.job.alive) or (self.saving and self.saving.get("status") == "running")
-                    or self.queue)
+                    or self.queue or self.organizer.busy())
 
     # ---- ajustes y carpetas ----
     def runs_root(self) -> Path:
@@ -1422,25 +1606,84 @@ class App:
             raise ValueError("Carpeta desconocida")
         title = ("Elige dónde guardar la música descargada" if which == "library_root"
                  else "Elige la carpeta de trabajo (temporales de cada descarga)")
-        code = ("import sys, tkinter as tk; from tkinter import filedialog; r = tk.Tk(); r.withdraw(); "
-                "r.attributes('-topmost', True); "
-                "p = filedialog.askdirectory(initialdir=sys.argv[1], title=sys.argv[2], mustexist=False); "
-                "print(p or '')")
         initial = self.settings[which] if Path(self.settings[which]).exists() else str(Path.home())
-        out = subprocess.run([console_python(), "-c", code, initial, title], capture_output=True, text=True,
-                             encoding="utf-8", creationflags=CREATE_NO_WINDOW).stdout.strip()
+        out = ask_folder(initial, title, must_exist=False)
         if not out:
             return {"cancelled": True, "settings": self.settings}
         return {"cancelled": False, "settings": self.update_settings({which: out})}
 
     def open_folder(self, path: str) -> None:
         target = Path(path).expanduser()
-        roots = [self.library_root(), self.runs_root()]
+        roots = [self.library_root(), self.runs_root(), *(Path(r["path"]) for r in self.collection_roots())]
         if not any(is_inside(target, root) for root in roots):
-            raise ValueError("Solo se abren las carpetas de descargas.")
+            raise ValueError("Solo se abren las carpetas de descargas y de tu colección.")
         if not target.exists():
             raise ValueError("La carpeta ya no existe.")
         os.startfile(str(target))  # noqa: S606 (Explorador de Windows)
+
+    # ---- colección: carpetas con tu música y cuáles se eligen para generar playlists ----
+    def _collection_saved(self) -> dict[str, list[str]]:
+        saved = read_json(self.collection_path) or {}
+        return {key: [p for p in saved.get(key) or [] if isinstance(p, str) and p.strip()] for key in ("roots", "selected")}
+
+    def collection_roots(self) -> list[dict[str, str]]:
+        """La carpeta de destino de las descargas, la biblioteca de la organización (si está en este ordenador) y las
+        que se agregaron a mano."""
+        roots: list[dict[str, str]] = []
+        seen: set[str] = set()
+        library = organization_library()
+        candidates = [(self.library_root(), "downloads"), *([(library, "library")] if library else []),
+                      *((Path(p), "custom") for p in self._collection_saved()["roots"])]
+        for path, kind in candidates:
+            if path_key(path) not in seen:
+                seen.add(path_key(path))
+                roots.append({"path": str(path), "kind": kind})
+        return roots
+
+    def collection(self) -> dict[str, Any]:
+        selected = {path_key(p) for p in self._collection_saved()["selected"]}
+        return {"roots": scan_collection(self.collection_roots(), selected)}
+
+    def collection_select(self, paths: list[Any], on: bool) -> dict[str, Any]:
+        """Elegir (o no) subcarpetas para generar playlists. Solo las de la colección; quitar se puede siempre."""
+        root_keys = {path_key(r["path"]) for r in self.collection_roots()}
+        saved = self._collection_saved()
+        chosen = {path_key(p): p for p in saved["selected"]}
+        for raw in paths:
+            path = Path(str(raw))
+            if not on:
+                chosen.pop(path_key(path), None)
+                continue
+            if not path.is_absolute() or path_key(path.parent) not in root_keys or not path.is_dir():
+                raise ValueError("Esa carpeta no está en tu colección.")
+            chosen[path_key(path)] = str(path)
+        saved["selected"] = sorted(chosen.values(), key=str.casefold)
+        write_json(self.collection_path, saved)
+        return {"selected": saved["selected"]}
+
+    def collection_add_root(self) -> dict[str, Any]:
+        out = ask_folder(str(Path.home()), "Elige una carpeta con música para tu colección", must_exist=True)
+        if not out:
+            return {"cancelled": True}
+        path = Path(out).resolve()
+        if not path.is_dir():
+            raise ValueError(f"No existe la carpeta: {path}")
+        if path_key(path) in {path_key(r["path"]) for r in self.collection_roots()}:
+            raise ValueError("Esa carpeta ya está en tu colección.")
+        saved = self._collection_saved()
+        saved["roots"].append(str(path))
+        write_json(self.collection_path, saved)
+        return {"cancelled": False, "path": str(path)}
+
+    def collection_remove_root(self, path: str) -> None:
+        """Saca de la lista una carpeta agregada a mano (y lo elegido dentro). No borra nada del disco."""
+        saved = self._collection_saved()
+        key = path_key(path)
+        if key not in {path_key(p) for p in saved["roots"]}:
+            raise ValueError("Solo se quitan las carpetas que agregaste tú.")
+        saved["roots"] = [p for p in saved["roots"] if path_key(p) != key]
+        saved["selected"] = [p for p in saved["selected"] if os.path.dirname(path_key(p)) != key]
+        write_json(self.collection_path, saved)
 
     # ---- un tema ya bajado ----
     def playback_block_reason(self) -> str | None:
@@ -1800,7 +2043,7 @@ class App:
                 "connecting": self.preview.connecting, "connect_error": self.preview.connect_error,
                 "connect_url": self.preview.auth_url if self.preview.connecting else None,
                 "playback_block": self.playback_block_reason(), "queue": self.public_queue(),
-                "monitor": self.monitor.level(), "saving": self.saving}
+                "monitor": self.monitor.level(), "saving": self.saving, "organizer": self.organizer.public()}
 
 
 # ---------------------------------------------------------------------------
@@ -1872,6 +2115,8 @@ def make_handler(app: App):
                     return self._json(200, {"open": process_running("Spotify.exe")})
                 if path == "/api/playlist/work":
                     return self._json(200, app.playlist_work(query.get("pid", [""])[0]))
+                if path == "/api/collection":
+                    return self._json(200, app.collection())
                 if path.startswith("/api/track/"):
                     run_name, pos = query.get("run", [""])[0], int(query.get("pos", ["0"])[0] or 0)
                     if path == "/api/track/meta":
@@ -1982,6 +2227,18 @@ def make_handler(app: App):
                     return self._json(200, {"ok": True})
                 if path == "/api/spotify/connect":
                     return self._json(200, {"opening": app.preview.connect()})
+                if path == "/api/collection/select":
+                    paths = body.get("paths")
+                    if not isinstance(paths, list):
+                        raise ValueError("Faltan las carpetas.")
+                    return self._json(200, app.collection_select(paths, bool(body.get("on"))))
+                if path == "/api/collection/add-root":
+                    return self._json(200, app.collection_add_root())
+                if path == "/api/collection/remove-root":
+                    app.collection_remove_root(str(body.get("path") or ""))
+                    return self._json(200, {"ok": True})
+                if path == "/api/organizer/start":
+                    return self._json(200, app.organizer.start())
                 if path in ("/api/track/reveal", "/api/track/open"):
                     run_name, pos = str(body.get("run") or ""), int(body.get("pos") or 0)
                     (app.reveal_track if path == "/api/track/reveal" else app.open_track)(run_name, pos)
@@ -2041,8 +2298,11 @@ def open_window(url: str) -> None:
 
 
 def code_version() -> str:
-    """Huella del código que usa la app (ella misma y los scripts de descarga que importa)."""
-    files = sorted([*APP_DIR.glob("*.py"), *APP_DIR.glob("*.html"), *APP_DIR.glob("*.ps1"), *DOWNLOAD_DIR.glob("*.py")])
+    """Huella del código que usa la app (ella misma, los scripts de descarga que importa y la organización que lanza)."""
+    organization = [REVIEW_APP, REPO_ROOT / "tools" / "playlist_review" / "template.html",
+                    REPO_ROOT / "tools" / "playlist_review" / "build_review_page.py"]
+    files = sorted([*APP_DIR.glob("*.py"), *APP_DIR.glob("*.html"), *APP_DIR.glob("*.ps1"), *DOWNLOAD_DIR.glob("*.py"),
+                    *(p for p in organization if p.is_file())])
     stamp = "|".join(f"{p.name}:{p.stat().st_mtime_ns}:{p.stat().st_size}" for p in files)
     return hashlib.sha1(stamp.encode("utf-8")).hexdigest()[:12]  # hash() cambia en cada proceso
 
@@ -2129,8 +2389,10 @@ def main() -> int:
     def idle_watchdog() -> None:
         while True:
             time.sleep(10)
-            busy = (app.job and app.job.alive) or app.monitor.level()["active"]
-            if not busy and time.time() - app.last_seen > IDLE_SHUTDOWN_SECONDS:
+            if time.time() - app.last_seen <= IDLE_SHUTDOWN_SECONDS:
+                continue
+            busy = (app.job and app.job.alive) or app.monitor.level()["active"] or app.organizer.busy()
+            if not busy:
                 print(f"[{datetime.now():%H:%M:%S}] Sin ventana abierta: cerrando.", flush=True)
                 httpd.shutdown()
                 return
@@ -2141,6 +2403,7 @@ def main() -> int:
         pass
     finally:
         httpd.server_close()
+        app.organizer.close()  # termina sola, después de su tarea en curso
         if (read_json(info_path) or {}).get("pid") == os.getpid():
             info_path.unlink(missing_ok=True)
     return 0

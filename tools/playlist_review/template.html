@@ -1180,6 +1180,13 @@ const show = sessionStorage.getItem("traktor_show");
 if (show) { $("#hlSel").value = show; sessionStorage.removeItem("traktor_show"); }
 renderHelp(); refresh(); save();
 if (firstVisit) { $("#help").hidden = false; $("#helpBtn").setAttribute("aria-expanded", "true"); }
+// «Organizar» desde la pestaña Colección de la app de descargas: ?agregar=<carpeta> abre «Agregar música nueva» con ella.
+(() => {
+  const path = APP && new URLSearchParams(location.search).get("agregar");
+  if (!path) return;
+  history.replaceState(null, "", location.pathname);  // al recargar después de agregar, no vuelve a abrirse
+  api("/api/describe-folder", { path }).then(showFolder).catch(e => errorDialog(e.message));
+})();
 (() => { const probe = new Audio(); probe.preload = "metadata"; probe.onerror = showAudioWarn; probe.src = srcOf(T[0]); })();
 </script>
 </body>

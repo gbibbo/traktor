@@ -14,9 +14,9 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
   (`m3u8/`, `rekordbox.xml`, `traktor.nml`). Gabriel la eligió escuchando frente a MAEST-HF capa 7
   (`9e5784c3`), con la salvedad de que no fue del todo a ciegas (DECISIONS 2026-09-29).
 - **Organizaciones estables** (`src/v4/pipeline/organize.py`, `orgs/<nombre>/` con versiones): la
-  elegida es `biblioteca` v1 (importada de `fb78f2f6`, mismo mapa; su export `exports/biblioteca_v1/`
-  es idéntico a `V4_1`). `add` agrega música con lo existente congelado; `link` exige temas juntos
-  (congelado o `--rebuild`); `build --scope` organiza una carpeta sola con su propio mapa.
+  elegida es `biblioteca` (v1 importada de `fb78f2f6`, mismo mapa). `add` agrega música con lo
+  existente congelado; `link` exige temas juntos (congelado o `--rebuild`); `build --scope`
+  organiza una carpeta sola con su propio mapa.
 - **Temas repetidos, cerrado** (DECISIONS 2026-09-29, 8-13): una copia por tema; `biblioteca` v11
   (1760 temas); copias en `Música/_copias/` (`dedupe.py restore-copies` las devuelve). Export
   `exports/biblioteca_v11/` (2026-10-08): 51 playlists, 0 rutas faltantes, 907 Vocal, 27 GB.
@@ -37,8 +37,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
   Rekordbox: `Preparar Rekordbox.bat`. Traktor de esta PC: metadata previa al 11-02.
 - **`download_JIJIJI/`**: playlists de Spotify por Soulseek, grabando por loopback lo que falte
   (se puede posponer); entrada `spotify_soulseek_orchestrator.py`; otra PC:
-  `CONFIGURAR_OTRO_ORDENADOR.md`. App «Descargar playlists» (`app/`); log de cada descarga en
-  `runs/logs/`, controles de seguridad en su README.
+  `CONFIGURAR_OTRO_ORDENADOR.md`. App «Descargar playlists» (`app/`): pestañas Descargas,
+  Colección y Organización (DECISIONS 11-02); logs: `runs/logs/`.
 - **Chequeo pre-commit** en `tools/git_hooks/` (audio, arrays, pesos, credenciales, archivos > 5 MB).
 
 ## OPEN ITEMS (por prioridad; LOCAL = trabajo del agente, GABRIEL = lo hace o decide Gabriel)
@@ -49,7 +49,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    Refrescar Traktor de esta PC (`traktor_collection.py`).
 2. GABRIEL: probar la app local (`Abrir TRAKTOR ML.bat`): agregar música nueva, fusiones de temas
    (clic derecho, papelera), orden a mano (⇅), preparar para Rekordbox/Traktor y deshacer.
-   Y volver a probar la app de descargas; LOCAL revisa su log después.
+   Y la app de descargas con pestañas (LOCAL lee su log); decidir si las playlists usan
+   solo lo elegido en Colección.
 3. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
    tracklists y descarga del audio se consultan antes de implementar.
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,

@@ -78,7 +78,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | Archivo | Descripción |
 | :--- | :--- |
 | `ui/app.py` | Streamlit dashboard: scatter UMAP, filtros L1/L2, re-clustering local, export |
-| `ui/review_app.py` | App local (http.server, solo 127.0.0.1 y con token) para cualquier persona: sirve la interfaz de revisión y ejecuta agregar música nueva (selector de carpetas, análisis con progreso, mantener o reorganizar), fusiones de temas (crear, aplicar, eliminar), orden a mano de una playlist, export para Rekordbox/Traktor y deshacer; `/cover/<tema>` sirve la carátula del archivo (o cover/folder.jpg de su carpeta). Se abre con `Abrir TRAKTOR ML.bat` |
+| `ui/review_app.py` | App local (http.server, solo 127.0.0.1 y con token) para cualquier persona: sirve la interfaz de revisión y ejecuta agregar música nueva (selector de carpetas, análisis con progreso, mantener o reorganizar), fusiones de temas (crear, aplicar, eliminar), orden a mano de una playlist, export para Rekordbox/Traktor y deshacer; `/cover/<tema>` sirve la carátula del archivo (o cover/folder.jpg de su carpeta). Se abre con `Abrir TRAKTOR ML.bat` o en la pestaña Organización de la app de descargas (`/api/ping`, `--exit-on-stdin-eof`; `?agregar=<carpeta>` abre «Agregar música nueva» con esa carpeta) |
 | `adaptation/projection_head.py` | MLP projection head: 1024→512→256 L2-normalizado (stub fine-tuning) |
 | `adaptation/contrastive_trainer.py` | Entrenador contrastivo (stub — interfaz definida, NotImplementedError) |
 
@@ -112,7 +112,8 @@ En `tests/` (raíz): `test_check_staged.py` (chequeo pre-commit sobre repos git 
 `test_spotify_soulseek_orchestrator.py` (`download_JIJIJI/`) y `test_soulseek_safety.py`
 (tamaño/duración, descarga exacta, límites de procesos, carátulas y antivirus en consolidación), y
 `test_descargas_app.py` (app de descargas: estado de cada tema por fase, guardado parcial, run
-colgado, historial, ajustes, token y Host, cierre de procesos huérfanos).
+colgado, historial, ajustes, token y Host, cierre de procesos huérfanos, pestañas Colección y
+Organización).
 
 ## Arnés de agentes y git
 
@@ -196,8 +197,8 @@ guarda lo conseguido y termina como `partial` (código 3).
 
 | Archivo (`download_JIJIJI/app/`) | Descripción |
 | :--- | :--- |
-| `descargas_app.py` | App local (http.server, solo 127.0.0.1 y con token; una instancia; se apaga sola sin ventana ni descarga): vista previa de la playlist con autorización propia, salida de audio de Windows (elegir, probar con tono grabado, medidor del loopback), carpetas de destino y de trabajo, lanzar/detener/reanudar el orquestador, estado de cada tema leído de los JSON del run (también de runs lanzados desde la terminal), historial y guardado parcial de un run con error (`consolidate_audio` sin conjunto esperado). Ajustes y token en `%APPDATA%\traktor_descargas` |
-| `index.html` | Interfaz (una página, sin dependencias salvo la fuente Figtree): biblioteca, vista de playlist con tabla de temas y estado, barra inferior con progreso, salida de audio y carpeta |
+| `descargas_app.py` | App local (http.server, solo 127.0.0.1 y con token; una instancia; se apaga sola sin ventana ni descarga): vista previa de la playlist con autorización propia, salida de audio de Windows (elegir, probar con tono grabado, medidor del loopback), carpetas de destino y de trabajo, lanzar/detener/reanudar el orquestador, estado de cada tema leído de los JSON del run (también de runs lanzados desde la terminal), historial y guardado parcial de un run con error (`consolidate_audio` sin conjunto esperado). Ajustes y token en `%APPDATA%\traktor_descargas`. Además, la pestaña Colección (carpetas de descargas, biblioteca organizada y las agregadas a mano; temas y tamaño por subcarpeta y cuáles se eligen para generar playlists, en `collection.json`) y la pestaña Organización (lanza `src/v4/ui/review_app.py --exit-on-stdin-eof` en su propio proceso, que se cierra con la app después de la tarea en curso) |
+| `index.html` | Interfaz (una página, sin dependencias salvo la fuente Figtree): pestañas Descargas, Colección y Organización arriba a la izquierda (la Organización, en un iframe); biblioteca, vista de playlist con tabla de temas y estado, barra inferior con progreso, salida de audio y carpeta |
 | `run_job.py` | Ejecuta el orquestador y lo interrumpe como un Ctrl+C cuando aparece un archivo de señal |
 | `audio_devices.ps1` | Lista las salidas de audio y fija la predeterminada (IMMDeviceEnumerator + IPolicyConfig) |
 | `crear_acceso_directo.ps1` | Crea «Descargar playlists» en el Escritorio (`.venv\Scripts\pythonw.exe`, `icon.ico`) |

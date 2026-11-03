@@ -8,6 +8,7 @@ CHANGELOG:
   - 2026-09-29: Creación inicial.
   - 2026-09-29: /api/reorder y /api/remove-fusion.
   - 2026-09-29: /cover/ (carátula del archivo o de la carpeta).
+  - 2026-11-02: /api/ping y --exit-on-stdin-eof (pestaña «Organización» de la app de descargas).
 """
 import json
 import sys
@@ -23,6 +24,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.v4.pipeline.organize import Library, OrgStore, build  # noqa: E402
+from src.v4.ui import review_app  # noqa: E402
 from src.v4.ui.review_app import App, serve  # noqa: E402
 from tests.v4.test_organize import PARAMS, _library, _playlists  # noqa: E402
 
@@ -171,3 +173,26 @@ def test_reorder_and_remove_fusion(running_app):
     code, body, _ = _req(base + "/api/remove-fusion", {"name": "Solo borrador"})
     assert code == 200 and json.loads(body) == {"version": None, "applied": False} and app.store.drafts() == []
     assert _req(base + "/api/remove-fusion", {"name": "No existe"})[0] == 400
+
+
+def test_ping_says_whether_a_task_is_running(running_app):
+    app, base = running_app
+    code, body, _ = _req(base + "/api/ping")
+    assert code == 200 and json.loads(body) == {"app": "traktor-ml", "org": "t", "busy": False}
+    app.jobs["x"] = type("J", (), {"status": "running"})()
+    assert json.loads(_req(base + "/api/ping")[1])["busy"] is True
+
+
+def test_closes_when_the_app_that_opened_it_closes(running_app, monkeypatch):
+    """Fin de la entrada estándar = la app de descargas se cerró: termina, pero después de la tarea en curso."""
+    import io
+    app, _ = running_app
+    job = type("J", (), {"status": "running"})()
+    app.jobs["x"] = job
+    calls = []
+    httpd = type("H", (), {"shutdown": lambda self: calls.append(time.time())})()
+    monkeypatch.setattr(review_app.sys, "stdin", io.StringIO(""))
+    monkeypatch.setattr(review_app.time, "sleep", lambda s: setattr(job, "status", "done"))
+    review_app.exit_with_parent(app, httpd)
+    assert len(calls) == 1 and job.status == "done"  # esperó a la tarea
+

@@ -17,6 +17,9 @@ CHANGELOG:
   - 2026-09-29: Agregar música nueva busca temas repetidos (dedupe.py): lo que la regla resuelve queda
                 con una sola copia y las otras se mueven a Música/_copias.
   - 2026-09-29: /cover/<tema>: carátula del archivo (o de su carpeta) para la columna de la tabla.
+  - 2026-11-02: Pestaña «Organización» de la app de descargas (download_JIJIJI/app/descargas_app.py), que
+                la lanza y la muestra dentro de su ventana: /api/ping (¿hay una tarea en curso?) y
+                --exit-on-stdin-eof (se cierra cuando se cierra la app, al terminar la tarea en curso).
 """
 from __future__ import annotations
 
@@ -368,6 +371,8 @@ def make_handler(app: App):
                 return self._audio(urllib.parse.unquote(path[len("/audio/"):]))
             if path.startswith("/cover/"):
                 return self._cover(urllib.parse.unquote(path[len("/cover/"):]))
+            if path == "/api/ping":  # la app de descargas: no se cierra con una tarea en curso
+                return self._json(200, {"app": "traktor-ml", "org": app.org_name, "busy": app.running() is not None})
             if path.startswith("/api/job/"):
                 job = app.jobs.get(path.rsplit("/", 1)[-1])
                 return self._json(200, job.public()) if job else self._json(404, {"error": "no existe"})
@@ -494,6 +499,20 @@ def serve(app: App, port: int = 8765, open_browser: bool = True) -> ThreadingHTT
     return httpd
 
 
+def exit_with_parent(app: App, httpd: ThreadingHTTPServer) -> None:
+    """La app de descargas no escribe nada en la entrada estándar: el fin de archivo es que se cerró (o se cayó).
+    Una tarea a medias (agregar música, fusiones, export) termina antes de cerrar."""
+    if sys.stdin is None:  # pythonw sin entrada: no hay de quién depender
+        return
+    try:
+        sys.stdin.read()
+    except (OSError, ValueError):
+        pass
+    while app.running():
+        time.sleep(2)
+    httpd.shutdown()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="App local: revisar y organizar la colección desde el navegador")
     parser.add_argument("--dataset-name", default="musica")
@@ -501,9 +520,14 @@ def main() -> int:
     parser.add_argument("--config", default=None)
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument("--exit-on-stdin-eof", action="store_true",
+                        help="Cerrarse cuando se cierra la entrada estándar (la app que la lanzó se cerró o se cayó), "
+                             "después de la tarea en curso")
     args = parser.parse_args()
     app = App(args.dataset_name, args.org_name, args.config)
     httpd = serve(app, args.port, not args.no_browser)
+    if args.exit_on_stdin_eof:
+        threading.Thread(target=exit_with_parent, args=(app, httpd), daemon=True).start()
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

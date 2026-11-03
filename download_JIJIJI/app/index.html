@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Descargar playlists</title>
+<title>TRAKTOR ML</title>
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -31,6 +31,7 @@
   --toast: #2e77d0;
   --hdr: #535353;
   --font: Figtree, "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --tabs-h: 52px;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -51,9 +52,17 @@ svg { display: block; flex: none; }
 ::-webkit-scrollbar-thumb:hover { background-color: rgba(255,255,255,.3); }
 ::-webkit-scrollbar-track { background: transparent; }
 
+/* ---------- pestañas (arriba a la izquierda): Descargas, Colección, Organización ---------- */
+.tabs { display: flex; align-items: flex-end; gap: 6px; height: var(--tabs-h); padding: 0 8px; }
+.tab { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 16px; border-radius: 500px;
+  background: var(--elev); color: var(--text); font-weight: 600; font-size: 14px; transition: background .15s, color .15s; }
+.tab:hover { background: var(--elev3); }
+.tab.on { background: #fff; color: #000; }
+.tab .ico { width: 18px; height: 18px; }
+
 /* ---------- layout ---------- */
 .app { display: grid; grid-template-columns: 300px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 84px;
-  gap: 8px; height: 100vh; padding: 8px 8px 0; }
+  gap: 8px; height: calc(100vh - var(--tabs-h)); padding: 8px 8px 0; }
 .side { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
 .panel { background: var(--panel); border-radius: 8px; }
 .nav { padding: 8px 12px; }
@@ -375,6 +384,44 @@ details summary::before { content: "▸ "; } details[open] summary::before { con
 .offline.open { display: grid; }
 .offline b { color: #fff; font-size: 20px; display: block; margin-bottom: 6px; }
 
+/* ---------- colección y organización ---------- */
+.sec { height: calc(100vh - var(--tabs-h)); padding: 8px; }
+.sec > .panel { height: 100%; overflow: hidden; display: flex; flex-direction: column; }
+.col { padding: 28px 32px 48px; background: linear-gradient(180deg, #1c2c3c 0, #121212 300px); min-height: 100%; }
+.col-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+.col-head h1 { margin: 0 0 6px; font-size: 32px; font-weight: 800; letter-spacing: -.02em; }
+.col-head p { margin: 0; color: var(--muted); max-width: 640px; line-height: 1.5; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-bottom: 28px; }
+.tile { background: rgba(255,255,255,.06); border-radius: 8px; padding: 16px 18px; }
+.tile .v { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.tile .k { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.tile.green .v { color: var(--green); }
+.root { background: var(--elev); border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
+.root-head { display: flex; align-items: center; gap: 14px; padding: 16px 18px; flex-wrap: wrap; }
+.root-ico { width: 44px; height: 44px; border-radius: 6px; background: var(--elev2); display: grid; place-items: center; color: var(--muted); flex: none; }
+.root-t { flex: 1; min-width: 220px; }
+.root-t b { display: block; font-size: 16px; }
+.root-t .k { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.root-t .p { font-family: "Cascadia Mono", Consolas, monospace; font-size: 12px; color: var(--muted2); word-break: break-all; margin-top: 4px; }
+.frow { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px 18px; border-top: 1px solid var(--line); }
+.frow:hover { background: var(--hover); }
+.frow input { width: 18px; height: 18px; margin: 0; accent-color: var(--green); cursor: pointer; }
+.fmain { display: flex; align-items: center; gap: 12px; min-width: 0; cursor: pointer; padding: 2px 0; }
+.fmain img, .fmain .ph { width: 40px; height: 40px; border-radius: 4px; object-fit: cover; background: var(--elev2); flex: none; }
+.fname { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.frow.on .fname { color: var(--green); }
+.fsub { color: var(--muted); font-size: 12px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.facts { display: flex; align-items: center; gap: 6px; }
+.facts .round { width: 32px; height: 32px; background: none; }
+.facts .round:hover { background: var(--hover2); }
+.root-foot { padding: 10px 18px 14px; color: var(--muted); font-size: 12px; line-height: 1.5; border-top: 1px solid var(--line); }
+.org-frame { flex: 1; width: 100%; border: 0; display: block; background: var(--panel); }
+.org-msg { margin: auto; width: 100%; max-width: 620px; padding: 40px 24px; text-align: center; color: var(--muted); line-height: 1.5; }
+.org-msg b { display: block; color: var(--text); font-size: 20px; margin-bottom: 8px; }
+.org-msg .spin { width: 28px; height: 28px; margin: 0 auto 16px; color: var(--green); }
+.org-msg .log { text-align: left; background: rgba(0,0,0,.35); border-radius: 6px; padding: 10px 12px; margin-top: 14px; max-height: 240px; overflow: auto; }
+.org-note { margin: 8px 8px 0; }
+
 @media (max-width: 1100px) {
   .tr { grid-template-columns: 30px minmax(0, 6fr) minmax(140px, 3fr) 56px; }
   .tr .alb { display: none; }
@@ -388,12 +435,17 @@ details summary::before { content: "▸ "; } details[open] summary::before { con
   .hdr .cover { width: 160px; height: 160px; }
   .player { grid-template-columns: minmax(0, 1fr) auto; }
   .player .center { display: none; }
-  .home, .hdr, .body { padding-left: 16px; padding-right: 16px; }
+  .home, .hdr, .body, .col { padding-left: 16px; padding-right: 16px; }
 }
 </style>
 </head>
 <body>
-<div class="app">
+<nav class="tabs" role="tablist" aria-label="Secciones">
+  <button class="tab on" role="tab" aria-selected="true" data-tab="descargas" title="Bajar playlists de Spotify"><svg class="ico"><use href="#i-download"/></svg>Descargas</button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="coleccion" title="Qué música tienes y cuál entra en las playlists"><svg class="ico"><use href="#i-folder"/></svg>Colección</button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="organizar" title="Tus carpetas y playlists por estilo, para Rekordbox y Traktor"><svg class="ico"><use href="#i-library"/></svg>Organización</button>
+</nav>
+<div class="app" id="sec-descargas" role="tabpanel">
   <aside class="side">
     <div class="panel nav">
       <button class="nav-item" id="nav-home" title="Inicio"><svg class="ico"><use href="#i-home"/></svg><span>Inicio</span></button>
@@ -431,6 +483,18 @@ details summary::before { content: "▸ "; } details[open] summary::before { con
     </div>
   </footer>
 </div>
+
+<section class="sec" id="sec-coleccion" role="tabpanel" hidden>
+  <div class="panel"><div class="scroll"><div id="col-view"></div></div></div>
+</section>
+
+<section class="sec" id="sec-organizar" role="tabpanel" hidden>
+  <div class="panel">
+    <div id="org-note"></div>
+    <div id="org-msg" class="org-msg"></div>
+    <iframe id="org-frame" class="org-frame" title="Organización de tu música" hidden></iframe>
+  </div>
+</section>
 
 <div class="pop" id="pop-dev">
   <h4>Salida de audio</h4>
@@ -1021,6 +1085,7 @@ function render() {
 
 // ---------------------------------------------------------------- navegación
 async function openPlaylist(url, { push = true } = {}) {
+  if (S.tab !== "descargas") showTab("descargas", false);
   const prev = S.view;
   if (S.track && (!prev.run || prev.url !== url)) closeTrack();  // otra playlist: el panel del tema sobra
   if (prev.url !== url) S.filter = { group: null, q: "" };  // otra playlist: la lista se ve entera
@@ -1051,9 +1116,207 @@ function goHome(push = true) {
 }
 
 function route() {
+  const tab = Object.keys(TAB_HASH).find((k) => location.hash === TAB_HASH[k]);
+  if (tab) { showTab(tab, false); return; }
+  showTab("descargas", false);
   const m = location.hash.match(/^#\/p\/([A-Za-z0-9]+)/);
   if (m) openPlaylist(`https://open.spotify.com/playlist/${m[1]}`, { push: false });
   else goHome(false);
+}
+
+// ---------------------------------------------------------------- pestañas
+// Descargas (lo de arriba), Colección (las carpetas con tu música y cuáles entran en las playlists) y Organización
+// (src/v4/ui/review_app.py: la abre la app con su propio servidor y se muestra aquí dentro).
+const TAB_HASH = { coleccion: "#/coleccion", organizar: "#/organizacion" };
+S.tab = "descargas";
+
+function showTab(name, push = true) {
+  if (name === S.tab) return;
+  S.tab = name;
+  document.querySelectorAll("[data-tab]").forEach((b) => {
+    b.classList.toggle("on", b.dataset.tab === name);
+    b.setAttribute("aria-selected", String(b.dataset.tab === name));
+  });
+  $("#sec-descargas").hidden = name !== "descargas";
+  $("#sec-coleccion").hidden = name !== "coleccion";
+  $("#sec-organizar").hidden = name !== "organizar";
+  closePops();
+  closeTrack();
+  document.querySelectorAll(".drawer.open, .modal-bg.open").forEach((d) => d.classList.remove("open"));
+  if (push) {  // Descargas vuelve a donde estaba: Inicio o la playlist abierta
+    const back = S.view.kind === "playlist" && S.view.pid ? `#/p/${S.view.pid}` : "";
+    history.pushState(null, "", (name === "descargas" ? back : TAB_HASH[name]) || location.pathname);
+  }
+  if (name === "coleccion") loadCollection();
+  if (name === "organizar") openOrganizer();
+}
+
+// ---------------------------------------------------------------- colección
+const COL_KIND = {
+  downloads: ["Descargas", "Donde esta app guarda cada playlist (se cambia en Descargas, abajo a la derecha).", "download"],
+  library: ["Biblioteca organizada", "La música de la pestaña Organización.", "library"],
+  custom: ["Carpeta agregada", "La agregaste tú; quitarla de la lista no borra nada.", "folder"],
+};
+const C = { data: null, loading: false, error: null };
+const pathKey = (p) => String(p || "").replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase();
+const fmtNum = (n) => Number(n || 0).toLocaleString("es");
+const fmtSize = (mb) => (mb >= 1024 ? `${(mb / 1024).toLocaleString("es", { maximumFractionDigits: 1 })} GB` : `${fmtNum(mb)} MB`);
+
+async function loadCollection() {
+  if (C.loading) return;
+  C.loading = true;
+  renderCollection();
+  try { C.data = await api("/api/collection"); C.error = null; } catch (e) { C.error = e.message || String(e); }
+  C.loading = false;
+  renderCollection();
+}
+
+function collectionTotals(d) {
+  const t = { all: 0, size: 0, sel: 0, nsel: 0 };
+  for (const r of d.roots) {
+    t.all += r.loose;
+    t.size += r.loose_mb;
+    for (const f of r.folders) {
+      t.all += f.n_audio;
+      t.size += f.size_mb;
+      if (f.selected) { t.sel += f.n_audio; t.nsel += 1; }
+    }
+  }
+  return t;
+}
+
+function renderCollection() {
+  const d = C.data;
+  let html = `<div class="col"><div class="col-head"><div><h1>Colección</h1>
+    <p>Las carpetas con tu música y cuáles entran en las playlists. Marca las que quieras usar y pulsa «Organizar» para llevarlas a la pestaña Organización.</p></div>
+    <div class="btnrow"><button class="pill white small" id="col-add">${icon("folder", "sm")}Agregar carpeta</button>
+      <button class="pill ghost small" id="col-refresh" ${C.loading ? "disabled" : ""}>${icon("refresh", "sm")}${C.loading ? "Contando…" : "Actualizar"}</button></div></div>`;
+  if (!d) {
+    html += C.error ? `<div class="note amber">${icon("warn")}<div><b>No pude leer tu colección</b><p>${esc(C.error)}</p></div></div>`
+      : `<div class="empty-note">Contando tus temas…</div>`;
+    $("#col-view").innerHTML = html + "</div>";
+    return;
+  }
+  const t = collectionTotals(d);
+  html += `<div class="tiles">
+    <div class="tile"><div class="v">${fmtNum(t.all)}</div><div class="k">temas en tu colección (${fmtSize(t.size)})</div></div>
+    <div class="tile green"><div class="v">${fmtNum(t.sel)}</div><div class="k">temas elegidos para las playlists (${plural(t.nsel, "carpeta", "carpetas")})</div></div>
+  </div>`;
+  const covers = {};  // una playlist bajada: la portada de Spotify
+  for (const it of S.history) if (it.final_output && it.cover) covers[pathKey(it.final_output)] = it.cover;
+  d.roots.forEach((r, ri) => {
+    const [label, hint, ico] = COL_KIND[r.kind] || COL_KIND.custom;
+    const all = r.folders.length > 0 && r.folders.every((f) => f.selected);
+    html += `<div class="root"><div class="root-head"><div class="root-ico">${icon(ico)}</div>
+      <div class="root-t"><b>${esc(label)}</b><div class="k">${esc(hint)}</div><div class="p">${esc(r.path)}</div></div>
+      <div class="btnrow">
+        ${r.folders.length ? `<button class="pill ghost small" data-col-all="${ri}" data-on="${all ? "0" : "1"}">${all ? "No elegir ninguna" : "Elegir todas"}</button>` : ""}
+        ${r.exists ? `<button class="pill ghost small" data-open-folder="${esc(r.path)}">Abrir</button>` : ""}
+        ${r.kind === "custom" ? `<button class="pill ghost small" data-col-remove="${esc(r.path)}">Quitar de la lista</button>` : ""}
+      </div></div>`;
+    if (!r.exists) {
+      html += `<div class="root-foot">No encuentro esta carpeta (¿el disco está desconectado?).${r.missing_selected ? ` Lo elegido dentro (${plural(r.missing_selected, "carpeta", "carpetas")}) se conserva.` : ""}</div></div>`;
+      return;
+    }
+    if (!r.folders.length && !r.loose) html += `<div class="root-foot">Todavía no hay música aquí.</div>`;
+    r.folders.forEach((f, fi) => {
+      const id = `cf-${ri}-${fi}`;
+      const cover = covers[pathKey(f.path)];
+      html += `<div class="frow ${f.selected ? "on" : ""}">
+        <input type="checkbox" id="${id}" data-col-sel="${esc(f.path)}" ${f.selected ? "checked" : ""} aria-label="Elegir «${esc(f.name)}» para las playlists">
+        <label class="fmain" for="${id}">${cover ? `<img src="${esc(cover)}" alt="" loading="lazy">` : `<div class="ph">${icon("folder", "md")}</div>`}
+          <div style="min-width:0"><div class="fname">${esc(f.name)}</div>
+          <div class="fsub">${plural(f.n_audio, "tema", "temas")} · ${fmtSize(f.size_mb)}${f.modified ? ` · último cambio ${esc(dateLabel(f.modified))}` : ""}</div></div></label>
+        <div class="facts">
+          ${f.selected ? `<button class="pill ghost small" data-organize="${esc(f.path)}" title="Abre «Agregar música nueva» en Organización con esta carpeta">Organizar</button>` : ""}
+          <button class="round" data-open-folder="${esc(f.path)}" title="Abrir la carpeta">${icon("folder", "sm")}</button>
+        </div></div>`;
+    });
+    if (r.loose) html += `<div class="root-foot">Además hay ${plural(r.loose, "tema suelto", "temas sueltos")} (${fmtSize(r.loose_mb)}) directamente en esta carpeta: se elige por subcarpeta, así que para usarlos ponlos en una.</div>`;
+    html += `</div>`;
+  });
+  $("#col-view").innerHTML = html + "</div>";
+}
+
+async function selectFolders(paths, on) {
+  try {
+    const r = await api("/api/collection/select", { paths, on });
+    const chosen = new Set(r.selected.map(pathKey));
+    for (const root of C.data.roots) for (const f of root.folders) f.selected = chosen.has(pathKey(f.path));
+  } catch (e) { fail(e); }
+  renderCollection();
+}
+
+async function addCollectionRoot() {
+  toast("Se abrió una ventana de Windows para elegir la carpeta (si no la ves, puede estar detrás).");
+  try {
+    const r = await api("/api/collection/add-root", {});
+    if (r.cancelled) return;
+    toast("Carpeta agregada a tu colección.", "ok");
+    C.data = null;
+    loadCollection();
+  } catch (e) { fail(e); }
+}
+
+async function removeCollectionRoot(path) {
+  if (!confirm(`¿Quitar de la lista «${path}»?\n\nNo se borra nada del disco; solo deja de contarse en tu colección (y se olvida lo que tenía elegido).`)) return;
+  try { await api("/api/collection/remove-root", { path }); loadCollection(); } catch (e) { fail(e); }
+}
+
+// ---------------------------------------------------------------- organización
+const O = { url: null, pending: null, loaded: false, msg: "", note: "" };
+
+function openOrganizer() {
+  const o = S.st && S.st.organizer;
+  if (!o || o.status === "off") startOrganizer();  // con error espera a «Volver a intentar»
+  renderOrganizer();
+}
+
+async function startOrganizer() {
+  try { const o = await api("/api/organizer/start", {}); if (S.st) S.st.organizer = o; } catch (e) { fail(e); }
+  renderOrganizer();
+}
+
+function organizeFolder(path) {  // «Organizar» en Colección: «Agregar música nueva» con esa carpeta
+  O.pending = path;
+  showTab("organizar");
+  renderOrganizer();
+}
+
+function setOrgMsg(html) {
+  if (O.msg !== html) { O.msg = html; $("#org-msg").innerHTML = html; }  // sin redibujar: «Detalles» quedaría cerrado
+}
+
+function renderOrganizer() {
+  if (S.tab !== "organizar") return;
+  const o = (S.st && S.st.organizer) || { status: "off" };
+  const block = S.st && S.st.playback_block;  // lo que suene aquí también queda en la grabación
+  const note = block ? `<div class="note amber">${icon("warn")}<div><b>Mejor no reproducir nada ahora</b><p>${esc(block)}</p></div></div>` : "";
+  if (O.note !== note) { O.note = note; $("#org-note").innerHTML = note; }
+  const frame = $("#org-frame");
+  if (o.status === "ready" && o.url) {
+    if (O.pending || O.url !== o.url) {
+      frame.src = o.url + (O.pending ? `?agregar=${encodeURIComponent(O.pending)}` : "");
+      O.url = o.url;
+      O.pending = null;
+      O.loaded = false;
+    }
+    frame.hidden = !O.loaded;
+    $("#org-msg").hidden = O.loaded;
+    if (!O.loaded) setOrgMsg(`<div class="spin"></div><b>Abriendo tu organización…</b>La primera vez tarda unos segundos: lee los temas de tu biblioteca.`);
+    return;
+  }
+  frame.hidden = true;
+  $("#org-msg").hidden = false;
+  if (o.status === "error") {
+    O.url = null;  // al volver a abrir, se recarga
+    const details = o.details && o.details.length
+      ? `<details style="margin-top:16px;text-align:left"><summary>Detalles técnicos</summary><div class="log">${o.details.map(esc).join("\n")}</div></details>` : "";
+    setOrgMsg(`<b>La organización no se pudo abrir</b>${esc(o.error || "")}
+      <div class="btnrow" style="justify-content:center;margin-top:16px"><button class="pill white small" id="org-retry">Volver a intentar</button></div>${details}`);
+  } else {
+    setOrgMsg(`<div class="spin"></div><b>Abriendo tu organización…</b>Se prepara la vista de tus carpetas y playlists.`);
+  }
 }
 
 // ---------------------------------------------------------------- acciones
@@ -1576,7 +1839,9 @@ async function tick(once = false) {
   if (changed || Date.now() - historyAt > 8000) await refreshHistory();
   renderFolder();
   render();
-  if (!once) tickTimer = setTimeout(tick, activeName ? 1500 : 3000);
+  renderOrganizer();
+  const opening = S.st.organizer && S.st.organizer.status === "starting";
+  if (!once) tickTimer = setTimeout(tick, activeName || opening ? 1500 : 3000);
   else tickTimer = setTimeout(tick, 1500);
 }
 
@@ -1671,6 +1936,14 @@ document.addEventListener("click", (e) => {
     if (t.dataset.close === "drawer-track") closeTrack(); else $(`#${t.dataset.close}`).classList.remove("open");
     return;
   }
+  if (t.dataset.tab) { showTab(t.dataset.tab); return; }
+  if (t.dataset.colAll !== undefined) {
+    const root = C.data && C.data.roots[Number(t.dataset.colAll)];
+    if (root) selectFolders(root.folders.map((f) => f.path), t.dataset.on === "1");
+    return;
+  }
+  if (t.dataset.colRemove) { removeCollectionRoot(t.dataset.colRemove); return; }
+  if (t.dataset.organize) { organizeFolder(t.dataset.organize); return; }
   if (t.dataset.copy) { copyText(t.dataset.copy, t); return; }
   if (t.hasAttribute("data-more")) {  // «⋯» de una playlist en la lista de la izquierda (lleva sus datos, también data-url)
     const r = t.getBoundingClientRect();
@@ -1743,6 +2016,9 @@ document.addEventListener("click", (e) => {
       if (next != null) openTrack(next, playing); else toast(t.id === "tr-next" ? "Es el último de la lista." : "Es el primero de la lista.");
       break;
     }
+    case "col-add": addCollectionRoot(); break;
+    case "col-refresh": loadCollection(); break;
+    case "org-retry": startOrganizer(); break;
     case "btn-recheck": loadChecks(true); break;
     case "btn-connect": case "btn-connect2": connectSpotify(); break;
     default: break;
@@ -1750,7 +2026,9 @@ document.addEventListener("click", (e) => {
 });
 document.addEventListener("change", (e) => {
   const t = e.target;
-  if (t.id === "defer-toggle") {
+  if (t.dataset.colSel !== undefined) {
+    selectFolders([t.dataset.colSel], t.checked);
+  } else if (t.id === "defer-toggle") {
     api("/api/defer", { on: t.checked })
       .then(() => { toast(t.checked ? "Grabación pospuesta: se baja lo de Soulseek y la grabación queda pendiente." : "La grabación sigue en esta descarga."); tick(true); })
       .catch((err) => { t.checked = !t.checked; fail(err); });
@@ -1768,6 +2046,11 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") { closePops(); closeTrack(); document.querySelectorAll(".drawer.open, .modal-bg.open").forEach((d) => d.classList.remove("open")); }
 });
 $("#modal-start").addEventListener("click", (e) => { if (e.target.id === "modal-start") e.currentTarget.classList.remove("open"); });
+$("#org-frame").addEventListener("load", (e) => {
+  if (!e.currentTarget.getAttribute("src")) return;  // el iframe vacío del arranque
+  O.loaded = true;
+  renderOrganizer();
+});
 
 // tras conectar con Spotify, recargar la vista previa
 let wasConnecting = false;

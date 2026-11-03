@@ -7,6 +7,8 @@ CHANGELOG:
   - 2026-11-02: La salida de cada descarga queda en <runs>/logs/. Enlace de autorización de Spotify
                 (copiable), «Conectar» cuando ya está conectado y carpeta de destino que no existe.
                 Avance de la búsqueda; grabación pospuesta (comando, estado e interruptor).
+  - 2026-11-02: Pestañas Colección (carpetas, conteos, elegir para playlists, carpetas agregadas) y
+                Organización (lanzar review_app, motivos de error, tarea en curso, cierre con la app).
 """
 from __future__ import annotations
 
@@ -675,3 +677,181 @@ def test_search_failed_for_every_track(tmp_path):
     state = APP.run_state(run)
     assert state["status"] == "failed" and "timeout" in state["preflight_error"]
     assert {t["state"] for t in state["tracks"]} == {"search_error"}
+
+
+# ---------------------------------------------------------------------------
+# Pestaña Colección
+# ---------------------------------------------------------------------------
+
+def audio_file(path: Path, size: int = 2048) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"\0" * size)
+    return path
+
+
+def collection_app(tmp_path, monkeypatch):
+    monkeypatch.setattr(APP, "organization_library", lambda: None)  # la biblioteca del pipeline: no en el test
+    downloads = tmp_path / "descargas"
+    audio_file(downloads / "Playlist A" / "a1.mp3")
+    audio_file(downloads / "Playlist A" / "sub" / "a2.flac")
+    (downloads / "Playlist A" / "cover.jpg").write_bytes(b"x")
+    (downloads / "Sin música").mkdir()
+    (downloads / "Sin música" / "notas.txt").write_text("x", encoding="utf-8")
+    audio_file(downloads / "_copias" / "repetido.mp3")  # sacado de la organización por dedupe.py
+    audio_file(downloads / "suelto.wav")
+    write(tmp_path / "cfg" / "settings.json", {"library_root": str(downloads), "runs_root": str(tmp_path / "runs")})
+    return APP.App(tmp_path / "cfg"), downloads
+
+
+def test_collection_counts_folders_and_skips_what_is_not_music(tmp_path, monkeypatch):
+    app, _ = collection_app(tmp_path, monkeypatch)
+    [root] = app.collection()["roots"]
+    assert root["kind"] == "downloads" and root["exists"]
+    assert [(f["name"], f["n_audio"], f["selected"]) for f in root["folders"]] == [("Playlist A", 2, False)]
+    assert root["loose"] == 1  # los sueltos se cuentan, no se eligen
+
+
+def test_collection_selection_is_saved_and_checked(tmp_path, monkeypatch):
+    app, downloads = collection_app(tmp_path, monkeypatch)
+    folder = str(downloads / "Playlist A")
+    assert app.collection_select([folder], True)["selected"] == [folder]
+    assert app.collection()["roots"][0]["folders"][0]["selected"]
+    assert json.loads((tmp_path / "cfg" / "collection.json").read_text(encoding="utf-8"))["selected"] == [folder]
+    for outside in (str(tmp_path), "relativa", str(downloads / "Playlist A" / "sub"), str(downloads / "no existe")):
+        with pytest.raises(ValueError):
+            app.collection_select([outside], True)
+    if os.name == "nt":  # mayúsculas dan igual en Windows
+        assert app.collection_select([folder.upper()], False)["selected"] == []
+    app.collection_select([folder], False)
+    assert app.collection_select([str(tmp_path / "ya no existe")], False)["selected"] == []  # quitar, siempre
+
+
+def test_collection_roots_can_be_added_and_removed(tmp_path, monkeypatch):
+    app, downloads = collection_app(tmp_path, monkeypatch)
+    extra = tmp_path / "Otra música"
+    audio_file(extra / "Vinilos" / "v.aiff")
+    monkeypatch.setattr(APP, "ask_folder", lambda *a, **k: str(extra))
+    assert app.collection_add_root() == {"cancelled": False, "path": str(extra.resolve())}
+    with pytest.raises(ValueError):
+        app.collection_add_root()                             # ya está
+    monkeypatch.setattr(APP, "ask_folder", lambda *a, **k: str(downloads))
+    with pytest.raises(ValueError):
+        app.collection_add_root()                             # es la de las descargas
+    monkeypatch.setattr(APP, "ask_folder", lambda *a, **k: "")
+    assert app.collection_add_root() == {"cancelled": True}
+    roots = app.collection()["roots"]
+    assert [r["kind"] for r in roots] == ["downloads", "custom"]
+    assert roots[1]["folders"][0]["name"] == "Vinilos"
+    opened = []
+    monkeypatch.setattr(APP.os, "startfile", opened.append, raising=False)
+    app.open_folder(str(extra / "Vinilos"))                   # las carpetas de la colección se abren
+    assert opened == [str(extra / "Vinilos")]
+    app.collection_select([str(extra.resolve() / "Vinilos"), str(downloads / "Playlist A")], True)
+    with pytest.raises(ValueError):
+        app.collection_remove_root(str(downloads))            # la de las descargas no se quita
+    app.collection_remove_root(str(extra))
+    assert [r["kind"] for r in app.collection()["roots"]] == ["downloads"]
+    assert app._collection_saved()["selected"] == [str(downloads / "Playlist A")]  # lo de la quitada se olvida
+    assert (extra / "Vinilos" / "v.aiff").is_file()          # no se borra nada
+
+
+def test_missing_collection_root_keeps_its_selection(tmp_path, monkeypatch):
+    app, _ = collection_app(tmp_path, monkeypatch)
+    extra = tmp_path / "USB"
+    audio_file(extra / "Set" / "s.mp3")
+    monkeypatch.setattr(APP, "ask_folder", lambda *a, **k: str(extra))
+    app.collection_add_root()
+    app.collection_select([str(extra.resolve() / "Set")], True)
+    (extra / "Set" / "s.mp3").unlink()
+    (extra / "Set").rmdir()
+    extra.rmdir()                                             # disco desconectado
+    root = app.collection()["roots"][1]
+    assert not root["exists"] and root["missing_selected"] == 1
+
+
+def test_collection_over_http(server, tmp_path, monkeypatch):
+    monkeypatch.setattr(APP, "organization_library", lambda: None)
+    audio_file(tmp_path / "lib" / "Playlist B" / "b.mp3")
+    status, body = request(server, "/api/collection")
+    assert status == 200 and json.loads(body)["roots"][0]["folders"][0]["name"] == "Playlist B"
+    folder = str(tmp_path / "lib" / "Playlist B")
+    assert request(server, "/api/collection/select", body={"paths": [folder], "on": True})[0] == 403  # sin token
+    status, body = request(server, "/api/collection/select", body={"paths": [folder], "on": True}, token=server.token)
+    assert status == 200 and json.loads(body)["selected"] == [folder]
+    assert request(server, "/api/collection/select", body={"paths": folder, "on": True}, token=server.token)[0] == 400
+    assert request(server, "/api/collection/remove-root", body={"path": folder}, token=server.token)[0] == 400
+
+
+# ---------------------------------------------------------------------------
+# Pestaña Organización (review_app.py en un proceso propio)
+# ---------------------------------------------------------------------------
+
+FAKE_ORGANIZER = """
+import json, sys, threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+class H(BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+    def do_GET(self):
+        body = json.dumps({"app": "traktor-ml", "busy": True}).encode()
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+httpd = ThreadingHTTPServer(("127.0.0.1", 0), H)
+print(f"[INFO] TRAKTOR ML abierto en http://127.0.0.1:{httpd.server_address[1]}/  (cerrá esta ventana para salir)", flush=True)
+threading.Thread(target=httpd.serve_forever, daemon=True).start()
+sys.stdin.read()  # como --exit-on-stdin-eof
+"""
+
+
+def wait_for(predicate, timeout: float = 20.0) -> None:
+    deadline = time.time() + timeout
+    while not predicate():
+        assert time.time() < deadline, "no llegó a tiempo"
+        time.sleep(0.05)
+
+
+def test_organizer_opens_reports_busy_and_closes_with_the_app(tmp_path):
+    script = tmp_path / "fake_review_app.py"
+    script.write_text(FAKE_ORGANIZER, encoding="utf-8")
+    organizer = APP.Organizer([sys.executable, str(script)])
+    assert organizer.public()["status"] == "off" and not organizer.busy()
+    assert organizer.start()["status"] in {"starting", "ready"}
+    wait_for(lambda: organizer.status == "ready")
+    assert organizer.url.startswith("http://127.0.0.1:") and organizer.busy()
+    assert organizer.start()["url"] == organizer.url        # ya abierta: no lanza otra
+    organizer.close()                                         # la app se cierra: se le cierra la entrada
+    organizer.proc.wait(timeout=20)
+    wait_for(lambda: organizer.status == "error")             # ya no está: la pestaña lo dice
+    assert not organizer.busy()
+
+
+def test_organizer_explains_why_it_did_not_open(tmp_path):
+    script = tmp_path / "no_org.py"
+    script.write_text("import sys\nsys.exit(\"No existe la organización 'biblioteca' en C:/x/orgs\")\n", encoding="utf-8")
+    organizer = APP.Organizer([sys.executable, str(script)])
+    organizer.start()
+    wait_for(lambda: organizer.status == "error")
+    public = organizer.public()
+    assert "no está en este ordenador" in public["error"] and public["url"] is None
+    assert any("No existe la organización" in line for line in public["details"])
+
+
+def test_organizer_problem_messages():
+    missing = APP.organizer_problem(["ModuleNotFoundError: No module named 'yaml'"], 1)
+    assert "«yaml»" in missing and "requirements_v4.txt" in missing
+    assert "no está en este ordenador" in APP.organizer_problem(
+        ["FileNotFoundError: Audio root for dataset 'musica' not found. Tried:"], 1)
+    assert "código 3" in APP.organizer_problem(["algo raro"], 3)
+
+
+def test_page_has_the_three_tabs_and_the_organizer_waits_for_its_tab(server):
+    status, page = request(server, "/")
+    assert status == 200
+    for tab in ('data-tab="descargas"', 'data-tab="coleccion"', 'data-tab="organizar"'):
+        assert tab in page
+    status, body = request(server, "/api/state")
+    assert json.loads(body)["organizer"]["status"] == "off"  # se abre recién al entrar en la pestaña

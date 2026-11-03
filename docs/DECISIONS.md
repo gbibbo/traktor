@@ -17,6 +17,17 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    ("Magnetic") daba otro tema. Resultado: 81 de 236 encontrados; con carátula 1630/1760.
    Siguen sin fuente 123 temas sin carátula (bootlegs, rips, ediciones de DJ) y los 7 WAV (no se
    escriben: Traktor no lee sus tags).
+2. **Una sola app con tres pestañas arriba a la izquierda** (Gabriel): «Descargas» (la app de
+   descargas de siempre), «Colección» (nueva y chica: qué música forma la colección y cuál se elige
+   para generar playlists) y «Organización» (la app web de carpetas y playlists por estilo,
+   `src/v4/ui/review_app.py`). Cómo (agente): la ventana es la de `descargas_app.py`; la
+   Organización corre en su propio proceso, lanzado al abrir la pestaña y mostrado dentro de ella,
+   y se cierra con la app (después de la tarea en curso); `Abrir TRAKTOR ML.bat` sigue igual. La
+   Colección son las carpetas de descargas, la biblioteca organizada (si está en ese ordenador) y
+   las que se agregan a mano; se elige por subcarpeta y lo elegido queda en
+   `%APPDATA%\traktor_descargas\collection.json`. Por ahora la elección solo se lleva a la
+   organización carpeta por carpeta («Organizar» abre «Agregar música nueva» con ella); falta que
+   Gabriel diga si la generación de playlists debe usar solo lo elegido.
 
 ## 2026-10-30
 
