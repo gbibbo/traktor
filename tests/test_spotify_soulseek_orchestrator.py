@@ -892,8 +892,11 @@ class WorkflowSimulationTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertEqual(report["status"], "completed")
             self.assertEqual(report["soulseek_returncode"], 3)
-            self.assertEqual(sorted(p.name for p in (root / "lib" / "Lista").iterdir()),
-                             ["Artista - Tema 1.mp3", "Artista - Tema 2.mp3", "Artista - Tema 3.mp3"])
+            self.assertEqual(self.library(root), self.ALL)
+            m3u = (root / "lib" / "Lista" / "Lista.m3u8").read_text(encoding="utf-8").splitlines()
+            self.assertEqual(m3u[0], "#EXTM3U")  # en el orden de Spotify, con rutas absolutas
+            self.assertEqual([Path(line).name for line in m3u[2::2]], self.ALL)
+            self.assertTrue(all(Path(line).is_absolute() for line in m3u[2::2]))
             recorders = [cmd for script, cmd in calls if script == "playlist_loopback_recorder.py"]
             self.assertEqual([Path(c[c.index("--output-dir") + 1]).name for c in recorders],
                              ["recorded_missing", ORCHESTRATOR.RECORDED_FAILED_DIR])
@@ -910,14 +913,13 @@ class WorkflowSimulationTests(unittest.TestCase):
             self.assertEqual(report["status"], "partial")
             self.assertEqual(report["missing_spotify_ids"], ["id2"])
             self.assertIn("Spotify 429", report["reason"])
-            self.assertEqual(sorted(p.name for p in (root / "lib" / "Lista").iterdir()),
-                             ["Artista - Tema 1.mp3", "Artista - Tema 3.mp3"])
+            self.assertEqual(self.library(root), ["Artista - Tema 1.mp3", "Artista - Tema 3.mp3"])
             self.assertEqual(sum(script == "playlist_loopback_recorder.py" for script, _ in calls), 1)
 
     ALL = ["Artista - Tema 1.mp3", "Artista - Tema 2.mp3", "Artista - Tema 3.mp3"]
 
     def library(self, root: Path) -> list[str]:
-        return sorted(p.name for p in (root / "lib" / "Lista").iterdir())
+        return sorted(p.name for p in (root / "lib" / "Lista").glob("*.mp3"))
 
     @staticmethod
     def recorders(calls) -> list[str]:

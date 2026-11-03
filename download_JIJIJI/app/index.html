@@ -499,7 +499,14 @@ details summary::before { content: "▸ "; } details[open] summary::before { con
 
 <div class="drawer" id="drawer-log">
   <div class="drawer-head"><h3>Detalles técnicos</h3><button class="round" data-close="drawer-log" title="Cerrar"><svg class="ico md"><use href="#i-x"/></svg></button></div>
-  <div class="drawer-body"><div class="log" id="log">Todavía no hay ninguna descarga lanzada desde esta ventana.</div></div>
+  <div class="drawer-body">
+    <div class="btnrow" id="log-tabs" hidden style="margin-bottom:10px">
+      <button class="pill ghost small" data-log="job">Registro de la descarga</button>
+      <button class="pill ghost small" data-log="sockseek">Búsqueda (sockseek)</button>
+      <button class="pill ghost small" data-log="live">La descarga en curso</button>
+    </div>
+    <div class="small" id="log-path" style="margin-bottom:8px"></div>
+    <div class="log" id="log">Todavía no hay ninguna descarga lanzada desde esta ventana.</div></div>
 </div>
 
 <div class="modal-bg" id="modal-start">
@@ -638,7 +645,7 @@ function renderLibrary() {
     const live = it.alive;
     const sub = live ? `Descargando · ${it.done}/${it.total || "?"}` : `${RUN_LABEL[it.status] || "Playlist"} · ${it.done}/${it.total || "?"}`;
     const cover = it.cover ? `<img src="${esc(it.cover)}" alt="" loading="lazy">` : `<div class="ph">${icon("music")}</div>`;
-    return `<button class="lib-item ${it.playlist_id === pid ? "on" : ""}" data-url="${esc(it.url)}" data-pid="${esc(it.playlist_id)}" data-name="${esc(it.name)}" data-folder="${esc(it.final_output || "")}" title="${esc(it.name)} · clic derecho: más opciones">
+    return `<button class="lib-item ${it.playlist_id === pid ? "on" : ""}" data-url="${esc(it.url)}" data-pid="${esc(it.playlist_id)}" data-name="${esc(it.name)}" data-folder="${esc(it.final_output || "")}" data-run="${esc(it.run)}" title="${esc(it.name)} · clic derecho: más opciones">
       ${cover}<div class="lib-txt"><div class="lib-name">${esc(it.name)}</div><div class="lib-sub">${esc(sub)}</div></div>
       <div class="lib-live">${live ? IND_DL : ""}</div></button>`;
   }).join("");
@@ -675,7 +682,7 @@ function renderHome() {
     html += `<div class="empty-note">Todavía no bajaste ninguna playlist desde este ordenador.</div>`;
   } else {
     html += `<div class="cards">${S.history.slice(0, 12).map((it) => `
-      <button class="card" data-url="${esc(it.url)}" data-pid="${esc(it.playlist_id)}" data-name="${esc(it.name)}" data-folder="${esc(it.final_output || "")}">
+      <button class="card" data-url="${esc(it.url)}" data-pid="${esc(it.playlist_id)}" data-name="${esc(it.name)}" data-folder="${esc(it.final_output || "")}" data-run="${esc(it.run)}">
         <div class="cv">${it.cover ? `<img src="${esc(it.cover)}" alt="" loading="lazy">` : `<div class="ph" style="height:100%">${icon("music")}</div>`}
 </div>
         <div class="t">${esc(it.name)}</div>
@@ -1220,7 +1227,7 @@ async function copyText(text, btn, done = "Enlace copiado: pégalo en la barra d
 }
 
 // ---------------------------------------------------------------- menú de una playlist (clic derecho o «⋯ Más»)
-const itemFromEl = (el) => ({ pid: el.dataset.pid, url: el.dataset.url, name: el.dataset.name, folder: el.dataset.folder || "" });
+const itemFromEl = (el) => ({ pid: el.dataset.pid, url: el.dataset.url, name: el.dataset.name, folder: el.dataset.folder || "", run: el.dataset.run || "" });
 
 function playlistMenu(item, x, y) {
   const pop = $("#pop-pl");
@@ -1229,6 +1236,7 @@ function playlistMenu(item, x, y) {
   pop.innerHTML = `${item.folder ? `<button data-menu="folder">${icon("folder", "sm")}Abrir la carpeta de la música</button>` : ""}
     <button data-menu="spotify">${icon("ext", "sm")}Abrir en Spotify</button>
     <button data-menu="copy">${icon("clip", "sm")}Copiar el enlace de Spotify</button>
+    ${item.run ? `<button data-menu="log">${icon("term", "sm")}Ver el registro de la descarga</button>` : ""}
     <hr><button data-menu="hide">${icon("x", "sm")}Quitar de la lista</button>
     <button data-menu="delete" class="danger">${icon("warn", "sm")}Borrar archivos de trabajo…</button>`;
   pop.classList.add("open");
@@ -1250,6 +1258,7 @@ async function menuAction(kind, btn) {
   if (kind === "folder") openFolder(it.folder);
   else if (kind === "spotify") window.open(it.url, "_blank", "noopener");
   else if (kind === "copy") copyText(it.url, btn, "Enlace copiado.");
+  else if (kind === "log") openRunLog(it.run);
   else if (kind === "hide") {
     try {
       await api("/api/playlist/hide", { playlist_id: it.pid });
@@ -1535,19 +1544,45 @@ function announce(job) {
   else toast(job.error ? `Terminó con un problema: ${job.error.slice(0, 160)}` : "La descarga terminó con un error.", "err");
 }
 
+// «Detalles técnicos»: la salida de la descarga en curso o, desde «⋯ Más», el registro de cualquier descarga.
+function showLog(lines) {
+  const box = $("#drawer-log .drawer-body");
+  const atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 30;
+  $("#log").innerHTML = lines.map((l) => {
+    const cls = /✓|COMPLETADO|Guardado:|→ /.test(l) ? "ok" : /✗|ERROR|falló|Traceback|\[error\]/i.test(l) ? "bad" : /PAUSADO|!|\?/.test(l.slice(0, 14)) ? "warn" : /===|\[\d\/4\]|\[grabación\]/.test(l.slice(0, 16)) ? "head" : "";
+    return `<span class="${cls}">${esc(l)}</span>`;
+  }).join("\n");
+  if (atEnd) box.scrollTop = box.scrollHeight;
+}
+
+async function openRunLog(run, kind = "job", refresh = false) {
+  S.logView = { run, kind };
+  closeTrack();
+  $("#drawer-settings").classList.remove("open");
+  $("#drawer-log").classList.add("open");
+  $("#log-tabs").hidden = false;
+  document.querySelectorAll("#log-tabs [data-log]").forEach((b) => b.classList.toggle("white", b.dataset.log === kind));
+  if (!refresh) $("#log").textContent = "Leyendo…";
+  try {
+    const d = await api(`/api/run-log?run=${encodeURIComponent(run)}&kind=${kind}`);
+    $("#log-path").textContent = d.path ? d.path + (d.truncated ? " (las últimas 3000 líneas)" : "") : "";
+    if (d.lines.length) showLog(d.lines);
+    else $("#log").textContent = kind === "sockseek" ? "Esta descarga no tiene registro de sockseek (la búsqueda es anterior al 2026-11-02 o no llegó a empezar)." : "No hay registro de esta descarga (es anterior al 2026-11-02, cuando empezaron a guardarse).";
+  } catch (e) { $("#log").textContent = String(e.message || e); }
+}
+
 async function pollLog() {
   if (!$("#drawer-log").classList.contains("open")) return;
+  if (S.logView) {  // un registro guardado: si es el de la descarga en curso, se relee
+    const live = S.st && S.st.job && S.st.job.alive && S.st.job.run === S.logView.run;
+    if (live) openRunLog(S.logView.run, S.logView.kind, true);
+    setTimeout(pollLog, 3000);
+    return;
+  }
   try {
     const d = await api("/api/log");
-    if (d.lines.length) {
-      const box = $("#drawer-log .drawer-body");
-      const atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 30;
-      $("#log").innerHTML = d.lines.map((l) => {
-        const cls = /✓|COMPLETADO|Guardado:|→ /.test(l) ? "ok" : /✗|ERROR|falló|Traceback/i.test(l) ? "bad" : /PAUSADO|!|\?/.test(l.slice(0, 6)) ? "warn" : /^===|^\[\d\/4\]|^\[grabación\]/.test(l) ? "head" : "";
-        return `<span class="${cls}">${esc(l)}</span>`;
-      }).join("\n");
-      if (atEnd) box.scrollTop = box.scrollHeight;
-    }
+    $("#log-path").textContent = "";
+    if (d.lines.length) showLog(d.lines);
   } catch { /* sigue */ }
   setTimeout(pollLog, 1500);
 }
@@ -1590,6 +1625,11 @@ document.addEventListener("click", (e) => {
   if (t.dataset.copy) { copyText(t.dataset.copy, t); return; }
   if (t.dataset.play) { openTrack(Number(t.dataset.play), true); return; }
   if (t.dataset.menu) { menuAction(t.dataset.menu, t); return; }
+  if (t.dataset.log) {
+    if (t.dataset.log === "live") { S.logView = null; $("#log-tabs").hidden = true; $("#log").textContent = "Todavía no hay ninguna descarga lanzada desde esta ventana."; pollLog(); }
+    else if (S.logView) openRunLog(S.logView.run, t.dataset.log);
+    return;
+  }
   if (t.dataset.filter !== undefined) {
     const key = t.dataset.filter || null;
     S.filter.group = key && S.filter.group === key ? null : key;
@@ -1616,7 +1656,7 @@ document.addEventListener("click", (e) => {
       const r = t.getBoundingClientRect();
       const v = S.view;
       playlistMenu({ pid: v.pid, url: v.url, name: (v.meta && v.meta.name) || (v.run && v.run.name) || "la playlist",
-        folder: (v.run && (v.run.final_output || v.run.saved_to)) || "" }, r.left, r.bottom + 6);
+        folder: (v.run && (v.run.final_output || v.run.saved_to)) || "", run: (v.run && v.run.run) || "" }, r.left, r.bottom + 6);
       break;
     }
     case "pl-stop": stopDownload(); break;
@@ -1632,7 +1672,7 @@ document.addEventListener("click", (e) => {
     case "btn-open-lib": openFolder(S.st.settings.library_root); break;
     case "btn-open-runs": openFolder(S.st.settings.runs_root); break;
     case "btn-settings": closeTrack(); $("#drawer-log").classList.remove("open"); $("#drawer-settings").classList.toggle("open"); if ($("#drawer-settings").classList.contains("open")) loadChecks(); break;
-    case "btn-log": closeTrack(); $("#drawer-settings").classList.remove("open"); $("#drawer-log").classList.toggle("open"); pollLog(); break;
+    case "btn-log": S.logView = null; $("#log-tabs").hidden = true; closeTrack(); $("#drawer-settings").classList.remove("open"); $("#drawer-log").classList.toggle("open"); pollLog(); break;
     case "tr-reveal": if (S.track) api("/api/track/reveal", { run: S.track.run, pos: S.track.pos }).catch(fail); break;
     case "tr-open": if (S.track) api("/api/track/open", { run: S.track.run, pos: S.track.pos }).catch(fail); break;
     case "tr-copy": if (S.track && S.track.data) copyText(S.track.data.path, t, "Ruta copiada."); break;

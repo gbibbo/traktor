@@ -1450,6 +1450,24 @@ class App:
         return {**detail, "path": str(path), "properties": details["properties"], "tags": details["tags"],
                 "source": source, "checks": track_checks(spotify, source, details["tags"], details["length_s"])}
 
+    def run_log(self, run_name: str, kind: str) -> dict[str, Any]:
+        """El registro de una descarga cualquiera: su salida completa (logs/) o la búsqueda de sockseek."""
+        if not RUN_DIR_RE.match(run_name):
+            raise ValueError("Descarga desconocida.")
+        run_dir = self.runs_root() / run_name
+        path: Path | None = run_dir / "sockseek_preflight.log" if kind == "sockseek" else None
+        if kind != "sockseek":  # el log de la app nombra su run en las primeras líneas («Run      : …»)
+            pid = RUN_DIR_RE.match(run_name).group(3)
+            for candidate in sorted((self.runs_root() / JOB_LOG_DIR).glob(f"*_{pid}.log"), reverse=True):
+                with candidate.open(encoding="utf-8", errors="replace") as handle:
+                    if run_name in handle.read(4096):
+                        path = candidate
+                        break
+        if path is None or not path.is_file():
+            return {"lines": [], "path": None}
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        return {"lines": lines[-3000:], "path": str(path), "truncated": len(lines) > 3000}
+
     def track_file(self, run_name: str, pos: int) -> Path:
         return self._track(run_name, pos)[1]
 
@@ -1636,6 +1654,7 @@ class App:
                     expected_spotify_ids=None, extra_recorded_dirs=(run_dir / orch.RECORDED_FAILED_DIR,))
                 report["partial"] = True
                 write_json(run_dir / "consolidation_report.json", report)
+                orch.write_playlist_m3u8(folder, run_dir)  # la playlist en el orden de Spotify
                 self.saving = {"run": run_name, "status": "done", "folder": str(folder), "count": report["audio_count"]}
             except Exception as exc:  # noqa: BLE001
                 traceback.print_exc()
@@ -1737,6 +1756,8 @@ def make_handler(app: App):
                     return self._json(200, {"devices": app.devices(), "busy": app.busy_reason()})
                 if path == "/api/audio/level":
                     return self._json(200, app.monitor.level())
+                if path == "/api/run-log":
+                    return self._json(200, app.run_log(query.get("run", [""])[0], query.get("kind", ["job"])[0]))
                 if path == "/api/spotify-open":  # sin refrescar todas las comprobaciones (el antivirus tarda)
                     return self._json(200, {"open": process_running("Spotify.exe")})
                 if path == "/api/playlist/work":

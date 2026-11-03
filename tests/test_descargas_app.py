@@ -288,6 +288,23 @@ def test_a_stopped_run_can_save_what_it_downloaded(tmp_path, monkeypatch):
     assert app.saving["status"] == "done" and seen["run"] == run
 
 
+def test_the_log_of_any_run_can_be_read(tmp_path):
+    app = app_with_runs(tmp_path)
+    run = make_run(tmp_path / "runs", stamp="20261102-181456")
+    other = make_run(tmp_path / "runs", stamp="20261102-174256")
+    logs = tmp_path / "runs" / APP.JOB_LOG_DIR
+    logs.mkdir()
+    (logs / f"20261102-181455_{PID}.log").write_text(f"[18:14:56] Run      : {run}\n[18:16:38] Lanzando…\n", encoding="utf-8")
+    (logs / f"20261102-174255_{PID}.log").write_text(f"[17:42:56] Run      : {other}\n", encoding="utf-8")
+    (run / "sockseek_preflight.log").write_text("2026-11-02 18:16:40 [info] searching\n", encoding="utf-8")
+    assert app.run_log(run.name, "job")["lines"][1] == "[18:16:38] Lanzando…"   # el de ese run, no el de otro
+    assert app.run_log(other.name, "job")["lines"] == [f"[17:42:56] Run      : {other}"]
+    assert app.run_log(run.name, "sockseek")["lines"] == ["2026-11-02 18:16:40 [info] searching"]
+    assert app.run_log(other.name, "sockseek") == {"lines": [], "path": None}
+    with pytest.raises(ValueError):
+        app.run_log("../x", "job")
+
+
 def test_job_command(tmp_path):
     settings = {"library_root": "D:/Musica", "runs_root": "D:/runs"}
     cmd = APP.build_job_command(tmp_path / "stop", "https://open.spotify.com/playlist/abc", settings, fresh=False)

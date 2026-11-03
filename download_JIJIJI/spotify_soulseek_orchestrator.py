@@ -929,6 +929,39 @@ def playlist_identity(
     return name, expected
 
 
+def write_playlist_m3u8(playlist_dir: Path, run_dir: Path) -> Path | None:
+    """The playlist in Spotify's order, for Rekordbox and Traktor: UTF-8, absolute paths and CRLF, like
+    src/v4/common/dj_export.py. Rewritten from the folder on every save, so tracks recorded later take
+    their place in the order."""
+    reports = sorted(
+        [*run_dir.glob("soulseek_availability*.json"), *(run_dir / "diagnostics").glob("soulseek_availability*.json")],
+        key=lambda path: path.stat().st_mtime,
+    )
+    availability = read_json_dict(reports[-1]) if reports else None
+    if not availability or not playlist_dir.is_dir():
+        return None
+    files: dict[str, Path] = {}
+    for path in sorted(playlist_dir.glob("*.mp3"), key=lambda item: str(item).casefold()):
+        try:
+            files.setdefault(embedded_spotify_id(path), path)
+        except WorkflowError:
+            continue
+    rows = [row for row in availability.get("tracks") or [] if isinstance(row, dict)]
+    lines = ["#EXTM3U"]
+    for row in sorted(rows, key=lambda item: int(item.get("position") or 0)):
+        spotify = row.get("spotify") or {}
+        path = files.get(str(spotify.get("spotify_id")))
+        if path is None:
+            continue
+        seconds = round((spotify.get("duration_ms") or 0) / 1000) or -1
+        artists = ", ".join(str(a) for a in spotify.get("artists") or [])
+        lines += [f"#EXTINF:{seconds},{artists} - {spotify.get('title') or path.stem}", str(path.resolve())]
+    out = playlist_dir / f"{playlist_dir.name}.m3u8"
+    with out.open("w", encoding="utf-8", newline="\r\n") as handle:
+        handle.write("\n".join(lines) + "\n")
+    return out
+
+
 def playlist_music_folder(runs_root: Path, playlist_id: str, playlists_root: Path) -> Path | None:
     """The music folder an earlier run of this playlist saved to, if it is in the current destination."""
     root = playlists_root.resolve()
@@ -992,6 +1025,7 @@ def finish_partial(
     missing_ids = sorted((expected_ids or set()) - found)
     consolidation.update({"partial": True, "reason": reason, "missing_spotify_ids": missing_ids})
     write_summary(run_dir / "consolidation_report.json", consolidation)
+    write_playlist_m3u8(playlist_dir, run_dir)
     diagnostics_dir = simplify_completed_run(run_dir, moved_paths)
     summary.pop("soulseek_output", None)
     summary.pop("recorded_output", None)
@@ -1055,6 +1089,7 @@ def finish_deferred(
         )
         consolidation = _with_saved_before(run_dir, summary, consolidation)
         write_summary(run_dir / "consolidation_report.json", consolidation)
+        write_playlist_m3u8(playlist_dir, run_dir)
         saved |= {str(row["spotify_id"]) for row in consolidation["tracks"]}
         summary["final_output"] = str(playlist_dir)
     summary.update(
@@ -1435,6 +1470,7 @@ def run_workflow(args: argparse.Namespace) -> int:
         consolidation = _with_saved_before(run_dir, summary, consolidation)
         consolidation_path = run_dir / "consolidation_report.json"
         write_summary(consolidation_path, consolidation)
+        write_playlist_m3u8(playlist_dir, run_dir)
         diagnostics_dir = simplify_completed_run(run_dir, moved_paths)
 
         summary.pop("soulseek_output", None)
