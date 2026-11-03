@@ -33,7 +33,21 @@ Abre una ventana propia (Edge en modo app) servida por `app/descargas_app.py` so
   ID), de dónde salió (usuario, archivo original, por qué se aceptó y qué se descartó, o el tramo
   grabado), las propiedades del audio y todas sus etiquetas, y abre su ubicación o el reproductor.
   No se puede escuchar mientras una descarga pueda grabar (sonaría en la grabación), salvo con la
-  grabación pospuesta;
+  grabación pospuesta. «‹ Anterior» / «Siguiente ›» recorren la lista y «Seguir escuchando los
+  siguientes» pasa al próximo tema con archivo. Un tema sin archivo muestra qué devolvió Soulseek
+  (y por qué se descartó cada archivo) y cada intento de descarga;
+* **filtrar la lista**: los chips de estado («Por grabar», «No se pudieron»…) muestran solo esos
+  temas, y el buscador filtra por título, artista o álbum;
+* **«⋯ Más» o clic derecho en una playlist**: abrir su carpeta, abrirla en Spotify, copiar el
+  enlace, ver el registro de la descarga (la salida completa o la búsqueda de sockseek), «Quitar
+  de la lista» (no borra nada; vuelve si se baja de nuevo) y «Borrar archivos de trabajo» (las
+  carpetas de `runs/`, avisando lo que no está guardado; nunca la carpeta de la música);
+* **cola**: con una descarga en curso, otra playlist se pone en cola y empieza sola al terminar
+  la anterior (si la detienes tú, la cola espera a «Empezar la cola ahora»);
+* **avisos de Windows** cuando una descarga termina, queda incompleta, en pausa, con la
+  grabación pendiente o cuando Spotify pide autorización, aunque la ventana esté cerrada;
+* en la carpeta de cada playlist queda `<playlist>.m3u8` en el orden de Spotify (rutas
+  absolutas, como el export del proyecto) para importarla en Rekordbox o Traktor;
 * seguir cada tema: en Soulseek, bajando, bajado, se grabará (también lo que no se pudo bajar,
   con el motivo), grabando, grabado o «no se pudo». También se siguen los runs lanzados desde la
   terminal. Un run «Incompleta» ya guardó lo que consiguió y dice qué falta;

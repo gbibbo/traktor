@@ -772,6 +772,37 @@ def fmt_seconds(seconds: float) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Avisos de Windows (también con la ventana cerrada)
+# ---------------------------------------------------------------------------
+
+_TOAST = (
+    "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null;"
+    "$t = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent("
+    "[Windows.UI.Notifications.ToastTemplateType]::ToastText02);"
+    "$x = $t.GetElementsByTagName('text');"
+    "$x.Item(0).AppendChild($t.CreateTextNode($env:AVISO_TITULO)) > $null;"
+    "$x.Item(1).AppendChild($t.CreateTextNode($env:AVISO_TEXTO)) > $null;"
+    "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("
+    "'{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe').Show("
+    "[Windows.UI.Notifications.ToastNotification]::new($t))"
+)
+
+
+def notify(title: str, text: str) -> None:
+    """Aviso de Windows sin dependencias (WinRT desde PowerShell). Los textos van por variables de entorno,
+    nunca dentro del comando: el nombre de una playlist no puede inyectar nada."""
+    if os.name != "nt":
+        return
+    try:
+        subprocess.Popen(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", _TOAST],
+                         env={**os.environ, "AVISO_TITULO": title[:120], "AVISO_TEXTO": text[:300]},
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         creationflags=CREATE_NO_WINDOW)
+    except OSError:
+        traceback.print_exc()
+
+
+# ---------------------------------------------------------------------------
 # Una descarga lanzada desde la app
 # ---------------------------------------------------------------------------
 
@@ -809,6 +840,7 @@ class DownloadJob:
         self.tree: ProcessTree | None = None
         self.killed: list[str] = []
         self.log_path: Path | None = None
+        self.on_event: Callable[[DownloadJob, str], None] | None = None  # «auth» y «end»: avisos y cola
         self._log_file: io.TextIOBase | None = None
         self._log_lock = threading.Lock()
 
@@ -895,6 +927,7 @@ class DownloadJob:
             text = line.strip()
             if expect_auth_url and text.startswith("https://"):
                 self.auth_url, expect_auth_url = text, False
+                self._event("auth")
             if text.startswith("Abre esta URL si el navegador no se abre solo"):
                 expect_auth_url = True
             elif text.startswith("Run      :") or text.startswith("Run :"):
@@ -916,6 +949,14 @@ class DownloadJob:
         self._close_log()
         self.ended = time.time()
         self.returncode = returncode
+        self._event("end")
+
+    def _event(self, kind: str) -> None:
+        if self.on_event is not None:
+            try:
+                self.on_event(self, kind)
+            except Exception:  # noqa: BLE001 (un aviso que falla no corta la descarga)
+                traceback.print_exc()
 
     @property
     def alive(self) -> bool:
@@ -1341,10 +1382,12 @@ class App:
         self.playlists: dict[str, Any] = read_json(self.playlists_path) or {}
         self.hidden_path = config_dir / "hidden.json"  # playlist → cuándo se quitó de la lista
         self.hidden: dict[str, float] = read_json(self.hidden_path) or {}
+        self.queue: list[dict[str, Any]] = []  # playlists que empiezan solas cuando termina la descarga en curso
 
     def busy(self) -> bool:
-        """Algo que no se puede cortar: una descarga lanzada desde la app o un guardado."""
-        return bool((self.job and self.job.alive) or (self.saving and self.saving.get("status") == "running"))
+        """Algo que no se puede cortar: una descarga lanzada desde la app, un guardado o playlists en cola."""
+        return bool((self.job and self.job.alive) or (self.saving and self.saving.get("status") == "running")
+                    or self.queue)
 
     # ---- ajustes y carpetas ----
     def runs_root(self) -> Path:
@@ -1612,9 +1655,68 @@ class App:
                 raise RuntimeError("Falta configurar: " + ", ".join(missing) + ".")
             self.monitor.stop()
             job = DownloadJob(url, self.settings, fresh, defer)
+            job.on_event = self._job_event
             job.start()
             self.job = job
         return job.public()
+
+    # ---- avisos y cola ----
+    def _playlist_name(self, playlist_id: str) -> str:
+        return str((self.playlists.get(playlist_id) or {}).get("name") or "La playlist")
+
+    def _job_event(self, job: DownloadJob, kind: str) -> None:
+        """Aviso de Windows cuando una descarga necesita algo o termina (no si la detuvo Gabriel), y la siguiente
+        de la cola."""
+        name = self._playlist_name(job.playlist_id)
+        if kind == "auth":
+            notify("Spotify pide autorización", f"«{name}»: acéptala en el navegador (5 minutos). El enlace está en la app.")
+            return
+        if job.stop_requested:  # la detuvo Gabriel: sin aviso, y la cola espera a «Empezar la cola ahora»
+            return
+        outcome = job.public()["outcome"]
+        if outcome == "done":
+            notify("Playlist lista", f"«{name}»: todos los temas están en tu carpeta.")
+        elif outcome == "partial":
+            notify("Descarga terminada con faltantes", f"«{name}»: se guardó lo que se consiguió; la app dice qué falta.")
+        elif outcome == "paused" and (job.paused or "").startswith("Grabación pospuesta"):
+            notify("Grabación pendiente", f"«{name}»: lo de Soulseek ya está en tu carpeta. «Grabar ahora» cuando quieras.")
+        elif outcome == "paused":
+            notify("Descarga en pausa", f"«{name}»: Spotify se detuvo. Pulsa «Continuar grabación» en la app.")
+        elif outcome == "failed":
+            notify("La descarga terminó con un error", f"«{name}»: {(job.error or 'mira el detalle en la app')[:160]}")
+        threading.Thread(target=self._start_next, daemon=True).start()
+
+    def public_queue(self) -> list[dict[str, Any]]:
+        return [{**item, "name": self._playlist_name(item["playlist_id"])} for item in self.queue]
+
+    def enqueue(self, url: str, fresh: bool, defer: bool) -> list[dict[str, Any]]:
+        try:
+            playlist_id = orch.playlist_id_from_url(url)
+        except orch.WorkflowError as exc:
+            raise ValueError("Eso no parece un enlace de playlist de Spotify.") from exc
+        if self.job and self.job.alive and self.job.playlist_id == playlist_id:
+            raise RuntimeError("Esa playlist ya se está descargando.")
+        if any(item["playlist_id"] == playlist_id for item in self.queue):
+            raise RuntimeError("Esa playlist ya está en la cola.")
+        self.queue.append({"url": orch.canonical_playlist_url(url), "playlist_id": playlist_id, "fresh": fresh,
+                           "defer": defer})
+        if not (self.job and self.job.alive) and not self.live_external():
+            self._start_next()  # no había nada en curso: empieza ya
+        return self.public_queue()
+
+    def dequeue(self, playlist_id: str) -> list[dict[str, Any]]:
+        self.queue = [item for item in self.queue if item["playlist_id"] != playlist_id]
+        return self.public_queue()
+
+    def _start_next(self) -> None:
+        while self.queue and not (self.job and self.job.alive) and not self.live_external():
+            item = self.queue.pop(0)
+            try:
+                self.start(item["url"], item["fresh"], item["defer"])
+                return
+            except Exception as exc:  # noqa: BLE001 (sigue con la siguiente)
+                traceback.print_exc()
+                notify("No empezó una descarga de la cola", f"«{self._playlist_name(item['playlist_id'])}»: {exc}")
 
     def set_defer(self, on: bool) -> dict[str, Any]:
         if not (self.job and self.job.alive):
@@ -1689,7 +1791,7 @@ class App:
                 "external": self.live_external(), "preview_auth": self.preview.authorized(),
                 "connecting": self.preview.connecting, "connect_error": self.preview.connect_error,
                 "connect_url": self.preview.auth_url if self.preview.connecting else None,
-                "playback_block": self.playback_block_reason(),
+                "playback_block": self.playback_block_reason(), "queue": self.public_queue(),
                 "monitor": self.monitor.level(), "saving": self.saving}
 
 
@@ -1844,6 +1946,14 @@ def make_handler(app: App):
                 if path == "/api/start":
                     return self._json(200, app.start(str(body.get("url") or ""), bool(body.get("fresh")),
                                                      bool(body.get("defer"))))
+                if path == "/api/queue/add":
+                    return self._json(200, {"queue": app.enqueue(str(body.get("url") or ""), bool(body.get("fresh")),
+                                                                 bool(body.get("defer")))})
+                if path == "/api/queue/start":
+                    app._start_next()
+                    return self._json(200, {"queue": app.public_queue()})
+                if path == "/api/queue/remove":
+                    return self._json(200, {"queue": app.dequeue(str(body.get("playlist_id") or ""))})
                 if path == "/api/defer":
                     return self._json(200, app.set_defer(bool(body.get("on"))))
                 if path in ("/api/playlist/hide", "/api/playlist/unhide"):

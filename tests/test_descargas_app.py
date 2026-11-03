@@ -305,6 +305,72 @@ def test_the_log_of_any_run_can_be_read(tmp_path):
         app.run_log("../x", "job")
 
 
+class FakeJob:
+    def __init__(self, pid=PID, outcome="done", paused=None, stop_requested=False):
+        self.playlist_id, self.alive, self.paused, self.stop_requested, self.error = pid, False, paused, stop_requested, None
+        self.run_dir = None
+        self._outcome = outcome
+
+    def public(self):
+        return {"outcome": self._outcome}
+
+
+def test_queued_playlists_start_one_after_another(tmp_path, monkeypatch):
+    app = app_with_runs(tmp_path)
+    started, notes = [], []
+    monkeypatch.setattr(APP, "notify", lambda title, text: notes.append(title))
+
+    def start(url, fresh, defer):
+        started.append((url.rsplit("/", 1)[-1], fresh, defer))
+        app.job = FakeJob(pid=url.rsplit("/", 1)[-1])
+        app.job.alive = True
+        return {}
+    monkeypatch.setattr(app, "start", start)
+    app.enqueue("https://open.spotify.com/playlist/AAA", False, True)  # nada en curso: empieza ya
+    assert started == [("AAA", False, True)] and app.queue == []
+    app.enqueue("https://open.spotify.com/playlist/BBB", True, False)
+    app.enqueue("https://open.spotify.com/playlist/CCC", False, False)
+    assert [q["playlist_id"] for q in app.public_queue()] == ["BBB", "CCC"] and app.busy()
+    with pytest.raises(RuntimeError, match="ya está en la cola"):
+        app.enqueue("https://open.spotify.com/playlist/BBB", False, False)
+    with pytest.raises(RuntimeError, match="ya se está descargando"):
+        app.enqueue("https://open.spotify.com/playlist/AAA", False, False)
+    app.dequeue("CCC")
+    app.job.alive = False
+    app._job_event(app.job, "end")  # terminó AAA: avisa y empieza BBB
+    deadline = time.time() + 5
+    while len(started) < 2 and time.time() < deadline:
+        time.sleep(0.02)
+    assert started[1] == ("BBB", True, False) and notes == ["Playlist lista"] and app.queue == []
+
+
+def test_windows_notices_say_what_happened(tmp_path, monkeypatch):
+    app = app_with_runs(tmp_path)
+    app.playlists = {PID: {"name": "Mi playlist"}}
+    notes = []
+    monkeypatch.setattr(APP, "notify", lambda title, text: notes.append((title, text)))
+    monkeypatch.setattr(app, "_start_next", lambda: None)
+    app._job_event(FakeJob(outcome="paused", paused="Grabación pospuesta: 20 tema(s) por grabar"), "end")
+    app._job_event(FakeJob(outcome="paused", paused="Spotify se detuvo"), "end")
+    app._job_event(FakeJob(outcome="stopped", stop_requested=True), "end")  # la detuvo Gabriel: sin aviso
+    app._job_event(FakeJob(), "auth")
+    assert [t for t, _ in notes] == ["Grabación pendiente", "Descarga en pausa", "Spotify pide autorización"]
+    assert "«Mi playlist»" in notes[0][1]
+
+
+def test_a_stopped_download_does_not_start_the_queue(tmp_path, monkeypatch):
+    app = app_with_runs(tmp_path)
+    monkeypatch.setattr(APP, "notify", lambda *a: None)
+    app.queue = [{"url": "https://open.spotify.com/playlist/BBB", "playlist_id": "BBB", "fresh": False, "defer": False}]
+    started = []
+    monkeypatch.setattr(app, "start", lambda *a: started.append(a))
+    app._job_event(FakeJob(outcome="stopped", stop_requested=True), "end")
+    time.sleep(0.2)
+    assert started == [] and len(app.queue) == 1  # espera a «Empezar la cola ahora»
+    app._start_next()
+    assert started == [("https://open.spotify.com/playlist/BBB", False, False)] and app.queue == []
+
+
 def test_job_command(tmp_path):
     settings = {"library_root": "D:/Musica", "runs_root": "D:/runs"}
     cmd = APP.build_job_command(tmp_path / "stop", "https://open.spotify.com/playlist/abc", settings, fresh=False)

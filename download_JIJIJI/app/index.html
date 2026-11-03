@@ -522,7 +522,7 @@ details summary::before { content: "▸ "; } details[open] summary::before { con
     <div class="tips"><b>Mientras graba:</b> activa No molestar (Windows + N), no reproduzcas nada más y no toques Spotify. Todo lo que suene por esa salida queda grabado. Mantén Spotify de escritorio abierto con tu cuenta Premium.</div>
     <div class="modal-actions">
       <button class="pill ghost" data-close="modal-start">Cancelar</button>
-      <button class="pill green" id="m-go"><svg class="ico sm"><use href="#i-download"/></svg>Empezar</button>
+      <button class="pill green" id="m-go"><svg class="ico sm"><use href="#i-download"/></svg><span id="m-go-label">Empezar</span></button>
     </div>
   </div>
 </div>
@@ -677,6 +677,17 @@ function renderHome() {
     <div class="step"><div class="n">2</div><div><b>Elige salida y carpeta</b><span>Abajo a la derecha: por dónde suena (y se graba) y dónde se guarda la música.</span></div></div>
     <div class="step"><div class="n">3</div><div><b>Descarga</b><span>Lo que esté en Soulseek se baja; lo que no, se graba de Spotify mientras suena.</span></div></div>
   </div>`;
+  const queue = (S.st && S.st.queue) || [];
+  if (queue.length) {
+    html += `<div class="section-title"><h2>En cola</h2></div><div class="setup" style="padding:12px 18px">${queue.map((q, i) => `
+      <div class="row" style="display:flex;align-items:center;gap:12px;padding:6px 0"><span class="small">${i + 1}.</span>
+        <button class="pill ghost small" data-url="${esc(q.url)}">${esc(q.name)}</button>
+        <span class="small">${q.defer ? "sin grabar (grabación pendiente)" : ""}</span>
+        <button class="pill ghost small" data-dequeue="${esc(q.playlist_id)}" style="margin-left:auto">${icon("x", "sm")}Quitar de la cola</button></div>`).join("")}
+      <div class="small" style="margin-top:6px">Empiezan solas, en este orden, cuando termina la descarga en curso.
+        ${!(job && job.alive) && !ext ? "Ahora no hay ninguna en curso (la última se detuvo): " : ""}</div>
+      ${!(job && job.alive) && !ext ? `<div class="row" style="margin-top:8px"><button class="pill green small" id="queue-start">${icon("download", "sm")}Empezar la cola ahora</button></div>` : ""}</div>`;
+  }
   html += `<div class="section-title"><h2>Descargas recientes</h2></div>`;
   if (!S.history.length) {
     html += `<div class="empty-note">Todavía no bajaste ninguna playlist desde este ordenador.</div>`;
@@ -868,7 +879,11 @@ function renderPlaylist() {
   let label, sub, iconName = "download", disabled = false, action = "start";
   if (ownLive) { label = job.stop_requested ? "Deteniendo…" : "Detener descarga"; sub = "Se conserva lo ya bajado y grabado"; iconName = "stop"; action = "stop"; disabled = job.stop_requested; }
   else if (extLive) { label = "Descarga en la terminal"; sub = "Para detenerla, usa Ctrl+C en esa ventana"; iconName = "stop"; disabled = true; }
-  else if (otherBusy) { label = "Descargar playlist"; sub = "Espera a que termine la otra descarga"; disabled = true; }
+  else if (otherBusy) {  // hay otra en curso: esta va a la cola y empieza sola
+    const n = ((S.st && S.st.queue) || []).findIndex((q) => q.playlist_id === v.pid);
+    if (n >= 0) { label = "Quitar de la cola"; sub = `En cola (n.º ${n + 1}): empieza sola cuando termine la descarga en curso`; iconName = "x"; action = "dequeue"; }
+    else { label = "Poner en cola"; sub = "Empieza sola cuando termine la descarga en curso"; action = "queue"; }
+  }
   else if (status === "paused") { label = "Continuar grabación"; sub = "Sigue desde el primer tema pendiente"; }
   else if (status === "stopped") { label = "Continuar descarga"; sub = "Busca y baja solo lo que falta"; }
   else if (status === "deferred") { label = "Grabar ahora"; sub = `Graba ${run.pending_recordings ? plural(run.pending_recordings, "tema pendiente", "temas pendientes") : "lo pendiente"}; no vuelve a bajar`; }
@@ -885,7 +900,7 @@ function renderPlaylist() {
   </div></div>
   <div class="body" style="--hdr:${esc(color)}">
     <div class="actions">
-      <button class="pill ${action === "stop" ? "white" : "green"} lg" id="act-main" data-action="${action}" ${disabled ? "disabled" : ""}>${icon(iconName)}${esc(label)}</button>
+      <button class="pill ${action === "stop" || action === "dequeue" ? "white" : "green"} lg" id="act-main" data-action="${action}" ${disabled ? "disabled" : ""}>${icon(iconName)}${esc(label)}</button>
       <div class="act-sub">${esc(sub)}</div>
       <div class="spacer"></div>
       ${!live && !otherBusy && (status === "paused" || status === "deferred") ? `<button class="icon-btn" id="act-fresh" title="${status === "deferred" ? "Buscar en Soulseek los temas pendientes antes de grabarlos" : "Ignorar lo anterior y empezar una descarga nueva"}">${icon("restart")}<span>${status === "deferred" ? "Volver a buscar lo que falta" : "Empezar de cero"}</span></button>` : ""}
@@ -1036,8 +1051,10 @@ function route() {
 }
 
 // ---------------------------------------------------------------- acciones
-function openStartModal(fresh) {
+function openStartModal(fresh, queue = false) {
   const v = S.view;
+  S.startQueue = queue;  // con otra descarga en curso, «Empezar» pone esta en la cola
+  $("#m-go-label").textContent = queue ? "Poner en cola" : "Empezar";
   const meta = v.meta || {};
   $("#m-name").textContent = meta.name || (v.run && v.run.name) || "la playlist";
   $("#m-dest").textContent = S.st.settings.library_root;
@@ -1063,12 +1080,24 @@ async function startDownload() {
   const btn = $("#m-go");
   btn.disabled = true;
   try {
+    if (S.startQueue) {
+      await api("/api/queue/add", { url: S.view.url, fresh, defer });
+      $("#modal-start").classList.remove("open");
+      toast("En cola: empieza sola cuando termine la descarga en curso. Te avisa Windows cuando termine.", "ok");
+      await tick(true);
+      btn.disabled = false;
+      return;
+    }
     await api("/api/start", { url: S.view.url, fresh, defer });
     $("#modal-start").classList.remove("open");
     toast(`Empezó la descarga${defer ? " (sin grabar: la grabación queda pendiente)" : ""}. Puedes cerrar esta ventana: sigue sola y la retomas al volver a abrir la app.`, "ok");
     await tick(true);
   } catch (e) { fail(e); }
   btn.disabled = false;
+}
+
+async function dequeue(pid) {
+  try { await api("/api/queue/remove", { playlist_id: pid }); toast("Se quitó de la cola."); await tick(true); } catch (e) { fail(e); }
 }
 
 async function stopDownload() {
@@ -1625,6 +1654,7 @@ document.addEventListener("click", (e) => {
   if (t.dataset.copy) { copyText(t.dataset.copy, t); return; }
   if (t.dataset.play) { openTrack(Number(t.dataset.play), true); return; }
   if (t.dataset.menu) { menuAction(t.dataset.menu, t); return; }
+  if (t.dataset.dequeue) { dequeue(t.dataset.dequeue); return; }
   if (t.dataset.log) {
     if (t.dataset.log === "live") { S.logView = null; $("#log-tabs").hidden = true; $("#log").textContent = "Todavía no hay ninguna descarga lanzada desde esta ventana."; pollLog(); }
     else if (S.logView) openRunLog(S.logView.run, t.dataset.log);
@@ -1650,7 +1680,12 @@ document.addEventListener("click", (e) => {
     return;
   }
   switch (t.id) {
-    case "act-main": t.dataset.action === "stop" ? stopDownload() : openStartModal(false); break;
+    case "queue-start": api("/api/queue/start", {}).then(() => tick(true)).catch(fail); break;
+    case "act-main":
+      if (t.dataset.action === "stop") stopDownload();
+      else if (t.dataset.action === "dequeue") dequeue(S.view.pid);
+      else openStartModal(false, t.dataset.action === "queue");
+      break;
     case "act-fresh": openStartModal(true); break;
     case "act-more": {
       const r = t.getBoundingClientRect();
