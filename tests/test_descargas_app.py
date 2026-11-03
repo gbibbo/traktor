@@ -371,6 +371,15 @@ def test_a_stopped_download_does_not_start_the_queue(tmp_path, monkeypatch):
     assert started == [("https://open.spotify.com/playlist/BBB", False, False)] and app.queue == []
 
 
+def test_a_run_stopped_before_searching_does_not_hide_the_previous_one(tmp_path):
+    earlier = make_run(tmp_path, stamp="20261102-181456", status="interrupted")
+    availability(earlier, ["available", "missing"])
+    make_run(tmp_path, stamp="20261102-214736", status="interrupted")  # detenida a los 24 s, sin buscar
+    assert [it["run"] for it in APP.history(tmp_path, {})] == [earlier.name]
+    live = make_run(tmp_path, stamp="20261102-220000", status="running")  # una en curso sí se muestra
+    assert [it["run"] for it in APP.history(tmp_path, {}, alive_run=live.name)] == [live.name]
+
+
 def test_job_command(tmp_path):
     settings = {"library_root": "D:/Musica", "runs_root": "D:/runs"}
     cmd = APP.build_job_command(tmp_path / "stop", "https://open.spotify.com/playlist/abc", settings, fresh=False)

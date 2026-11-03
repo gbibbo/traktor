@@ -411,6 +411,13 @@ def list_runs(runs_root: Path) -> list[Path]:
                   key=lambda p: p.name, reverse=True)
 
 
+def empty_run(run_dir: Path) -> bool:
+    """Detenida antes de buscar: no tiene nada que mostrar y no tapa a la descarga anterior de la playlist
+    (que puede tener temas bajados: «Se cortó · 0/?» hacía creer que se habían perdido)."""
+    report = read_json(run_dir / "orchestration_report.json") or {}
+    return report.get("status") == "interrupted" and not json_candidates(run_dir, "soulseek_availability*.json")
+
+
 def history(runs_root: Path, playlists: dict[str, Any], *, alive_run: str | None = None,
             limit: int = 40) -> list[dict[str, Any]]:
     """Último run de cada playlist, el más nuevo primero."""
@@ -418,7 +425,7 @@ def history(runs_root: Path, playlists: dict[str, Any], *, alive_run: str | None
     items: list[dict[str, Any]] = []
     for run_dir in list_runs(runs_root):
         pid = RUN_DIR_RE.match(run_dir.name).group(3)
-        if pid in seen:
+        if pid in seen or (run_dir.name != alive_run and empty_run(run_dir)):
             continue
         try:
             state = run_state(run_dir, alive=True if run_dir.name == alive_run else None)
@@ -1640,7 +1647,8 @@ class App:
             meta["color"] = cover_color(meta["cover"])
         self.remember_playlist(playlist_id, meta)
         result["meta"] = meta
-        latest = next((r for r in list_runs(self.runs_root()) if r.name.endswith("_" + playlist_id)), None)
+        latest = next((r for r in list_runs(self.runs_root()) if r.name.endswith("_" + playlist_id) and not empty_run(r)),
+                      None)
         result["latest_run"] = self.run_view(latest.name) if latest else None
         return result
 

@@ -68,6 +68,11 @@ svg { display: block; flex: none; }
 .lib-item { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%;
   padding: 8px; border-radius: 6px; text-align: left; }
 .lib-item:hover { background: var(--hover); }
+.lib-row { position: relative; }
+.lib-row .lib-item { padding-right: 44px; }
+.lib-more { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; border-radius: 50%;
+  display: grid; place-items: center; color: var(--muted); font-size: 20px; line-height: 1; }
+.lib-more:hover, .lib-more:focus-visible { color: var(--text); background: var(--hover2); }
 .lib-item.on { background: var(--hover2); }
 .lib-item img, .lib-item .ph { width: 48px; height: 48px; border-radius: 4px; object-fit: cover; background: var(--elev2); }
 .lib-name { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -391,7 +396,6 @@ details summary::before { content: "▸ "; } details[open] summary::before { con
 <div class="app">
   <aside class="side">
     <div class="panel nav">
-      <div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#1ed760"/><path d="M16 7.5v11.5M10.8 14l5.2 5.2 5.2-5.2" stroke="#000" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.5 23.5h13" stroke="#000" stroke-width="2.8" stroke-linecap="round"/></svg><span>Descargas</span></div>
       <button class="nav-item" id="nav-home" title="Inicio"><svg class="ico"><use href="#i-home"/></svg><span>Inicio</span></button>
     </div>
     <div class="panel lib">
@@ -645,9 +649,11 @@ function renderLibrary() {
     const live = it.alive;
     const sub = live ? `Descargando · ${it.done}/${it.total || "?"}` : `${RUN_LABEL[it.status] || "Playlist"} · ${it.done}/${it.total || "?"}`;
     const cover = it.cover ? `<img src="${esc(it.cover)}" alt="" loading="lazy">` : `<div class="ph">${icon("music")}</div>`;
-    return `<button class="lib-item ${it.playlist_id === pid ? "on" : ""}" data-url="${esc(it.url)}" data-pid="${esc(it.playlist_id)}" data-name="${esc(it.name)}" data-folder="${esc(it.final_output || "")}" data-run="${esc(it.run)}" title="${esc(it.name)} · clic derecho: más opciones">
+    const data = `data-url="${esc(it.url)}" data-pid="${esc(it.playlist_id)}" data-name="${esc(it.name)}" data-folder="${esc(it.final_output || "")}" data-run="${esc(it.run)}"`;
+    return `<div class="lib-row"><button class="lib-item ${it.playlist_id === pid ? "on" : ""}" ${data} title="${esc(it.name)}">
       ${cover}<div class="lib-txt"><div class="lib-name">${esc(it.name)}</div><div class="lib-sub">${esc(sub)}</div></div>
-      <div class="lib-live">${live ? IND_DL : ""}</div></button>`;
+      <div class="lib-live">${live ? IND_DL : ""}</div></button>
+      <button class="lib-more" ${data} data-more title="Más opciones: copiar el enlace, quitar de la lista…" aria-label="Más opciones de ${esc(it.name)}">⋯</button></div>`;
   }).join("");
 }
 
@@ -1051,10 +1057,23 @@ function route() {
 }
 
 // ---------------------------------------------------------------- acciones
+// El botón dice lo que va a pasar: «Empezar» solo si la playlist todavía no se bajó.
+function updateStartLabel(fresh) {
+  const status = S.view.run && S.view.run.status;
+  const label = S.startQueue ? "Poner en cola"
+    : status === "stopped" ? "Continuar descarga"
+    : status === "paused" ? (fresh ? "Empezar de cero" : "Continuar grabación")
+    : status === "deferred" ? (fresh ? "Volver a buscar lo que falta" : "Grabar ahora")
+    : status === "failed" || status === "partial" ? "Volver a intentar"
+    : status === "done" ? "Buscar temas nuevos"
+    : "Empezar";
+  $("#m-go-label").textContent = label;
+}
+
 function openStartModal(fresh, queue = false) {
   const v = S.view;
   S.startQueue = queue;  // con otra descarga en curso, «Empezar» pone esta en la cola
-  $("#m-go-label").textContent = queue ? "Poner en cola" : "Empezar";
+  updateStartLabel(fresh);
   const meta = v.meta || {};
   $("#m-name").textContent = meta.name || (v.run && v.run.name) || "la playlist";
   $("#m-dest").textContent = S.st.settings.library_root;
@@ -1312,7 +1331,7 @@ async function menuAction(kind, btn) {
 }
 
 document.addEventListener("contextmenu", (e) => {
-  const el = e.target.closest(".lib-item, .card");
+  const el = e.target.closest(".lib-item, .lib-more, .card");
   if (!el || !el.dataset.pid) return;
   e.preventDefault();
   playlistMenu(itemFromEl(el), e.clientX, e.clientY);
@@ -1472,8 +1491,9 @@ function updateStartWarning() {
   $("#m-spotify").hidden = spotifyOpen || $("#m-defer").checked || $("#m-defer-row").hidden;
 }
 async function refreshStartInfo() {
-  const n = viewTracks(S.view).length;
-  $("#m-eta").textContent = n ? `Buscar ${plural(n, "tema", "temas")} en Soulseek tarda hasta unos ${aboutMin(searchSeconds(n))} (menos si ya hay temas bajados). Bajar, unos ${DOWNLOAD_S} s por tema; grabar, lo que dura cada tema.` : "";
+  // Lo ya bajado o grabado no se vuelve a buscar: la estimación cuenta solo lo que falta.
+  const n = viewTracks(S.view).filter((t) => t.state !== "downloaded" && t.state !== "recorded").length;
+  $("#m-eta").textContent = n ? `Buscar ${plural(n, "tema", "temas")} en Soulseek tarda hasta unos ${aboutMin(searchSeconds(n))}. Bajar, unos ${DOWNLOAD_S} s por tema; grabar, lo que dura cada tema.` : "";
   try { spotifyOpen = (await api("/api/spotify-open")).open; } catch { spotifyOpen = true; }
   updateStartWarning();
 }
@@ -1652,6 +1672,12 @@ document.addEventListener("click", (e) => {
     return;
   }
   if (t.dataset.copy) { copyText(t.dataset.copy, t); return; }
+  if (t.hasAttribute("data-more")) {  // «⋯» de una playlist en la lista de la izquierda (lleva sus datos, también data-url)
+    const r = t.getBoundingClientRect();
+    if ($("#pop-pl").classList.contains("open") && S.menu && S.menu.pid === t.dataset.pid) closePops();
+    else playlistMenu(itemFromEl(t), r.left, r.bottom + 4);
+    return;
+  }
   if (t.dataset.play) { openTrack(Number(t.dataset.play), true); return; }
   if (t.dataset.menu) { menuAction(t.dataset.menu, t); return; }
   if (t.dataset.dequeue) { dequeue(t.dataset.dequeue); return; }
@@ -1734,6 +1760,8 @@ document.addEventListener("change", (e) => {
     try { localStorage.setItem("tr-auto", t.checked ? "1" : ""); } catch { /* sin almacenamiento */ }
   } else if (t.name === "fresh") {
     $("#m-defer-row").hidden = S.view.run && S.view.run.status === "deferred" && t.value === "0";
+    updateStartLabel(t.value === "1");
+    updateStartWarning();
   }
 });
 document.addEventListener("keydown", (e) => {
