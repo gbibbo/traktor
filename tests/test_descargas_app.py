@@ -508,8 +508,18 @@ def test_downloaded_track_can_be_inspected(tmp_path):
     props = {p["label"]: p["value"] for p in detail["properties"]}
     assert props["Formato"] == "MP3" and props["Bitrate"].startswith("128 kbps") and props["Frecuencia"] == "44100 Hz"
     assert APP.embedded_cover(final)[1] == "image/png"
-    with pytest.raises(ValueError, match="todavía no tiene"):
-        app.track_detail(run.name, 2)
+    other = app.track_detail(run.name, 2)  # sin archivo: lo que encontró Soulseek
+    assert other["path"] is None and other["search"]["status"] == "available"
+    assert other["search"]["candidates"][0] == {"file": "Tema 1 (orig).flac", "folder": "música", "user": "peer1",
+                                                "length_s": None, "format": None, "bitrate_kbps": None, "size_mb": None,
+                                                "rejection_reason": None}
+    write(run / "spotify_reconcile_report.json", {"tracks": [
+        *json.loads((run / "spotify_reconcile_report.json").read_text(encoding="utf-8"))["tracks"],
+        {"position": 2, "status": "verification_failed",
+         "candidates": [{"path": "C:/tmp/x/Tema 2 (Dub Mix).flac", "accepted": False, "reasons": ["versión conflictiva: dub"]}]}]})
+    attempts = app.track_detail(run.name, 2)["attempts"]
+    assert attempts["summary"].startswith("El archivo de Soulseek no pasó la verificación")
+    assert attempts["candidates"] == [{"file": "Tema 2 (Dub Mix).flac", "accepted": False, "reasons": ["versión conflictiva: dub"]}]
     report = json.loads((run / "consolidation_report.json").read_text(encoding="utf-8"))
     report["tracks"][0]["destination"] = str(mp3_with_tags(tmp_path / "otra" / "x.mp3", "id1", "Tema 1"))
     write(run / "consolidation_report.json", report)

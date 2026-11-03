@@ -686,6 +686,40 @@ def track_source(run_dir: Path, pos: int, availability_rows: list[Any]) -> dict[
     return {"origin": None}
 
 
+def track_search(row: dict[str, Any]) -> dict[str, Any] | None:
+    """Lo que devolvió la búsqueda en Soulseek: los archivos útiles o, si faltó, por qué se descartó cada uno."""
+    if not row:
+        return None
+    candidates = []
+    for c in row.get("top_candidates") or []:
+        if not isinstance(c, dict):
+            continue
+        parts = str(c.get("filename") or "").replace("\\", "/").split("/")
+        size = c.get("size_bytes")
+        candidates.append({"file": parts[-1], "folder": "/".join(parts[-3:-1]), "user": c.get("username"),
+                           "length_s": c.get("length_s"), "format": c.get("format"), "bitrate_kbps": c.get("bitrate_kbps"),
+                           "size_mb": round(size / 1_048_576, 1) if isinstance(size, (int, float)) else None,
+                           "rejection_reason": c.get("rejection_reason")})
+    return {"status": row.get("status"), "result_count": row.get("result_count"), "error": row.get("error"),
+            "candidates": candidates}
+
+
+def track_attempts(run_dir: Path, pos: int) -> dict[str, Any] | None:
+    """Los intentos de descarga del tema (cada archivo probado y por qué se aceptó o no)."""
+    row = None
+    for path in json_candidates(run_dir, "spotify_reconcile_report*.json"):  # en orden: el último manda
+        for item in (read_json(path) or {}).get("tracks") or []:
+            if isinstance(item, dict) and item.get("position") == pos:
+                row = item
+    if row is None:
+        return None
+    return {"status": row.get("status"), "summary": None if row.get("status") in DOWNLOADED else friendly_failure(row),
+            "error": row.get("error"),
+            "candidates": [{"file": Path(str(c.get("path") or "")).name, "accepted": bool(c.get("accepted")),
+                            "reasons": c.get("reasons") or []}
+                           for c in row.get("candidates") or [] if isinstance(c, dict)]}
+
+
 def _fold(text: Any) -> str:
     plain = unicodedata.normalize("NFKD", str(text)).encode("ascii", "ignore").decode().casefold()
     return re.sub(r"[^0-9a-z]+", " ", plain).strip()
@@ -1374,14 +1408,20 @@ class App:
         return ("Hay una descarga en curso que puede estar grabando: lo que suene ahora quedaría en la grabación. "
                 "Para escuchar, pospón la grabación o espera a que termine.")
 
-    def _track(self, run_name: str, pos: int) -> tuple[Path, Path, dict[str, Any], dict[str, Any]]:
-        """El archivo de un tema lo resuelve el servidor a partir del run: la página nunca manda rutas."""
+    def _run_track(self, run_name: str, pos: int) -> tuple[Path, dict[str, Any], dict[str, Any]]:
         if not RUN_DIR_RE.match(run_name):
             raise ValueError("Descarga desconocida.")
         run_dir = self.runs_root() / run_name
         state = run_state(run_dir)
         track = next((t for t in state["tracks"] if t["pos"] == pos), None)
-        if not track or not track.get("file"):
+        if track is None:
+            raise ValueError("Ese tema no está en la descarga.")
+        return run_dir, track, state
+
+    def _track(self, run_name: str, pos: int) -> tuple[Path, Path, dict[str, Any], dict[str, Any]]:
+        """El archivo de un tema lo resuelve el servidor a partir del run: la página nunca manda rutas."""
+        run_dir, track, state = self._run_track(run_name, pos)
+        if not track.get("file"):
             raise ValueError("Ese tema todavía no tiene un archivo para revisar.")
         path = Path(track["file"])
         roots = [self.library_root(), self.runs_root(), *(Path(p) for p in (state.get("final_output"),) if p)]
@@ -1390,18 +1430,25 @@ class App:
         return run_dir, path, track, state
 
     def track_detail(self, run_name: str, pos: int) -> dict[str, Any]:
-        run_dir, path, track, _ = self._track(run_name, pos)
-        details = audio_details(path)
+        """Todo lo que se sabe de un tema: la búsqueda en Soulseek y los intentos de descarga y, si ya tiene
+        archivo, su verificación, origen, propiedades y etiquetas."""
+        run_dir, track, _ = self._run_track(run_name, pos)
         availability_files = json_candidates(run_dir, "soulseek_availability*.json")
         rows = ((read_json(availability_files[-1]) or {}).get("tracks") or []) if availability_files else []
-        spotify = next((r.get("spotify") or {} for r in rows if isinstance(r, dict) and r.get("position") == pos), {})
+        row = next((r for r in rows if isinstance(r, dict) and r.get("position") == pos), {})
+        spotify = row.get("spotify") or {}
+        detail = {"run": run_name, "pos": pos, "path": None, "track": track,
+                  "spotify": {k: spotify.get(k) for k in ("spotify_id", "url", "title", "artists", "album", "release_date",
+                                                           "label", "isrc", "duration_ms")},
+                  "search": track_search(row), "attempts": track_attempts(run_dir, pos),
+                  "playback_block": self.playback_block_reason()}
+        if not track.get("file"):
+            return detail
+        _, path, _, _ = self._track(run_name, pos)
+        details = audio_details(path)
         source = track_source(run_dir, pos, rows)
-        return {"run": run_name, "pos": pos, "path": str(path), "track": track,
-                "spotify": {k: spotify.get(k) for k in ("spotify_id", "url", "title", "artists", "album", "release_date",
-                                                         "label", "isrc", "duration_ms")},
-                "properties": details["properties"], "tags": details["tags"], "source": source,
-                "checks": track_checks(spotify, source, details["tags"], details["length_s"]),
-                "playback_block": self.playback_block_reason()}
+        return {**detail, "path": str(path), "properties": details["properties"], "tags": details["tags"],
+                "source": source, "checks": track_checks(spotify, source, details["tags"], details["length_s"])}
 
     def track_file(self, run_name: str, pos: int) -> Path:
         return self._track(run_name, pos)[1]

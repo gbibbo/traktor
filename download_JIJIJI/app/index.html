@@ -205,7 +205,7 @@ svg { display: block; flex: none; }
 .tt .n1 { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tt .n2 { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
 .tr.busy .n1 { color: var(--green); } /* no «now»: es la clase de la zona izquierda de la barra de abajo (flex) */
-.tr.has-file { cursor: pointer; }
+.tr[data-track] { cursor: pointer; }
 .rowplay { display: none; color: var(--text); }
 .rowplay .ico { width: 16px; height: 16px; }
 .tr.has-file:hover .rowplay { display: inline-flex; } .tr.has-file:hover .n0 { display: none; }
@@ -870,7 +870,8 @@ function trackRow(t) {
   const cover = t.cover ? `<img src="${esc(t.cover)}" alt="" loading="lazy">` : `<div class="ph">${icon("music", "sm")}</div>`;
   const stHtml = st ? `<span class="st ${st[1]}" title="${esc(t.detail || st[0])}">${st[2]}<span>${st[0]}</span></span>` : `<span class="st muted">—</span>`;
   const cls = [now ? "busy" : "", t.file ? "has-file" : "", playing ? "playing" : ""].join(" ");
-  return `<div class="tr ${cls}" ${t.file ? `data-track="${t.pos}" title="Ver el archivo: escucharlo, su metadata y su ubicación"` : ""}><div class="num">${num}</div>
+  const tip = t.file ? "Ver el archivo: escucharlo, su metadata y su ubicación" : "Ver qué encontró Soulseek y qué pasó al bajarlo";
+  return `<div class="tr ${cls}" ${S.view.run ? `data-track="${t.pos}" title="${tip}"` : ""}><div class="num">${num}</div>
     <div class="tt">${cover}<div style="min-width:0"><div class="n1">${esc(t.title)}</div><div class="n2">${esc((t.artists || []).join(", "))}</div></div></div>
     <div class="alb">${esc(t.album)}</div><div>${stHtml}</div><div class="dur r">${fmtDur(t.duration_ms)}</div></div>`;
 }
@@ -1253,7 +1254,7 @@ async function openTrack(pos, play = false) {
     S.track.data = d;
     renderTrack(d, viewTracks(S.view).find((t) => t.pos === pos));
     updateTrackBlock();
-    if (play && !(S.st && S.st.playback_block)) audio.play().catch(() => { /* lo avisa el evento error */ });
+    if (play && d.path && !(S.st && S.st.playback_block)) audio.play().catch(() => { /* lo avisa el evento error */ });
   } catch (e) { $("#tr-head").innerHTML = ""; fail(e); }
 }
 
@@ -1287,6 +1288,14 @@ function renderTrack(d, t) {
     origin = `<div class="small">No hay registro del origen de este archivo.</div>`;
   }
 
+  if (!d.path) {  // todavía sin archivo: qué devolvió Soulseek y qué pasó al bajarlo
+    const st = t && STATE[t.state];
+    $("#tr-body").innerHTML = `
+      <div class="tk-sec"><h4>Estado</h4>${st ? `<span class="st ${st[1]}">${st[2]}<span>${st[0]}</span></span>` : "—"}
+        ${t && t.detail ? `<div class="small" style="margin-top:6px">${esc(t.detail)}</div>` : ""}</div>
+      ${searchHtml(d.search)}${attemptsHtml(d.attempts)}`;
+    return;
+  }
   $("#tr-body").innerHTML = `
     <div class="tk-sec"><h4>Verificación</h4>
       <table class="vt"><tr><th>Campo</th><th>Spotify</th><th>Archivo</th><th></th></tr>
@@ -1294,22 +1303,48 @@ function renderTrack(d, t) {
       ${src.origin === "soulseek" ? `<div class="small" style="margin-top:6px">«Origen» son las etiquetas del archivo que llegó de Soulseek, antes de reescribirlas con los datos de Spotify: son las que identifican la grabación.</div>` : ""}</div>
     <div class="tk-sec"><h4>Origen</h4>${origin}</div>
     <div class="tk-sec"><h4>Archivo</h4>${kv([["Ruta", `<code>${esc(d.path)}</code>`], ...(d.properties || []).map((p) => [p.label, esc(p.value)])])}</div>
-    <div class="tk-sec"><h4>Etiquetas (${(d.tags || []).length})</h4>${(d.tags || []).length ? kv(d.tags.map((g) => [g.label, esc(g.value)])) : `<div class="small">El archivo no tiene etiquetas.</div>`}</div>`;
+    <div class="tk-sec"><h4>Etiquetas (${(d.tags || []).length})</h4>${(d.tags || []).length ? kv(d.tags.map((g) => [g.label, esc(g.value)])) : `<div class="small">El archivo no tiene etiquetas.</div>`}</div>
+    ${searchHtml(d.search)}`;
+}
+
+function searchHtml(s) {
+  if (!s) return "";
+  const found = String(s.status || "").startsWith("available");
+  let head;
+  if (found && !s.candidates.length) head = "Ya estaba bajado: esta descarga no lo buscó.";
+  else if (found) head = `Soulseek tenía ${plural(s.result_count || 0, "archivo que sirve", "archivos que sirven")}${s.candidates.length < (s.result_count || 0) ? ` (estos son los primeros ${s.candidates.length})` : ""}:`;
+  else if (s.status === "missing") head = s.candidates.length ? "Soulseek devolvió archivos, pero ninguno sirvió:" : "Soulseek no devolvió ningún archivo para esta búsqueda.";
+  else head = `La búsqueda falló: ${s.error || "error desconocido"}`;
+  const rows = s.candidates.map((c) => `<tr><td>${esc(c.file)}${c.folder ? `<div class="small">${esc(c.folder)} · ${esc(c.user || "")}</div>` : ""}</td>
+    <td>${c.length_s ? fmtDur(c.length_s * 1000) : "?"}</td>
+    <td>${esc([c.format && String(c.format).toUpperCase(), c.bitrate_kbps && `${Math.round(c.bitrate_kbps)} kbps`, c.size_mb && `${c.size_mb} MB`].filter(Boolean).join(" · ") || "?")}</td>
+    ${found ? "" : `<td class="bad">${esc(c.rejection_reason || "")}</td>`}</tr>`).join("");
+  return `<div class="tk-sec"><h4>Búsqueda en Soulseek</h4><div class="small" style="margin-bottom:6px">${esc(head)}</div>
+    ${rows ? `<table class="vt"><tr><th>Archivo</th><th>Dur.</th><th>Calidad</th>${found ? "" : "<th>Por qué no sirvió</th>"}</tr>${rows}</table>` : ""}</div>`;
+}
+
+function attemptsHtml(a) {
+  if (!a) return "";
+  const tries = a.candidates.map((c) => `<div class="small" style="margin-top:4px">${c.accepted ? '<span class="ok">✓</span>' : "✗"} ${esc(c.file)}${c.reasons.length ? `: ${esc(c.reasons.join("; "))}` : ""}</div>`).join("");
+  return `<div class="tk-sec"><h4>Intentos de descarga</h4>${a.summary ? `<div class="small">${esc(a.summary)}</div>` : ""}
+    ${tries || `<div class="small">${a.error ? esc(a.error) : "Ningún archivo llegó a bajarse (el otro usuario no lo envió)."}</div>`}</div>`;
 }
 
 // Lo que suena sale por la salida que se graba: con una descarga que puede estar grabando, no se escucha.
 function updateTrackBlock() {
   const reason = S.st && S.st.playback_block;
   const audio = $("#tr-audio");
-  $("#tr-block").hidden = !reason;
+  const hasFile = Boolean(S.track && S.track.data && S.track.data.path);
+  $("#tr-block").hidden = !reason || !hasFile;
   $("#tr-block").textContent = reason || "";
-  audio.hidden = Boolean(reason);
+  audio.hidden = Boolean(reason) || !hasFile;
+  for (const id of ["#tr-reveal", "#tr-open", "#tr-copy"]) $(id).hidden = !hasFile;
   $("#tr-open").disabled = Boolean(reason);
   if (reason && !audio.paused) {
     audio.pause();
     toast(`Se pausó la reproducción. ${reason}`);
   }
-  if (!reason && S.track && S.track.data && !audio.getAttribute("src")) audio.src = trackUrl("audio");
+  if (!reason && hasFile && !audio.getAttribute("src")) audio.src = trackUrl("audio");
 }
 
 const trAudio = $("#tr-audio");
