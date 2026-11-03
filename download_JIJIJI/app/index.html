@@ -150,6 +150,8 @@ svg { display: block; flex: none; }
 .desc { color: rgba(255,255,255,.7); margin: 0 0 10px; max-width: 760px; line-height: 1.4; }
 .body { background: linear-gradient(180deg, color-mix(in srgb, var(--hdr) 28%, #121212) 0, #121212 232px); padding: 0 32px 48px; min-height: 400px; }
 .actions { display: flex; align-items: center; gap: 22px; padding: 24px 0; flex-wrap: wrap; }
+.pill.lg { height: 48px; padding: 0 22px; font-size: 16px; font-weight: 700; gap: 10px; }
+.pill.lg .ico { width: 20px; height: 20px; }
 .big { width: 56px; height: 56px; border-radius: 50%; background: var(--green); color: #000; display: grid; place-items: center;
   box-shadow: 0 8px 18px rgba(0,0,0,.3); transition: transform .1s, background .15s; flex: none; }
 .big:hover:not(:disabled) { transform: scale(1.05); background: var(--green-hi); }
@@ -202,7 +204,7 @@ svg { display: block; flex: none; }
 .tt img, .tt .ph { width: 40px; height: 40px; border-radius: 4px; object-fit: cover; background: var(--elev2); flex: none; }
 .tt .n1 { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tt .n2 { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
-.tr.now .n1 { color: var(--green); }
+.tr.busy .n1 { color: var(--green); } /* no «now»: es la clase de la zona izquierda de la barra de abajo (flex) */
 .tr.has-file { cursor: pointer; }
 .rowplay { display: none; color: var(--text); }
 .rowplay .ico { width: 16px; height: 16px; }
@@ -239,6 +241,12 @@ svg { display: block; flex: none; }
 .eq i { width: 3px; background: var(--green); border-radius: 1px; animation: eq 1s ease-in-out infinite; }
 .eq i:nth-child(2) { animation-delay: -.4s; } .eq i:nth-child(3) { animation-delay: -.7s; } .eq i:nth-child(4) { animation-delay: -.2s; }
 .eq.red i { background: var(--red); }
+/* El ecualizador es solo para algo que suena de verdad (escuchar un tema). Bajar y grabar tienen los suyos. */
+.ind { display: inline-grid; place-items: center; width: 16px; height: 16px; flex: none; }
+.ind.dl { color: var(--green); } .ind.dl .ico { width: 16px; height: 16px; animation: bob 1.2s ease-in-out infinite; }
+.ind.rec::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--red); animation: recblink 1.2s ease-in-out infinite; }
+@keyframes bob { 0%, 100% { transform: translateY(-2px); } 50% { transform: translateY(2px); } }
+@keyframes recblink { 50% { opacity: .3; } }
 @keyframes eq { 0%, 100% { height: 25%; } 50% { height: 100%; } }
 .skel { background: linear-gradient(90deg, #2a2a2a 0, #333 50%, #2a2a2a 100%); background-size: 200% 100%; animation: sk 1.4s linear infinite; border-radius: 4px; }
 @keyframes sk { to { background-position: -200% 0; } }
@@ -577,10 +585,14 @@ const S = {
   lastViewHtml: "",
 };
 
+// Bajar y grabar se ven como tales: el ecualizador queda para lo que suena de verdad (escuchar un tema).
+const IND_DL = `<span class="ind dl" title="Bajando">${icon("download")}</span>`;
+const IND_REC = '<span class="ind rec" title="Grabando"></span>';
+const EQ = '<span class="eq" title="Sonando"><i></i><i></i><i></i><i></i></span>';
 const STATE = {
   searching: ["Buscando…", "muted", '<span class="spin"></span>'],
   queued: ["En Soulseek", "muted", '<span class="dot ring"></span>'],
-  downloading: ["Bajando…", "green", '<span class="eq"><i></i><i></i><i></i><i></i></span>'],
+  downloading: ["Bajando…", "green", IND_DL],
   downloaded: ["Bajado", "green", icon("check")],
   to_record: ["Se grabará", "blue", '<span class="dot ring"></span>'],
   recording: ["Grabando", "red", '<span class="dot pulse"></span>'],
@@ -601,11 +613,11 @@ function renderLibrary() {
   }
   $("#lib").innerHTML = items.map((it) => {
     const live = it.alive;
-    const sub = live ? "Bajando ahora" : `${RUN_LABEL[it.status] || "Playlist"} · ${it.done}/${it.total || "?"}`;
+    const sub = live ? `Descargando · ${it.done}/${it.total || "?"}` : `${RUN_LABEL[it.status] || "Playlist"} · ${it.done}/${it.total || "?"}`;
     const cover = it.cover ? `<img src="${esc(it.cover)}" alt="" loading="lazy">` : `<div class="ph">${icon("music")}</div>`;
     return `<button class="lib-item ${it.playlist_id === pid ? "on" : ""}" data-url="${esc(it.url)}" title="${esc(it.name)}">
       ${cover}<div class="lib-txt"><div class="lib-name">${esc(it.name)}</div><div class="lib-sub">${esc(sub)}</div></div>
-      <div class="lib-live">${live ? '<span class="eq"><i></i><i></i><i></i><i></i></span>' : ""}</div></button>`;
+      <div class="lib-live">${live ? IND_DL : ""}</div></button>`;
   }).join("");
 }
 
@@ -642,7 +654,7 @@ function renderHome() {
     html += `<div class="cards">${S.history.slice(0, 12).map((it) => `
       <button class="card" data-url="${esc(it.url)}">
         <div class="cv">${it.cover ? `<img src="${esc(it.cover)}" alt="" loading="lazy">` : `<div class="ph" style="height:100%">${icon("music")}</div>`}
-          <span class="go">${icon("download")}</span></div>
+</div>
         <div class="t">${esc(it.name)}</div>
         <div class="s">${it.alive ? "Bajando ahora" : esc(RUN_LABEL[it.status] || "")} · ${it.done}/${it.total || "?"} temas<br>${esc(dateLabel(it.started))}</div>
       </button>`).join("")}</div>`;
@@ -790,14 +802,15 @@ function renderPlaylist() {
   const status = live ? "running" : run ? run.status : null;
 
   let label, sub, iconName = "download", disabled = false, action = "start";
-  if (ownLive) { label = job.stop_requested ? "Deteniendo…" : "Detener"; sub = "Se conserva lo ya bajado y grabado"; iconName = "stop"; action = "stop"; disabled = job.stop_requested; }
-  else if (extLive) { label = "Bajando desde la terminal"; sub = "Para detenerla, usa Ctrl+C en esa ventana"; iconName = "stop"; disabled = true; }
-  else if (otherBusy) { label = "Descargar"; sub = "Espera a que termine la otra descarga"; disabled = true; }
-  else if (status === "paused" || status === "stopped") { label = "Continuar"; sub = "Sigue desde el primer tema pendiente"; }
+  if (ownLive) { label = job.stop_requested ? "Deteniendo…" : "Detener descarga"; sub = "Se conserva lo ya bajado y grabado"; iconName = "stop"; action = "stop"; disabled = job.stop_requested; }
+  else if (extLive) { label = "Descarga en la terminal"; sub = "Para detenerla, usa Ctrl+C en esa ventana"; iconName = "stop"; disabled = true; }
+  else if (otherBusy) { label = "Descargar playlist"; sub = "Espera a que termine la otra descarga"; disabled = true; }
+  else if (status === "paused") { label = "Continuar grabación"; sub = "Sigue desde el primer tema pendiente"; }
+  else if (status === "stopped") { label = "Continuar descarga"; sub = "Sigue desde el primer tema pendiente"; }
   else if (status === "deferred") { label = "Grabar ahora"; sub = `Graba ${run.pending_recordings ? plural(run.pending_recordings, "tema pendiente", "temas pendientes") : "lo pendiente"}; no vuelve a bajar`; }
   else if (status === "failed" || status === "partial") { label = "Volver a intentar"; sub = "Empieza una descarga nueva de la playlist"; }
   else if (status === "done") { label = "Bajar otra vez"; sub = "Agrega lo nuevo; lo que ya está no se duplica"; }
-  else { label = "Descargar"; sub = tracks.length ? `${plural(tracks.length, "tema", "temas")} · ${fmtTotal(totalMs)}` : "Soulseek primero; lo que falte, se graba"; }
+  else { label = "Descargar playlist"; sub = tracks.length ? `${plural(tracks.length, "tema", "temas")} · ${fmtTotal(totalMs)}` : "Soulseek primero; lo que falte, se graba"; }
 
   const finalFolder = run && (run.final_output || run.saved_to);
   let html = `<div class="hdr" style="--hdr:${esc(color)}">${cover}<div class="hdr-info">
@@ -808,8 +821,8 @@ function renderPlaylist() {
   </div></div>
   <div class="body" style="--hdr:${esc(color)}">
     <div class="actions">
-      <button class="big" id="act-main" data-action="${action}" ${disabled ? "disabled" : ""} title="${esc(label)}">${icon(iconName, iconName === "stop" ? "" : "")}</button>
-      <div><div class="act-label">${esc(label)}</div><div class="act-sub">${esc(sub)}</div></div>
+      <button class="pill ${action === "stop" ? "white" : "green"} lg" id="act-main" data-action="${action}" ${disabled ? "disabled" : ""}>${icon(iconName)}${esc(label)}</button>
+      <div class="act-sub">${esc(sub)}</div>
       <div class="spacer"></div>
       ${!live && !otherBusy && (status === "paused" || status === "stopped" || status === "deferred") ? `<button class="icon-btn" id="act-fresh" title="Ignorar lo anterior y empezar una descarga nueva">${icon("restart")}<span>Empezar de cero</span></button>` : ""}
       ${finalFolder ? `<button class="icon-btn" data-open-folder="${esc(finalFolder)}" title="Abrir la carpeta con la música">${icon("folder")}<span>Abrir carpeta</span></button>` : ""}
@@ -836,11 +849,11 @@ function trackRow(t) {
   const st = t.state && STATE[t.state];
   const now = t.state === "downloading" || t.state === "recording";
   const playing = S.track && S.track.playing && S.track.pos === t.pos && S.track.run === (S.view.run && S.view.run.run);
-  let num = now || playing ? `<span class="eq ${t.state === "recording" ? "red" : ""}"><i></i><i></i><i></i><i></i></span>` : t.pos;
+  let num = playing ? EQ : t.state === "recording" ? IND_REC : now ? IND_DL : t.pos;
   if (t.file && !now) num = `<span class="n0">${num}</span><button class="rowplay" data-play="${t.pos}" title="Escuchar">${icon("play")}</button>`;
   const cover = t.cover ? `<img src="${esc(t.cover)}" alt="" loading="lazy">` : `<div class="ph">${icon("music", "sm")}</div>`;
   const stHtml = st ? `<span class="st ${st[1]}" title="${esc(t.detail || st[0])}">${st[2]}<span>${st[0]}</span></span>` : `<span class="st muted">—</span>`;
-  const cls = [now ? "now" : "", t.file ? "has-file" : "", playing ? "playing" : ""].join(" ");
+  const cls = [now ? "busy" : "", t.file ? "has-file" : "", playing ? "playing" : ""].join(" ");
   return `<div class="tr ${cls}" ${t.file ? `data-track="${t.pos}" title="Ver el archivo: escucharlo, su metadata y su ubicación"` : ""}><div class="num">${num}</div>
     <div class="tt">${cover}<div style="min-width:0"><div class="n1">${esc(t.title)}</div><div class="n2">${esc((t.artists || []).join(", "))}</div></div></div>
     <div class="alb">${esc(t.album)}</div><div>${stHtml}</div><div class="dur r">${fmtDur(t.duration_ms)}</div></div>`;
@@ -865,7 +878,7 @@ function renderPlayer() {
         line += ` · ${fmtDur(Math.min(el, cur.duration_ms || el))} / ${fmtDur(cur.duration_ms)}`;
       }
       now = `${cur.cover ? `<img src="${esc(cur.cover)}" alt="">` : `<div class="ph">${icon("music")}</div>`}
-        <div style="min-width:0"><div class="a">${esc(cur.title)}</div><div class="b"><span class="eq ${rec ? "red" : ""}"><i></i><i></i><i></i><i></i></span>${esc(line)}</div></div>`;
+        <div style="min-width:0"><div class="a">${esc(cur.title)}</div><div class="b">${rec ? IND_REC : IND_DL}${esc(line)}</div></div>`;
     } else {
       const phase = a && a.phase;
       const s = a && a.search;
@@ -875,8 +888,9 @@ function renderPlayer() {
     }
     const pct = total ? (done / total) * 100 : 0;
     const canStop = ownLive && !job.stop_requested;
-    center = `<div class="ctrl"><button class="play" id="pl-stop" ${canStop ? "" : "disabled"} title="${ownLive ? "Detener la descarga" : "Lanzada desde la terminal"}">${icon("stop")}</button></div>
-      <div class="prog"><span>${done}</span><div class="bar"><i style="width:${pct}%"></i></div><span>${total || "–"}</span></div>`;
+    // Una descarga, no un reproductor: botón con texto y avance en temas (no una línea de tiempo).
+    center = `<div class="prog"><div class="bar"><i style="width:${pct}%"></i></div><span>${done} de ${total || "?"} temas listos</span></div>
+      <button class="pill ghost small" id="pl-stop" ${canStop ? "" : "disabled"} title="${ownLive ? "Se conserva lo ya bajado y grabado" : "Lanzada desde la terminal: se detiene con Ctrl+C"}">${icon("stop", "sm")}Detener descarga</button>`;
   } else {
     now = `<div class="ph" style="background:none">${icon("download")}</div><div style="min-width:0"><div class="a">Nada en curso</div><div class="b">Pega el enlace de una playlist para empezar</div></div>`;
     center = `<div class="player-hint">Antes de grabar, revisa a la derecha la salida de audio y la carpeta</div>`;
