@@ -230,6 +230,64 @@ def test_an_unreadable_run_does_not_empty_the_history(tmp_path, monkeypatch):
     assert [item["run"] for item in APP.history(tmp_path, {})] == [good.name]  # se ve la anterior
 
 
+def app_with_runs(tmp_path):
+    write(tmp_path / "cfg" / "settings.json", {"library_root": str(tmp_path / "lib"), "runs_root": str(tmp_path / "runs")})
+    return APP.App(tmp_path / "cfg")
+
+
+def test_a_playlist_can_be_hidden_and_comes_back_when_downloaded_again(tmp_path):
+    app = app_with_runs(tmp_path)
+    make_run(tmp_path / "runs", stamp="20261030-100000", status="completed")
+    assert [it["playlist_id"] for it in app.history()] == [PID]
+    app.hide_playlist(PID, True)
+    assert app.history() == [] and (tmp_path / "runs").exists()  # no se borra nada
+    assert APP.App(tmp_path / "cfg").history() == []                 # sobrevive a reabrir la app
+    app.hide_playlist(PID, False)
+    assert [it["playlist_id"] for it in app.history()] == [PID]
+    app.hide_playlist(PID, True)
+    app.hidden[PID] = time.mktime(time.strptime("20261031", "%Y%m%d"))
+    make_run(tmp_path / "runs", stamp="20261101-100000", status="running")  # se baja de nuevo
+    assert [it["run"] for it in app.history()] == [f"20261101-100000_{PID}"]
+    with pytest.raises(ValueError):
+        app.hide_playlist("../x", True)
+
+
+def test_deleting_work_files_warns_and_keeps_the_music(tmp_path):
+    app = app_with_runs(tmp_path)
+    run = make_run(tmp_path / "runs", stamp="20261030-100000", status="interrupted")
+    (run / "soulseek").mkdir()
+    (run / "soulseek" / "Artista - Tema.mp3").write_bytes(b"x" * 2048)
+    music = tmp_path / "lib" / "Mi playlist" / "Artista - Otro.mp3"
+    music.parent.mkdir(parents=True)
+    music.write_bytes(b"y")
+    other = make_run(tmp_path / "runs", stamp="20261030-100000", pid="OtraPlaylist01", status="completed")
+    info = app.playlist_work(PID)
+    assert (info["runs"], info["unsaved"], info["pending_recording"]) == (1, 1, False)
+    app.job = type("Job", (), {"alive": True, "run_dir": run, "playlist_id": PID})()
+    with pytest.raises(RuntimeError, match="se está descargando"):
+        app.delete_playlist_work(PID)
+    app.job = None
+    assert app.delete_playlist_work(PID) == 1
+    assert not run.exists() and other.exists() and music.exists()
+
+
+def test_a_stopped_run_can_save_what_it_downloaded(tmp_path, monkeypatch):
+    app = app_with_runs(tmp_path)
+    run = make_run(tmp_path / "runs", status="interrupted")
+    availability(run, ["available"])
+    seen = {}
+
+    def consolidate(run_dir, *args, **kwargs):
+        seen["run"] = run_dir
+        return tmp_path / "lib" / "Mi playlist", {}, {"audio_count": 1, "tracks": []}
+    monkeypatch.setattr(APP.orch, "consolidate_audio", consolidate)
+    assert app.save_partial(run.name)["status"] == "running"
+    deadline = time.time() + 5
+    while app.saving["status"] == "running" and time.time() < deadline:
+        time.sleep(0.02)
+    assert app.saving["status"] == "done" and seen["run"] == run
+
+
 def test_job_command(tmp_path):
     settings = {"library_root": "D:/Musica", "runs_root": "D:/runs"}
     cmd = APP.build_job_command(tmp_path / "stop", "https://open.spotify.com/playlist/abc", settings, fresh=False)

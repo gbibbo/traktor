@@ -1304,6 +1304,8 @@ class App:
         self.saving: dict[str, Any] | None = None
         self.httpd: ThreadingHTTPServer | None = None
         self.playlists: dict[str, Any] = read_json(self.playlists_path) or {}
+        self.hidden_path = config_dir / "hidden.json"  # playlist → cuándo se quitó de la lista
+        self.hidden: dict[str, float] = read_json(self.hidden_path) or {}
 
     def busy(self) -> bool:
         """Algo que no se puede cortar: una descarga lanzada desde la app o un guardado."""
@@ -1457,7 +1459,48 @@ class App:
 
     def history(self) -> list[dict[str, Any]]:
         alive_run = self.job.run_dir.name if self.job and self.job.alive and self.job.run_dir else None
-        return history(self.runs_root(), self.playlists, alive_run=alive_run)
+        items = history(self.runs_root(), self.playlists, alive_run=alive_run)
+        # Una playlist quitada vuelve a aparecer si se baja de nuevo (un run posterior a quitarla).
+        return [it for it in items if not (it["playlist_id"] in self.hidden
+                                           and (it["started"] or 0) <= self.hidden[it["playlist_id"]] and not it["alive"])]
+
+    # ---- quitar playlists de la lista y borrar sus archivos de trabajo (nunca la música de la carpeta) ----
+    def _playlist_runs(self, playlist_id: str) -> list[Path]:
+        if not re.fullmatch(r"[A-Za-z0-9]+", playlist_id or ""):
+            raise ValueError("Playlist desconocida.")
+        return [d for d in list_runs(self.runs_root()) if d.name.endswith("_" + playlist_id)]
+
+    def hide_playlist(self, playlist_id: str, hidden: bool) -> None:
+        self._playlist_runs(playlist_id)  # valida el id
+        if hidden:
+            self.hidden[playlist_id] = time.time()
+        else:
+            self.hidden.pop(playlist_id, None)
+        write_json(self.hidden_path, self.hidden)
+
+    def playlist_work(self, playlist_id: str) -> dict[str, Any]:
+        """Lo que borraría «Borrar archivos de trabajo», para avisarlo antes."""
+        runs = self._playlist_runs(playlist_id)
+        files = [p for d in runs for p in d.rglob("*") if p.is_file()]
+        unsaved = [p for p in files if p.suffix.lower() in AUDIO_TYPES and "diagnostics" not in p.parts]
+        deferred = any(run_state(d)["status"] == "deferred" for d in runs)
+        return {"runs": len(runs), "size_mb": round(sum(p.stat().st_size for p in files) / 1_048_576, 1),
+                "unsaved": len(unsaved), "pending_recording": deferred}
+
+    def delete_playlist_work(self, playlist_id: str) -> int:
+        runs = self._playlist_runs(playlist_id)
+        live = {self.job.run_dir.name} if self.job and self.job.alive and self.job.run_dir else set()
+        external = self.live_external()
+        if external:
+            live.add(external["run"])
+        if (self.job and self.job.alive and self.job.playlist_id == playlist_id) or any(d.name in live for d in runs):
+            raise RuntimeError("Esa playlist se está descargando: detén la descarga primero.")
+        if self.saving and self.saving.get("status") == "running" and any(d.name == self.saving.get("run") for d in runs):
+            raise RuntimeError("Se están guardando temas de esa playlist: espera a que termine.")
+        for run_dir in runs:
+            if is_inside(run_dir, self.runs_root()) and RUN_DIR_RE.match(run_dir.name):
+                shutil.rmtree(run_dir)
+        return len(runs)
 
     def remember_playlist(self, playlist_id: str, meta: dict[str, Any]) -> None:
         entry = {k: meta.get(k) for k in ("name", "cover", "color", "owner") if meta.get(k)}
@@ -1520,7 +1563,7 @@ class App:
         return self.job.public()
 
     def save_partial(self, run_name: str) -> dict[str, Any]:
-        """Run que terminó con error: lleva a la carpeta los MP3 que sí están, con la validación del orquestador
+        """Run que terminó con error o se cortó: lleva a la carpeta los MP3 que sí están, con la validación del orquestador
         (audio, tamaño, antivirus, Spotify Track ID) y sin duplicar lo que ya esté en la carpeta."""
         if not RUN_DIR_RE.match(run_name):
             raise ValueError("Run inválido")
@@ -1531,8 +1574,8 @@ class App:
             if self.busy_reason():
                 raise RuntimeError("Espera a que termine la descarga en curso.")
             state = run_state(run_dir, alive=False)
-            if state["status"] != "failed":
-                raise ValueError("Esto solo es para descargas que terminaron con error.")
+            if state["status"] not in {"failed", "stopped"}:
+                raise ValueError("Esto solo es para descargas que terminaron con error o se cortaron.")
             if state["saved_to"]:
                 raise ValueError("Esos temas ya se guardaron.")
             self.saving = {"run": run_name, "status": "running"}
@@ -1646,6 +1689,8 @@ def make_handler(app: App):
                     return self._json(200, {"devices": app.devices(), "busy": app.busy_reason()})
                 if path == "/api/audio/level":
                     return self._json(200, app.monitor.level())
+                if path == "/api/playlist/work":
+                    return self._json(200, app.playlist_work(query.get("pid", [""])[0]))
                 if path.startswith("/api/track/"):
                     run_name, pos = query.get("run", [""])[0], int(query.get("pos", ["0"])[0] or 0)
                     if path == "/api/track/meta":
@@ -1730,6 +1775,11 @@ def make_handler(app: App):
                                                      bool(body.get("defer"))))
                 if path == "/api/defer":
                     return self._json(200, app.set_defer(bool(body.get("on"))))
+                if path in ("/api/playlist/hide", "/api/playlist/unhide"):
+                    app.hide_playlist(str(body.get("playlist_id") or ""), path.endswith("/hide"))
+                    return self._json(200, {"ok": True})
+                if path == "/api/playlist/delete-work":
+                    return self._json(200, {"deleted": app.delete_playlist_work(str(body.get("playlist_id") or ""))})
                 if path == "/api/stop":
                     return self._json(200, app.stop())
                 if path == "/api/save-partial":

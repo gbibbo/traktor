@@ -288,6 +288,11 @@ svg { display: block; flex: none; }
 .pop.open { display: block; animation: popin .14s ease-out; }
 @keyframes popin { from { opacity: 0; transform: translateY(6px); } }
 .pop h4 { margin: 0 0 4px; font-size: 16px; font-weight: 800; }
+.pop.menu { width: 280px; padding: 6px; }
+.pop.menu button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border-radius: 4px; font-size: 14px; text-align: left; }
+.pop.menu button:hover { background: var(--hover2); }
+.pop.menu button.danger { color: var(--red); }
+.pop.menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
 .pop .sub { color: var(--muted); font-size: 13px; line-height: 1.45; margin-bottom: 12px; }
 .devlist { display: flex; flex-direction: column; gap: 2px; margin: 0 -8px 12px; }
 .devrow { display: flex; align-items: center; gap: 12px; padding: 10px 8px; border-radius: 6px; text-align: left; width: 100%; }
@@ -430,6 +435,8 @@ details summary::before { content: "▸ "; } details[open] summary::before { con
   <div id="test-result"></div>
   <div class="small" id="dev-busy" hidden style="margin-top:10px;color:var(--amber)"></div>
 </div>
+
+<div class="pop menu" id="pop-pl"></div>
 
 <div class="pop" id="pop-folder">
   <h4>Dónde se guarda la música</h4>
@@ -615,7 +622,7 @@ function renderLibrary() {
     const live = it.alive;
     const sub = live ? `Descargando · ${it.done}/${it.total || "?"}` : `${RUN_LABEL[it.status] || "Playlist"} · ${it.done}/${it.total || "?"}`;
     const cover = it.cover ? `<img src="${esc(it.cover)}" alt="" loading="lazy">` : `<div class="ph">${icon("music")}</div>`;
-    return `<button class="lib-item ${it.playlist_id === pid ? "on" : ""}" data-url="${esc(it.url)}" title="${esc(it.name)}">
+    return `<button class="lib-item ${it.playlist_id === pid ? "on" : ""}" data-url="${esc(it.url)}" data-pid="${esc(it.playlist_id)}" data-name="${esc(it.name)}" data-folder="${esc(it.final_output || "")}" title="${esc(it.name)} · clic derecho: más opciones">
       ${cover}<div class="lib-txt"><div class="lib-name">${esc(it.name)}</div><div class="lib-sub">${esc(sub)}</div></div>
       <div class="lib-live">${live ? IND_DL : ""}</div></button>`;
   }).join("");
@@ -652,7 +659,7 @@ function renderHome() {
     html += `<div class="empty-note">Todavía no bajaste ninguna playlist desde este ordenador.</div>`;
   } else {
     html += `<div class="cards">${S.history.slice(0, 12).map((it) => `
-      <button class="card" data-url="${esc(it.url)}">
+      <button class="card" data-url="${esc(it.url)}" data-pid="${esc(it.playlist_id)}" data-name="${esc(it.name)}" data-folder="${esc(it.final_output || "")}">
         <div class="cv">${it.cover ? `<img src="${esc(it.cover)}" alt="" loading="lazy">` : `<div class="ph" style="height:100%">${icon("music")}</div>`}
 </div>
         <div class="t">${esc(it.name)}</div>
@@ -755,7 +762,15 @@ function statusHtml(v, tracks) {
   } else if (status === "paused") {
     html += `<div class="note blue">${icon("info")}<div><b>En pausa: Spotify se detuvo</b><p>Lo grabado se conservó. Pulsa «Continuar» y sigue desde el primer tema pendiente.</p>${errLine(job)}</div></div>`;
   } else if (status === "stopped") {
-    html += `<div class="note">${icon("info")}<div><b>La descarga se cortó antes de terminar</b><p>Pulsa «Continuar»: retoma lo grabado si se puede; si no, vuelve a empezar.</p>${errLine(job)}</div></div>`;
+    const ready = (c.downloaded || 0) + (c.recorded || 0);
+    const busySaving = saving && saving.status === "running";
+    const saveRow = run.saved_to
+      ? `<button class="pill white small" data-open-folder="${esc(run.saved_to)}">${icon("folder", "sm")}Abrir los ${run.saved_count} guardados</button>`
+      : `<button class="pill white small" data-save-partial="${esc(run.run)}" ${busySaving ? "disabled" : ""}>${icon("save", "sm")}${busySaving ? "Guardando…" : `Guardar ${ready === 1 ? "el tema listo" : `los ${ready} temas listos`} en tu carpeta`}</button>`;
+    html += `<div class="note">${icon("info")}<div><b>La descarga se cortó antes de terminar</b>
+      <p>${ready && !run.saved_to ? `${plural(ready, "tema listo está", "temas listos están")} en la carpeta de trabajo, todavía no en tu carpeta de música. ` : ""}«Continuar descarga» empieza otra descarga de la playlist que reutiliza lo ya bajado.</p>${errLine(job)}
+      ${ready || run.saved_to ? `<div class="row">${saveRow}</div>` : ""}
+      ${saving && saving.status === "error" ? `<p style="margin-top:8px;color:var(--red)">${esc(saving.error)}</p>` : ""}</div></div>`;
   } else if (status === "failed" && run.preflight_error) {
     html += `<div class="note amber">${icon("warn")}<div><b>La búsqueda en Soulseek no terminó: no se bajó ni se grabó nada</b>
       <p>Soulseek permite 34 búsquedas cada 220 segundos, así que una playlist larga tarda: con ${total} temas, unos ${Math.max(1, Math.round((Math.ceil(total / 34) - 1) * 220 / 60))} minutos solo en esperas. La app ahora espera lo necesario. Si vuelve a fallar, revisa que la cuenta de Soulseek no esté abierta en otra PC.</p>
@@ -767,7 +782,7 @@ function statusHtml(v, tracks) {
       ${errLine(job)}
       <div class="row">
         ${savedTo ? `<button class="pill white small" data-open-folder="${esc(savedTo)}">${icon("folder", "sm")}Abrir los ${run.saved_count} guardados</button>` :
-          done ? `<button class="pill white small" data-save-partial="${esc(run.run)}" ${saving && saving.status === "running" ? "disabled" : ""}>${icon("save", "sm")}${saving && saving.status === "running" ? "Guardando…" : `Guardar los ${done} temas listos en tu carpeta`}</button>` : ""}
+          done ? `<button class="pill white small" data-save-partial="${esc(run.run)}" ${saving && saving.status === "running" ? "disabled" : ""}>${icon("save", "sm")}${saving && saving.status === "running" ? "Guardando…" : `Guardar ${done === 1 ? "el tema listo" : `los ${done} temas listos`} en tu carpeta`}</button>` : ""}
         <button class="pill ghost small" data-open-folder="${esc(run.run_dir)}">Ver la carpeta de trabajo</button>
       </div>
       ${saving && saving.status === "error" ? `<p style="margin-top:8px;color:var(--red)">${esc(saving.error)}</p>` : ""}</div></div>`;
@@ -827,6 +842,7 @@ function renderPlaylist() {
       ${!live && !otherBusy && (status === "paused" || status === "stopped" || status === "deferred") ? `<button class="icon-btn" id="act-fresh" title="Ignorar lo anterior y empezar una descarga nueva">${icon("restart")}<span>Empezar de cero</span></button>` : ""}
       ${finalFolder ? `<button class="icon-btn" data-open-folder="${esc(finalFolder)}" title="Abrir la carpeta con la música">${icon("folder")}<span>Abrir carpeta</span></button>` : ""}
       <a class="icon-btn" href="${esc(v.url)}" target="_blank" rel="noopener" title="Abrir la playlist en Spotify">${icon("ext")}<span>Spotify</span></a>
+      ${run ? `<button class="icon-btn" id="act-more" title="Más opciones (también con clic derecho en la lista de la izquierda)"><span style="font-size:20px;line-height:1">⋯</span><span>Más</span></button>` : ""}
     </div>`;
   if (v.needsAuth && !(run && run.tracks && run.tracks.length)) {
     const connecting = S.st && S.st.connecting;
@@ -1147,6 +1163,67 @@ async function copyText(text, btn, done = "Enlace copiado: pégalo en la barra d
   toast(done, "ok");
 }
 
+// ---------------------------------------------------------------- menú de una playlist (clic derecho o «⋯ Más»)
+const itemFromEl = (el) => ({ pid: el.dataset.pid, url: el.dataset.url, name: el.dataset.name, folder: el.dataset.folder || "" });
+
+function playlistMenu(item, x, y) {
+  const pop = $("#pop-pl");
+  closePops();
+  S.menu = item;
+  pop.innerHTML = `${item.folder ? `<button data-menu="folder">${icon("folder", "sm")}Abrir la carpeta de la música</button>` : ""}
+    <button data-menu="spotify">${icon("ext", "sm")}Abrir en Spotify</button>
+    <button data-menu="copy">${icon("clip", "sm")}Copiar el enlace de Spotify</button>
+    <hr><button data-menu="hide">${icon("x", "sm")}Quitar de la lista</button>
+    <button data-menu="delete" class="danger">${icon("warn", "sm")}Borrar archivos de trabajo…</button>`;
+  pop.classList.add("open");
+  const w = pop.offsetWidth, h = pop.offsetHeight;
+  pop.style.left = `${Math.max(8, Math.min(window.innerWidth - w - 8, x))}px`;
+  pop.style.top = `${Math.max(8, Math.min(window.innerHeight - h - 8, y))}px`;
+}
+
+async function afterPlaylistGone(pid) {
+  if (S.view.kind === "playlist" && S.view.pid === pid) goHome();
+  await refreshHistory();
+  render();
+}
+
+async function menuAction(kind, btn) {
+  const it = S.menu;
+  closePops();
+  if (!it) return;
+  if (kind === "folder") openFolder(it.folder);
+  else if (kind === "spotify") window.open(it.url, "_blank", "noopener");
+  else if (kind === "copy") copyText(it.url, btn, "Enlace copiado.");
+  else if (kind === "hide") {
+    try {
+      await api("/api/playlist/hide", { playlist_id: it.pid });
+      toast(`Se quitó «${it.name}» de la lista. No se borró nada.`, "ok", {
+        label: "Deshacer", run: () => api("/api/playlist/unhide", { playlist_id: it.pid }).then(() => afterPlaylistGone(null)) });
+      await afterPlaylistGone(it.pid);
+    } catch (e) { fail(e); }
+  } else if (kind === "delete") {
+    try {
+      const w = await api(`/api/playlist/work?pid=${encodeURIComponent(it.pid)}`);
+      if (!w.runs) { toast("Esa playlist no tiene archivos de trabajo."); return; }
+      const lines = [`Se borran ${plural(w.runs, "carpeta de trabajo", "carpetas de trabajo")} de «${it.name}» (${w.size_mb} MB).`];
+      if (w.unsaved) lines.push(`Atención: ${plural(w.unsaved, "tema bajado o grabado todavía no está", "temas bajados o grabados todavía no están")} en tu carpeta de música y se pierden. Antes puedes usar «Guardar los temas listos».`);
+      if (w.pending_recording) lines.push("También se pierde la grabación pendiente («Grabar ahora»).");
+      lines.push("La música de tu carpeta no se toca. ¿Borrar?");
+      if (!confirm(lines.join("\n\n"))) return;
+      const d = await api("/api/playlist/delete-work", { playlist_id: it.pid });
+      toast(`Se borraron ${plural(d.deleted, "carpeta de trabajo", "carpetas de trabajo")}.`, "ok");
+      await afterPlaylistGone(it.pid);
+    } catch (e) { fail(e); }
+  }
+}
+
+document.addEventListener("contextmenu", (e) => {
+  const el = e.target.closest(".lib-item, .card");
+  if (!el || !el.dataset.pid) return;
+  e.preventDefault();
+  playlistMenu(itemFromEl(el), e.clientX, e.clientY);
+});
+
 // ---------------------------------------------------------------- un tema ya bajado: escucharlo y revisarlo
 const trackUrl = (kind) => `/api/track/${kind}?run=${encodeURIComponent(S.track.run)}&pos=${S.track.pos}&t=${encodeURIComponent(TOKEN)}`;
 
@@ -1392,6 +1469,7 @@ document.addEventListener("click", (e) => {
   }
   if (t.dataset.copy) { copyText(t.dataset.copy, t); return; }
   if (t.dataset.play) { openTrack(Number(t.dataset.play), true); return; }
+  if (t.dataset.menu) { menuAction(t.dataset.menu, t); return; }
   if (t.dataset.url) { openPlaylist(t.dataset.url); return; }
   if (t.dataset.openFolder !== undefined) { openFolder(t.dataset.openFolder); return; }
   if (t.dataset.savePartial) {
@@ -1407,6 +1485,13 @@ document.addEventListener("click", (e) => {
   switch (t.id) {
     case "act-main": t.dataset.action === "stop" ? stopDownload() : openStartModal(false); break;
     case "act-fresh": openStartModal(true); break;
+    case "act-more": {
+      const r = t.getBoundingClientRect();
+      const v = S.view;
+      playlistMenu({ pid: v.pid, url: v.url, name: (v.meta && v.meta.name) || (v.run && v.run.name) || "la playlist",
+        folder: (v.run && (v.run.final_output || v.run.saved_to)) || "" }, r.left, r.bottom + 6);
+      break;
+    }
     case "pl-stop": stopDownload(); break;
     case "m-go": startDownload(); break;
     case "m-change-dest": $("#modal-start").classList.remove("open"); togglePop("#pop-folder", $("#btn-folder"), renderFolder); break;
