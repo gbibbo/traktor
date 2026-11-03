@@ -26,7 +26,9 @@ Abre una ventana propia (Edge en modo app) servida por `app/descargas_app.py` so
   de `Abrir TRAKTOR ML.bat`). Se lanza al entrar en la pestaña, con el mismo Python, y se muestra
   dentro de ella; se cierra cuando se cierra la app, pero después de la tarea en curso (agregar
   música, fusiones, preparar para Rekordbox/Traktor). Necesita las dependencias del pipeline
-  (`requirements_v4.txt`) y la organización `biblioteca`; si faltan, la pestaña dice qué falta.
+  (`requirements_v4.txt`: usa el Python de la app o, si no las tiene, el `python` del PATH) y la
+  organización `biblioteca` (`Música/` y `artifacts/v4/datasets/musica/`, que no están en Git:
+  se copian desde el ordenador que las tiene); si falta algo, la pestaña lo dice.
   Con una descarga que puede estar grabando, avisa que no se reproduzca nada.
 
 En la pestaña Descargas:

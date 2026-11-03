@@ -37,6 +37,8 @@ CHANGELOG:
                 cuáles se eligen para generar playlists; collection.json en %APPDATA%) y «Organización»
                 (src/v4/ui/review_app.py, lanzada por la app y mostrada dentro de la ventana; se cierra
                 con ella, después de la tarea en curso).
+  - 2026-11-02: Si al Python de la app le falta el pipeline, la Organización prueba con el del PATH, y el
+                aviso dice lo que falta de verdad (la música organizada, no solo paquetes).
 """
 from __future__ import annotations
 
@@ -1469,22 +1471,34 @@ def organizer_problem(lines: list[str], code: int | None) -> str:
     """Por qué no abrió (o se cerró) la organización, dicho para quien usa la app."""
     text = "\n".join(lines)
     if "No existe la organización" in text or "Audio root for dataset" in text:
-        return ("Tu música organizada no está en este ordenador: la organización se arma en el que tiene la "
-                "biblioteca (la carpeta Música/ del repo y artifacts/v4/datasets/musica/orgs/).")
+        return ("Tu música organizada no está en este ordenador: falta la carpeta Música/ del repo, o "
+                "artifacts/v4/datasets/musica/ (con orgs/biblioteca). Para usarla aquí, copia las dos desde el "
+                "ordenador que la tiene.")
     missing = re.search(r"No module named '([^']+)'", text)
     if missing:
-        return (f"Al Python de la app le faltan las dependencias del pipeline (no encuentra «{missing.group(1)}»): "
+        return (f"Ningún Python de este ordenador tiene las dependencias del pipeline (falta «{missing.group(1)}»): "
                 ".venv\\Scripts\\python.exe -m pip install -r requirements_v4.txt")
     return f"La organización se cerró (código {code}). El detalle está abajo."
 
 
+def organizer_pythons() -> list[str]:
+    """El Python de la app (el .venv, como «Abrir TRAKTOR ML.bat») y, si es otro, el del PATH: en un ordenador
+    preparado solo para descargar, el .venv no tiene el pipeline y el del sistema puede tenerlo."""
+    found = [console_python()]
+    system = shutil.which("python")
+    if system and path_key(system) != path_key(found[0]):
+        found.append(system)
+    return found
+
+
 class Organizer:
     """La pestaña «Organización»: review_app.py con su propio servidor, que la ventana muestra dentro de la
-    pestaña. Usa el Python de la app (el .venv, como «Abrir TRAKTOR ML.bat») y vive lo que vive la app: al
-    cerrarse esta, se le cierra la entrada estándar y termina después de la tarea en curso."""
+    pestaña. Prueba cada Python de organizer_pythons() hasta uno con las dependencias del pipeline, y vive lo que
+    vive la app: al cerrarse esta, se le cierra la entrada estándar y termina después de la tarea en curso."""
 
-    def __init__(self, cmd: list[str] | None = None):
-        self.cmd = cmd or [console_python(), "-u", str(REVIEW_APP), "--no-browser", "--exit-on-stdin-eof"]
+    def __init__(self, cmds: list[list[str]] | None = None):
+        self.cmds = cmds or [[exe, "-u", str(REVIEW_APP), "--no-browser", "--exit-on-stdin-eof"]
+                             for exe in organizer_pythons()]
         self.proc: subprocess.Popen[str] | None = None
         self.status = "off"  # off | starting | ready | error
         self.url: str | None = None
@@ -1497,19 +1511,24 @@ class Organizer:
             if self.status in ("starting", "ready") and self.proc is not None and self.proc.poll() is None:
                 return self.public()
             self.status, self.url, self.error = "starting", None, None
-            self.lines.clear()
-            env = dict(os.environ, PYTHONUNBUFFERED="1", PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
-            try:
-                self.proc = subprocess.Popen(
-                    self.cmd, cwd=REPO_ROOT, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                    text=True, encoding="utf-8", errors="replace", env=env, creationflags=CREATE_NO_WINDOW)
-            except OSError as exc:
-                self.status, self.error = "error", f"No se pudo abrir la organización: {exc}"
-                return self.public()
-            threading.Thread(target=self._read, args=(self.proc,), daemon=True).start()
+            self._spawn(0)
             return self.public()
 
-    def _read(self, proc: subprocess.Popen[str]) -> None:
+    def _spawn(self, attempt: int) -> None:
+        """Lanza review_app.py con el Python número `attempt` (con self.lock tomado)."""
+        self.lines.clear()
+        env = dict(os.environ, PYTHONUNBUFFERED="1", PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
+        try:
+            self.proc = subprocess.Popen(
+                self.cmds[attempt], cwd=REPO_ROOT, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", env=env,
+                creationflags=CREATE_NO_WINDOW)
+        except OSError as exc:
+            self.proc, self.status, self.error = None, "error", f"No se pudo abrir la organización: {exc}"
+            return
+        threading.Thread(target=self._read, args=(self.proc, attempt), daemon=True).start()
+
+    def _read(self, proc: subprocess.Popen[str], attempt: int) -> None:
         assert proc.stdout is not None
         for raw in proc.stdout:
             line = raw.rstrip("\r\n")
@@ -1520,8 +1539,16 @@ class Organizer:
                 self.url, self.status = served.group(1), "ready"
         code = proc.wait()
         with self.lock:
-            if self.proc is proc:
-                self.status, self.url, self.error = "error", None, organizer_problem(list(self.lines), code)
+            if self.proc is not proc:
+                return
+            lines = list(self.lines)
+            if (self.status == "starting" and attempt + 1 < len(self.cmds)
+                    and any("No module named" in line for line in lines)):
+                print(f"[organización] Sin el pipeline en {self.cmds[attempt][0]}: se prueba con "
+                      f"{self.cmds[attempt + 1][0]}", flush=True)
+                self._spawn(attempt + 1)
+                return
+            self.status, self.url, self.error = "error", None, organizer_problem(lines, code)
 
     def busy(self) -> bool:
         """Una tarea en curso (agregar música, fusiones, export): la app no se cierra ni se reinicia."""

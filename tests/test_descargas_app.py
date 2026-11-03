@@ -817,7 +817,7 @@ def wait_for(predicate, timeout: float = 20.0) -> None:
 def test_organizer_opens_reports_busy_and_closes_with_the_app(tmp_path):
     script = tmp_path / "fake_review_app.py"
     script.write_text(FAKE_ORGANIZER, encoding="utf-8")
-    organizer = APP.Organizer([sys.executable, str(script)])
+    organizer = APP.Organizer([[sys.executable, str(script)]])
     assert organizer.public()["status"] == "off" and not organizer.busy()
     assert organizer.start()["status"] in {"starting", "ready"}
     wait_for(lambda: organizer.status == "ready")
@@ -832,12 +832,35 @@ def test_organizer_opens_reports_busy_and_closes_with_the_app(tmp_path):
 def test_organizer_explains_why_it_did_not_open(tmp_path):
     script = tmp_path / "no_org.py"
     script.write_text("import sys\nsys.exit(\"No existe la organización 'biblioteca' en C:/x/orgs\")\n", encoding="utf-8")
-    organizer = APP.Organizer([sys.executable, str(script)])
+    organizer = APP.Organizer([[sys.executable, str(script)]])
     organizer.start()
     wait_for(lambda: organizer.status == "error")
     public = organizer.public()
     assert "no está en este ordenador" in public["error"] and public["url"] is None
     assert any("No existe la organización" in line for line in public["details"])
+
+
+def test_organizer_tries_the_next_python_without_the_pipeline(tmp_path):
+    """Un ordenador preparado solo para descargar: el .venv no tiene el pipeline y el Python del sistema sí."""
+    no_deps = tmp_path / "no_deps.py"
+    no_deps.write_text("import modulo_que_no_existe\n", encoding="utf-8")
+    fake = tmp_path / "fake_review_app.py"
+    fake.write_text(FAKE_ORGANIZER, encoding="utf-8")
+    organizer = APP.Organizer([[sys.executable, str(no_deps)], [sys.executable, str(fake)]])
+    organizer.start()
+    wait_for(lambda: organizer.status in {"ready", "error"})
+    assert organizer.status == "ready", organizer.public()
+    organizer.close()
+    organizer.proc.wait(timeout=20)
+    alone = APP.Organizer([[sys.executable, str(no_deps)], [sys.executable, str(no_deps)]])
+    alone.start()
+    wait_for(lambda: alone.status == "error")                 # ninguno lo tiene: pide instalarlo
+    assert "Ningún Python" in alone.error and "«modulo_que_no_existe»" in alone.error
+
+
+def test_organizer_pythons_start_with_the_apps_own():
+    pythons = APP.organizer_pythons()
+    assert pythons[0] == APP.console_python() and len(pythons) == len({APP.path_key(p) for p in pythons})
 
 
 def test_organizer_problem_messages():
