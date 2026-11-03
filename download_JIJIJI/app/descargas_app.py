@@ -1737,6 +1737,8 @@ def make_handler(app: App):
                     return self._json(200, {"devices": app.devices(), "busy": app.busy_reason()})
                 if path == "/api/audio/level":
                     return self._json(200, app.monitor.level())
+                if path == "/api/spotify-open":  # sin refrescar todas las comprobaciones (el antivirus tarda)
+                    return self._json(200, {"open": process_running("Spotify.exe")})
                 if path == "/api/playlist/work":
                     return self._json(200, app.playlist_work(query.get("pid", [""])[0]))
                 if path.startswith("/api/track/"):

@@ -180,6 +180,14 @@ svg { display: block; flex: none; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 500px; background: rgba(255,255,255,.07);
   font-size: 13px; font-weight: 600; }
 .chip i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+button.chip { cursor: pointer; } button.chip:hover { background: rgba(255,255,255,.14); }
+.chip.on { background: rgba(255,255,255,.2); box-shadow: inset 0 0 0 1px #fff; }
+.eta { color: var(--muted); font-size: 13px; margin-top: 10px; }
+.tbl-tools { display: flex; align-items: center; gap: 12px; margin: 0 0 10px; }
+.tbl-tools input { flex: 0 1 360px; height: 34px; padding: 0 12px; border-radius: 500px; border: 1px solid #535353; background: rgba(0,0,0,.25);
+  color: var(--text); font: inherit; font-size: 13px; }
+#tr-nav { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+#tr-nav label { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--muted); font-size: 13px; }
 .note { display: flex; gap: 14px; align-items: flex-start; border-radius: 8px; padding: 16px 18px; margin-bottom: 24px;
   background: rgba(255,255,255,.06); line-height: 1.5; }
 .note .ico { margin-top: 1px; }
@@ -473,6 +481,11 @@ details summary::before { content: "▸ "; } details[open] summary::before { con
   <div class="drawer-head"><h3>Detalles del tema</h3><button class="round" data-close="drawer-track" title="Cerrar"><svg class="ico md"><use href="#i-x"/></svg></button></div>
   <div class="drawer-body">
     <div id="tr-head"></div>
+    <div id="tr-nav">
+      <button class="pill ghost small" id="tr-prev" title="Tema anterior de la lista">‹ Anterior</button>
+      <button class="pill ghost small" id="tr-next" title="Tema siguiente de la lista">Siguiente ›</button>
+      <label title="Al terminar un tema bajado, sigue con el siguiente que tenga archivo"><input type="checkbox" id="tr-auto">Seguir escuchando los siguientes</label>
+    </div>
     <audio id="tr-audio" controls preload="none"></audio>
     <div id="tr-block" class="small" hidden></div>
     <div class="btnrow">
@@ -493,8 +506,10 @@ details summary::before { content: "▸ "; } details[open] summary::before { con
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="m-title">
     <h3 id="m-title">Bajar «<span id="m-name"></span>»</h3>
     <p class="lead">Lo que esté en Soulseek se baja. Lo que no, se graba en tiempo real mientras suena en Spotify.</p>
+    <p class="small" id="m-eta"></p>
     <div id="m-choice"></div>
     <div class="choice" id="m-defer-row"><label><input type="checkbox" id="m-defer"><div><b>Grabar después</b><span>Ahora solo busca y baja de Soulseek, y eso va a la carpeta. Lo que haya que grabar queda pendiente hasta que pulses «Grabar ahora».</span></div></label></div>
+    <div class="note amber" id="m-spotify" hidden style="margin:10px 0 0;padding:12px 14px"><div><b>Spotify de escritorio está cerrado</b><p>Ábrelo con tu cuenta Premium antes de que empiece a grabar (justo después de la búsqueda), o marca «Grabar después».</p></div></div>
     <div class="sumrow"><svg class="ico"><use href="#i-folder"/></svg><div><div class="k">Se guarda en</div><div class="v" id="m-dest"></div></div><button class="pill ghost small" id="m-change-dest">Cambiar</button></div>
     <div class="sumrow"><svg class="ico"><use href="#i-speaker"/></svg><div><div class="k">Suena y se graba por</div><div class="v" id="m-dev"></div></div><button class="pill ghost small" id="m-change-dev">Cambiar</button></div>
     <div class="tips"><b>Mientras graba:</b> activa No molestar (Windows + N), no reproduzcas nada más y no toques Spotify. Todo lo que suene por esa salida queda grabado. Mantén Spotify de escritorio abierto con tu cuenta Premium.</div>
@@ -582,6 +597,7 @@ const fail = (e) => toast(e.message || String(e), "err");
 // ---------------------------------------------------------------- estado
 const S = {
   st: null,            // /api/state
+  filter: { group: null, q: "" },  // filtro de la lista de temas (chips y buscador)
   history: [],
   view: { kind: "home" },
   active: null,        // estado del run en curso (de la app o de la terminal)
@@ -714,20 +730,22 @@ function statusHtml(v, tracks) {
   }).join('<span class="phase-sep"></span>');
   const search = live && phase === "preflight" && run && run.search && run.search.total ? run.search : null;
   const pct = search ? Math.round((search.searched / search.total) * 100) : total ? Math.round((done / total) * 100) : 0;
+  // Cada chip filtra la lista de temas; «N de M listos» la muestra entera.
   const chips = [
-    [c.downloaded, "Bajados de Soulseek", "var(--green)"],
-    [c.recorded, "Grabados de Spotify", "var(--purple)"],
-    [(c.recording || 0) + (c.to_record || 0), "Por grabar", "var(--blue)"],
-    [(c.queued || 0) + (c.downloading || 0), "Por bajar", "var(--muted)"],
-    [(c.failed || 0) + (c.search_error || 0), "No se pudieron", "var(--amber)"],
-  ].filter(([n]) => n > 0).map(([n, l, col]) => `<span class="chip"><i style="background:${col}"></i>${n} ${l}</span>`).join("");
+    [c.downloaded, "Bajados de Soulseek", "var(--green)", "downloaded"],
+    [c.recorded, "Grabados de Spotify", "var(--purple)", "recorded"],
+    [(c.recording || 0) + (c.to_record || 0), "Por grabar", "var(--blue)", "to_record"],
+    [(c.queued || 0) + (c.downloading || 0), "Por bajar", "var(--muted)", "pending"],
+    [(c.failed || 0) + (c.search_error || 0), "No se pudieron", "var(--amber)", "failed"],
+  ].filter(([n]) => n > 0).map(([n, l, col, key]) => `<button class="chip ${S.filter.group === key ? "on" : ""}" data-filter="${key}" title="Mostrar solo estos">
+    <i style="background:${col}"></i>${n} ${l}</button>`).join("");
   const indet = live && phase === "preflight" && !search;
   const counter = search
     ? `<span class="chip">${search.searched} de ${search.total} buscados</span><span class="chip"><i style="background:var(--green)"></i>${search.found} encontrados</span>`
-    : `<span class="chip">${done} de ${total || "?"} listos</span>${chips}`;
+    : `<button class="chip ${S.filter.group ? "" : "on"}" data-filter="" title="Mostrar todos">${done} de ${total || "?"} listos</button>${chips}`;
   if (live || total) html += `<div class="status"><div class="phases">${phases}</div>
     <div class="bar ${indet ? "indet" : ""}"><i style="width:${pct}%"></i></div>
-    <div class="chips">${counter}</div></div>`;
+    <div class="chips">${counter}</div>${live ? etaHtml(run, search, c, tracks) : ""}</div>`;
 
   const failed = (c.failed || 0) + (c.search_error || 0);
   const saving = S.st && S.st.saving && S.st.saving.run === (run && run.run) ? S.st.saving : null;
@@ -789,6 +807,30 @@ function statusHtml(v, tracks) {
   }
   return html;
 }
+// Tiempos aproximados: la búsqueda va a tandas de 34 cada 220 s, cada tema se baja en ~35 s (lo medido el
+// 2026-11-02) y la grabación dura lo que duran los temas, porque se graban mientras suenan.
+const SEARCH_WINDOW = 34, WINDOW_S = 220, DOWNLOAD_S = 35;
+const searchSeconds = (n) => (n > 0 ? Math.max(0, Math.ceil(n / SEARCH_WINDOW) - 1) * WINDOW_S + n * 4 : 0);
+const aboutMin = (s) => (s < 90 ? "1 min" : s < 5400 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1).replace(".", ",")} h`);
+
+function etaHtml(run, search, c, tracks) {
+  const parts = [];
+  if (search) parts.push(`la búsqueda termina en unos ${aboutMin(searchSeconds(search.total - search.searched))}`);
+  const pendingDl = (c.queued || 0) + (c.downloading || 0);
+  if (!search && pendingDl) parts.push(`quedan unos ${aboutMin(pendingDl * DOWNLOAD_S)} de descargas`);
+  const recordMs = tracks.filter((t) => t.state === "to_record" || t.state === "recording").reduce((a, t) => a + (t.duration_ms || 0), 0);
+  if (recordMs && !(run && run.defer)) parts.push(`${aboutMin(recordMs / 1000)} de grabación en tiempo real`);
+  return parts.length ? `<div class="eta">Tiempo estimado: ${parts.join(" · ")}.</div>` : "";
+}
+
+const FILTERS = { downloaded: ["downloaded"], recorded: ["recorded"], to_record: ["to_record", "recording"],
+  pending: ["queued", "downloading", "searching"], failed: ["failed", "search_error"] };
+function trackMatches(t) {
+  if (S.filter.group && !(FILTERS[S.filter.group] || []).includes(t.state)) return false;
+  const q = S.filter.q.trim().toLowerCase();
+  return !q || [t.title, t.album, ...(t.artists || [])].some((x) => String(x || "").toLowerCase().includes(q));
+}
+
 function errLine(job) {
   if (!job || job.alive) return "";
   const t = job.error || job.paused;
@@ -855,8 +897,12 @@ function renderPlaylist() {
   if (v.error) html += `<div class="note amber">${icon("warn")}<div><b>No se pudo leer la playlist</b><p>${esc(v.error)}</p></div></div>`;
   html += statusHtml(v, tracks);
   if (tracks.length) {
-    html += `<div class="tbl"><div class="tr th"><div class="num">#</div><div>Título</div><div class="alb">Álbum</div><div>Estado</div><div class="r" title="Duración">${icon("clock", "sm")}</div></div>
-      ${tracks.map((t) => trackRow(t)).join("")}</div>`;
+    const shown = tracks.filter(trackMatches);
+    const filtered = shown.length !== tracks.length;
+    html += `<div class="tbl-tools"><input id="tr-search" type="search" placeholder="Buscar por título, artista o álbum" value="${esc(S.filter.q)}">
+      ${filtered ? `<span class="small">Mostrando ${shown.length} de ${tracks.length}</span><button class="pill ghost small" data-filter="" data-clear-search>Ver todos</button>` : ""}</div>
+      <div class="tbl"><div class="tr th"><div class="num">#</div><div>Título</div><div class="alb">Álbum</div><div>Estado</div><div class="r" title="Duración">${icon("clock", "sm")}</div></div>
+      ${shown.map((t) => trackRow(t)).join("")}</div>`;
   }
   return html + `</div>`;
 }
@@ -925,8 +971,13 @@ function renderPlayer() {
 function render() {
   const html = S.view.kind === "playlist" ? renderPlaylist() : renderHome();
   if (html !== S.lastViewHtml) {
+    const typing = document.activeElement && document.activeElement.id === "tr-search" ? document.activeElement.selectionStart : null;
     $("#view").innerHTML = html;
     S.lastViewHtml = html;
+    if (typing !== null && $("#tr-search")) {  // al redibujar no se pierde lo que se está escribiendo
+      $("#tr-search").focus();
+      $("#tr-search").setSelectionRange(typing, typing);
+    }
   }
   $("#nav-home").classList.toggle("on", S.view.kind === "home");
   renderLibrary();
@@ -944,6 +995,7 @@ function render() {
 async function openPlaylist(url, { push = true } = {}) {
   const prev = S.view;
   if (S.track && (!prev.run || prev.url !== url)) closeTrack();  // otra playlist: el panel del tema sobra
+  if (prev.url !== url) S.filter = { group: null, q: "" };  // otra playlist: la lista se ve entera
   S.view = { kind: "playlist", loading: true, url };
   S.lastViewHtml = "";
   render();
@@ -991,6 +1043,9 @@ function openStartModal(fresh) {
     <label><input type="radio" name="fresh" value="1" ${fresh ? "checked" : ""}><div><b>${deferred ? "Volver a buscar lo que falta" : "Empezar de cero"}</b><span>${deferred ? "Busca en Soulseek los pendientes; lo que no aparezca queda para grabar" : "Ignora la descarga anterior"}</span></div></label></div>` : "";
   $("#m-defer").checked = false;
   $("#m-defer-row").hidden = deferred && !fresh;  // retomar una grabación pospuesta es para grabar
+  spotifyOpen = true;
+  updateStartWarning();
+  refreshStartInfo();
   $("#modal-start").classList.add("open");
 }
 
@@ -1355,6 +1410,36 @@ trAudio.addEventListener("error", () => {
   if (trAudio.getAttribute("src")) toast((S.st && S.st.playback_block) || "No se pudo reproducir el archivo.", "err");
 });
 
+// Anterior / siguiente en el orden de la lista (la filtrada, si hay filtro); al escuchar, solo temas con archivo.
+function neighborTrack(step, needFile) {
+  const list = viewTracks(S.view).filter(trackMatches).filter((t) => !needFile || t.file);
+  const i = list.findIndex((t) => S.track && t.pos === S.track.pos);
+  const next = i < 0 ? (step > 0 ? list[0] : list[list.length - 1]) : list[i + step];
+  return next ? next.pos : null;
+}
+trAudio.addEventListener("ended", () => {
+  if (!$("#tr-auto").checked) return;
+  const next = neighborTrack(1, true);
+  if (next != null) openTrack(next, true);
+});
+try { $("#tr-auto").checked = localStorage.getItem("tr-auto") === "1"; } catch { /* sin almacenamiento */ }
+
+document.addEventListener("input", (e) => {
+  if (e.target.id === "tr-search") { S.filter.q = e.target.value; render(); }
+});
+
+// Ventana de inicio: cuánto tarda la búsqueda y si Spotify de escritorio está abierto para grabar.
+let spotifyOpen = true;
+function updateStartWarning() {
+  $("#m-spotify").hidden = spotifyOpen || $("#m-defer").checked || $("#m-defer-row").hidden;
+}
+async function refreshStartInfo() {
+  const n = viewTracks(S.view).length;
+  $("#m-eta").textContent = n ? `Buscar ${plural(n, "tema", "temas")} en Soulseek tarda hasta unos ${aboutMin(searchSeconds(n))} (menos si ya hay temas bajados). Bajar, unos ${DOWNLOAD_S} s por tema; grabar, lo que dura cada tema.` : "";
+  try { spotifyOpen = (await api("/api/spotify-open")).open; } catch { spotifyOpen = true; }
+  updateStartWarning();
+}
+
 // ---------------------------------------------------------------- popovers
 function placePop(pop, anchor) {
   const r = anchor.getBoundingClientRect();
@@ -1505,6 +1590,13 @@ document.addEventListener("click", (e) => {
   if (t.dataset.copy) { copyText(t.dataset.copy, t); return; }
   if (t.dataset.play) { openTrack(Number(t.dataset.play), true); return; }
   if (t.dataset.menu) { menuAction(t.dataset.menu, t); return; }
+  if (t.dataset.filter !== undefined) {
+    const key = t.dataset.filter || null;
+    S.filter.group = key && S.filter.group === key ? null : key;
+    if (t.hasAttribute("data-clear-search")) S.filter.q = "";
+    render();
+    return;
+  }
   if (t.dataset.url) { openPlaylist(t.dataset.url); return; }
   if (t.dataset.openFolder !== undefined) { openFolder(t.dataset.openFolder); return; }
   if (t.dataset.savePartial) {
@@ -1544,6 +1636,12 @@ document.addEventListener("click", (e) => {
     case "tr-reveal": if (S.track) api("/api/track/reveal", { run: S.track.run, pos: S.track.pos }).catch(fail); break;
     case "tr-open": if (S.track) api("/api/track/open", { run: S.track.run, pos: S.track.pos }).catch(fail); break;
     case "tr-copy": if (S.track && S.track.data) copyText(S.track.data.path, t, "Ruta copiada."); break;
+    case "tr-prev": case "tr-next": {
+      const playing = !trAudio.paused;  // si estaba sonando, sigue sonando el otro (si tiene archivo)
+      const next = neighborTrack(t.id === "tr-next" ? 1 : -1, playing);
+      if (next != null) openTrack(next, playing); else toast(t.id === "tr-next" ? "Es el último de la lista." : "Es el primero de la lista.");
+      break;
+    }
     case "btn-recheck": loadChecks(true); break;
     case "btn-connect": case "btn-connect2": connectSpotify(); break;
     default: break;
@@ -1555,6 +1653,10 @@ document.addEventListener("change", (e) => {
     api("/api/defer", { on: t.checked })
       .then(() => { toast(t.checked ? "Grabación pospuesta: se baja lo de Soulseek y la grabación queda pendiente." : "La grabación sigue en esta descarga."); tick(true); })
       .catch((err) => { t.checked = !t.checked; fail(err); });
+  } else if (t.id === "m-defer") {
+    updateStartWarning();
+  } else if (t.id === "tr-auto") {
+    try { localStorage.setItem("tr-auto", t.checked ? "1" : ""); } catch { /* sin almacenamiento */ }
   } else if (t.name === "fresh") {
     $("#m-defer-row").hidden = S.view.run && S.view.run.status === "deferred" && t.value === "0";
   }
