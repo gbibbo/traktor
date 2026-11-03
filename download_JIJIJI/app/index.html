@@ -735,7 +735,7 @@ function statusHtml(v, tracks) {
     if (phase === "preflight") {
       const n = (search && search.total) || total;
       const waits = Math.max(0, Math.ceil(n / 34) - 1);
-      html += `<div class="note">${icon("info")}<div><b>${search ? `Buscando en Soulseek: ${search.searched} de ${plural(search.total, "tema", "temas")}` : `Buscando ${n ? plural(n, "tema", "temas") : "los temas"} en Soulseek`}</b>
+      html += `<div class="note">${icon("info")}<div><b>${search ? `Buscando en Soulseek: ${search.searched} de ${plural(search.total, "tema", "temas")}` : `Buscando ${n ? plural(n, "tema", "temas") : "los temas"} en Soulseek`}${search && search.skipped ? ` (${search.skipped} ya están: no se buscan)` : ""}</b>
         <p>${waits ? `Soulseek deja hacer 34 búsquedas cada 220 segundos, así que avanza a saltos y se queda quieto unos minutos entre tandas (con ${n} temas, unos ${Math.round((waits * 220) / 60)} minutos solo en esperas). ` : "Tarda unos minutos. "}Después empieza a bajar y, si falta algo, a grabar.</p></div></div>`;
     } else if ((c.to_record || 0) + (c.recording || 0) > 0) {
       html += `<div class="note blue">${icon("speaker")}<div><b>Grabando desde Spotify</b><p>Lo que no está en Soulseek, o no se pudo bajar bien, se graba mientras suena. No reproduzcas otra cosa ni toques Spotify hasta que termine.</p></div></div>`;
@@ -768,7 +768,7 @@ function statusHtml(v, tracks) {
       ? `<button class="pill white small" data-open-folder="${esc(run.saved_to)}">${icon("folder", "sm")}Abrir los ${run.saved_count} guardados</button>`
       : `<button class="pill white small" data-save-partial="${esc(run.run)}" ${busySaving ? "disabled" : ""}>${icon("save", "sm")}${busySaving ? "Guardando…" : `Guardar ${ready === 1 ? "el tema listo" : `los ${ready} temas listos`} en tu carpeta`}</button>`;
     html += `<div class="note">${icon("info")}<div><b>La descarga se cortó antes de terminar</b>
-      <p>${ready && !run.saved_to ? `${plural(ready, "tema listo está", "temas listos están")} en la carpeta de trabajo, todavía no en tu carpeta de música. ` : ""}«Continuar descarga» empieza otra descarga de la playlist que reutiliza lo ya bajado.</p>${errLine(job)}
+      <p>${ready && !run.saved_to ? `${plural(ready, "tema listo está", "temas listos están")} en la carpeta de trabajo, todavía no en tu carpeta de música. ` : ""}«Continuar descarga» busca y baja solo lo que falta: lo ya bajado se conserva y no se vuelve a buscar.</p>${errLine(job)}
       ${ready || run.saved_to ? `<div class="row">${saveRow}</div>` : ""}
       ${saving && saving.status === "error" ? `<p style="margin-top:8px;color:var(--red)">${esc(saving.error)}</p>` : ""}</div></div>`;
   } else if (status === "failed" && run.preflight_error) {
@@ -821,10 +821,10 @@ function renderPlaylist() {
   else if (extLive) { label = "Descarga en la terminal"; sub = "Para detenerla, usa Ctrl+C en esa ventana"; iconName = "stop"; disabled = true; }
   else if (otherBusy) { label = "Descargar playlist"; sub = "Espera a que termine la otra descarga"; disabled = true; }
   else if (status === "paused") { label = "Continuar grabación"; sub = "Sigue desde el primer tema pendiente"; }
-  else if (status === "stopped") { label = "Continuar descarga"; sub = "Sigue desde el primer tema pendiente"; }
+  else if (status === "stopped") { label = "Continuar descarga"; sub = "Busca y baja solo lo que falta"; }
   else if (status === "deferred") { label = "Grabar ahora"; sub = `Graba ${run.pending_recordings ? plural(run.pending_recordings, "tema pendiente", "temas pendientes") : "lo pendiente"}; no vuelve a bajar`; }
-  else if (status === "failed" || status === "partial") { label = "Volver a intentar"; sub = "Empieza una descarga nueva de la playlist"; }
-  else if (status === "done") { label = "Bajar otra vez"; sub = "Agrega lo nuevo; lo que ya está no se duplica"; }
+  else if (status === "failed" || status === "partial") { label = "Volver a intentar"; sub = "Busca de nuevo solo lo que falta"; }
+  else if (status === "done") { label = "Buscar temas nuevos"; sub = "Solo lo que no está en tu carpeta"; }
   else { label = "Descargar playlist"; sub = tracks.length ? `${plural(tracks.length, "tema", "temas")} · ${fmtTotal(totalMs)}` : "Soulseek primero; lo que falte, se graba"; }
 
   const finalFolder = run && (run.final_output || run.saved_to);
@@ -839,7 +839,7 @@ function renderPlaylist() {
       <button class="pill ${action === "stop" ? "white" : "green"} lg" id="act-main" data-action="${action}" ${disabled ? "disabled" : ""}>${icon(iconName)}${esc(label)}</button>
       <div class="act-sub">${esc(sub)}</div>
       <div class="spacer"></div>
-      ${!live && !otherBusy && (status === "paused" || status === "stopped" || status === "deferred") ? `<button class="icon-btn" id="act-fresh" title="Ignorar lo anterior y empezar una descarga nueva">${icon("restart")}<span>Empezar de cero</span></button>` : ""}
+      ${!live && !otherBusy && (status === "paused" || status === "deferred") ? `<button class="icon-btn" id="act-fresh" title="${status === "deferred" ? "Buscar en Soulseek los temas pendientes antes de grabarlos" : "Ignorar lo anterior y empezar una descarga nueva"}">${icon("restart")}<span>${status === "deferred" ? "Volver a buscar lo que falta" : "Empezar de cero"}</span></button>` : ""}
       ${finalFolder ? `<button class="icon-btn" data-open-folder="${esc(finalFolder)}" title="Abrir la carpeta con la música">${icon("folder")}<span>Abrir carpeta</span></button>` : ""}
       <a class="icon-btn" href="${esc(v.url)}" target="_blank" rel="noopener" title="Abrir la playlist en Spotify">${icon("ext")}<span>Spotify</span></a>
       ${run ? `<button class="icon-btn" id="act-more" title="Más opciones (también con clic derecho en la lista de la izquierda)"><span style="font-size:20px;line-height:1">⋯</span><span>Más</span></button>` : ""}
@@ -984,10 +984,10 @@ function openStartModal(fresh) {
   const dev = S.devices.find((d) => d.default);
   $("#m-dev").textContent = dev ? dev.name : "la salida predeterminada de Windows";
   const deferred = v.run && v.run.status === "deferred";
-  const resumable = v.run && (v.run.status === "paused" || v.run.status === "stopped" || deferred);
+  const resumable = v.run && (v.run.status === "paused" || deferred);
   $("#m-choice").innerHTML = resumable ? `<div class="choice">
     <label><input type="radio" name="fresh" value="0" ${fresh ? "" : "checked"}><div><b>${deferred ? "Grabar ahora" : "Continuar"}</b><span>${deferred ? "Solo lo pendiente: no vuelve a buscar ni a bajar" : "Desde el primer tema pendiente"}</span></div></label>
-    <label><input type="radio" name="fresh" value="1" ${fresh ? "checked" : ""}><div><b>Empezar de cero</b><span>Ignora la descarga anterior</span></div></label></div>` : "";
+    <label><input type="radio" name="fresh" value="1" ${fresh ? "checked" : ""}><div><b>${deferred ? "Volver a buscar lo que falta" : "Empezar de cero"}</b><span>${deferred ? "Busca en Soulseek los pendientes; lo que no aparezca queda para grabar" : "Ignora la descarga anterior"}</span></div></label></div>` : "";
   $("#m-defer").checked = false;
   $("#m-defer-row").hidden = deferred && !fresh;  // retomar una grabación pospuesta es para grabar
   $("#modal-start").classList.add("open");

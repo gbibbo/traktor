@@ -101,9 +101,13 @@ de la letra y perdía «Título (Versión)»: en una playlist de 152 temas, 29 d
 disponibles» estaban. La tolerancia de duración de sockseek llega hasta 1,9× (una
 Extended); el rango de cada tema lo aplica el descargador.
 
-Si una descarga anterior de la misma playlist quedó cortada antes de guardar en la
-carpeta, sus MP3 terminados se reutilizan (`--reuse-dir`): se vuelven a verificar
-(320 kbps, Spotify Track ID, carátula) y no se bajan ni se dan por faltantes.
+Una descarga nueva de una playlist trabaja solo sobre lo que falta: lo que ya está en su
+carpeta de música (`--have-dir`, la que usó una descarga anterior dentro del destino
+actual) no se busca, no se baja y cuenta como guardado; y los MP3 terminados de una
+descarga anterior que se cortó antes de guardar (`--reuse-dir`) se vuelven a verificar
+(320 kbps, Spotify Track ID, carátula) y se traen sin buscarlos. Por eso «Continuar
+descarga», «Volver a intentar», «Volver a buscar lo que falta» (con la grabación
+pendiente) y «Buscar temas nuevos» buscan y bajan solo el resto.
 
 De cada tema se prueban hasta 4 archivos de los que encontró el preflight, en este
 orden: la Extended explícita (si Spotify no apunta ya a una), los de la duración de

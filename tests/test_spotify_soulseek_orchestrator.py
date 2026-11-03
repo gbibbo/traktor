@@ -832,13 +832,15 @@ class WorkflowSimulationTests(unittest.TestCase):
                     for p, s in ((1, "available"), (2, "available"), (3, "missing"))]})
                 write(arg("--missing-json"), self.manifest([3]))
                 gate = arg("--download-gate")
+                have = arg("--have-dir") if "--have-dir" in cmd else None
 
                 def step():
                     if not gate.exists():
                         return None
                     if during_download is not None:  # p. ej. la app pospone la grabación
                         during_download(arg("--output").parent)
-                    ConsolidationTests.tagged_file(arg("--output") / "Artista - Tema 1.mp3", "id1")
+                    if not (have and (have / "Artista - Tema 1.mp3").exists()):  # como el real: no baja lo que ya está
+                        ConsolidationTests.tagged_file(arg("--output") / "Artista - Tema 1.mp3", "id1")
                     write(arg("--failed-json"), self.manifest([2], error=failed_playlists_error))
                     return 3  # el tema 2 no se pudo bajar
                 return FakeProcess(step)
@@ -953,6 +955,33 @@ class WorkflowSimulationTests(unittest.TestCase):
             self.assertEqual((code, report["status"]), (0, "completed"))
             self.assertEqual(self.recorders(calls), [ORCHESTRATOR.RECORDED_FAILED_DIR])
             self.assertEqual(self.library(root), self.ALL)
+
+    def test_tracks_already_in_the_music_folder_count_as_saved(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            earlier = root / "runs" / f"20200101-000000_{self.PID}"
+            folder = root / "lib" / "Lista"
+            ConsolidationTests.tagged_file(folder / "Artista - Tema 1.mp3", "id1")
+            FallbackRecordingTests.write(earlier / "orchestration_report.json",
+                                         {"status": "completed", "final_output": str(folder)})
+            code, calls, _, _ = self.run_flow(root)
+            downloader = next(cmd for script, cmd in calls if script == "spotify_soulseek_download.py")
+            self.assertEqual(Path(downloader[downloader.index("--have-dir") + 1]), folder.resolve())
+            self.assertEqual(code, 0)  # el tema 1 no se bajó de nuevo y la carpeta quedó completa
+            self.assertEqual(self.library(root), self.ALL)
+            new_run = next(d for d in (root / "runs").iterdir() if d != earlier)
+            report = json.loads((new_run / "orchestration_report.json").read_text(encoding="utf-8"))
+            self.assertEqual((report["status"], report["saved_spotify_ids"]), ("completed", ["id1"]))
+
+    def test_a_music_folder_outside_the_destination_is_not_used(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            other = root / "otra_unidad" / "Lista"
+            other.mkdir(parents=True)
+            FallbackRecordingTests.write(root / "runs" / f"20200101-000000_{self.PID}" / "orchestration_report.json",
+                                         {"status": "completed", "final_output": str(other)})
+            self.assertIsNone(ORCHESTRATOR.playlist_music_folder(root / "runs", self.PID, root / "lib"))
+            self.assertEqual(ORCHESTRATOR.playlist_music_folder(root / "runs", self.PID, root), other.resolve())
 
     def test_earlier_unsaved_downloads_are_offered_for_reuse(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

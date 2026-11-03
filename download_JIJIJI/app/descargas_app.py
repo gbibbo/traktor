@@ -266,7 +266,8 @@ def run_state(run_dir: Path, *, alive: bool | None = None, current_download: int
         phase = None
     search_status = read_json(run_dir / "preflight_status.json") if phase == "preflight" else None
     search = {"searched": int(search_status.get("searched") or 0), "found": int(search_status.get("found") or 0),
-              "total": int(search_status.get("tracks") or 0)} if search_status else None
+              "total": int(search_status.get("tracks") or 0),
+              "skipped": int(search_status.get("skipped") or 0)} if search_status else None
 
     downloads: dict[int, dict[str, Any]] = {}
     for path in json_candidates(run_dir, "spotify_reconcile_report*.json"):  # en orden: el último manda

@@ -6,6 +6,8 @@ spotify_soulseek_download.py
 PURPOSE: Reconcile a Spotify playlist against Soulseek and download matches.
 
 CHANGELOG:
+- 2026-11-02: --have-dir (the playlist's music folder, read-only) and --reuse-dir tracks are neither
+              searched nor downloaded: a new run only searches what is missing.
 - 2026-11-02: Preflight without --strict-title: each file's title and version are judged with the
               verification's own rules, reading the file name as its tag would be. --strict-title
               wanted Spotify's «Title - Version» literally and lost «Title (Version)» (29 of 46
@@ -1972,6 +1974,21 @@ def _existing_spotify_track_id(path: Path) -> str | None:
     return None
 
 
+def checks_skipping_known(
+    tracks: list[Track],
+    known: set[str],
+    search: Callable[[list[Track]], list[AvailabilityCheck]],
+) -> list[AvailabilityCheck]:
+    """Availability in playlist order: tracks already known (in the music folder or downloaded by an
+    earlier run) count as available without a search; only the rest go to Soulseek, in one batch."""
+    pending = [t for t in tracks if t.spotify_id not in known]
+    found = iter(search(pending) if pending else [])
+    return [
+        AvailabilityCheck(status="available", result_count=0, candidates=[]) if t.spotify_id in known else next(found)
+        for t in tracks
+    ]
+
+
 def reusable_downloads(dirs: list[Path]) -> dict[str, Path]:
     """Finished MP3s from earlier runs of this playlist, by Spotify Track ID (the first one found wins)."""
     found: dict[str, Path] = {}
@@ -2524,7 +2541,16 @@ def main() -> int:
         default=[],
         help=(
             "Carpeta con MP3 ya terminados de una descarga anterior de esta playlist (repetible): "
-            "esos temas no se vuelven a bajar ni se dan por faltantes"
+            "esos temas no se buscan, no se bajan de nuevo ni se dan por faltantes; se traen a esta descarga"
+        ),
+    )
+    ap.add_argument(
+        "--have-dir",
+        action="append",
+        default=[],
+        help=(
+            "Carpeta de la música de esta playlist (repetible, no se modifica): lo que ya está ahí, por "
+            "Spotify Track ID, no se busca ni se baja"
         ),
     )
     args = ap.parse_args()
@@ -2594,23 +2620,34 @@ def main() -> int:
     available_tracks: list[tuple[int, Track, AvailabilityCheck]] = []
     missing_tracks: list[tuple[int, Track]] = []
     preflight_errors: list[tuple[int, Track, str]] = []
+    # Lo que ya está no se busca ni se baja: en la carpeta de la música (--have-dir, no se toca) o bajado
+    # en una descarga anterior que se cortó antes de guardar (--reuse-dir, se trae a esta descarga).
+    saved = reusable_downloads([Path(d).expanduser().resolve() for d in args.have_dir])
+    reusable = reusable_downloads([Path(d).expanduser().resolve() for d in args.reuse_dir])
+    skipped = {t.spotify_id for t in tracks if t.spotify_id in saved or t.spotify_id in reusable}
+    to_search = [t for t in tracks if t.spotify_id not in skipped]
+    if skipped:
+        in_folder = sum(1 for t in tracks if t.spotify_id in saved)
+        print(f"Ya están {len(skipped)} temas ({in_folder} en tu carpeta, {len(skipped) - in_folder} bajados en "
+              "descargas anteriores): no se buscan ni se bajan de nuevo.")
     preflight_timeout = (
         args.preflight_timeout
         if args.preflight_timeout is not None
-        else preflight_timeout_for(len(tracks))
+        else preflight_timeout_for(len(to_search))
     )
     print(
-        f"Lanzando {len(tracks)} consultas como un único batch de Sockseek..."
+        f"Lanzando {len(to_search)} consultas como un único batch de Sockseek..."
     )
-    if len(tracks) > SOULSEEK_SEARCHES_PER_WINDOW:
-        waits = math.ceil(len(tracks) / SOULSEEK_SEARCHES_PER_WINDOW) - 1
+    if len(to_search) > SOULSEEK_SEARCHES_PER_WINDOW:
+        waits = math.ceil(len(to_search) / SOULSEEK_SEARCHES_PER_WINDOW) - 1
         print(
             f"Soulseek permite {SOULSEEK_SEARCHES_PER_WINDOW} búsquedas cada "
-            f"{SOULSEEK_SEARCH_WINDOW_S} s: con {len(tracks)} temas la búsqueda tarda al menos "
+            f"{SOULSEEK_SEARCH_WINDOW_S} s: con {len(to_search)} temas la búsqueda tarda al menos "
             f"{waits * SOULSEEK_SEARCH_WINDOW_S // 60} min (tope {preflight_timeout / 60:.0f} min)."
         )
     status_path = Path(args.preflight_status).expanduser().resolve() if args.preflight_status else None
-    status = {"tracks": len(tracks), "timeout_s": preflight_timeout, "started_at": time.time()}
+    status = {"tracks": len(to_search), "skipped": len(tracks) - len(to_search), "timeout_s": preflight_timeout,
+              "started_at": time.time()}
     if status_path is not None:
         write_report(status_path, status)
     printed = 0
@@ -2619,30 +2656,24 @@ def main() -> int:
         nonlocal printed
         if status_path is not None:
             _replace_report(status_path, {**status, "searched": searched, "found": found})
-        if searched - printed >= 10 or searched == len(tracks):
+        if searched - printed >= 10 or searched == len(to_search):
             printed = searched
-            print(f"Soulseek: {searched}/{len(tracks)} temas buscados, {found} encontrados", flush=True)
+            print(f"Soulseek: {searched}/{len(to_search)} temas buscados, {found} encontrados", flush=True)
 
-    batch_checks = check_soulseek_availability_batch(
-        tracks,
+    batch_checks = checks_skipping_known(tracks, skipped, lambda pending: check_soulseek_availability_batch(
+        pending,
         length_tol=args.length_tol,
         timeout=preflight_timeout,
         on_progress=on_progress,
         # Junto al estado, en la carpeta de la descarga: qué hizo sockseek en cada búsqueda.
         log_file=status_path.with_name("sockseek_preflight.log") if status_path is not None else None,
-    )
-
-    reusable = reusable_downloads([Path(d).expanduser().resolve() for d in args.reuse_dir])
-    if reusable:
-        print(f"Ya bajados en descargas anteriores de esta playlist: {len(reusable)} (no se vuelven a bajar)")
+    ))
 
     for i, (track, check) in enumerate(zip(tracks, batch_checks), 1):
         print(f"[{i}/{len(tracks)}] {track.primary_artist} - {track.title}")
 
-        if track.spotify_id in reusable and check.status not in {"available", "available_quality_unknown"}:
-            # Ya está bajado y verificado: no es un faltante para grabar, aunque esta búsqueda no lo encontrara.
-            print("    ya bajado en una descarga anterior")
-            check = AvailabilityCheck(status="available", result_count=0, candidates=[])
+        if track.spotify_id in skipped:
+            print("    ya en tu carpeta" if track.spotify_id in saved else "    ya bajado en una descarga anterior")
 
         if check.status == "available":
             marker = "✓ AVAILABLE"
@@ -2832,6 +2863,15 @@ def main() -> int:
             "status": "pending",
             "candidates": [],
         }
+
+        in_folder = saved.get(track.spotify_id)
+        if in_folder is not None:
+            print(f"    → ya está en tu carpeta: {in_folder.name}")
+            row.update({"status": "already_finalized", "output": str(in_folder),
+                        "selected": {"path": str(in_folder), "reasons": ["ya estaba en tu carpeta de música"]}})
+            rows.append(row)
+            ok += 1
+            continue
 
         previous = reusable.get(track.spotify_id)
         if previous is not None:

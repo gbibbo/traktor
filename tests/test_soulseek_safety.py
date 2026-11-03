@@ -489,6 +489,57 @@ def test_finished_downloads_are_reused_instead_of_downloaded_again(tmp_path):
         D.reuse_download(dest, out, "track-9", require_cover=True)
 
 
+def test_known_tracks_are_not_searched_again():
+    tracks = [spotify_track(f"Tema {n}") for n in range(4)]
+    for n, t in enumerate(tracks):
+        t.spotify_id = f"id{n}"
+    searched = []
+
+    def search(pending):
+        searched.append([t.spotify_id for t in pending])
+        return [D.AvailabilityCheck(status="missing", result_count=0, candidates=[]) for _ in pending]
+    checks = D.checks_skipping_known(tracks, {"id0", "id2"}, search)
+    assert searched == [["id1", "id3"]]                               # solo lo que falta va a Soulseek
+    assert [c.status for c in checks] == ["available", "missing", "available", "missing"]  # en el orden de la playlist
+    assert D.checks_skipping_known(tracks, {"id0", "id1", "id2", "id3"}, search)[0].status == "available"
+    assert len(searched) == 1                                         # todo conocido: no se busca nada
+
+
+def test_downloader_searches_only_what_is_not_in_the_music_folder(tmp_path, monkeypatch, capsys):
+    tracks = [spotify_track(f"Tema {n}", ("Artista",), 300) for n in range(3)]
+    for n, t in enumerate(tracks):
+        t.spotify_id = f"id{n}"
+    folder = tmp_path / "lib" / "Lista"
+    mp3_320(folder / "Artista - Tema 0.mp3", "id0")       # ya guardado
+    mp3_320(tmp_path / "old" / "soulseek" / "Artista - Tema 1.mp3", "id1")  # bajado por una descarga cortada
+
+    class FakeSpotify:
+        def __init__(self, client_id):
+            pass
+
+        def playlist_tracks(self, playlist):
+            return "Lista", tracks
+    searched = []
+
+    def batch(pending, **kwargs):
+        searched.append([t.spotify_id for t in pending])
+        return [D.AvailabilityCheck(status="missing", result_count=0, candidates=[]) for _ in pending]
+    monkeypatch.setattr(D, "Spotify", FakeSpotify)
+    monkeypatch.setattr(D, "check_soulseek_availability_batch", batch)
+    monkeypatch.setattr(D, "find_sockseek", lambda: "sockseek")
+    monkeypatch.setattr(sys, "argv", [
+        "dl", "https://open.spotify.com/playlist/PL1", "--client-id", "x", "--dry-run",
+        "--output", str(tmp_path / "out"), "--availability-report", str(tmp_path / "availability.json"),
+        "--missing-json", str(tmp_path / "missing.json"), "--preflight-status", str(tmp_path / "status.json"),
+        "--have-dir", str(folder), "--reuse-dir", str(tmp_path / "old" / "soulseek")])
+    D.main()
+    assert searched == [["id2"]]  # solo el que no está en ningún lado
+    rows = json.loads((tmp_path / "availability.json").read_text(encoding="utf-8"))["tracks"]
+    assert [r["status"] for r in rows] == ["available", "available", "missing"]
+    assert json.loads((tmp_path / "status.json").read_text(encoding="utf-8"))["skipped"] == 2
+    assert "ya en tu carpeta" in capsys.readouterr().out
+
+
 def test_search_outcome_reads_only_finished_searches():
     assert D._search_outcome(b'{"type":"track_state","data":{"lifecycleState":"Terminal","terminalOutcome":"Succeeded"}}\n')
     assert D._search_outcome(b'{"type":"track_state","data":{"lifecycleState":"Terminal","terminalOutcome":"Failed"}}') is False

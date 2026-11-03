@@ -3,6 +3,9 @@
 PURPOSE: Run the complete Spotify -> Soulseek + loopback fallback workflow.
 
 CHANGELOG:
+- 2026-11-02: The playlist's music folder (from an earlier run, inside the current destination) goes
+              to the downloader as --have-dir and its tracks count as saved: a new run of a playlist
+              only searches and downloads what is missing.
 - 2026-11-02: The downloader gets the soulseek/ folders of earlier runs of the playlist (--reuse-dir):
               what an interrupted run already downloaded is not downloaded again.
 - 2026-11-02: Postponed recording (--defer-recording, or DEFER_SIGNAL in the run while it
@@ -926,6 +929,32 @@ def playlist_identity(
     return name, expected
 
 
+def playlist_music_folder(runs_root: Path, playlist_id: str, playlists_root: Path) -> Path | None:
+    """The music folder an earlier run of this playlist saved to, if it is in the current destination."""
+    root = playlists_root.resolve()
+    for run_dir in _runs_for_playlist(runs_root, playlist_id):
+        report = read_json_dict(run_dir / "orchestration_report.json") or {}
+        consolidation = read_json_dict(run_dir / "consolidation_report.json") or {}
+        folder = report.get("final_output") or consolidation.get("playlist_directory")
+        if not folder:
+            name, _ = playlist_identity(run_dir, playlist_id)
+            folder = root / safe_playlist_folder_name(name) if name and name != playlist_id else None
+        if folder and Path(folder).is_dir() and Path(folder).resolve().is_relative_to(root):
+            return Path(folder).resolve()
+    return None
+
+
+def saved_in_folder(folder: Path) -> set[str]:
+    """Spotify Track IDs of the MP3s already in a playlist's music folder."""
+    found: set[str] = set()
+    for path in folder.glob("*.mp3"):
+        try:
+            found.add(embedded_spotify_id(path))
+        except WorkflowError:
+            continue
+    return found
+
+
 def finish_partial(
     *,
     run_dir: Path,
@@ -958,7 +987,8 @@ def finish_partial(
         extra_recorded_dirs=(failed_dir,),
     )
     consolidation = _with_saved_before(run_dir, summary, consolidation)
-    found = {str(row["spotify_id"]) for row in consolidation["tracks"]}
+    # Lo que ya estaba en la carpeta (o se guardó al posponer la grabación) no falta.
+    found = {str(row["spotify_id"]) for row in consolidation["tracks"]} | set(summary.get("saved_spotify_ids") or [])
     missing_ids = sorted((expected_ids or set()) - found)
     consolidation.update({"partial": True, "reason": reason, "missing_spotify_ids": missing_ids})
     write_summary(run_dir / "consolidation_report.json", consolidation)
@@ -1193,6 +1223,14 @@ def run_workflow(args: argparse.Namespace) -> int:
             for previous in _runs_for_playlist(runs_root, playlist_id):
                 if (previous / "soulseek").is_dir() and any((previous / "soulseek").rglob("*.mp3")):
                     downloader_cmd += ["--reuse-dir", str(previous / "soulseek")]
+            # Lo que ya está en la carpeta de la música no se busca ni se baja, y cuenta como guardado.
+            music_folder = playlist_music_folder(runs_root, playlist_id, playlists_root)
+            if music_folder is not None:
+                downloader_cmd += ["--have-dir", str(music_folder)]
+                summary["saved_spotify_ids"] = sorted(
+                    set(summary.get("saved_spotify_ids") or []) | saved_in_folder(music_folder)
+                )
+                write_summary(summary_path, summary)
             print("\n[1/4] Analizando disponibilidad en Soulseek...")
             downloader = subprocess.Popen(downloader_cmd, env=env)
 

@@ -69,7 +69,7 @@ def test_preflight_running(tmp_path):
     assert state["tracks"] == [] and state["playlist_id"] == PID
     assert state["search"] is None  # sockseek todavía no empezó
     write(run / "preflight_status.json", {"tracks": 152, "timeout_s": 2100, "started_at": 1, "searched": 40, "found": 31})
-    assert APP.run_state(run)["search"] == {"searched": 40, "found": 31, "total": 152}
+    assert APP.run_state(run)["search"] == {"searched": 40, "found": 31, "total": 152, "skipped": 0}
 
 
 def test_transfer_states(tmp_path):
