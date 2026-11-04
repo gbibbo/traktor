@@ -47,10 +47,10 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    Refrescar Traktor de esta PC (`traktor_collection.py`).
 2. GABRIEL: probar la app local (`Abrir TRAKTOR ML.bat`): agregar música nueva, fusiones de temas
    (clic derecho, papelera), orden a mano (⇅), preparar para Rekordbox/Traktor y deshacer.
-   Y la app de descargas con pestañas (LOCAL lee su log; probadas en la laptop con `biblioteca` v11
-   el 11-04); decidir si las playlists usan solo lo elegido en Colección.
-   ¿Dónde vive la Organización en el escritorio y, si hay dos copias, cuál manda? Opciones:
-   `docs/reports/organizacion_escritorio_2026-11-04.md`.
+   Y la app de descargas con pestañas (LOCAL lee su log; probadas en la laptop el 11-04);
+   decidir si las playlists usan solo lo elegido en Colección.
+   Escritorio (Gabriel, 11-04): datos de `biblioteca` v11 en `D:\PARA_EL_ESCRITORIO\`, música del
+   paquete; falta que la app lo lea (escritorio). Manda la laptop.
 3. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
    tracklists y descarga del audio se consultan antes de implementar.
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
