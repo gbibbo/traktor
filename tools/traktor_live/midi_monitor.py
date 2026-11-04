@@ -7,6 +7,8 @@ PURPOSE: Monitor MIDI mínimo para Windows (winmm por ctypes, sin paquetes extra
          (el DJM manda el tempo de su contador de BPM) se cuenta aparte y se resume en BPM.
 CHANGELOG:
   - 2026-11-04: Creación inicial.
+  - 2026-11-04: Ctrl+C por un manejador de señal: en la prueba del K2 el KeyboardInterrupt se escapó
+                sin el resumen.
 """
 from __future__ import annotations
 
@@ -14,7 +16,9 @@ import argparse
 import ctypes
 import queue
 import re
+import signal
 import sys
+import threading
 import time
 from ctypes import wintypes
 from pathlib import Path
@@ -128,8 +132,11 @@ def monitor(index: int, seconds: Optional[float], quiet: bool) -> int:
     seen: List[Tuple[str, int, int, int]] = []
     clock: List[float] = []
     t_end = None if seconds is None else time.perf_counter() + seconds
+    # Ctrl+C solo pide terminar: un KeyboardInterrupt en medio de la espera se escapaba sin resumen
+    stop = threading.Event()
+    previous = signal.signal(signal.SIGINT, lambda *_: stop.set())
     try:
-        while t_end is None or time.perf_counter() < t_end:
+        while not stop.is_set() and (t_end is None or time.perf_counter() < t_end):
             try:
                 packed, t = events.get(timeout=0.1)
             except queue.Empty:
@@ -142,9 +149,8 @@ def monitor(index: int, seconds: Optional[float], quiet: bool) -> int:
             seen.append(ev)
             if not quiet:
                 print("  " + describe(*ev), flush=True)
-    except KeyboardInterrupt:
-        pass
     finally:
+        signal.signal(signal.SIGINT, previous)
         mm.midiInStop(handle)
         mm.midiInReset(handle)
         mm.midiInClose(handle)
