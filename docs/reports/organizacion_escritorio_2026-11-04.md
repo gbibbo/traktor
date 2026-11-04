@@ -4,6 +4,18 @@ Medido en la laptop (`C:\VS\traktor`) el 2026-11-04. El escritorio tiene 20 GB l
 en el pendrive D:; su Python del sistema tiene pandas, PyYAML, scikit-learn y umap (dato del agente
 del escritorio, no verificado desde acá). La decisión es de Gabriel: este informe no copia nada.
 
+**Verificado en el escritorio (2026-11-04, agente del escritorio):**
+
+- El repo está en `C:\VS projects\traktor_github`, no en `C:\VS\traktor` (esa carpeta no existe aquí).
+- El Python del sistema (3.11.9) tiene todo lo de abrir y de agregar música: pandas 2.3.1,
+  pyarrow 21, PyYAML 6.0.3, scikit-learn 1.7.2, umap 0.5.11, mutagen, joblib, torch 2.8.0+cpu,
+  torchaudio, soundfile, transformers 4.57.0 y scipy 1.16.1. El `.venv` no tiene ninguno; la app
+  usa el del sistema para la Organización (7b268ab).
+- No están el modelo CLAP (no aparece en la caché de Hugging Face) ni `models/vocal_probe/`.
+- El pendrive D: es FAT32 (114,6 GB, 89,3 GB libres). Un junction desde C: hacia una carpeta del
+  pendrive funciona para leer (probado con `D:\TRAKTOR ML\Musica` y quitado después). Escribir a
+  través del junction no se probó.
+
 ## Qué hay en la laptop
 
 `Música/`: **37,8 GB**, 2440 archivos de audio (2415 sin contar `_copias/`), 1823 temas en el catálogo
@@ -42,11 +54,17 @@ hay internet). Sin la caché de `clap_wholetrack`, la etiqueta Vocal recalcula l
   `Música/` (tiene que existir: sin ella la pestaña muestra el aviso) y lo marcado «sí» arriba.
   Python: pandas, pyarrow, PyYAML, scikit-learn, umap-learn, mutagen.
 - **Agregar música nueva**, además: las dos cachés CLAP, `features/`, la sonda de voz y el modelo
-  CLAP. Python: además torch, torchaudio, soundfile, transformers y scipy. No consta que el Python
-  del escritorio los tenga.
+  CLAP. Python: además torch, torchaudio, soundfile, transformers y scipy.
+  [REFUTADO 2026-11-04 por la verificación en el escritorio: el Python del sistema del escritorio
+  los tiene todos (versiones arriba).] No consta que el Python del escritorio los tenga.
 - Lo simple es copiar `artifacts/v4/datasets/musica/` entero (0,4 GB, entra en C:).
-- `catalog.parquet` guarda rutas absolutas (`C:\VS\traktor\Música\...`), y la etiqueta Vocal y los
-  exports las usan. En el escritorio el repo está en la misma ruta (`CONFIGURAR_OTRO_ORDENADOR.md`):
+- `catalog.parquet` guarda rutas absolutas (`C:\VS\traktor\Música\...`) en `source_path`. Las usan
+  la etiqueta Vocal, `phase1_tags`, los exports (m3u8, Rekordbox, Traktor) y `beatport_lookup`; la
+  app lee y reproduce con `Música/` del repo y `rel_path`.
+  [REFUTADO 2026-11-04 por la verificación en el escritorio: allí el repo está en
+  `C:\VS projects\traktor_github` y `C:\VS\traktor` no existe. Hacen falta las dos rutas:
+  `<repo>\Música` para la app y `C:\VS\traktor\Música` para `source_path`, como carpetas o
+  junctions.] En el escritorio el repo está en la misma ruta (`CONFIGURAR_OTRO_ORDENADOR.md`):
   sirve si `C:\VS\traktor\Música` existe, como carpeta o como junction.
 
 ## Opciones
@@ -57,6 +75,10 @@ hay internet). Sin la caché de `clap_wholetrack`, la etiqueta Vocal recalcula l
 2. **Una copia en el escritorio.** `Música/` en `D:\Música` (37,8 GB de 89 libres, junto al paquete
    de 27 GB) con un junction `C:\VS\traktor\Música` → `D:\Música`; `artifacts/v4/datasets/musica/` y
    `models/vocal_probe/` en C:. Funciona mientras el pendrive esté conectado con la misma letra.
+   [REFUTADO 2026-11-04 por la verificación en el escritorio: un solo junction no alcanza, porque allí
+   el repo está en `C:\VS projects\traktor_github`. Hacen falta dos hacia `D:\Música`:
+   `C:\VS projects\traktor_github\Música` y `C:\VS\traktor\Música`. Lo demás sigue igual. El modelo
+   CLAP (1,2 GB) se baja la primera vez que se agrega música.]
 3. **Una sola copia en el pendrive para los dos.** `Música/` y `artifacts/v4/datasets/musica/` en D:,
    con junctions en los dos ordenadores. No hay dos versiones, pero la laptop pasa a depender del
    pendrive (velocidad USB, y si se pierde, se pierde la organización: hace falta un respaldo).
