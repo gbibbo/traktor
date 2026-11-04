@@ -39,8 +39,9 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    El NAS (Synology, por Synology Drive) ya tiene la biblioteca completa en `SynologyDrive\Música`
    (4100 temas, 135 GB, agosto de 2025): están los 1823 temas del catálogo (1785 iguales en ruta y
    tamaño, 13 con unos KB de diferencia, seguramente tags, y los 25 de `_copias` en su ruta
-   original), así que no hace falta copiar la `Música/` de la laptop. Gabriel arma una tarea de copia
-   de seguridad de Synology Drive para `D:\TRAKTOR ML` y `D:\TRAKTOR ML datos`. Con su visto bueno se
+   original), así que no hace falta copiar la `Música/` de la laptop. Gabriel configuró una tarea de
+   copia de seguridad manual de Synology Drive para `D:\TRAKTOR ML` y `D:\TRAKTOR ML datos`: después de
+   cada cambio grande hay que pulsar «Back up now». Con su visto bueno se
    escribió en cada MP3/FLAC del paquete su embedding `clap_full` y su lugar en `biblioteca` v11
    (`file_embeddings.py`): 1752 escritos y verificados (hash del audio igual antes y después, relectura
    idéntica), 0 errores; los 8 WAV/AIFF no se tocaron.
