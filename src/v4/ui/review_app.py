@@ -26,7 +26,8 @@ CHANGELOG:
   - 2026-11-04: La etiqueta Vocal de la música agregada sale de clap_probe (la regla vigente), no de 'clap':
                 el método viejo le habría quitado la marca a 473 temas de la biblioteca y puesto a 94.
   - 2026-11-04: Sin la carpeta Música/ (un ordenador con solo los datos de la organización), la música sale
-                del paquete de usb_package.py (<unidad>:\\TRAKTOR ML, discos fijos primero, o --package):
+                del paquete de usb_package.py (<unidad>:\\TRAKTOR ML: primero la unidad de los datos de la
+                organización, después discos fijos y extraíbles; o --package):
                 cada tema se busca por track_uid en su _organizacion.csv. Así la organización se ve y se
                 escucha en solo lectura: los cambios se hacen donde está la biblioteca, para no tener dos
                 organizaciones que se separan.
@@ -141,9 +142,18 @@ READONLY = ("En este ordenador la organización es para ver y escuchar, con la m
             "(Música/), para no tener dos organizaciones distintas.")
 
 
-def find_package(name: str = PACKAGE_NAME) -> Optional[Path]:
-    """Un paquete en la raíz de una unidad (<unidad>:\\TRAKTOR ML\\_organizacion.csv): primero los discos fijos, que
-    siempre están, después los extraíbles; nunca unidades de red ni lectoras."""
+def drive_order(kinds: Dict[str, int], prefer: Optional[str] = None) -> List[str]:
+    """Unidades donde buscar el paquete: primero `prefer` (la de los datos de la organización: lo que va junto,
+    junto), después los discos fijos y después los extraíbles; nunca unidades de red ni lectoras."""
+    fixed = [d for d in sorted(kinds) if kinds[d] == 3]      # DRIVE_FIXED
+    removable = [d for d in sorted(kinds) if kinds[d] == 2]  # DRIVE_REMOVABLE
+    first = [prefer] if prefer in fixed + removable else []
+    return first + [d for d in fixed + removable if d != prefer]
+
+
+def find_package(prefer_near: Optional[Path] = None, name: str = PACKAGE_NAME) -> Optional[Path]:
+    """Un paquete en la raíz de una unidad (<unidad>:\\TRAKTOR ML\\_organizacion.csv). `prefer_near`: una ruta
+    (los datos de la organización, aunque se llegue por un junction) cuya unidad se mira primero."""
     if os.name != "nt":
         return None
     import ctypes
@@ -151,10 +161,15 @@ def find_package(name: str = PACKAGE_NAME) -> Optional[Path]:
     mask = k32.GetLogicalDrives()
     drives = [f"{chr(65 + i)}:\\" for i in range(26) if mask >> i & 1]
     kinds = {d: k32.GetDriveTypeW(ctypes.c_wchar_p(d)) for d in drives}
-    for kind in (3, 2):  # DRIVE_FIXED, DRIVE_REMOVABLE
-        for d in drives:
-            if kinds[d] == kind and (Path(d) / name / PACKAGE_INDEX).is_file():
-                return Path(d) / name
+    prefer = None
+    if prefer_near is not None:
+        try:
+            prefer = Path(prefer_near).resolve().anchor.upper()
+        except OSError:
+            pass
+    for d in drive_order(kinds, prefer):
+        if (Path(d) / name / PACKAGE_INDEX).is_file():
+            return Path(d) / name
     return None
 
 
@@ -200,7 +215,7 @@ class App:
         try:
             self.library = resolve_dataset_audio_root(dataset, self.config).resolve()
         except FileNotFoundError:
-            root = Path(package) if package else find_package()
+            root = Path(package) if package else find_package(self.artifacts)
             if root is None or not (root / PACKAGE_INDEX).is_file():
                 raise
             self.library = None
@@ -621,7 +636,8 @@ def main() -> int:
                              "después de la tarea en curso")
     parser.add_argument("--package", default=None,
                         help="Sin la carpeta de música: el paquete de usb_package.py del que salen los temas "
-                             "(si no, se busca <unidad>:\\TRAKTOR ML en los discos fijos y después en los extraíbles)")
+                             "(si no, se busca <unidad>:\\TRAKTOR ML: primero en la unidad de los datos de la "
+                             "organización, después en los discos fijos y en los extraíbles)")
     args = parser.parse_args()
     app = App(args.dataset_name, args.org_name, args.config, args.package)
     httpd = serve(app, args.port, not args.no_browser)

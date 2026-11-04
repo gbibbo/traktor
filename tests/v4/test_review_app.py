@@ -302,6 +302,13 @@ def test_without_the_music_folder_it_plays_from_the_package_read_only(tmp_path, 
 
 def test_without_the_music_folder_nor_a_package_it_says_so(tmp_path, monkeypatch):
     cfg, pkg, _ = _package_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(review_app, "find_package", lambda: None)
+    monkeypatch.setattr(review_app, "find_package", lambda prefer_near=None: None)
     with pytest.raises(FileNotFoundError, match="Audio root for dataset"):  # el aviso de la pestaña lo reconoce
         App("sinmusica", "t", str(cfg))
+
+
+def test_the_package_is_looked_for_first_where_the_organization_data_is():
+    kinds = {"C:\\": 3, "D:\\": 2, "E:\\": 3, "R:\\": 5, "Z:\\": 4}  # fijo, extraíble, fijo, lectora, red
+    assert review_app.drive_order(kinds) == ["C:\\", "E:\\", "D:\\"]
+    assert review_app.drive_order(kinds, "D:\\") == ["D:\\", "C:\\", "E:\\"]   # los datos en el pendrive
+    assert review_app.drive_order(kinds, "Z:\\") == ["C:\\", "E:\\", "D:\\"]   # nunca una unidad de red

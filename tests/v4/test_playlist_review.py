@@ -7,6 +7,7 @@ CHANGELOG:
   - 2026-09-27: Creación inicial.
   - 2026-09-29: Mezcla/remixer (version_label, tag_mix y el campo "m").
   - 2026-09-29: Copias fuera de las playlists (copies_of: temas repetidos decididos y duplicates.csv).
+  - 2026-11-04: El Remixer leído se guarda en artifacts (review_mix_cache.json) para la próxima sesión.
 """
 import json
 import re
@@ -84,6 +85,29 @@ def test_build_tracks_reads_remixer_tag(tmp_path):
     # Una columna tag_remixer del catálogo evita leer el archivo
     t = build_tracks(cat.assign(tag_remixer=["Catálogo Remix", None, None]), _bpm_key(), ["u1" * 8])
     assert t[0]["m"] == "Catálogo Remix"
+
+
+def test_remixer_tags_are_kept_for_the_next_session(tmp_path, monkeypatch):
+    """Leer los tags en frío desde un pendrive tardaba 55 s: lo leído queda en artifacts y no se relee."""
+    import tools.playlist_review.build_review_page as brp
+    from mutagen.id3 import ID3, TPE4
+    f = tmp_path / "a.mp3"
+    f.write_bytes(b"")
+    tags = ID3()
+    tags.add(TPE4(encoding=3, text=["Dub"]))
+    tags.save(str(f))
+    monkeypatch.setattr(brp, "_MIX_CACHE", {})
+    assert brp.tag_mix(f) == "Dub"
+    brp.save_mix_cache(tmp_path)
+    monkeypatch.setattr(brp, "_MIX_CACHE", {})                      # otra sesión de la app
+    assert brp.load_mix_cache(tmp_path) == 1
+    monkeypatch.setattr("mutagen.id3.ID3", lambda *a, **k: (_ for _ in ()).throw(AssertionError("releyó")))
+    assert brp.tag_mix(f) == "Dub"                                   # sin abrir el archivo
+    f.write_bytes(b"x" * 10)                                         # el archivo cambió: se vuelve a leer
+    assert brp.tag_mix(f) == ""
+    (tmp_path / brp.MIX_CACHE_FILE).write_text("{roto", encoding="utf-8")
+    monkeypatch.setattr(brp, "_MIX_CACHE", {})
+    assert brp.load_mix_cache(tmp_path) == 0                         # un archivo roto no frena la página
 
 
 def test_org_payload_order_and_suggested():

@@ -25,6 +25,8 @@ CHANGELOG:
                 copias idénticas de Phase 0) y el historial de dedupe.
   - 2026-11-04: make_data(paths=...): el tag Remixer se lee del archivo indicado por track_uid (la app con la
                 música del paquete, sin Música/).
+  - 2026-11-04: El Remixer leído queda en artifacts/<dataset>/review_mix_cache.json: la primera página de
+                cada sesión de la app tardaba 55 s con la música en el pendrive (tags leídos en frío).
 """
 import argparse
 import datetime as dt
@@ -49,6 +51,29 @@ PAGE_NAME = "_revision_playlists.html"
 _VOCAL = re.compile(r"(?<!\w)Vocal(?!\w)", re.IGNORECASE)
 _PLAIN_MIX = {"original mix", "original", "original version"}  # la versión por defecto no se muestra
 _MIX_CACHE: Dict[tuple, str] = {}
+MIX_CACHE_FILE = "review_mix_cache.json"  # en artifacts: el Remixer de cada archivo, para no releer los tags
+
+
+def load_mix_cache(artifacts: Path) -> int:
+    """Suma a _MIX_CACHE lo guardado. Leer los tags de 1760 archivos en frío desde un pendrive tarda casi un
+    minuto; la clave (ruta, fecha, tamaño) hace que un archivo cambiado se vuelva a leer."""
+    try:
+        rows = json.loads((artifacts / MIX_CACHE_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return 0
+    for row in rows if isinstance(rows, list) else []:
+        if isinstance(row, list) and len(row) == 4:
+            _MIX_CACHE.setdefault((str(row[0]), int(row[1]), int(row[2])), str(row[3]))
+    return len(_MIX_CACHE)
+
+
+def save_mix_cache(artifacts: Path) -> None:
+    try:
+        tmp = artifacts / (MIX_CACHE_FILE + ".tmp")
+        tmp.write_text(json.dumps([[*k, v] for k, v in _MIX_CACHE.items()], ensure_ascii=False), encoding="utf-8")
+        tmp.replace(artifacts / MIX_CACHE_FILE)
+    except OSError:  # sin escritura (solo lectura): la página sale igual, solo más lenta la próxima vez
+        pass
 
 
 def _letter(n: int) -> str:
@@ -310,7 +335,10 @@ def make_data(artifacts: Path, dataset: str, specs: List[str], hashes: List[str]
     bpm_key = pd.read_parquet(artifacts / "features" / "bpm_key.parquet")
     uids = list(dict.fromkeys(u for o in orgs for u in o["ordered"]["track_uid"]))
     uid_index = {u: i for i, u in enumerate(uids)}
+    known = len(_MIX_CACHE) or load_mix_cache(artifacts)
     tracks = build_tracks(catalog, bpm_key, uids, paths)
+    if len(_MIX_CACHE) != known:
+        save_mix_cache(artifacts)
     cps = copies_of(artifacts, catalog)
     for u, t in zip(uids, tracks):
         if u in cps:

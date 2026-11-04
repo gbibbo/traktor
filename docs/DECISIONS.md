@@ -17,6 +17,15 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    escuchar). Agregar música, fusionar, ordenar y preparar para Rekordbox/Traktor se hacen en la
    laptop, que manda, para no tener dos organizaciones que se separan. Falta que Gabriel diga si
    quiere hacer cambios también en el escritorio.
+2. **En el escritorio, todo en el pendrive D:** (Gabriel: las descargas ya van a D:, y C: casi no tiene
+   espacio). Los datos de la organización están en `D:\TRAKTOR ML datos\musica` (la copia verificada
+   que trajo la laptop), y `artifacts/v4/datasets/musica` del repo es un junction a esa carpeta; la
+   copia en C: se borró. La música sale de `D:\TRAKTOR ML`: la app busca el paquete primero en la
+   unidad de los datos. Sin el pendrive, la pestaña Organización no abre. Temas nuevos: pueden
+   quedarse en D:, porque analizar cada tema lo frena el cálculo y no la lectura del pendrive: el
+   pendrive lee unos 28 MB/s (un MP3 de 10 MB, ~0,4 s), y solo la etiqueta Vocal tarda unos 13 s
+   por tema. Pero analizarlos en el escritorio cambia la organización
+   de ahí: antes hay que decidir qué copia manda (punto 1).
 
 ## 2026-11-02
 
