@@ -32,7 +32,18 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    `D:\TRAKTOR ML respaldo 2026-11-04` (1760 archivos, verificado). Todavía no se escribió nada en
    los archivos de verdad; [REEMPLAZADO 2026-11-04 por la prueba con Rekordbox 7.2.19 en la laptop:
    también conserva el embedding; falta que Gabriel decida si se escribe y qué va en cada archivo]
-   falta probar Rekordbox y decidir qué se guarda en cada uno.
+   falta probar Rekordbox y decidir qué se guarda en cada uno. [REEMPLAZADO 2026-11-04 por el punto 4:
+   escrito en los 1752 MP3/FLAC del paquete.]
+4. **La laptop deja de usarse; se trabaja solo en el escritorio, con el pendrive, y una copia en el NAS**
+   (Gabriel). La copia del pendrive pasa a ser la principal [REEMPLAZA el «manda la laptop» del punto 1].
+   El NAS (Synology, por Synology Drive) ya tiene la biblioteca completa en `SynologyDrive\Música`
+   (4100 temas, 135 GB, agosto de 2025): están los 1823 temas del catálogo (1785 iguales en ruta y
+   tamaño, 13 con unos KB de diferencia, seguramente tags, y los 25 de `_copias` en su ruta
+   original), así que no hace falta copiar la `Música/` de la laptop. Gabriel arma una tarea de copia
+   de seguridad de Synology Drive para `D:\TRAKTOR ML` y `D:\TRAKTOR ML datos`. Con su visto bueno se
+   escribió en cada MP3/FLAC del paquete su embedding `clap_full` y su lugar en `biblioteca` v11
+   (`file_embeddings.py`): 1752 escritos y verificados (hash del audio igual antes y después, relectura
+   idéntica), 0 errores; los 8 WAV/AIFF no se tocaron.
 
 ## 2026-11-02
 

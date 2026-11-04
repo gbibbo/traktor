@@ -41,17 +41,17 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 
 ## OPEN ITEMS (por prioridad; LOCAL = trabajo del agente, GABRIEL = lo hace o decide Gabriel)
 
-1. GABRIEL: probar el pendrive en Rekordbox con la controladora; ¿escribir los embeddings en los
-   MP3/FLAC? Traktor y Rekordbox los conservan. LOCAL: los tags corregidos están solo en el paquete;
-   pasarlos a `Música/` antes del próximo `usb_package.py` (si no, los pisa). `Preparar Traktor.bat`
+1. GABRIEL: probar el pendrive en Rekordbox con la controladora. Sus 1752 MP3/FLAC ya llevan
+   embedding y lugar (`file_embeddings.py`). LOCAL: no correr `usb_package.py` desde `Música/`
+   (pisaría el paquete, que ahora manda). `Preparar Traktor.bat`
    del pendrive sigue armando un NML: Traktor importa una sola playlist. Refrescar Traktor de esta
    PC (`traktor_collection.py`).
 2. GABRIEL: probar la app local (`Abrir TRAKTOR ML.bat`): agregar música nueva, fusiones de temas
    (clic derecho, papelera), orden a mano (⇅), preparar para Rekordbox/Traktor y deshacer.
    Y la app de descargas con pestañas (LOCAL lee su log; probadas en la laptop);
    decidir si las playlists usan solo lo elegido en Colección.
-   Escritorio (Gabriel, 11-04): todo en D: (`artifacts/v4/datasets/musica` apunta a
-   `D:\TRAKTOR ML datos\musica`; música de `D:\TRAKTOR ML`); solo ver (manda la laptop). ¿Cambios?
+   Solo el escritorio (laptop retirada, 11-04): todo en D: (`artifacts/v4/datasets/musica` apunta a
+   `D:\TRAKTOR ML datos\musica`); el pendrive manda. LOCAL: la Organización aún es de solo lectura.
 3. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
    tracklists y descarga del audio se consultan antes de implementar.
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
