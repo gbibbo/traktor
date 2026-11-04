@@ -26,6 +26,11 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    pendrive lee unos 28 MB/s (un MP3 de 10 MB, ~0,4 s), y solo la etiqueta Vocal tarda unos 13 s
    por tema. Pero analizarlos en el escritorio cambia la organización
    de ahí: antes hay que decidir qué copia manda (punto 1).
+3. **Embeddings dentro de los archivos: se prueba antes de escribir** (Gabriel). Con su visto bueno se
+   probó Traktor (conserva el embedding; `docs/reports/embeddings_en_los_archivos_2026-11-04.md`) y
+   se hizo un respaldo de la música del paquete en el propio pendrive:
+   `D:\TRAKTOR ML respaldo 2026-11-04` (1760 archivos, verificado). Todavía no se escribió nada en
+   los archivos de verdad; falta probar Rekordbox y decidir qué se guarda en cada uno.
 
 ## 2026-11-02
 
