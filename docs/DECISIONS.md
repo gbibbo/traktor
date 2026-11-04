@@ -6,6 +6,18 @@ anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_impl
 Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 `[REEMPLAZADO <fecha> por <decisión>: <lo que rige ahora>]` (o `[REFUTADO …]` si era un error).
 
+## 2026-11-04
+
+1. **La Organización en el PC de escritorio, sin copiar la música** (Gabriel): del ordenador que
+   tiene la biblioteca se traen solo los datos de la organización (`artifacts/v4/datasets/musica/`,
+   0,4 GB, por el pendrive), y los temas salen del paquete que ya está en el escritorio
+   (`C:\TRAKTOR ML`, o el pendrive), buscados por track_uid en su `_organizacion.csv`. No hacía falta
+   copiar `Música/` (37,8 GB): el paquete ya tiene los 1760 temas de `biblioteca` v11. Cómo
+   (agente): `review_app.py` usa el paquete cuando falta `Música/` y queda en solo lectura (ver y
+   escuchar). Agregar música, fusionar, ordenar y preparar para Rekordbox/Traktor se hacen en la
+   laptop, que manda, para no tener dos organizaciones que se separan. Falta que Gabriel diga si
+   quiere hacer cambios también en el escritorio.
+
 ## 2026-11-02
 
 1. **Temas del paquete que quedaron incompletos** (Gabriel pidió revisarlos y corregirlos; reglas del

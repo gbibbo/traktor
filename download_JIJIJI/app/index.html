@@ -1303,7 +1303,7 @@ function renderOrganizer() {
     }
     frame.hidden = !O.loaded;
     $("#org-msg").hidden = O.loaded;
-    if (!O.loaded) setOrgMsg(`<div class="spin"></div><b>Abriendo tu organización…</b>La primera vez tarda unos segundos: lee los temas de tu biblioteca.`);
+    if (!O.loaded) setOrgMsg(`<div class="spin"></div><b>Abriendo tu organización…</b>La primera vez puede tardar medio minuto: lee los datos de cada tema.`);
     return;
   }
   frame.hidden = true;

@@ -25,6 +25,11 @@ CHANGELOG:
                 y no había ninguno.
   - 2026-11-04: La etiqueta Vocal de la música agregada sale de clap_probe (la regla vigente), no de 'clap':
                 el método viejo le habría quitado la marca a 473 temas de la biblioteca y puesto a 94.
+  - 2026-11-04: Sin la carpeta Música/ (un ordenador con solo los datos de la organización), la música sale
+                del paquete de usb_package.py (<unidad>:\\TRAKTOR ML, discos fijos primero, o --package):
+                cada tema se busca por track_uid en su _organizacion.csv. Así la organización se ve y se
+                escucha en solo lectura: los cambios se hacen donde está la biblioteca, para no tener dos
+                organizaciones que se separan.
 """
 from __future__ import annotations
 
@@ -44,7 +49,7 @@ import traceback
 import urllib.parse
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Callable, Dict, List, Optional
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -55,6 +60,7 @@ from src.v4.common.config_loader import load_config  # noqa: E402
 from src.v4.common.path_resolver import resolve_dataset_artifacts, resolve_dataset_audio_root  # noqa: E402
 from src.v4.common.tags import read_cover  # noqa: E402
 from src.v4.pipeline import organize  # noqa: E402
+from src.v4.pipeline.usb_package import PACKAGE_NAME  # noqa: E402
 from tools.playlist_review.build_review_page import history_lines, make_data, render  # noqa: E402
 
 AUDIO_TYPES = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".flac": "audio/flac", ".aif": "audio/aiff",
@@ -126,18 +132,82 @@ def copy_tree(src: Path, dst: Path, job: Job, step: int) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Música del paquete (usb_package.py): la organización en un ordenador sin la carpeta Música/
+# ---------------------------------------------------------------------------
+
+PACKAGE_INDEX = "_organizacion.csv"  # usb_package.py: carpeta, playlist, track_uid y archivo de cada tema
+READONLY = ("En este ordenador la organización es para ver y escuchar, con la música del paquete. Agregar música, "
+            "fusionar, ordenar y preparar para Rekordbox/Traktor se hace en el ordenador que tiene la biblioteca "
+            "(Música/), para no tener dos organizaciones distintas.")
+
+
+def find_package(name: str = PACKAGE_NAME) -> Optional[Path]:
+    """Un paquete en la raíz de una unidad (<unidad>:\\TRAKTOR ML\\_organizacion.csv): primero los discos fijos, que
+    siempre están, después los extraíbles; nunca unidades de red ni lectoras."""
+    if os.name != "nt":
+        return None
+    import ctypes
+    k32 = ctypes.windll.kernel32
+    mask = k32.GetLogicalDrives()
+    drives = [f"{chr(65 + i)}:\\" for i in range(26) if mask >> i & 1]
+    kinds = {d: k32.GetDriveTypeW(ctypes.c_wchar_p(d)) for d in drives}
+    for kind in (3, 2):  # DRIVE_FIXED, DRIVE_REMOVABLE
+        for d in drives:
+            if kinds[d] == kind and (Path(d) / name / PACKAGE_INDEX).is_file():
+                return Path(d) / name
+    return None
+
+
+class PackageAudio:
+    """Los temas de la organización en la copia del paquete. Ahí tienen otros nombres y carpetas (una por playlist):
+    se encuentran por track_uid (el hash del audio, que los tags no cambian)."""
+
+    def __init__(self, root: Path, artifacts: Path, org_uids: List[str]):
+        import pandas as pd
+        self.root = Path(root).resolve()
+        index = pd.read_csv(self.root / PACKAGE_INDEX, encoding="utf-8-sig", dtype=str, keep_default_na=False)
+        self.by_uid: Dict[str, Path] = {uid: self.root / PureWindowsPath(rel).as_posix()
+                                        for uid, rel in zip(index["track_uid"], index["archivo"])
+                                        if rel and ".." not in PureWindowsPath(rel).parts}
+        cat = pd.read_parquet(artifacts / "catalog.parquet", columns=["track_uid", "rel_path"])
+        self.by_rel = {rel: self.by_uid[uid] for uid, rel in zip(cat["track_uid"], cat["rel_path"]) if uid in self.by_uid}
+        self.total = len(org_uids)
+        self.found = sum(1 for u in org_uids if u in self.by_uid and self.by_uid[u].is_file())
+
+    def file(self, rel: str) -> Optional[Path]:
+        path = self.by_rel.get(rel)
+        return path if path is not None and path.is_file() else None
+
+    def public(self) -> Dict:
+        return {"root": str(self.root), "found": self.found, "total": self.total}
+
+
+# ---------------------------------------------------------------------------
 # Estado de la app
 # ---------------------------------------------------------------------------
 
 class App:
-    def __init__(self, dataset: str, org_name: str, config_path: Optional[str] = None):
+    package: Optional[PackageAudio] = None  # sin Música/: la música del paquete, y solo lectura
+    readonly = False
+
+    def __init__(self, dataset: str, org_name: str, config_path: Optional[str] = None, package: Optional[str] = None):
         self.config = load_config(Path(config_path) if config_path else None)
         self.dataset, self.org_name = dataset, org_name
         self.artifacts = resolve_dataset_artifacts(dataset, self.config)
-        self.library = resolve_dataset_audio_root(dataset, self.config).resolve()
         self.store = organize.OrgStore(self.artifacts, org_name)
         if not self.store.exists():
             raise SystemExit(f"No existe la organización '{org_name}' en {self.artifacts / 'orgs'}")
+        try:
+            self.library = resolve_dataset_audio_root(dataset, self.config).resolve()
+        except FileNotFoundError:
+            root = Path(package) if package else find_package()
+            if root is None or not (root / PACKAGE_INDEX).is_file():
+                raise
+            self.library = None
+            self.package = PackageAudio(root, self.artifacts, list(self.store.load()[0]["track_uid"]))
+            self.readonly = True
+            print(f"[INFO] Sin la carpeta de música: los temas salen del paquete {self.package.root} "
+                  f"({self.package.found} de {self.package.total}); solo lectura.", flush=True)
         self.token = secrets.token_urlsafe(24)
         self.jobs: Dict[str, Job] = {}
         self.lock = threading.Lock()
@@ -145,10 +215,21 @@ class App:
 
     # ---- página ----
     def page(self) -> str:
-        data = make_data(self.artifacts, self.dataset, [self.org_name], [])
-        data["app"] = {"token": self.token, "org": self.org_name, "library": str(self.library),
-                       "drafts": self.store.drafts(), "can_undo": self._can_undo()}
+        data = make_data(self.artifacts, self.dataset, [self.org_name], [],
+                         paths=self.package.by_uid if self.package else None)
+        data["app"] = {"token": self.token, "org": self.org_name,
+                       "library": str(self.package.root if self.package else self.library),
+                       "drafts": self.store.drafts(), "can_undo": self._can_undo(),
+                       "readonly": READONLY if self.readonly else None,
+                       "package": self.package.public() if self.package else None}
         return render(data)
+
+    def audio_file(self, rel: str) -> Optional[Path]:
+        """El archivo de un tema por su ruta en la biblioteca (rel_path): en Música/ o, sin ella, en el paquete."""
+        if self.package is not None:
+            return self.package.file(rel)
+        target = (self.library / rel).resolve()
+        return target if self.library in target.parents and target.is_file() else None
 
     def _can_undo(self) -> bool:
         meta = self.store.meta()
@@ -384,15 +465,16 @@ def make_handler(app: App):
             if path.startswith("/cover/"):
                 return self._cover(urllib.parse.unquote(path[len("/cover/"):]))
             if path == "/api/ping":  # la app de descargas: no se cierra con una tarea en curso
-                return self._json(200, {"app": "traktor-ml", "org": app.org_name, "busy": app.running() is not None})
+                return self._json(200, {"app": "traktor-ml", "org": app.org_name, "busy": app.running() is not None,
+                                        "readonly": app.readonly})
             if path.startswith("/api/job/"):
                 job = app.jobs.get(path.rsplit("/", 1)[-1])
                 return self._json(200, job.public()) if job else self._json(404, {"error": "no existe"})
             return self._json(404, {"error": "no existe"})
 
         def _cover(self, rel: str):
-            target = (app.library / rel).resolve()
-            if app.library not in target.parents or not target.is_file():
+            target = app.audio_file(rel)
+            if target is None:
                 return self._json(404, {"error": "no existe"})
             found = read_cover(target)
             if not found:
@@ -406,8 +488,8 @@ def make_handler(app: App):
             self.wfile.write(data)
 
         def _audio(self, rel: str):
-            target = (app.library / rel).resolve()
-            if app.library not in target.parents or not target.is_file():
+            target = app.audio_file(rel)
+            if target is None:
                 return self._json(404, {"error": "no existe"})
             size = target.stat().st_size
             ctype = AUDIO_TYPES.get(target.suffix.lower()) or mimetypes.guess_type(target.name)[0] or "application/octet-stream"
@@ -452,6 +534,8 @@ def make_handler(app: App):
             if (not self._host_ok() or self.headers.get("X-App-Token") != app.token
                     or (origin and origin not in (f"http://127.0.0.1:{app.port}", f"http://localhost:{app.port}"))):
                 return self._json(403, {"error": "No autorizado"})
+            if app.readonly:  # todas las acciones cambian la organización o necesitan Música/
+                return self._json(400, {"error": READONLY})
             length = int(self.headers.get("Content-Length") or 0)
             try:
                 body = json.loads(self.rfile.read(length) or b"{}")
@@ -535,8 +619,11 @@ def main() -> int:
     parser.add_argument("--exit-on-stdin-eof", action="store_true",
                         help="Cerrarse cuando se cierra la entrada estándar (la app que la lanzó se cerró o se cayó), "
                              "después de la tarea en curso")
+    parser.add_argument("--package", default=None,
+                        help="Sin la carpeta de música: el paquete de usb_package.py del que salen los temas "
+                             "(si no, se busca <unidad>:\\TRAKTOR ML en los discos fijos y después en los extraíbles)")
     args = parser.parse_args()
-    app = App(args.dataset_name, args.org_name, args.config)
+    app = App(args.dataset_name, args.org_name, args.config, args.package)
     httpd = serve(app, args.port, not args.no_browser)
     if args.exit_on_stdin_eof:
         threading.Thread(target=exit_with_parent, args=(app, httpd), daemon=True).start()

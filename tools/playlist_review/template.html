@@ -248,6 +248,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 <script>
 const DATA = /*__DATA__*/null;
 const APP = DATA.app || null;   // null = página suelta (solo revisar); con la app se pueden hacer cambios
+const EDIT = APP && !APP.readonly;  // la app sin Música/ (con la música del paquete): ver y escuchar, sin cambios
 const STORE_KEY = "traktor_playlist_review_v1_" + DATA.dataset;
 const PREFS_KEY = "traktor_prefs_v1";
 const $ = s => document.querySelector(s);
@@ -399,7 +400,7 @@ function errorDialog(msg) { openDialog("Algo salió mal", [el("p", { text: msg }
 
 // ---------- fusiones ----------
 let drafts = APP ? (APP.drafts || []) : [];
-async function saveDrafts() { if (APP) await api("/api/drafts", { fusions: drafts }); }
+async function saveDrafts() { if (EDIT) await api("/api/drafts", { fusions: drafts }); }
 function fusionsView() {
   // Fusiones aplicadas (con posibles agregados pendientes) y fusiones nuevas pendientes
   const out = (org.fusions || []).map(f => ({ name: f.name, color: f.color, applied: [...f.tracks], pending: [] }));
@@ -476,7 +477,7 @@ function renderFusions() {
   const note = view.length ? `${view.length} ${view.length === 1 ? "fusión" : "fusiones"}${nPend ? ` · ${nPend} sin aplicar` : ""}` : "";
   const box0 = fold(card, "foldFusions", el("h3", { text: "Fusiones de temas" }), note);
   if (!view.length) {
-    box0.append(el("p", { class: "muted", text: APP
+    box0.append(el("p", { class: "muted", text: !EDIT && APP ? "Las fusiones se crean en el ordenador que tiene la biblioteca." : APP
       ? "¿Querés que dos o más temas queden siempre en la misma playlist? Hacé clic derecho sobre un tema (en el mapa o en la tabla, o tocá ⋯) y elegí «Crear fusión de temas»."
       : "Para crear fusiones de temas, abrí la app (Abrir TRAKTOR ML)." }));
     return;
@@ -485,7 +486,7 @@ function renderFusions() {
     const members = [...f.applied, ...f.pending];
     const status = f.pending.length ? (members.length < 2 ? "falta otro tema" : f.applied.length ? "con cambios sin aplicar" : "pendiente de aplicar") : "aplicada";
     let trash = null;
-    if (APP) {
+    if (EDIT) {
       trash = el("button", { class: "iconbtn", title: "Eliminar la fusión", "aria-label": `Eliminar la fusión «${f.name}»`, onclick: () => deleteFusion(f) });
       trash.innerHTML = TRASH_SVG;  // ícono fijo, sin datos del usuario
     }
@@ -494,14 +495,14 @@ function renderFusions() {
         el("strong", { text: f.name }), el("span", { class: "status", text: status }),
         el("span", { class: "muted", text: `${members.length} ${members.length === 1 ? "tema" : "temas"}` }),
         el("span", { class: "spacer" }),
-        APP && f.applied.length && f.pending.length ? btn("Descartar cambios", () => discardFusion(f)) : null, trash));
+        EDIT && f.applied.length && f.pending.length ? btn("Descartar cambios", () => discardFusion(f)) : null, trash));
     const ul = el("ul");
     members.forEach(m => ul.append(el("li", {}, `«${label(T[m])}» — playlist ${plName(m)}`,
       f.applied.includes(m) ? null : el("span", { class: "muted", text: " (nuevo en la fusión)" }),
-      APP && f.pending.includes(m) ? el("button", { "aria-label": "Quitar de la fusión", title: "Quitar", onclick: () => removeFromFusion(m, f) }, "×") : null)));
+      EDIT && f.pending.includes(m) ? el("button", { "aria-label": "Quitar de la fusión", title: "Quitar", onclick: () => removeFromFusion(m, f) }, "×") : null)));
     box.append(ul); box0.append(box);
   });
-  if (!APP) return;
+  if (!EDIT) return;
   const ready = view.filter(isReady), lonely = view.filter(isLonely);
   if (!ready.length && !lonely.length) {
     box0.append(el("div", { class: "row" },
@@ -544,7 +545,7 @@ function deleteFusion(f) {
 function openMenu(i, x, y, above = false) {
   const m = $("#menu"); m.replaceChildren(el("div", { class: "mhead", text: `${label(T[i])} · playlist ${plName(i)}` }));
   const item = (text, onclick, attrs = {}) => el("button", { role: "menuitem", onclick, ...attrs }, text);
-  if (APP) {
+  if (EDIT) {
     const f = fusionOf(i);
     if (!f) m.append(item("＋ Crear fusión de temas…", () => createFusion(i)));
     fusionsView().forEach(g => {
@@ -554,7 +555,7 @@ function openMenu(i, x, y, above = false) {
       else m.append(el("div", { class: "note", text: `Está en «${g.name}» (ya aplicada). Para sacarlo, «Deshacer el último cambio».` }));
     });
   } else {
-    m.append(el("div", { class: "note", text: "Para fusionar temas, abrí la app (Abrir TRAKTOR ML)." }));
+    m.append(el("div", { class: "note", text: APP ? "Las fusiones se crean en el ordenador que tiene la biblioteca." : "Para fusionar temas, abrí la app (Abrir TRAKTOR ML)." }));
   }
   m.style.display = "block";
   const w = m.offsetWidth, h = m.offsetHeight;
@@ -569,6 +570,12 @@ window.addEventListener("scroll", closeMenu, true);
 // ---------- barra superior (app) ----------
 function renderToolbar() {
   const tb = $("#toolbar"); tb.replaceChildren();
+  if (APP && !EDIT) {  // música del paquete: de dónde sale y por qué no hay botones
+    const pk = APP.package;
+    tb.append(el("span", { class: "muted", title: APP.readonly, text: `Solo para ver y escuchar · música de ${pk.root}`
+      + (pk.found < pk.total ? ` (${pk.found} de ${pk.total} temas)` : "") + " · los cambios se hacen en el ordenador que tiene la biblioteca" }));
+    return;
+  }
   if (!APP) { tb.append(el("span", { class: "muted", text: "Vista de solo lectura" })); return; }
   const sw = el("span", { class: "switch", role: "switch", tabindex: "0", "aria-checked": String(prefs.keep),
     title: "Encendido: lo que agregues o fusiones se acomoda sin mover el resto. Apagado: se reorganiza toda la colección." },
@@ -792,7 +799,7 @@ function renderPlaylist() {
     el("th", { text: "Tema" }),
     el("th", { class: "num", text: "BPM" }), el("th", { text: "Tono" }), el("th", { class: "num", text: "Energía" }),
     el("th", { text: "Voz" }), el("th", { text: "Género" }), el("th", { text: "Tu carpeta" }), el("th", { text: "No encaja" }), el("th", { text: "" }),
-    APP ? el("th", { text: "", "aria-label": "Mover" }) : null)));
+    EDIT ? el("th", { text: "", "aria-label": "Mover" }) : null)));
   const tb = el("tbody");
   playlist.tracks.forEach((idx, pos) => {
     const t = T[idx], fu = fusionOf(idx);
@@ -819,7 +826,7 @@ function renderPlaylist() {
       el("td", {}, cb),
       el("td", {}, el("button", { class: "more", "aria-label": "Más opciones (fusionar)", title: "Más opciones (también con clic derecho)",
         onclick: e => { const r = e.target.getBoundingClientRect(); openMenu(idx, r.right - 240, r.bottom + 4); } }, "⋯")),
-      APP ? el("td", { class: "grip" }, el("button", { "aria-label": `Mover «${label(t)}» (arrastrá, o ↑ ↓ con el teclado)`,
+      EDIT ? el("td", { class: "grip" }, el("button", { "aria-label": `Mover «${label(t)}» (arrastrá, o ↑ ↓ con el teclado)`,
         title: "Mantené apretado y arrastrá para cambiar el lugar del tema (o ↑ ↓ con el teclado)",
         onpointerdown: e => startRowDrag(e, idx, tr), onkeydown: e => gripKey(e, idx) }, "⇅")) : null);
     tr.addEventListener("contextmenu", e => { e.preventDefault(); openMenu(idx, e.clientX, e.clientY); });
@@ -1117,7 +1124,7 @@ canvas.addEventListener("pointermove", e => {
     el("div", { class: "ink2", text: [t.b != null ? `${Math.round(t.b)} BPM` : null, t.k, t.g, t.v ? "con voz" : null].filter(Boolean).join(" · ") }),
     el("div", { class: "muted", text: `Playlist ${plName(ti)}${t.fs ? " · tu carpeta: " + t.fs : ""}${fu ? " · " + fu.name : ""}` }),
     t.cp ? el("div", { class: "muted", text: `${t.cp.length === 1 ? "1 copia" : t.cp.length + " copias"} fuera de las playlists: ${[...new Set(t.cp.map(p => p.split("/").slice(-2, -1)[0] || "Música"))].join(", ")}` }) : null,
-    el("div", { class: "muted", text: APP ? "Clic: escuchar · Clic derecho: fusionar" : "Clic: escuchar" }));
+    el("div", { class: "muted", text: EDIT ? "Clic: escuchar · Clic derecho: fusionar" : "Clic: escuchar" }));
   tip.style.display = "block";
   tip.style.left = Math.min(p.x + 14, r.width - tip.offsetWidth - 4) + "px"; tip.style.top = Math.max(0, p.y - tip.offsetHeight - 10) + "px";
   canvas.style.cursor = "pointer";
@@ -1159,11 +1166,11 @@ function renderHelp() {
   const h = $("#help"); h.replaceChildren(el("ul", {},
     el("li", {}, el("b", { text: "Para qué sirve: " }), "tu música quedó ordenada en carpetas y playlists por cómo suena. Escuchá algunas (★ = sugeridas) y decí si te convencen."),
     el("li", {}, el("b", { text: "Mapa: " }), "cada punto es un tema; cerca = suenan parecido. Clic en un punto para escucharlo. Con + y − (o Ctrl + rueda del mouse) te acercás o alejás, arrastrando te movés y ⤢ vuelve a mostrar todo. «Ancho del mapa» lo hace más angosto o más ancho."),
-    APP ? el("li", {}, el("b", { text: "Agregar música nueva: " }), "elegís una carpeta, se analiza y los temas se ubican en tus playlists. El interruptor «Mantener la organización actual» decide si lo que ya está se queda quieto (encendido) o se reorganiza todo (apagado).") : null,
-    APP ? el("li", {}, el("b", { text: "Fusiones de temas: " }), "si dos o más temas tienen que ir juntos, hacé clic derecho sobre cada uno (o tocá ⋯) y creá una fusión o agregalos a una existente. Después, «Rehacer las playlists con las fusiones».") : null,
-    APP ? el("li", {}, el("b", { text: "Orden de una playlist: " }), "mantené apretado ⇅ a la derecha de un tema y arrastralo a su nuevo lugar (o ↑ ↓ con el teclado). Se guarda como un cambio que podés deshacer.") : null,
+    EDIT ? el("li", {}, el("b", { text: "Agregar música nueva: " }), "elegís una carpeta, se analiza y los temas se ubican en tus playlists. El interruptor «Mantener la organización actual» decide si lo que ya está se queda quieto (encendido) o se reorganiza todo (apagado).") : null,
+    EDIT ? el("li", {}, el("b", { text: "Fusiones de temas: " }), "si dos o más temas tienen que ir juntos, hacé clic derecho sobre cada uno (o tocá ⋯) y creá una fusión o agregalos a una existente. Después, «Rehacer las playlists con las fusiones».") : null,
+    EDIT ? el("li", {}, el("b", { text: "Orden de una playlist: " }), "mantené apretado ⇅ a la derecha de un tema y arrastralo a su nuevo lugar (o ↑ ↓ con el teclado). Se guarda como un cambio que podés deshacer.") : null,
     el("li", {}, el("b", { text: "Buscar: " }), "«Filtros» elige en qué buscar (título, artista, género, álbum, carpeta, fusión…). Sin filtros busca en todo."),
-    APP ? el("li", {}, el("b", { text: "Para tocar: " }), "«Preparar para Rekordbox y Traktor» genera los archivos y te dice cómo importarlos.") : null,
+    EDIT ? el("li", {}, el("b", { text: "Para tocar: " }), "«Preparar para Rekordbox y Traktor» genera los archivos y te dice cómo importarlos.") : null,
     el("li", {}, el("b", { text: "Teclado: " }), "espacio = pausa, → = tema siguiente."),
     el("li", {}, "Tus opiniones se guardan en este navegador. ", el("a", { href: "#", onclick: e => { e.preventDefault(); exportOpinions(); } }, "Descargarlas (CSV)"))));
 }
@@ -1190,6 +1197,7 @@ if (firstVisit) { $("#help").hidden = false; $("#helpBtn").setAttribute("aria-ex
   const path = APP && new URLSearchParams(location.search).get("agregar");
   if (!path) return;
   history.replaceState(null, "", location.pathname);  // al recargar después de agregar, no vuelve a abrirse
+  if (!EDIT) return openDialog("Agregar música nueva", [el("p", { text: APP.readonly })], [btn("Cerrar", closeDialog, true)]);
   api("/api/describe-folder", { path }).then(showFolder).catch(e => errorDialog(e.message));
 })();
 (() => { const probe = new Audio(); probe.preload = "metadata"; probe.onerror = showAudioWarn; probe.src = srcOf(T[0]); })();

@@ -74,7 +74,9 @@ escritorio falta la música, y no falta. Los 1760 temas de `biblioteca` ya está
 `D:\TRAKTOR ML\Musica` y en `C:\TRAKTOR ML\Musica`, ordenados por playlist, y
 `_organizacion.csv` da el archivo y el track_uid de cada uno (los 1760 existen en las dos). No hay
 que copiar `Música/` (37,8 GB): basta con traer `artifacts/v4/datasets/musica/` (0,4 GB) y hacer que
-la app lea los temas del paquete con ese índice. Ese cambio en la app falta hacerlo. Agregar música
+la app lea los temas del paquete con ese índice. Ese cambio en la app falta hacerlo [REEMPLAZADO
+2026-11-04 por el modo paquete de `review_app.py`: hecho, y en el escritorio abre `biblioteca` v11 con
+1760 de 1760 temas, en solo lectura (DECISIONS 2026-11-04)]. Agregar música
 nueva en el escritorio sigue necesitando decidir dónde se guarda y qué copia manda.]
 
 1. **Solo en la laptop.** El escritorio descarga; la música nueva se lleva a la laptop y se agrega

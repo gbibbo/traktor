@@ -28,7 +28,11 @@ Abre una ventana propia (Edge en modo app) servida por `app/descargas_app.py` so
   música, fusiones, preparar para Rekordbox/Traktor). Necesita las dependencias del pipeline
   (`requirements_v4.txt`: usa el Python de la app o, si no las tiene, el `python` del PATH) y la
   organización `biblioteca` (`Música/` y `artifacts/v4/datasets/musica/`, que no están en Git:
-  se copian desde el ordenador que las tiene); si falta algo, la pestaña lo dice.
+  se copian desde el ordenador que las tiene); si falta algo, la pestaña lo dice. Sin `Música/`
+  (como en el PC de escritorio), con solo `artifacts/v4/datasets/musica/` los temas salen del
+  paquete del pendrive (`<unidad>:\TRAKTOR ML`, primero los discos fijos), buscados por track_uid
+  en su `_organizacion.csv`, y la organización queda solo para ver y escuchar: los cambios se
+  hacen donde está la biblioteca.
   Con una descarga que puede estar grabando, avisa que no se reproduzca nada.
 
 En la pestaña Descargas:

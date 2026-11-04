@@ -23,6 +23,8 @@ CHANGELOG:
                 (orden a mano desde la app) y el historial de reorder / unlink.
   - 2026-09-29: Copias de cada tema fuera de las playlists (campo "cp": temas repetidos decididos y
                 copias idénticas de Phase 0) y el historial de dedupe.
+  - 2026-11-04: make_data(paths=...): el tag Remixer se lee del archivo indicado por track_uid (la app con la
+                música del paquete, sin Música/).
 """
 import argparse
 import datetime as dt
@@ -116,8 +118,10 @@ def version_label(tag: Optional[str], title: str, filename: str) -> str:
     return mix
 
 
-def build_tracks(catalog: pd.DataFrame, bpm_key: pd.DataFrame, uids: List[str]) -> List[Dict]:
-    """Un registro compacto por tema, en el orden de uids."""
+def build_tracks(catalog: pd.DataFrame, bpm_key: pd.DataFrame, uids: List[str],
+                 paths: Optional[Dict[str, Path]] = None) -> List[Dict]:
+    """Un registro compacto por tema, en el orden de uids. `paths` (track_uid → archivo): dónde leer el tag
+    Remixer cuando el archivo no está en catalog.source_path (la app con la música del paquete)."""
     cat = catalog.drop_duplicates("track_uid").set_index("track_uid")
     bk = bpm_key.drop_duplicates("track_uid").set_index("track_uid")
     out = []
@@ -127,7 +131,9 @@ def build_tracks(catalog: pd.DataFrame, bpm_key: pd.DataFrame, uids: List[str]) 
         comment = r.get("tag_comment")
         title = "" if pd.isna(r.get("title")) else str(r.get("title"))
         tag = r.get("tag_remixer")  # columna del catálogo si existe; si no, el tag del archivo
-        if tag is None or pd.isna(tag):
+        if (tag is None or pd.isna(tag)) and paths and u in paths:
+            tag = tag_mix(paths[u])
+        elif tag is None or pd.isna(tag):
             tag = tag_mix(r["source_path"]) if "source_path" in r.index and not pd.isna(r["source_path"]) else ""
         out.append({
             "u": u[:16],
@@ -295,15 +301,16 @@ def copies_of(artifacts: Path, catalog: pd.DataFrame) -> Dict[str, List[str]]:
 
 
 def make_data(artifacts: Path, dataset: str, specs: List[str], hashes: List[str], blind: bool = False,
-              seed: Optional[int] = None) -> Dict:
-    """Datos de la página: organizaciones con nombre (specs) y corridas por hash (hashes)."""
+              seed: Optional[int] = None, paths: Optional[Dict[str, Path]] = None) -> Dict:
+    """Datos de la página: organizaciones con nombre (specs) y corridas por hash (hashes). `paths`: ver
+    build_tracks."""
     orgs = [load_named_org(artifacts, n) for n in specs]
     orgs += [load_org(artifacts, h) for h in hashes]
     catalog = pd.read_parquet(artifacts / "catalog.parquet")
     bpm_key = pd.read_parquet(artifacts / "features" / "bpm_key.parquet")
     uids = list(dict.fromkeys(u for o in orgs for u in o["ordered"]["track_uid"]))
     uid_index = {u: i for i, u in enumerate(uids)}
-    tracks = build_tracks(catalog, bpm_key, uids)
+    tracks = build_tracks(catalog, bpm_key, uids, paths)
     cps = copies_of(artifacts, catalog)
     for u, t in zip(uids, tracks):
         if u in cps:

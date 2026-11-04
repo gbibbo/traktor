@@ -11,6 +11,7 @@ CHANGELOG:
   - 2026-11-02: /api/ping y --exit-on-stdin-eof (pestaña «Organización» de la app de descargas).
   - 2026-11-04: Las copias idénticas y las descartadas por dedupe cuentan como ya organizadas; la música
                 agregada se etiqueta Vocal con clap_probe (app y organize.py ingest).
+  - 2026-11-04: Sin la carpeta Música/: la música sale del paquete (por track_uid) y la app es de solo lectura.
 """
 import json
 import sys
@@ -224,7 +225,7 @@ def test_reorder_and_remove_fusion(running_app):
 def test_ping_says_whether_a_task_is_running(running_app):
     app, base = running_app
     code, body, _ = _req(base + "/api/ping")
-    assert code == 200 and json.loads(body) == {"app": "traktor-ml", "org": "t", "busy": False}
+    assert code == 200 and json.loads(body) == {"app": "traktor-ml", "org": "t", "busy": False, "readonly": False}
     app.jobs["x"] = type("J", (), {"status": "running"})()
     assert json.loads(_req(base + "/api/ping")[1])["busy"] is True
 
@@ -242,3 +243,65 @@ def test_closes_when_the_app_that_opened_it_closes(running_app, monkeypatch):
     review_app.exit_with_parent(app, httpd)
     assert len(calls) == 1 and job.status == "done"  # esperó a la tarea
 
+
+
+def _package_app(tmp_path, monkeypatch):
+    """Los datos de la organización sin la carpeta de música, y un paquete de usb_package.py con otros nombres."""
+    import pandas as pd
+    import yaml
+    root = tmp_path / "datasets"
+    root.mkdir()
+    art = _library(tmp_path).rename(root / "sinmusica")
+    build(OrgStore(art, "t"), Library(art, "clap_full"), dict(PARAMS), [""])
+    cat = pd.read_parquet(art / "catalog.parquet")
+    pkg = tmp_path / "pen" / "TRAKTOR ML"
+    rows = []
+    for i, uid in enumerate(cat["track_uid"]):
+        if i == 0:
+            continue  # uno que no está en el paquete
+        (pkg / "Musica" / "P1").mkdir(parents=True, exist_ok=True)
+        (pkg / "Musica" / "P1" / f"Otro nombre {i}.mp3").write_bytes(bytes([i % 256]) * 64)
+        rows.append({"carpeta": "A", "playlist": "P1", "posicion": str(i), "track_uid": uid,
+                     "archivo": rf"Musica\P1\Otro nombre {i}.mp3"})  # rutas de Windows, como usb_package.py
+    rows.append({"carpeta": "A", "playlist": "P1", "posicion": "999", "track_uid": "fuera",
+                 "archivo": r"..\..\secreto.txt"})  # una ruta que sale del paquete no se usa
+    pd.DataFrame(rows).to_csv(pkg / "_organizacion.csv", index=False, encoding="utf-8-sig")
+    cfg = tmp_path / "v4.yaml"
+    cfg.write_text(yaml.safe_dump({"paths": {"artifacts_root": str(root)},
+                                   "datasets": {"sinmusica": {"audio_root": str(tmp_path / "no existe")}}}),
+                   encoding="utf-8")
+    monkeypatch.delenv("TRAKTOR_ARTIFACTS_ROOT", raising=False)
+    monkeypatch.delenv("TRAKTOR_AUDIO_ROOTS", raising=False)
+    return cfg, pkg, cat
+
+
+def test_without_the_music_folder_it_plays_from_the_package_read_only(tmp_path, monkeypatch):
+    cfg, pkg, cat = _package_app(tmp_path, monkeypatch)
+    app = App("sinmusica", "t", str(cfg), package=str(pkg))
+    assert app.readonly and app.package.public() == {"root": str(pkg.resolve()), "found": len(cat) - 1, "total": len(cat)}
+    app.token = "tok"  # el de _req
+    httpd = serve(app, port=0, open_browser=False)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{app.port}"
+    try:
+        code, body, _ = _req(base + "/")
+        assert code == 200 and b'"readonly":"En este ordenador' in body and b'"found":' in body
+        rel1, rel0 = cat["rel_path"][1], cat["rel_path"][0]
+        code, body, _ = _req(base + "/audio/" + urllib.request.quote(rel1))
+        assert code == 200 and body == bytes([1]) * 64              # por track_uid, con otro nombre
+        assert _req(base + "/audio/" + urllib.request.quote(rel0))[0] == 404  # no está en el paquete
+        assert _req(base + "/audio/..%2F..%2Fsecreto.txt")[0] == 404
+        for path, body in (("/api/drafts", {"fusions": []}), ("/api/undo", {}), ("/api/describe-folder", {"path": "x"}),
+                           ("/api/export", {})):
+            code, out, _ = _req(base + path, body)
+            assert code == 400 and "para ver y escuchar" in json.loads(out)["error"]
+        assert json.loads(_req(base + "/api/ping")[1])["readonly"] is True
+    finally:
+        httpd.shutdown()
+
+
+def test_without_the_music_folder_nor_a_package_it_says_so(tmp_path, monkeypatch):
+    cfg, pkg, _ = _package_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(review_app, "find_package", lambda: None)
+    with pytest.raises(FileNotFoundError, match="Audio root for dataset"):  # el aviso de la pestaña lo reconoce
+        App("sinmusica", "t", str(cfg))
