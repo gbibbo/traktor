@@ -26,7 +26,7 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 - **Etiqueta Vocal (clap_probe, calculada 2026-10-06)**: CLAP del tema entero + clasificador lineal de
   Electrobyte; Vocal si >= 5 % del tema tiene voz (regla de Gabriel). 936 de 1823 temas Vocal. Escrita
   por Gabriel 2026-10-06 (respaldo `vocal_tags_backup_20261006_111119.csv`): marca y cálculo coinciden
-  en los 1792 MP3/FLAC. Desde 11-04 también la usan la app al agregar música y `organize.py ingest`.
+  en los 1792 MP3/FLAC.
 - **Tags de Beatport escritos y verificados** (Gabriel corrió `write_beatport_tags.py`, 2026-09-29):
   1087 archivos, 0 errores, track_uid intacto. Catálogo refrescado (respaldo
   `catalog_before_beatport_tags_20260929.parquet`). Los 110 sin confirmar conservan su género.
@@ -41,10 +41,11 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 
 ## OPEN ITEMS (por prioridad; LOCAL = trabajo del agente, GABRIEL = lo hace o decide Gabriel)
 
-1. GABRIEL: probar el pendrive en Rekordbox con la controladora. LOCAL: los tags corregidos están
-   solo en el paquete; pasarlos a `Música/` antes del próximo `usb_package.py` (si no, los pisa).
-   `Preparar Traktor.bat` del pendrive sigue armando un NML: Traktor importa una sola playlist.
-   Refrescar Traktor de esta PC (`traktor_collection.py`).
+1. GABRIEL: probar el pendrive en Rekordbox con la controladora; ¿escribir los embeddings en los
+   MP3/FLAC? Traktor y Rekordbox los conservan. LOCAL: los tags corregidos están solo en el paquete;
+   pasarlos a `Música/` antes del próximo `usb_package.py` (si no, los pisa). `Preparar Traktor.bat`
+   del pendrive sigue armando un NML: Traktor importa una sola playlist. Refrescar Traktor de esta
+   PC (`traktor_collection.py`).
 2. GABRIEL: probar la app local (`Abrir TRAKTOR ML.bat`): agregar música nueva, fusiones de temas
    (clic derecho, papelera), orden a mano (⇅), preparar para Rekordbox/Traktor y deshacer.
    Y la app de descargas con pestañas (LOCAL lee su log; probadas en la laptop);

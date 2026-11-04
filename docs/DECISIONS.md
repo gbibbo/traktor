@@ -30,7 +30,9 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    probó Traktor (conserva el embedding; `docs/reports/embeddings_en_los_archivos_2026-11-04.md`) y
    se hizo un respaldo de la música del paquete en el propio pendrive:
    `D:\TRAKTOR ML respaldo 2026-11-04` (1760 archivos, verificado). Todavía no se escribió nada en
-   los archivos de verdad; falta probar Rekordbox y decidir qué se guarda en cada uno.
+   los archivos de verdad; [REEMPLAZADO 2026-11-04 por la prueba con Rekordbox 7.2.19 en la laptop:
+   también conserva el embedding; falta que Gabriel decida si se escribe y qué va en cada archivo]
+   falta probar Rekordbox y decidir qué se guarda en cada uno.
 
 ## 2026-11-02
 
