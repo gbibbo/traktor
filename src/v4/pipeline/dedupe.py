@@ -16,6 +16,8 @@ CHANGELOG:
   - 2026-09-29: auto, move-copies / restore-copies y candidatos que incluyen la música nueva (scope).
                 move-copies no saca archivos de la carpeta de otro dataset (test_20 es un enlace a
                 «Música/2020 new - copia»); restore-copies --path devuelve solo algunas.
+  - 2026-11-04: Ante un empate de calidad se queda la copia que ya está en la organización (biblioteca en el
+                pendrive: un tema organizado no se mueve a _copias por una carpeta nueva).
 """
 import argparse
 import datetime as dt
@@ -62,7 +64,7 @@ def candidates(artifacts: Path, audio_root: Path, org_name: str, scope: Optional
     lib = organize.Library(artifacts, store.meta()["params"]["rep"])
     in_org = [u for u in store.load()[0]["track_uid"] if u in lib.rep_index and u not in lib.excluded]
     new = [u for u in lib.in_scope(scope) if u not in set(in_org)] if scope else []
-    uids = in_org + new
+    uids, org_set = in_org + new, set(in_org)
     if len(uids) < 2:
         return []
     cat = lib.catalog.reindex(uids)
@@ -76,7 +78,8 @@ def candidates(artifacts: Path, audio_root: Path, org_name: str, scope: Optional
     for g in groups:
         rows = [{"track_uid": uids[i], "rel_path": cat["rel_path"].iloc[i], "dur": round(float(cat["duration_s"].iloc[i]), 1),
                  "quality": dup.read_quality(audio_root / cat["rel_path"].iloc[i])} for i in g["members"]]
-        keep, auto = dup.resolve(g, [r["quality"] for r in rows], [r["rel_path"] for r in rows])
+        keep, auto = dup.resolve(g, [r["quality"] for r in rows], [r["rel_path"] for r in rows],
+                                 [r["track_uid"] in org_set for r in rows])  # empate: se queda lo organizado
         out.append({**{k: g[k] for k in ("layer", "sim", "dur_diff")}, "tracks": rows,
                     "keep": rows[keep]["track_uid"] if keep is not None else None, "auto": auto})
     return out

@@ -31,6 +31,10 @@ CHANGELOG:
                 cada tema se busca por track_uid en su _organizacion.csv. Así la organización se ve y se
                 escucha en solo lectura: los cambios se hacen donde está la biblioteca, para no tener dos
                 organizaciones que se separan.
+  - 2026-11-04: Con la biblioteca en el pendrive (package_library.py: Música/ es un junction a <paquete>/Musica),
+                la app vuelve a permitir cambios, y «Preparar para Rekordbox y Traktor» y «Agregar música nueva»
+                además actualizan el pendrive: sus playlists (usb_package.refresh_from_org, sin mover audio) y el
+                lugar de cada tema guardado en su archivo (file_embeddings.py).
 """
 from __future__ import annotations
 
@@ -228,6 +232,27 @@ class App:
         self.lock = threading.Lock()
         self.port = 0
 
+    def package_dir(self) -> Optional[Path]:
+        """El paquete del pendrive cuando la biblioteca es su carpeta Musica (package_library.py): entonces cada
+        cambio rehace sus playlists y guarda en cada archivo su lugar en la organización."""
+        from src.v4.pipeline.package_library import is_package_library
+        return self.library.parent if self.library is not None and is_package_library(self.library) else None
+
+    def _update_package(self, job: "Job", step: int) -> Dict:
+        from src.v4.pipeline import file_embeddings, usb_package
+        pkg = self.package_dir()
+        job.set(step, 0.05, "Rehaciendo las playlists del pendrive…")
+        if usb_package.refresh_from_org(pkg, self.dataset, self.org_name, self.config) != 0:
+            raise RuntimeError("No se pudieron rehacer las playlists del pendrive: el detalle está en la consola.")
+        job.set(step, 0.5, "Guardando en cada tema su lugar en la organización…")
+        plan, rep = file_embeddings.package_plan(pkg, self.artifacts, self.org_name)
+        result = file_embeddings.write_package(plan, rep)
+        if result["counts"]["errores"]:
+            raise RuntimeError(f"{result['counts']['errores']} temas no se pudieron actualizar, p. ej. "
+                               f"{result['problems'][0]['archivo']}: {result['problems'][0]['motivo']}")
+        job.set(step, 1, "")
+        return {"package": str(pkg), "updated": result["counts"]["escritos"]}
+
     # ---- página ----
     def page(self) -> str:
         data = make_data(self.artifacts, self.dataset, [self.org_name], [],
@@ -319,6 +344,9 @@ class App:
             raise ValueError("La carpeta no tiene archivos de audio.")
 
         steps = ADD_STEPS if not info["inside"] else ADD_STEPS[1:]  # sin copia si ya está en la biblioteca
+        pkg = self.package_dir()
+        if pkg is not None:
+            steps = steps + ["Actualizar el pendrive"]
         S = {name: k for k, name in enumerate(steps)}
 
         def fn(job: Job) -> Dict:
@@ -370,7 +398,10 @@ class App:
             counts["repeated"] = sum(len(g["tracks"]) - 1 for g in dups["resolved"])
             counts["to_decide"] = len(dups["pending"])
             job.set(step, 1, "")
-            return {"version": v, "counts": counts, "scope": scope, "keep": keep}
+            result = {"version": v, "counts": counts, "scope": scope, "keep": keep}
+            if pkg is not None:  # playlists del pendrive y lugar de cada tema en su archivo (los nuevos también)
+                result.update(self._update_package(job, S["Actualizar el pendrive"]))
+            return result
         return self.start("add", steps, fn)
 
     def save_drafts(self, drafts: List[Dict]) -> None:
@@ -418,15 +449,21 @@ class App:
         return {"version": v, "applied": applied}
 
     def export(self) -> Job:
+        pkg = self.package_dir()
+
         def fn(job: Job) -> Dict:
             from src.v4.pipeline.phase5_export import run_export
             job.set(0, 0.1, "Escribiendo las playlists…")
             out = run_export(self.dataset, self.config, formats=("m3u8", "rekordbox", "traktor"),
                              out_root=self.artifacts / "exports", org_name=self.org_name)
             job.set(0, 1, "")
-            return {"folder": str(Path(out).resolve()), "rekordbox": str((Path(out) / "rekordbox.xml").resolve()),
-                    "traktor": str((Path(out) / "traktor.nml").resolve())}
-        return self.start("export", ["Preparar las playlists para Rekordbox y Traktor"], fn)
+            result = {"folder": str(Path(out).resolve()), "rekordbox": str((Path(out) / "rekordbox.xml").resolve()),
+                      "traktor": str((Path(out) / "traktor.nml").resolve())}
+            if pkg is not None:  # y las del pendrive (Preparar Rekordbox/Traktor.bat del paquete)
+                result.update(self._update_package(job, 1))
+            return result
+        steps = ["Preparar las playlists para Rekordbox y Traktor"] + (["Actualizar el pendrive"] if pkg else [])
+        return self.start("export", steps, fn)
 
     def open_folder(self, path: str) -> None:
         target = Path(path).resolve()

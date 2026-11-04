@@ -115,6 +115,12 @@ Collection y escribir las playlists en `collection.nml` con Traktor cerrado (`tr
 Traktor a veces queda abierto sin ventana al cerrarse y sin "LOG CLOSE" en `Logs/Traktor.log`: una
 vez no guardó la colección; otra la guardó y siguió colgado. Mirar la hora de `collection.nml`.
 
+### Preparar Traktor reconoce los temas por su nombre y carpeta originales
+
+`traktor_prepare.ps1` busca en la colección local de Traktor cada tema del paquete por `nombre_original` y
+`carpeta_original` de `_organizacion.csv`. Al regenerar el paquete hay que conservar esas columnas (y `origen`):
+si pasan a la ruta del paquete, Traktor deja de reconocer los temas que ya analizó.
+
 ### Python no abre rutas de más de 260 caracteres en esta PC
 
 Sin LongPathsEnabled, `Path.exists()` da False en silencio para rutas largas: un paquete probado

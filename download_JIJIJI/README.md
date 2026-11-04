@@ -32,7 +32,10 @@ Abre una ventana propia (Edge en modo app) servida por `app/descargas_app.py` so
   (como en el PC de escritorio), con solo `artifacts/v4/datasets/musica/` los temas salen del
   paquete del pendrive (`<unidad>:\TRAKTOR ML`, primero en la unidad de esos datos), buscados por track_uid
   en su `_organizacion.csv`, y la organización queda solo para ver y escuchar: los cambios se
-  hacen donde está la biblioteca.
+  hacen donde está la biblioteca. En el PC de escritorio la biblioteca ya es el paquete
+  (`package_library.py adopt`: `Música/` es un junction a `D:\TRAKTOR ML\Musica`), así que la
+  organización se puede cambiar, y «Preparar para Rekordbox y Traktor» y «Agregar música nueva»
+  rehacen también las playlists del pendrive sin mover la música.
   Con una descarga que puede estar grabando, avisa que no se reproduzca nada.
 
 En la pestaña Descargas:

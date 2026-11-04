@@ -45,6 +45,19 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    escribió en cada MP3/FLAC del paquete su embedding `clap_full` y su lugar en `biblioteca` v11
    (`file_embeddings.py`): 1752 escritos y verificados (hash del audio igual antes y después, relectura
    idéntica), 0 errores; los 8 WAV/AIFF no se tocaron.
+5. **La Organización se puede cambiar desde el escritorio, con la biblioteca en el pendrive** (Gabriel:
+   «adelante»). Cómo (agente): `package_library.py adopt` pasó el catálogo a los archivos del paquete
+   por track_uid (1760 temas; las 63 filas sin archivo, copias descartadas y temas sin embedding, quedaron
+   en el respaldo `respaldo_package_library_*` junto con el catálogo anterior) y `Música/` es un junction a
+   `D:\TRAKTOR ML\Musica`. «Preparar para Rekordbox y Traktor» y «Agregar música nueva» rehacen además
+   las playlists del pendrive (`usb_package.py --refresh --from-org`) y el lugar guardado en cada archivo.
+   Reglas: **un tema que cambia de playlist no se mueve de carpeta** (se actualizan las playlists; moverlo
+   podría perder sus cue points), la música nueva entra en su propia carpeta dentro de `Musica\`, ante un
+   empate de calidad entre copias repetidas se queda la que ya está organizada, y el origen de cada tema
+   en `_organizacion.csv` se conserva (Preparar Traktor reconoce con él los temas ya analizados).
+   Verificado: regenerar el pendrive con la organización sin cambios dejó `_organizacion.csv`, NML, m3u8
+   y LEEME idénticos (en `rekordbox.xml` solo cambian los tamaños de los archivos que crecieron al guardar
+   el embedding). Falta probar «Agregar música» con temas reales.
 
 ## 2026-11-02
 

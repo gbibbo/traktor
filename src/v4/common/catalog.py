@@ -3,6 +3,10 @@ PURPOSE: Catálogo central de dataset. Single source of truth para metadata de t
          Soporta dos modos de hashing: full (SHA256 archivo completo, default) y
          fast (SHA256 de primeros N bytes + filesize).
 CHANGELOG:
+  - 2026-11-04: source_path con la ruta real (audio_dir resuelto: la biblioteca puede ser un junction al
+                pendrive y los exports necesitan la ruta del archivo). Con scope, si un archivo nuevo es el
+                mismo audio que uno que ya estaba en el catálogo, se queda la fila que ya estaba (antes podía
+                ganar la ruta nueva por ser más corta).
   - 2026-09-29: scope: escanear solo una subcarpeta y combinarla con el catálogo existente (el resto
                 se conserva; el deduplicado es global).
   - 2026-09-27: Biblioteca con subcarpetas: recursive, rel_path/folder, lectura de tags
@@ -109,18 +113,20 @@ def _copy_penalty(rel_path: str) -> int:
 
 
 def dedupe_by_uid(catalog: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Una fila por track_uid. Gana la ruta fuera de carpetas tipo copia; luego la más corta.
+    """Una fila por track_uid. Gana la fila marcada _prev=0 (ya estaba en el catálogo), después la ruta fuera
+    de carpetas tipo copia y después la más corta.
     Devuelve (catálogo, duplicados descartados con la ruta que se conservó)."""
     if catalog.empty or not catalog["track_uid"].duplicated().any():
         return catalog, pd.DataFrame(columns=["track_uid", "rel_path", "kept_rel_path"])
     key = catalog["rel_path"] if "rel_path" in catalog.columns else catalog["filename"]
     ranked = catalog.assign(_pen=key.map(_copy_penalty), _len=key.str.len(), _key=key)
-    ranked = ranked.sort_values(["track_uid", "_pen", "_len", "_key"])
+    first = ["_prev"] if "_prev" in ranked.columns else []  # con scope: primero la fila que ya estaba
+    ranked = ranked.sort_values(["track_uid", *first, "_pen", "_len", "_key"])
     keep_mask = ~ranked["track_uid"].duplicated(keep="first")
     kept = ranked[keep_mask]
     dropped = ranked[~keep_mask][["track_uid", "_key"]].rename(columns={"_key": "rel_path"})
     dropped = dropped.merge(kept[["track_uid", "_key"]].rename(columns={"_key": "kept_rel_path"}), on="track_uid")
-    kept = kept.drop(columns=["_pen", "_len", "_key"]).sort_values(key.name).reset_index(drop=True)
+    kept = kept.drop(columns=["_pen", "_len", "_key", *first]).sort_values(key.name).reset_index(drop=True)
     return kept, dropped.reset_index(drop=True)
 
 
@@ -150,7 +156,7 @@ def build_catalog(
 
     Returns: DataFrame del catálogo (solo tracks válidos con duration_s no None).
     """
-    audio_dir = Path(audio_dir)
+    audio_dir = Path(audio_dir).resolve()  # la ruta real del archivo, aunque se llegue por un junction
     hashing_cfg = config.get("hashing", {})
     hash_mode = hash_mode or hashing_cfg.get("mode", "full")
     hash_bytes = hashing_cfg.get("fast_bytes_to_read", TRACK_UID_BYTES_TO_READ)
@@ -198,8 +204,9 @@ def build_catalog(
             prefix = scope_prefix(scope)
             keep = prev[~prev["rel_path"].str.startswith(prefix)] if "rel_path" in prev.columns else prev
             print(f"[INFO] Alcance '{scope}': {len(catalog)} temas escaneados; se conservan {len(keep)} del catálogo previo")
-            catalog = pd.concat([keep, catalog], ignore_index=True)
+            catalog = pd.concat([keep.assign(_prev=0), catalog.assign(_prev=1)], ignore_index=True)
     catalog, dropped = dedupe_by_uid(catalog)
+    catalog = catalog.drop(columns=["_prev"], errors="ignore")
 
     # Merge con metadata externa si disponible
     if metadata_df is not None and len(catalog) > 0:

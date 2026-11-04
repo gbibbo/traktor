@@ -127,6 +127,34 @@ def test_build_catalog_recursive_with_tags_and_dedup(monkeypatch):
         assert (Path(tmp) / "artifacts" / "unit" / "duplicates.csv").exists()
 
 
+def test_scope_keeps_the_existing_row_and_writes_real_paths(monkeypatch):
+    """Biblioteca en el pendrive: Música/ es un junction. source_path tiene que ser la ruta real (los exports la
+    usan), y una carpeta nueva con el mismo audio no le quita la fila al tema que ya estaba."""
+    import os
+    import subprocess
+    with tempfile.TemporaryDirectory() as tmp:
+        real = Path(tmp) / "pendrive" / "Musica"
+        (real / "A - Techno" / "A1").mkdir(parents=True)
+        src = real / "A - Techno" / "A1" / "Artist - Title.flac"
+        if not _write_audio(src, "FLAC"):
+            pytest.skip("soundfile no puede escribir FLAC")
+        link = Path(tmp) / "Música"
+        if os.name == "nt":
+            subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(real)], check=True, capture_output=True)
+        else:
+            os.symlink(real, link, target_is_directory=True)
+        monkeypatch.setenv("TRAKTOR_ARTIFACTS_ROOT", str(Path(tmp) / "artifacts"))
+        cat = build_catalog(link, "unit", {}, recursive=True, hash_mode="audio")
+        assert Path(cat.iloc[0]["source_path"]) == src.resolve()          # la ruta real, no la del junction
+        (real / "2026").mkdir()
+        (real / "2026" / "x.flac").write_bytes(src.read_bytes())         # el mismo audio, ruta más corta
+        cat = build_catalog(link, "unit", {}, recursive=True, hash_mode="audio", scope="2026")
+        assert list(cat["rel_path"]) == ["A - Techno/A1/Artist - Title.flac"]  # se queda la que ya estaba
+        assert "_prev" not in cat.columns
+        dups = pd.read_csv(Path(tmp) / "artifacts" / "unit" / "duplicates.csv")
+        assert list(dups["rel_path"]) == ["2026/x.flac"]
+
+
 def test_duration_falls_back_to_mutagen(monkeypatch):
     import soundfile as sf
     from src.v4.common import catalog as catalog_mod

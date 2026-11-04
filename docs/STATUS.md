@@ -46,12 +46,11 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    (pisaría el paquete, que ahora manda). `Preparar Traktor.bat`
    del pendrive sigue armando un NML: Traktor importa una sola playlist. Refrescar Traktor de esta
    PC (`traktor_collection.py`).
-2. GABRIEL: probar la app local (`Abrir TRAKTOR ML.bat`): agregar música nueva, fusiones de temas
-   (clic derecho, papelera), orden a mano (⇅), preparar para Rekordbox/Traktor y deshacer.
-   Y la app de descargas con pestañas (LOCAL lee su log; probadas en la laptop);
-   decidir si las playlists usan solo lo elegido en Colección.
-   Solo el escritorio (laptop retirada, 11-04): todo en D: (`artifacts/v4/datasets/musica` apunta a
-   `D:\TRAKTOR ML datos\musica`); el pendrive manda. LOCAL: la Organización aún es de solo lectura.
+2. GABRIEL: probar la app (pestaña Organización): agregar música, fusiones, orden a mano (⇅),
+   preparar para Rekordbox/Traktor y deshacer; decidir si las playlists usan solo lo elegido en
+   Colección. Solo el escritorio (laptop retirada, 11-04), todo en D:: `artifacts/v4/datasets/musica`
+   apunta a `D:\TRAKTOR ML datos\musica` y `Música/` a `D:\TRAKTOR ML\Musica` (package_library.py);
+   el pendrive manda. LOCAL: probar «Agregar música» con temas reales.
 3. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
    tracklists y descarga del audio se consultan antes de implementar.
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,

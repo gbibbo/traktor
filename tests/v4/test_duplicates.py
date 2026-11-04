@@ -32,6 +32,13 @@ def test_keeper_prefers_mp3_320_then_quality():
     assert dup.choose_keeper([q("mp3", 320), q("mp3", 320)]) is None
     assert dup.choose_keeper([q("wav", 1411, True), q("wav", 1411, True)]) is None
     assert dup.choose_keeper([q("mp3", 320), q("mp3", 320), q("mp3", 128)]) is None
+    # Empate con un tema que ya está organizado (biblioteca en el pendrive): se queda ese, aunque la otra
+    # carpeta tenga nombre de año; con mejor calidad igual gana la otra.
+    paths = ["A - Techno/A1 (120-125)/x.mp3", "2026/x.mp3"]
+    assert dup.choose_keeper([q("mp3", 320), q("mp3", 320)], paths) == 1
+    assert dup.choose_keeper([q("mp3", 320), q("mp3", 320)], paths, prefer=[True, False]) == 0
+    assert dup.choose_keeper([q("mp3", 192), q("mp3", 320)], paths, prefer=[True, False]) == 1
+    assert dup.resolve({"layer": "sonido"}, [q("mp3", 320), q("mp3", 320)], paths, [True, False]) == (0, True)
 
 
 def test_names_normalize():

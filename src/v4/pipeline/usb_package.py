@@ -19,6 +19,10 @@ PURPOSE: Paquete portátil de una organización para tocar con Rekordbox o Trakt
          (_organizacion.csv y los tags actuales de cada archivo), sin la organización ni la
          biblioteca original: para después de corregir los tags con package_tags.py.
 CHANGELOG:
+  - 2026-11-04: --refresh <paquete> --from-org: rehace playlists, NML, rekordbox.xml, m3u8 y _organizacion.csv
+                desde la versión actual de la organización cuando la biblioteca ES el paquete (package_library.py):
+                cada tema queda en el archivo donde está, aunque cambie de playlist (moverlo podría perder sus
+                cue points en Traktor o Rekordbox). Nunca copia ni borra audio.
   - 2026-10-30: Rekordbox en el paquete (plantilla + Preparar Rekordbox.bat) y --refresh (con
                 --refresh, artista, título, mezcla y año del NML/XML salen de los tags de cada
                 archivo). El tamaño del LEEME sale de las copias del paquete. El LEEME avisa que
@@ -49,6 +53,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.v4.common.config_loader import load_config  # noqa: E402
+from src.v4.common.path_resolver import resolve_dataset_artifacts  # noqa: E402
 from src.v4.common.dj_export import (  # noqa: E402
     PlaylistSpec, rekordbox_location, write_m3u8, write_rekordbox_xml, write_traktor_nml,
 )
@@ -442,6 +447,64 @@ def refresh_package(package_dir: Path) -> int:
     return 0
 
 
+def refresh_from_org(package_dir: Path, dataset_name: str, org_name: str, config: Optional[dict] = None) -> int:
+    """Las playlists del paquete desde la versión actual de la organización, sin mover ni copiar audio: la
+    biblioteca es el paquete (su Musica/, package_library.py) y catalog.source_path dice dónde está cada tema."""
+    from src.v4.common.tags import read_release_tags, read_tags
+    from src.v4.pipeline.phase5_export import run_export
+    config = config or load_config(None)
+    with tempfile.TemporaryDirectory() as tmp:
+        _, specs, _, _ = run_export(dataset_name, config, formats=("traktor",), out_root=Path(tmp),
+                                    org_name=org_name, return_specs=True)
+    artifacts = resolve_dataset_artifacts(dataset_name, config)
+    cat = pd.read_parquet(artifacts / "catalog.parquet").drop_duplicates("track_uid").set_index("track_uid")
+    music = (Path(package_dir) / "Musica").resolve()
+    # El origen de cada tema (columnas origen y nombre_original del CSV) se conserva: Preparar Traktor
+    # (traktor_prepare.ps1) reconoce por nombre y carpeta originales los temas que Traktor ya analizó.
+    index = Path(package_dir) / "_organizacion.csv"
+    prev, prev_dur = {}, {}
+    if index.exists():
+        old = pd.read_csv(index, encoding="utf-8-sig", dtype=str, keep_default_na=False)
+        if {"track_uid", "origen"} <= set(old.columns):
+            prev = dict(zip(old["track_uid"], old["origen"]))
+        if {"track_uid", "duracion_s"} <= set(old.columns):  # la misma duración que ya tenía (sin redondeos nuevos)
+            prev_dur = {u: float(d) for u, d in zip(old["track_uid"], old["duracion_s"]) if d}
+    placements: List[Placement] = []
+    outside = []
+    for spec in specs:
+        for k, uid in enumerate(spec.track_uids, 1):
+            src = Path(str(cat.at[uid, "source_path"])).resolve()
+            if music not in src.parents:
+                outside.append(str(src))
+                continue
+            rel = "Musica\\" + str(PureWindowsPath(src.relative_to(music)))
+            placements.append(Placement(uid, spec.folder, spec.name, k, rel, prev.get(uid) or str(src)))
+    files = unique_files(placements)
+    missing = [p.rel_path for p in files if not (Path(package_dir) / p.rel_path).exists()]
+    if outside or missing:
+        print(f"[ERROR] {len(outside)} temas fuera de {music} y {len(missing)} archivos que no están, "
+              f"p. ej. {(outside + missing)[:3]}")
+        return 1
+    rows = []
+    for p in files:
+        f, c = Path(package_dir) / p.rel_path, cat.loc[p.track_uid]
+        t, rel = read_tags(f), read_release_tags(f)
+        orig = c.get("orig_rel_path") if isinstance(c.get("orig_rel_path"), str) else c.get("rel_path")
+        rows.append({"track_uid": p.track_uid, "source_path": str(f),
+                     "artist": _text(t["tag_artist"]) or _text(c.get("artist")),
+                     "title": _text(t["tag_title"]) or _text(c.get("title")),
+                     "tag_album": t["tag_album"], "tag_genre": t["tag_genre"], "tag_label": t["tag_label"],
+                     "tag_comment": t["tag_comment"], "tag_remixer": rel["tag_remixer"], "tag_date": rel["tag_date"],
+                     "duration_s": prev_dur.get(p.track_uid, float(c.get("duration_s")) if pd.notna(c.get("duration_s"))
+                                               else float("nan")),
+                     "filesize_bytes": f.stat().st_size,
+                     "rel_path": str(PureWindowsPath(str(orig))) if isinstance(orig, str) else ""})
+    tracks = pd.DataFrame(rows).set_index("track_uid")
+    write_package_files(Path(package_dir), tracks, specs, placements, _root_label(Path(package_dir)))
+    print(f"[INFO] Paquete rehecho desde '{org_name}': {len(files)} temas, {len(specs)} playlists -> {package_dir}")
+    return 0
+
+
 def build_package(dataset_name: str, org_name: str, dest: Path, org_version: Optional[int] = None,
                   package_name: str = PACKAGE_NAME, verify: str = "size", prune: bool = False,
                   dry_run: bool = False, config: Optional[dict] = None) -> int:
@@ -502,6 +565,8 @@ def main() -> int:
     ap.add_argument("--dest", default=None, help="Unidad o carpeta destino, p. ej. D:\\")
     ap.add_argument("--refresh", default=None, metavar="PAQUETE",
                     help="Rehace los archivos que no son audio de un paquete existente desde sus tags actuales")
+    ap.add_argument("--from-org", action="store_true",
+                    help="Con --refresh: playlists desde la versión actual de --org-name (la biblioteca es el paquete)")
     ap.add_argument("--package-name", default=PACKAGE_NAME)
     ap.add_argument("--verify", choices=("size", "hash"), default="size")
     ap.add_argument("--prune", action="store_true", help="Borra de Musica/ lo que ya no está en la organización")
@@ -509,6 +574,11 @@ def main() -> int:
     ap.add_argument("--low-priority", action="store_true")
     ap.add_argument("--config", default=None)
     args = ap.parse_args()
+    if args.refresh and args.from_org:
+        if not args.org_name:
+            ap.error("--from-org necesita --org-name")
+        return refresh_from_org(Path(args.refresh), args.dataset_name, args.org_name,
+                                load_config(Path(args.config) if args.config else None))
     if args.refresh:
         return refresh_package(Path(args.refresh))
     if not args.org_name or not args.dest:

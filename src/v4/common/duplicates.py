@@ -24,6 +24,9 @@ CHANGELOG:
   - 2026-09-29: Creación inicial.
   - 2026-09-29: Desempate por ubicación (Gabriel: nunca Milo; primero lo mejor clasificado); 'nombre'
                 se resuelve solo; detección con prefiltro vectorizado (rápida para la app).
+  - 2026-11-04: choose_keeper/resolve(prefer=...): con la biblioteca en el pendrive, ante un empate de calidad se
+                queda la copia que ya está en la organización (antes ganaba una carpeta nueva con nombre de año
+                y el tema del pendrive se movía a _copias).
 """
 from __future__ import annotations
 
@@ -130,12 +133,16 @@ def location_rank(rel_path: str) -> int:
     return 0 if parts and _YEAR_TOP.match(parts[0]) else 1
 
 
-def choose_keeper(qualities: Sequence[Dict], paths: Optional[Sequence[str]] = None) -> Optional[int]:
-    """Índice de la copia que se queda: mejor calidad; si empatan y hay rutas, la mejor ubicada y después
-    la ruta más corta. None solo si empatan en calidad y no se pasan rutas."""
+def choose_keeper(qualities: Sequence[Dict], paths: Optional[Sequence[str]] = None,
+                  prefer: Optional[Sequence[bool]] = None) -> Optional[int]:
+    """Índice de la copia que se queda: mejor calidad; si empatan, la que ya está en la organización
+    (`prefer`: en el pendrive, los temas organizados no se mueven por un empate), y después, si hay rutas, la
+    mejor ubicada y la ruta más corta. None solo si empatan en calidad y no se pasan rutas."""
     ranks = [quality_rank(q) for q in qualities]
     best = max(ranks)
     winners = [i for i, r in enumerate(ranks) if r == best]
+    if prefer is not None and any(prefer[i] for i in winners):
+        winners = [i for i in winners if prefer[i]]
     if len(winners) == 1:
         return winners[0]
     if paths is None:
@@ -253,7 +260,8 @@ def find_candidates(uids: Sequence[str], emb: np.ndarray, dur: Sequence[float], 
     return sorted(out, key=lambda g: (order[g["layer"]], -g["sim"]))
 
 
-def resolve(group: Dict, qualities: Sequence[Dict], paths: Optional[Sequence[str]] = None) -> Tuple[Optional[int], bool]:
+def resolve(group: Dict, qualities: Sequence[Dict], paths: Optional[Sequence[str]] = None,
+            prefer: Optional[Sequence[bool]] = None) -> Tuple[Optional[int], bool]:
     """(copia que se queda o None, se resuelve sola). Se resuelven solas 'sonido' y 'nombre'."""
-    keep = choose_keeper(qualities, paths)
+    keep = choose_keeper(qualities, paths, prefer)
     return keep, group["layer"] in AUTO_LAYERS and keep is not None
