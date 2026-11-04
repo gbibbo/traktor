@@ -16,6 +16,8 @@ PURPOSE: Pone las playlists de un paquete portátil (usb_package.py) directament
          Entre los dos pasos, en Traktor: arrastrar la carpeta Musica del paquete a Track Collection.
 CHANGELOG:
   - 2026-10-30: Creación inicial (las playlists del pendrive no entraban en Traktor 4.4).
+  - 2026-11-04: find_collection, traktor_running, entry_key, entry_path y _has_own_cues pasan a
+                src/v4/common/traktor_nml.py (sin pandas, para las herramientas en vivo).
 """
 from __future__ import annotations
 
@@ -23,7 +25,6 @@ import argparse
 import hashlib
 import os
 import shutil
-import subprocess
 import sys
 import time
 import unicodedata
@@ -35,39 +36,17 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.v4.common.tags import read_release_tags, read_tags  # noqa: E402
+from src.v4.common.traktor_nml import (  # noqa: E402,F401
+    entry_key, entry_path, find_collection, has_own_cues as _has_own_cues, traktor_running,
+)
 from src.v4.pipeline.usb_package import _root_label, nml_dir_prefix, read_package_specs  # noqa: E402
 
 DECLARATION = '<?xml version="1.0" encoding="UTF-8" standalone="no" ?>'
 
 
-def find_collection() -> Optional[Path]:
-    """collection.nml más reciente en Documentos/Native Instruments/Traktor*."""
-    base = Path(os.path.expanduser("~")) / "Documents" / "Native Instruments"
-    found = sorted((d / "collection.nml" for d in base.glob("Traktor*") if (d / "collection.nml").exists()),
-                   key=lambda p: p.stat().st_mtime, reverse=True)
-    return found[0] if found else None
-
-
-def traktor_running() -> bool:
-    if sys.platform != "win32":
-        return False
-    out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq Traktor*"], capture_output=True, text=True).stdout
-    return "Traktor" in out
-
-
 def _k(s: str) -> str:
     """Clave de comparación de rutas: NFC y minúsculas (Windows no distingue mayúsculas)."""
     return unicodedata.normalize("NFC", s).lower()
-
-
-def entry_key(e: ET.Element) -> str:
-    loc = e.find("LOCATION")
-    return loc.get("VOLUME", "") + loc.get("DIR", "") + loc.get("FILE", "")
-
-
-def entry_path(e: ET.Element) -> Path:
-    loc = e.find("LOCATION")
-    return Path(loc.get("VOLUME", "") + loc.get("DIR", "").replace("/:", "\\") + loc.get("FILE", ""))
 
 
 def load(path: Path) -> ET.ElementTree:
@@ -95,15 +74,6 @@ def backup(path: Path, backup_dir: Path) -> Path:
 def package_prefix(package_dir: Path) -> str:
     vol, dirp = nml_dir_prefix(PureWindowsPath(str(package_dir)))
     return vol + dirp + "Musica/:"
-
-
-def _has_own_cues(e: ET.Element) -> bool:
-    """¿Tiene cues o loops puestos por el usuario? Traktor crea solos la grilla (TYPE 4), un marcador
-    de carga (TYPE 3) y un hotcue en el primer beat de la grilla ("AutoGrid" o "n.n."): no cuentan."""
-    cues = e.findall("CUE_V2")
-    grid = [float(c.get("START", "0")) for c in cues if c.get("TYPE") == "4"]
-    return any(c.get("TYPE") in ("0", "1", "2", "5")
-               and not (grid and abs(float(c.get("START", "0")) - grid[0]) < 0.01) for c in cues)
 
 
 def _file_has_cover(path: Path) -> bool:

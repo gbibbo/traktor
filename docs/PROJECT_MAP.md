@@ -26,6 +26,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `beatport.py` | Beatport sin API oficial (JSON de la búsqueda pública, caché por consulta): match por niveles A ISRC / B misma versión / C solo otras versiones / D nada, y tags propuestos con la convención de Beatport (Artist sin remixers, Remixers = mezcla u "Original Mix", Label, Genre, Released) |
 | `tempo.py` | Estimación de BPM (flujo espectral + autocorrelación) para temas sin BPM en tags |
 | `dj_export.py` | Escritores rekordbox.xml, NML de Traktor y M3U8 con rutas absolutas |
+| `traktor_nml.py` | Lectura de `collection.nml` solo con la biblioteca estándar: dónde está, si Traktor está abierto, ruta de cada entrada, cues propios (la usan `traktor_collection.py` y `tools/traktor_live/`) |
 
 ## Pipeline (`src/v4/pipeline/`)
 
@@ -109,6 +110,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_file_embeddings.py` | Embedding y lugar en los tags: MP3 (versión ID3 respetada) y FLAC, track_uid intacto, sin reescribir, WAV sin tocar, paquete sintético de punta a punta |
 | `test_package_library.py` | Paquete sintético: `adopt` (catálogo, respaldo, junction, no toca una carpeta real), un orden nuevo que llega a las playlists del paquete sin mover ni cambiar el audio y conservando el origen, y la app que actualiza el pendrive al preparar |
 | `test_traktor_collection.py` | traktor_collection.py con paquete y colección falsos: qué se saca, texto actualizado, rechazo si faltan temas, carpeta en orden y reemplazable |
+| `test_sugerencias_itunes.py` | XML de iTunes de la prueba de sugerencias: orden, rutas codificadas, rondas sin repetir, no pisa ni borra un XML ajeno |
 | `test_package_tags.py` | package_tags.py sin red: limpieza local de artista/título/mezcla, verificación de Deezer y de la 2.ª búsqueda, reglas del plan, escritura y reversión en un MP3 mínimo (audio intacto) |
 
 En `tests/` (raíz): `test_check_staged.py` (chequeo pre-commit sobre repos git temporales),
@@ -214,6 +216,12 @@ guarda lo conseguido y termina como `partial` (código 3).
 | :--- | :--- |
 | `tools/playlist_review/build_review_page.py` | Genera `<carpeta de audio>/_revision_playlists.html`: mapa UMAP, playlists en orden, escucha de la secuencia, veredictos exportables a CSV; organizaciones con nombre (`--org-name X`, `X@N`; sin argumentos, todas) con versión, historial, temas nuevos y semillas; armado y export de semillas para `organize.py link --from-file`; corridas por hash a ciegas (`--org`, `--blind`); mezcla de cada tema (tag Remixer o nombre del archivo) |
 | `tools/playlist_review/template.html` | Plantilla autónoma (sin servidor ni red; audio por rutas relativas); mapa con zoom (+/−, Ctrl + rueda, arrastre) y ancho ajustable; búsqueda con filtros por campo; barra de tiempo para avanzar o retroceder; secciones plegables; con la app, carátula en miniatura, ⇅ para reordenar temas arrastrando (el fantasma termina en el cursor) y papelera por fusión |
+
+## Sugerencias en vivo dentro de Traktor (`tools/traktor_live/`, prueba de factibilidad)
+
+| Archivo | Descripción |
+| :--- | :--- |
+| `tools/traktor_live/sugerencias_itunes.py` | Escribe la playlist "TRAKTOR ML Sugerencias" (temas de la colección de Traktor, con cues propios) en el XML de iTunes que Traktor tiene configurado, para probar si el nodo iTunes se vuelve a leer sin reiniciar; `--round N` cambia los temas, `--remove` borra el XML (solo si lo escribió el script) |
 
 ## Herramienta de feedback del DJ (`tools/dj_feedback/`)
 
