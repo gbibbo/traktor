@@ -10,10 +10,17 @@ PURPOSE: Prueba de factibilidad de la lista de sugerencias dentro de Traktor. Es
          que no haya escrito este script.
 CHANGELOG:
   - 2026-11-04: Creación inicial (prueba del nodo iTunes como lista que se refresca desde Traktor).
-  - 2026-11-04: Primera prueba de Gabriel: solo el Refresh del nodo relee el XML (y lo pliega); Traktor
-                muestra los datos de su colección y del XML solo llena lo vacío (el comentario de la
-                ronda apareció en los temas sin comentario). Porcentaje de prueba en Composer, Grouping
-                y Album Artist para ver cuál llega a una columna vacía.
+  - 2026-11-04: Primera prueba de Gabriel: solo el Refresh del nodo relee el XML (y lo pliega);
+                [REFUTADO 2026-11-04 por la colección guardada al cerrar Traktor: los temas 1, 3 y 7
+                tenían "#" en la ruta y Traktor no los reconoció, por eso mostró todo lo del XML; de los
+                temas que reconoce muestra solo los datos de su colección] Traktor muestra los datos de
+                su colección y del XML solo llena lo vacío (el comentario de la ronda apareció en los
+                temas sin comentario). Porcentaje de prueba en Composer, Grouping y Album Artist para
+                ver cuál llega a una columna vacía.
+  - 2026-11-04: Segunda prueba: ningún campo de prueba llegó a las columnas. Un tema con "#" en la ruta
+                (%23 en el XML) no se reconoce como de la colección y, al cargarlo, Traktor agrega una
+                entrada duplicada con los datos del XML. --path-probe: un tema por carácter especial
+                (y "#" sin codificar), con "[prueba ...]" en el título, para ver cuáles reconoce.
 """
 from __future__ import annotations
 
@@ -100,9 +107,30 @@ def pick(tracks: List[Track], round_no: int, n: int, seed: int = SEED) -> List[T
     return block
 
 
-def file_url(path: Path) -> str:
-    """Location de iTunes en Windows: file://localhost/C:/... con espacios y acentos codificados."""
-    return "file://localhost/" + quote(PureWindowsPath(str(path)).as_posix(), safe="/:")
+def file_url(path: Path, raw_hash: bool = False) -> str:
+    """Location de iTunes en Windows: file://localhost/C:/... con espacios y acentos codificados.
+    raw_hash deja "#" sin codificar (prueba: Traktor no reconoce como de su colección las rutas con
+    "#" codificado como %23)."""
+    return "file://localhost/" + quote(PureWindowsPath(str(path)).as_posix(), safe="/:#" if raw_hash else "/:")
+
+
+PATH_CLASSES = (("#", lambda p: "#" in p), ("&", lambda p: "&" in p), ("+", lambda p: "+" in p),
+                (";", lambda p: ";" in p), ("no ASCII", lambda p: any(ord(c) > 127 for c in p)),
+                ("simple", lambda p: not any(c in p for c in "#&+;") and p.isascii()))
+
+
+def path_probe(tracks: List[Track], root: str) -> List[tuple]:
+    """Un tema bajo root por cada clase de carácter en la ruta, y el de "#" otra vez con "#" sin
+    codificar: [(etiqueta, tema, raw_hash)]."""
+    under = [t for t in tracks if str(t.path).lower().startswith(root.lower())]
+    out = []
+    for label, test in PATH_CLASSES:
+        hit = next((t for t in under if test(str(t.path))), None)
+        if hit is not None:
+            out.append((label, hit, False))
+            if label == "#":
+                out.append(("# sin codificar", hit, True))
+    return out
 
 
 def _pid(text: str) -> str:
@@ -114,20 +142,24 @@ def probe_score(rank: int) -> int:
     return max(5, 95 - 3 * (rank - 1))
 
 
-def build_library(tracks: List[Track], round_no: int) -> Dict[str, object]:
-    """Biblioteca de iTunes mínima: los temas, la playlist maestra y la de sugerencias en orden."""
+def build_library(tracks: List[Track], round_no: int, labels: Optional[List[str]] = None,
+                  raw_hash: Optional[List[bool]] = None) -> Dict[str, object]:
+    """Biblioteca de iTunes mínima: los temas, la playlist maestra y la de sugerencias en orden. Con
+    labels, el título lleva "[prueba <etiqueta>]": Traktor muestra ese título solo si no reconoce el
+    tema como de su colección."""
     items: Dict[str, object] = {}
     for i, t in enumerate(tracks, start=1):
         tid = 1000 + i
         probe = {key: f"{prefix} {probe_score(i)} %" for key, prefix in SCORE_PROBE_KEYS}
+        name = f"[prueba {labels[i - 1]}] {t.title}" if labels else t.title
         items[str(tid)] = {
             **probe,
-            "Track ID": tid, "Name": t.title, "Artist": t.artist,
+            "Track ID": tid, "Name": name, "Artist": t.artist,
             "Kind": KINDS.get(t.path.suffix.lower(), "Audio file"),
             "Total Time": int(round(t.seconds * 1000)),
             "Comments": f"Ronda {round_no} · {i}/{len(tracks)}",
-            "Persistent ID": _pid(str(t.path).lower()), "Track Type": "File",
-            "Location": file_url(t.path),
+            "Persistent ID": _pid(f"{t.path}|{i}".lower()), "Track Type": "File",
+            "Location": file_url(t.path, raw_hash=bool(raw_hash and raw_hash[i - 1])),
         }
     playlist_items = [{"Track ID": 1000 + i} for i in range(1, len(tracks) + 1)]
     return {
@@ -187,6 +219,9 @@ def main() -> int:
     ap.add_argument("--any", action="store_true", help="Aceptar temas sin cues propios")
     ap.add_argument("--remove", action="store_true", help="Borrar el XML de prueba (solo si es de este script)")
     ap.add_argument("--dry-run", action="store_true", help="Mostrar la ronda sin escribir")
+    ap.add_argument("--path-probe", action="store_true",
+                    help="En vez de una ronda: un tema por carácter especial en la ruta (#, &, +, ;, no ASCII)")
+    ap.add_argument("--root", default=r"C:\TRAKTOR ML\Musica", help="Carpeta de los temas de --path-probe")
     args = ap.parse_args()
 
     collection = Path(args.collection) if args.collection else find_collection()
@@ -203,6 +238,17 @@ def main() -> int:
 
     if args.remove:
         print(f"[INFO] {'Borrado' if remove_library(out) else 'No existía'}: {out}")
+        return 0
+
+    if args.path_probe:
+        probe = path_probe(collection_tracks(collection, own_cues_only=False), args.root)
+        print(f"[INFO] Prueba de rutas, playlist \"{PLAYLIST_NAME}\" (NO cargar los temas en un deck):")
+        for i, (label, t, _) in enumerate(probe, start=1):
+            print(f"  {i:2d}. [prueba {label}] {t.path}")
+        if not args.dry_run:
+            write_library(build_library([t for _, t, _ in probe], 0, labels=[lb for lb, _, _ in probe],
+                                        raw_hash=[r for _, _, r in probe]), out)
+            print(f"[OK] Escrito {out} ({time.strftime('%H:%M:%S')})")
         return 0
 
     tracks = collection_tracks(collection, own_cues_only=not args.any)

@@ -14,7 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
 from tools.traktor_live.sugerencias_itunes import (  # noqa: E402
-    LIBRARY_ID, PLAYLIST_NAME, Track, build_library, file_url, pick, remove_library,
+    LIBRARY_ID, PLAYLIST_NAME, Track, build_library, file_url, path_probe, pick, remove_library,
     settings_itunes_path, write_library,
 )
 
@@ -47,6 +47,27 @@ def test_library_roundtrip_keeps_order_and_marks_round(tmp_path):
     # una segunda ronda reemplaza el archivo propio
     write_library(build_library(_tracks(2), round_no=3), out)
     assert not out.with_name(out.name + ".tmp").exists()
+
+
+def test_raw_hash_keeps_hash_unencoded():
+    assert file_url(Path("C:\\M\\#1 BIBO\\a b.mp3"), raw_hash=True) == "file://localhost/C:/M/#1%20BIBO/a%20b.mp3"
+
+
+def test_path_probe_one_track_per_character_class():
+    names = ["#1 BIBO\\x.mp3", "Melodic House & Techno\\y.mp3", "a+b.mp3", "a;b.mp3", "Shlømo.mp3", "plain.mp3"]
+    tracks = [Track(path=Path("C:\\TRAKTOR ML\\Musica\\" + n), title=n, artist="A", seconds=1, bpm="1", key="1")
+              for n in names] + [Track(path=Path("C:\\Música\\#2\\z.mp3"), title="z", artist="A", seconds=1,
+                                       bpm="1", key="1")]
+    probe = path_probe(tracks, "C:\\TRAKTOR ML\\Musica")
+    assert [(label, t.title, raw) for label, t, raw in probe] == [
+        ("#", names[0], False), ("# sin codificar", names[0], True), ("&", names[1], False),
+        ("+", names[2], False), (";", names[3], False), ("no ASCII", names[4], False), ("simple", names[5], False)]
+    lib = build_library([t for _, t, _ in probe], 0, labels=[lb for lb, _, _ in probe],
+                        raw_hash=[r for _, _, r in probe])
+    locs = [v["Location"] for v in lib["Tracks"].values()]
+    assert "%231%20BIBO" in locs[0] and "/#1%20BIBO" in locs[1]
+    assert lib["Tracks"]["1002"]["Name"] == "[prueba # sin codificar] " + names[0]
+    assert lib["Tracks"]["1001"]["Persistent ID"] != lib["Tracks"]["1002"]["Persistent ID"]
 
 
 def test_rounds_do_not_repeat_tracks():

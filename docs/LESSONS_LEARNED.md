@@ -127,6 +127,16 @@ Sin LongPathsEnabled, `Path.exists()` da False en silencio para rutas largas: un
 desde una carpeta de prueba profunda "perdió" 705 temas. Probar con la misma longitud de ruta que el
 destino real (`subst R: <carpeta>` deja `R:\TRAKTOR ML`, como `D:\TRAKTOR ML`).
 
+### El nodo iTunes de Traktor puede duplicar entradas de la colección
+
+Traktor busca cada tema del XML de iTunes en su colección por la ruta. Los que reconoce los muestra
+con los datos de la colección (cues, grid, BPM). Los que no reconoce los muestra con los datos del
+XML (BPM 0.00, sin carátula), y al cargarlos en un deck agrega al final de `collection.nml` una
+**segunda entrada con la misma ruta**, con lo que trae el XML (comentario, duración, contador de
+reproducciones vacío). La entrada original queda intacta. Un "#" en la ruta (%23 en el XML) basta
+para que no lo reconozca (prueba del 2026-11-04). Para revisar después de una prueba, contar las
+entradas por ruta (`entry_key`), no solo las rutas distintas: un dict por ruta esconde el duplicado.
+
 ## Entorno HPC (ver también memory/MEMORY.md)
 
 [REEMPLAZADO 2026-09-12 por DECISIONS 2026-09-12, punto 4: Surrey HPC ya no existe; se trabaja en CPU local (AGENTS.md). Se conserva como registro.]

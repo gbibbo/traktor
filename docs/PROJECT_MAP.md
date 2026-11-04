@@ -222,7 +222,7 @@ guarda lo conseguido y termina como `partial` (código 3).
 
 | Archivo | Descripción |
 | :--- | :--- |
-| `tools/traktor_live/sugerencias_itunes.py` | Escribe la playlist "TRAKTOR ML Sugerencias" (temas de la colección de Traktor, con cues propios) en el XML de iTunes que Traktor tiene configurado, para probar si el nodo iTunes se vuelve a leer sin reiniciar; `--round N` cambia los temas, `--remove` borra el XML (solo si lo escribió el script); porcentaje de prueba en Composer, Grouping y Album Artist |
+| `tools/traktor_live/sugerencias_itunes.py` | Escribe la playlist "TRAKTOR ML Sugerencias" (temas de la colección de Traktor, con cues propios) en el XML de iTunes que Traktor tiene configurado, para probar si el nodo iTunes se vuelve a leer sin reiniciar; `--round N` cambia los temas, `--remove` borra el XML (solo si lo escribió el script); porcentaje de prueba en Composer, Grouping y Album Artist; `--path-probe`: un tema por carácter especial en la ruta (#, &, +, ;, no ASCII) para ver cuáles reconoce Traktor |
 | `tools/traktor_live/midi_monitor.py` | Monitor MIDI por winmm (sin paquetes): lista entradas, abre una por palabra del nombre (`--port DJM`), muestra CC y notas, mínimo y máximo por control y el BPM del reloj MIDI; dice si el puerto está en uso por otro programa |
 
 ## Herramienta de feedback del DJ (`tools/dj_feedback/`)
