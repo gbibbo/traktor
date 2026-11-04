@@ -41,6 +41,9 @@ def test_library_roundtrip_keeps_order_and_marks_round(tmp_path):
     assert [lib["Tracks"][str(i)]["Name"] for i in ids] == ["Tema 0", "Tema 1", "Tema 2"]
     assert lib["Tracks"][str(ids[0])]["Comments"] == "Ronda 2 · 1/3"
     assert lib["Tracks"][str(ids[0])]["Total Time"] == 300500
+    assert [lib["Tracks"][str(i)]["Composer"] for i in ids] == ["C 95 %", "C 92 %", "C 89 %"]
+    assert lib["Tracks"][str(ids[1])]["Grouping"] == "G 92 %"
+    assert lib["Tracks"][str(ids[2])]["Album Artist"] == "AA 89 %"
     # una segunda ronda reemplaza el archivo propio
     write_library(build_library(_tracks(2), round_no=3), out)
     assert not out.with_name(out.name + ".tmp").exists()

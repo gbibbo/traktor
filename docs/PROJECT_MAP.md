@@ -111,6 +111,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_package_library.py` | Paquete sintético: `adopt` (catálogo, respaldo, junction, no toca una carpeta real), un orden nuevo que llega a las playlists del paquete sin mover ni cambiar el audio y conservando el origen, y la app que actualiza el pendrive al preparar |
 | `test_traktor_collection.py` | traktor_collection.py con paquete y colección falsos: qué se saca, texto actualizado, rechazo si faltan temas, carpeta en orden y reemplazable |
 | `test_sugerencias_itunes.py` | XML de iTunes de la prueba de sugerencias: orden, rutas codificadas, rondas sin repetir, no pisa ni borra un XML ajeno |
+| `test_midi_monitor.py` | Monitor MIDI sin hardware: decodificación, mínimo y máximo por control, BPM del reloj, búsqueda de la entrada (K2 no abre el DJM) |
 | `test_package_tags.py` | package_tags.py sin red: limpieza local de artista/título/mezcla, verificación de Deezer y de la 2.ª búsqueda, reglas del plan, escritura y reversión en un MP3 mínimo (audio intacto) |
 
 En `tests/` (raíz): `test_check_staged.py` (chequeo pre-commit sobre repos git temporales),
@@ -221,7 +222,8 @@ guarda lo conseguido y termina como `partial` (código 3).
 
 | Archivo | Descripción |
 | :--- | :--- |
-| `tools/traktor_live/sugerencias_itunes.py` | Escribe la playlist "TRAKTOR ML Sugerencias" (temas de la colección de Traktor, con cues propios) en el XML de iTunes que Traktor tiene configurado, para probar si el nodo iTunes se vuelve a leer sin reiniciar; `--round N` cambia los temas, `--remove` borra el XML (solo si lo escribió el script) |
+| `tools/traktor_live/sugerencias_itunes.py` | Escribe la playlist "TRAKTOR ML Sugerencias" (temas de la colección de Traktor, con cues propios) en el XML de iTunes que Traktor tiene configurado, para probar si el nodo iTunes se vuelve a leer sin reiniciar; `--round N` cambia los temas, `--remove` borra el XML (solo si lo escribió el script); porcentaje de prueba en Composer, Grouping y Album Artist |
+| `tools/traktor_live/midi_monitor.py` | Monitor MIDI por winmm (sin paquetes): lista entradas, abre una por palabra del nombre (`--port DJM`), muestra CC y notas, mínimo y máximo por control y el BPM del reloj MIDI; dice si el puerto está en uso por otro programa |
 
 ## Herramienta de feedback del DJ (`tools/dj_feedback/`)
 

@@ -10,6 +10,10 @@ PURPOSE: Prueba de factibilidad de la lista de sugerencias dentro de Traktor. Es
          que no haya escrito este script.
 CHANGELOG:
   - 2026-11-04: Creación inicial (prueba del nodo iTunes como lista que se refresca desde Traktor).
+  - 2026-11-04: Primera prueba de Gabriel: solo el Refresh del nodo relee el XML (y lo pliega); Traktor
+                muestra los datos de su colección y del XML solo llena lo vacío (el comentario de la
+                ronda apareció en los temas sin comentario). Porcentaje de prueba en Composer, Grouping
+                y Album Artist para ver cuál llega a una columna vacía.
 """
 from __future__ import annotations
 
@@ -37,6 +41,10 @@ PLAYLIST_NAME = "TRAKTOR ML Sugerencias"
 LIBRARY_ID = "54524B4D4C53554C"          # "TRKMLSUL": marca los XML escritos por este script
 SETTINGS_KEY = "Browser.Dir.ITunesMusic"
 SEED = 20261104
+# Traktor muestra los datos de su colección y llena desde el XML solo los campos vacíos: Comments llega
+# a los temas sin comentario. Para el porcentaje se prueban tres campos del XML con un prefijo cada uno,
+# para ver cuál cae en una columna vacía de la colección (Comment 2, Producer o Mix).
+SCORE_PROBE_KEYS = (("Composer", "C"), ("Grouping", "G"), ("Album Artist", "AA"))
 KINDS = {".mp3": "MPEG audio file", ".flac": "FLAC audio file", ".m4a": "AAC audio file",
          ".aiff": "AIFF audio file", ".aif": "AIFF audio file", ".wav": "WAV audio file"}
 
@@ -101,12 +109,19 @@ def _pid(text: str) -> str:
     return hashlib.md5(text.encode("utf-8")).hexdigest()[:16].upper()
 
 
+def probe_score(rank: int) -> int:
+    """Porcentaje de mentira para la prueba: baja con el puesto (95, 92, 89...)."""
+    return max(5, 95 - 3 * (rank - 1))
+
+
 def build_library(tracks: List[Track], round_no: int) -> Dict[str, object]:
     """Biblioteca de iTunes mínima: los temas, la playlist maestra y la de sugerencias en orden."""
     items: Dict[str, object] = {}
     for i, t in enumerate(tracks, start=1):
         tid = 1000 + i
+        probe = {key: f"{prefix} {probe_score(i)} %" for key, prefix in SCORE_PROBE_KEYS}
         items[str(tid)] = {
+            **probe,
             "Track ID": tid, "Name": t.title, "Artist": t.artist,
             "Kind": KINDS.get(t.path.suffix.lower(), "Audio file"),
             "Total Time": int(round(t.seconds * 1000)),
