@@ -39,6 +39,8 @@ cuando se compruebe que Traktor y Rekordbox los conservan.
 | Los programas de DJ ya guardan datos binarios en estos MP3: PRIV `TRAKTOR4` en 172 de 172, GEOB `Key`/`Energy` (Mixed In Key) en 144, GEOB `Serato Markers` en 83 | EVIDENCIA OBSERVADA | muestra de 1 de cada 10 MP3 del paquete |
 | Traktor conserva marcos GEOB ajenos cuando escribe el suyo | INFERENCIA | el PRIV de Traktor convive con los GEOB de Mixed In Key y Serato; no se sabe en qué orden se escribieron |
 | Traktor o Rekordbox conservan un GEOB nuevo («TRAKTOR_ML») después de editar el tema | NO CONCLUYENTE | falta probarlo: en cada programa, importar una copia, cambiar un dato y releer el archivo |
+| [REEMPLAZADO 2026-11-04 por la prueba con Traktor: Traktor sí; Rekordbox sigue sin probar] Traktor 4.4.1 conserva el embedding: Gabriel importó dos copias (MP3 con GEOB, FLAC con el comentario Vorbis), Traktor las analizó y él les cambió el comentario. Traktor escribió los dos archivos (el comentario pasó a «prueba» y renovó su PRIV `TRAKTOR4`), y el embedding quedó idéntico (mismo SHA256), con el mismo `track_uid` | EVIDENCIA OBSERVADA | `traktor_test.py` antes/después, en el escritorio |
+| Rekordbox conserva el embedding | NO CONCLUYENTE | Rekordbox no está en el escritorio: misma prueba donde esté instalado |
 | Leer los embeddings de los archivos en frío desde el pendrive tardaría ~55 s; un `.npy` de 3,6 MB, menos de 1 s | INFERENCIA | la primera página leyendo los tags de 1760 archivos del pendrive tardó 55 s y la segunda 0,46 s; el pendrive lee unos 28 MB/s |
 | Cambiar de modelo obliga a reescribir los tags de todos los archivos | INFERENCIA | el embedding depende del modelo; la etiqueta lleva la versión (`clap_full v1`) |
 
@@ -65,7 +67,9 @@ podría recalcular con un script. Se probó en una copia de los datos, en el esc
    `--prune` no borren esa subcarpeta.
 2. **Además, el embedding en cada MP3 y FLAC**, como respaldo: si se pierde la carpeta de datos, no hay
    que recalcular los embeddings. Va después de la prueba con Traktor y Rekordbox, y con un respaldo de
-   los archivos antes de escribir en los 1752.
+   los archivos antes de escribir en los 1752. [REEMPLAZADO 2026-11-04 por las pruebas: Traktor sí los
+   conserva y el respaldo está hecho (`D:\TRAKTOR ML respaldo 2026-11-04`: los 1760 archivos y
+   `_organizacion.csv`, mismos tamaños, 40 al azar con SHA256 igual). Falta Rekordbox.]
 3. **Cada archivo con su embedding y su lugar** (carpeta, playlist, posición y punto del mapa): la app
    puede rearmar la organización leyendo los archivos, sin recalcularla, y fuera de los archivos solo
    quedan los modelos para ubicar música nueva y la historia de versiones. Mismas condiciones que la 2,
