@@ -42,6 +42,22 @@ cuando se compruebe que Traktor y Rekordbox los conservan.
 | Leer los embeddings de los archivos en frío desde el pendrive tardaría ~55 s; un `.npy` de 3,6 MB, menos de 1 s | INFERENCIA | la primera página leyendo los tags de 1760 archivos del pendrive tardó 55 s y la segunda 0,46 s; el pendrive lee unos 28 MB/s |
 | Cambiar de modelo obliga a reescribir los tags de todos los archivos | INFERENCIA | el embedding depende del modelo; la etiqueta lleva la versión (`clap_full v1`) |
 
+## ¿Recalcular la organización en vez de guardarla?
+
+Pregunta de Gabriel: lo caro son los embeddings; el resto (carpetas, playlists, mapa, nombres) se
+podría recalcular con un script. Se probó en una copia de los datos, en el escritorio.
+
+| Afirmación | Etiqueta | Evidencia |
+|---|---|---|
+| Recalcular toda la organización desde los embeddings y el BPM tarda 20 s | EVIDENCIA OBSERVADA | `organize.build` con los parámetros de `biblioteca` v11 sobre sus 1760 temas |
+| Es determinista: dos cálculos dan exactamente lo mismo | EVIDENCIA OBSERVADA | ARI 1,000 en carpetas y playlists, 54 de 54 playlists iguales |
+| Con los mismos temas, reproduce la organización original | EVIDENCIA OBSERVADA | con los 1786 temas de v1: carpetas con ARI 1,000, playlists 0,978, 48 de 51 playlists juntas en un 90 % o más |
+| Las 11 versiones cambiaron poco: v1 frente a v11 da ARI 0,998; hubo dos fusiones deshechas, el orden a mano de B3 y 26 repetidos quitados | EVIDENCIA OBSERVADA | `org.json` (historia) y la comparación v1/v11 |
+| Pero desde cero es muy sensible a qué temas entran: sin los 26 repetidos (1,5 %), solo 7 de 51 playlists siguen juntas (en promedio, 62 % de sus temas); carpetas con ARI 0,317 | EVIDENCIA OBSERVADA | contraste de una sola variable: mismo código, misma máquina y mismos parámetros; solo cambia el conjunto de temas (1786 frente a 1760) |
+| Por eso la app agrega música sin mover lo que ya está: recalcular desde cero cada vez que se agrega o se quita música desharía la organización que Gabriel eligió escuchando | INFERENCIA | de la fila anterior |
+| Lo que hay que guardar no es caro: el lugar de cada tema (carpeta, playlist, posición y punto del mapa), 5 números por tema. También podría ir en los tags de cada archivo | INFERENCIA | `assignments.parquet` tiene esas columnas (l1, l2, position, x, y) por tema |
+| Para ubicar música nueva sin mover el resto, hoy se usan los modelos PCA y UMAP guardados (4 MB). Sin ellos habría que resolver de otra forma dónde caen los temas nuevos en el mapa | INFERENCIA | `models_v1/` (pca.joblib, umap.joblib); no se leyó cómo los usa `organize.add` |
+
 ## Opciones
 
 1. **Los datos dentro del paquete** (`D:\TRAKTOR ML\` + una subcarpeta de datos): la música, las playlists
@@ -50,3 +66,7 @@ cuando se compruebe que Traktor y Rekordbox los conservan.
 2. **Además, el embedding en cada MP3 y FLAC**, como respaldo: si se pierde la carpeta de datos, no hay
    que recalcular los embeddings. Va después de la prueba con Traktor y Rekordbox, y con un respaldo de
    los archivos antes de escribir en los 1752.
+3. **Cada archivo con su embedding y su lugar** (carpeta, playlist, posición y punto del mapa): la app
+   puede rearmar la organización leyendo los archivos, sin recalcularla, y fuera de los archivos solo
+   quedan los modelos para ubicar música nueva y la historia de versiones. Mismas condiciones que la 2,
+   más resolver los 8 WAV/AIFF.
