@@ -69,6 +69,14 @@ hay internet). Sin la caché de `clap_wholetrack`, la etiqueta Vocal recalcula l
 
 ## Opciones
 
+[REFUTADO 2026-11-04 por un recuento en el escritorio: las opciones 2 y 3 parten de que en el
+escritorio falta la música, y no falta. Los 1760 temas de `biblioteca` ya están en
+`D:\TRAKTOR ML\Musica` y en `C:\TRAKTOR ML\Musica`, ordenados por playlist, y
+`_organizacion.csv` da el archivo y el track_uid de cada uno (los 1760 existen en las dos). No hay
+que copiar `Música/` (37,8 GB): basta con traer `artifacts/v4/datasets/musica/` (0,4 GB) y hacer que
+la app lea los temas del paquete con ese índice. Ese cambio en la app falta hacerlo. Agregar música
+nueva en el escritorio sigue necesitando decidir dónde se guarda y qué copia manda.]
+
 1. **Solo en la laptop.** El escritorio descarga; la música nueva se lleva a la laptop y se agrega
    allí. No se copia nada; en el escritorio la pestaña Organización muestra el aviso. Hay una sola
    organización, así que no hay que decidir cuál manda.

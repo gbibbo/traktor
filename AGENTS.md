@@ -54,6 +54,8 @@ Before declaring a coding unit complete, run the narrowest tests that exercise t
 
 When a result is surprising, check path resolution, dataset cardinality, track UID alignment, failed audio files, model versions, and config values before changing the algorithm.
 
+Before saying that something is missing on a computer, or that it has to be copied or downloaded there, search that computer for it. Look in the repo, the other drives and the pendrive, and for copies under other names or folder layouts; `docs/STATUS.md` says where the copies live. Match by content (track UIDs, hashes, counts), not by path. "The code does not find it at path X" is a different claim from "it is not on this computer": say which one you checked and where you looked. Before proposing to copy or download anything, offer to point the code at the copy that already exists.
+
 For audits, diagnoses, and comparisons between representations, parameters, or organizations, follow `.claude/skills/auditar/SKILL.md` (Claude Code loads it as the `auditar` skill; other agents read the file). A better triplet score is not a better organization: between representations, Gabriel decides by listening.
 
 When a new conclusion kills an old one in the docs, edit the old line in place instead of deleting it: prefix it with `[REFUTADO <date> by <evidence>: <what is true>]` if it was wrong, or `[REEMPLAZADO <date> by <decision or change>: <what applies now>]` if it was right but no longer applies.
