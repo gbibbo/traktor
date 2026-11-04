@@ -20,6 +20,11 @@ CHANGELOG:
   - 2026-11-02: Pestaña «Organización» de la app de descargas (download_JIJIJI/app/descargas_app.py), que
                 la lanza y la muestra dentro de su ventana: /api/ping (¿hay una tarea en curso?) y
                 --exit-on-stdin-eof (se cierra cuando se cierra la app, al terminar la tarea en curso).
+  - 2026-11-04: «Agregar música nueva» cuenta como ya organizadas las copias idénticas (duplicates.csv) y
+                las descartadas por dedupe: en la biblioteca real, «2020 new - copia» decía 246 temas nuevos
+                y no había ninguno.
+  - 2026-11-04: La etiqueta Vocal de la música agregada sale de clap_probe (la regla vigente), no de 'clap':
+                el método viejo le habría quitado la marca a 473 temas de la biblioteca y puesto a 94.
 """
 from __future__ import annotations
 
@@ -189,8 +194,13 @@ class App:
         known = 0
         if inside and folder != self.library:  # temas que ya están en esta organización
             import pandas as pd
+            from src.v4.common.duplicates import dropped
             cat = pd.read_parquet(self.artifacts / "catalog.parquet", columns=["track_uid", "rel_path"])
-            in_org = set(self.store.load()[0]["track_uid"])
+            same_audio = self.artifacts / "duplicates.csv"  # copias idénticas que el catálogo no repite
+            if same_audio.is_file():
+                cat = pd.concat([cat, pd.read_csv(same_audio, usecols=["track_uid", "rel_path"])])
+            # una copia descartada por dedupe tampoco se agrega: su gemela ya está
+            in_org = set(self.store.load()[0]["track_uid"]) | set(dropped(self.artifacts))
             organized = set(cat.loc[cat["track_uid"].isin(in_org), "rel_path"])
             known = sum((p.relative_to(self.library).as_posix() in organized) for p in files)
         size = sum(p.stat().st_size for p in files)
@@ -238,7 +248,9 @@ class App:
             step = S["Detectar voces"]
             job.set(step, 0, "")
             if backend == "clap":
-                run_script([str(pipe / "tag_vocals.py"), *ds, "--method", "clap", "--write-tags"], job, step)
+                # clap_probe, la regla vigente (DECISIONS 2026-10-05): 'clap', el método viejo, reescribía la
+                # marca Vocal de toda la biblioteca. Los temas que ya tienen caché no cambian.
+                run_script([str(pipe / "tag_vocals.py"), *ds, "--method", "clap_probe", "--write-tags"], job, step)
             step = S["Buscar temas repetidos"]
             job.set(step, 0, "Comparando con tu colección…")
             from src.v4.pipeline import dedupe

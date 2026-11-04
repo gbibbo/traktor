@@ -4,14 +4,13 @@ Se inyecta al abrir cada sesión de Claude Code (hook `SessionStart` en `.claude
 Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. Tope 6 KB
 (`tests/test_status_doc.py`). La historia vive en `git log`, `docs/DECISIONS.md` y `docs/reports/`.
 
-## CURRENT STATE (2026-11-02)
+## CURRENT STATE (2026-11-04)
 
 - **Foco: MVP sobre la biblioteca completa** para Rekordbox y Traktor, en CPU local (DECISIONS
-  2026-09-27). Dataset `musica` = `Música/` en la raíz del repo (git-ignorada): 3086 archivos, 2303
-  temas únicos. `test_20` (243 temas) queda como banco de evaluación con tripletas y carpetas propias.
+  2026-09-27). Dataset `musica` = `Música/` en la raíz del repo (git-ignorada): 37,8 GB, 2440 archivos
+  de audio, 1823 temas en el catálogo. `test_20` (243 temas): evaluación (tripletas, carpetas propias).
 - **Organización elegida: CLAP + BPM** (peso 0.3), Ward con 15 carpetas y ~35 temas por playlist,
-  config `fb78f2f6`, 1786 temas. Export en `artifacts/v4/datasets/musica/exports/V4_1/`
-  (`m3u8/`, `rekordbox.xml`, `traktor.nml`). Gabriel la eligió escuchando frente a MAEST-HF capa 7
+  config `fb78f2f6`, 1786 temas. Gabriel la eligió escuchando frente a MAEST-HF capa 7
   (`9e5784c3`), con la salvedad de que no fue del todo a ciegas (DECISIONS 2026-09-29).
 - **Organizaciones estables** (`src/v4/pipeline/organize.py`, `orgs/<nombre>/` con versiones): la
   elegida es `biblioteca` (v1 importada de `fb78f2f6`, mismo mapa). `add` agrega música con lo
@@ -21,16 +20,15 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
   (1760 temas); copias en `Música/_copias/` (`dedupe.py restore-copies` las devuelve). Export
   `exports/biblioteca_v11/` (2026-10-08): 51 playlists, 0 rutas faltantes, 907 Vocal, 27 GB.
 - **Smart App Control activo en la laptop**: bloquea DLLs nuevas; `.venv` fijado en torch 2.7.1 y
-  pyarrow 16.1 (`requirements_v4.txt`). CLAP da lo mismo que con torch 2.14.
+  pyarrow 16.1 (`requirements_v4.txt`).
 - **Tripletas (n = 57): ninguna representación supera al BPM de forma concluyente.** Entre
   representaciones decide la escucha de playlists enteras, no el puntaje.
 - **Etiqueta Vocal (clap_probe, calculada 2026-10-06)**: CLAP del tema entero + clasificador lineal de
-  Electrobyte; Vocal si >= 5 % del tema tiene voz (regla de Gabriel). 936 de 1823 temas Vocal. En
-  MTG-Jamendo: recall 100 %, 20 % de instrumentales marcados. Escrita por Gabriel 2026-10-06 (573 archivos, 0 errores; MP3/FLAC; respaldo
-  `vocal_tags_backup_20261006_111119.csv`): marca y cálculo coinciden en los 1792 MP3/FLAC.
+  Electrobyte; Vocal si >= 5 % del tema tiene voz (regla de Gabriel). 936 de 1823 temas Vocal. Escrita
+  por Gabriel 2026-10-06 (respaldo `vocal_tags_backup_20261006_111119.csv`): marca y cálculo coinciden
+  en los 1792 MP3/FLAC. Desde 11-04 también la usan la app al agregar música y `organize.py ingest`.
 - **Tags de Beatport escritos y verificados** (Gabriel corrió `write_beatport_tags.py`, 2026-09-29):
-  1087 archivos (Genre 785, Released 658, Label 463, Artist 395, Remixers 349), 0 errores, track_uid
-  intacto. Catálogo refrescado (respaldo
+  1087 archivos, 0 errores, track_uid intacto. Catálogo refrescado (respaldo
   `catalog_before_beatport_tags_20260929.parquet`). Los 110 sin confirmar conservan su género.
 - **Pendrive `D:\TRAKTOR ML` (copia en `C:\TRAKTOR ML`)** (DECISIONS 2026-10-30, 11-02): tags y
   carátulas con `package_tags.py` (1630/1760 con carátula; sin fuente: 123 sin carátula, 7 WAV);
@@ -49,8 +47,10 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    Refrescar Traktor de esta PC (`traktor_collection.py`).
 2. GABRIEL: probar la app local (`Abrir TRAKTOR ML.bat`): agregar música nueva, fusiones de temas
    (clic derecho, papelera), orden a mano (⇅), preparar para Rekordbox/Traktor y deshacer.
-   Y la app de descargas con pestañas (LOCAL lee su log); decidir si las playlists usan
-   solo lo elegido en Colección.
+   Y la app de descargas con pestañas (LOCAL lee su log; probadas en la laptop con `biblioteca` v11
+   el 11-04); decidir si las playlists usan solo lo elegido en Colección.
+   ¿Dónde vive la Organización en el escritorio y, si hay dos copias, cuál manda? Opciones:
+   `docs/reports/organizacion_escritorio_2026-11-04.md`.
 3. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
    tracklists y descarga del audio se consultan antes de implementar.
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,

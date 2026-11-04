@@ -139,7 +139,9 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    tienen un significado fijo (a veces son copias de respaldo desordenadas): no se usan como señal.
 8. **La carpeta `Música/Fede` no es de Gabriel**: se borró de la copia local y sale de catálogo,
    playlists y exports.
-9. **Umbral de la etiqueta Vocal: 0.145** (antes 0.15), para que "I Don't Feel Like Dancing" de
+9. [REEMPLAZADO 2026-10-05 por la decisión 2026-10-05, punto 1: Vocal = clap_probe, al menos 5 % del
+   tema con voz; desde 2026-11-04 también al agregar música con la app y `organize.py ingest`]
+   **Umbral de la etiqueta Vocal: 0.145** (antes 0.15), para que "I Don't Feel Like Dancing" de
    Scissor Sisters quede dentro. Se quitó el atributo de solo lectura a los archivos que no se
    podían etiquetar (compilado "Best Of Toolroom 2015").
 10. **El trabajo paralelo de Gabriel vive en `download_JIJIJI/`** y se incluye en los commits y

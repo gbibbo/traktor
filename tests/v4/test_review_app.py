@@ -9,6 +9,8 @@ CHANGELOG:
   - 2026-09-29: /api/reorder y /api/remove-fusion.
   - 2026-09-29: /cover/ (carátula del archivo o de la carpeta).
   - 2026-11-02: /api/ping y --exit-on-stdin-eof (pestaña «Organización» de la app de descargas).
+  - 2026-11-04: Las copias idénticas y las descartadas por dedupe cuentan como ya organizadas; la música
+                agregada se etiqueta Vocal con clap_probe (app y organize.py ingest).
 """
 import json
 import sys
@@ -147,6 +149,50 @@ def test_describe_folder_inside_and_outside(running_app, tmp_path):
     (outside / "x.mp3").write_bytes(b"0" * 10)
     info = json.loads(_req(base + "/api/describe-folder", {"path": str(outside)})[1])
     assert not info["inside"] and Path(info["dest"]).parent == app.library and Path(info["dest"]).name == "Nueva"
+
+
+def test_describe_folder_counts_copies_as_already_organized(running_app):
+    """Una copia idéntica (duplicates.csv) o descartada por dedupe no es música nueva: «Agregar» no la suma."""
+    import pandas as pd
+    from src.v4.common.duplicates import add_decision
+    app, base = running_app
+    a0, a1 = "a0000" + "0" * 56, "a0001" + "0" * 56
+    copia = app.library / "Copia"
+    copia.mkdir()
+    for name in ("t0.mp3", "vieja.mp3", "nuevo.mp3"):
+        (copia / name).write_bytes(b"0" * 10)
+    pd.DataFrame([{"track_uid": a0, "rel_path": "Copia/t0.mp3", "kept_rel_path": "A/t0.mp3"}]).to_csv(
+        app.artifacts / "duplicates.csv", index=False)
+    cat = pd.read_parquet(app.artifacts / "catalog.parquet")
+    gone = "c" * 64
+    pd.concat([cat, pd.DataFrame([{"track_uid": gone, "rel_path": "Copia/vieja.mp3"}])]).to_parquet(
+        app.artifacts / "catalog.parquet", index=False)
+    add_decision(app.artifacts, "mismo", [{"track_uid": gone, "rel_path": "Copia/vieja.mp3"},
+                                          {"track_uid": a1, "rel_path": "A/t1.mp3"}], keep=a1)
+    info = json.loads(_req(base + "/api/describe-folder", {"path": str(copia)})[1])
+    assert info["n_audio"] == 3 and info["n_known"] == 2
+
+
+def test_added_music_gets_the_current_vocal_rule(running_app, monkeypatch):
+    """Agregar música etiqueta Vocal con clap_probe: 'clap' reescribía la marca de toda la biblioteca
+    con la regla vieja. También organize.py ingest."""
+    from src.v4.pipeline import organize
+    app, _ = running_app
+    calls = []
+
+    def fake_run(args, job, step):
+        calls.append([str(a) for a in args])
+        if args[0].endswith("tag_vocals.py"):
+            raise RuntimeError("fin de la prueba")
+    monkeypatch.setattr(review_app, "run_script", fake_run)
+    job = app.add_collection(str(app.library / "A"), keep=True)
+    t0 = time.time()
+    while job.status == "running" and time.time() - t0 < 30:
+        time.sleep(0.05)
+    monkeypatch.setattr(organize, "_run", lambda cmd: calls.append([str(a) for a in cmd[1:]]))
+    organize.ingest("u", "A", "clap_full", vocals=True)
+    vocal = [c for c in calls if c[0].endswith("tag_vocals.py")]
+    assert len(vocal) == 2 and all(c[c.index("--method") + 1] == "clap_probe" and "--write-tags" in c for c in vocal)
 
 
 def test_reorder_and_remove_fusion(running_app):

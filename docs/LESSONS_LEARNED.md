@@ -36,6 +36,13 @@ Dub/Instrumental bajó de 30 % a 25 %. Muestras chicas (etiquetas débiles: «fe
 audible y un dub puede tener recortes de voz). Ningún umbral sobre los 90 s arreglaba las dos cosas.
 **Regla:** para la voz, mirar el tema entero antes de ajustar el umbral.
 
+### Al cambiar un método, cambiar también a quien lo llama
+**Contexto (2026-11-04):** la etiqueta Vocal pasó a `clap_probe` el 2026-10-05, pero «Agregar música
+nueva» de la app y `organize.py ingest` seguían llamando `tag_vocals.py --method clap --write-tags`,
+que recalcula y escribe toda la biblioteca: el primer agregado le habría quitado la marca a 473 temas
+y puesto a 94. **Regla:** al reemplazar un método, buscar todas sus llamadas (`grep -rn` en `src/`,
+`tools/`, `docs/`) y fijar el método vigente en un test.
+
 ### «2020 new - copia» no es un respaldo: es la carpeta de test_20
 **Contexto (2026-09-29):** `data/raw_audio/test_20` es un enlace (junction) a `Música/2020 new - copia`.
 Las reglas que ven «copia» como respaldo (Phase 0 al elegir entre archivos idénticos, `location_rank`)

@@ -24,6 +24,8 @@ CHANGELOG:
                 mover temas), cada uno como versión nueva, para la app.
   - 2026-09-29: Temas repetidos (src/v4/common/duplicates.py): Library excluye las copias descartadas
                 y remove_tracks las saca de la organización (versión 'dedupe').
+  - 2026-11-04: ingest etiqueta Vocal con clap_probe (DECISIONS 2026-10-05, la regla vigente); 'clap', el
+                método viejo, le quitaba la marca a 473 temas de la biblioteca y se la ponía a 94.
 """
 from __future__ import annotations
 
@@ -666,7 +668,7 @@ def ingest(dataset: str, scope: str, rep: str, vocals: bool) -> None:
     _run([py, str(pipe / "extract_representations.py"), "--dataset-name", dataset, "--models", backend,
           "--folder", scope, "--min-duration", "90", "--max-duration", "900"])
     if vocals and backend == "clap":
-        _run([py, str(pipe / "tag_vocals.py"), "--dataset-name", dataset, "--method", "clap", "--write-tags"])
+        _run([py, str(pipe / "tag_vocals.py"), "--dataset-name", dataset, "--method", "clap_probe", "--write-tags"])
 
 
 def show(store: OrgStore) -> None:

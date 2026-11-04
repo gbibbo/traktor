@@ -65,6 +65,8 @@ python src/v4/pipeline/extract_representations.py --dataset-name musica --models
 python src/v4/pipeline/extract_representations.py --dataset-name musica --models clap --threads 8 --min-duration 90 --max-duration 900 --shard 2:0 --low-priority
 python src/v4/pipeline/extract_representations.py --dataset-name musica --models clap --threads 8 --min-duration 90 --max-duration 900 --shard 2:1 --low-priority
 python src/v4/pipeline/extract_representations.py --dataset-name musica --models clap --min-duration 90 --max-duration 900 --assemble-only
+# [REEMPLAZADO 2026-10-05 por clap_probe, las líneas de abajo: --method clap --write-tags reescribe la
+#  marca de toda la biblioteca con la regla vieja (2026-11-04: quitaría Vocal a 473 temas, pondría a 94)]
 # 1c. Etiqueta Vocal (CLAP zero-shot, umbral 0.145). Primero sin escribir; --write-tags agrega
 #     " - Vocal" al comentario (respaldo CSV en features/; --revert <csv> lo deshace)
 python src/v4/pipeline/tag_vocals.py --dataset-name musica --method clap --check-list 12

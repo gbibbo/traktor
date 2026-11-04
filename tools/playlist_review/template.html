@@ -601,6 +601,11 @@ function showFolder(info) {
     body.push(el("p", { text: "No encontré archivos de música en esa carpeta (MP3, WAV, FLAC, AIFF o M4A)." }));
     return openDialog("Agregar música nueva", body, [btn("Cancelar", closeDialog), btn("Elegir otra carpeta", addMusic, true)]);
   }
+  if (info.n_known >= info.n_audio) {  // ya organizados, o copias de temas que ya están: analizar no suma nada
+    body.push(el("p", {}, el("strong", { text: `${fmt(info.n_audio)} ${info.n_audio === 1 ? "tema" : "temas"}` }),
+      ` · ${fmt(info.size_mb)} MB: ${info.n_audio === 1 ? "ya está" : "ya están todos"} en tu organización (o son copias de temas que ya están). No hay nada nuevo para agregar.`));
+    return openDialog("Agregar música nueva", body, [btn("Cerrar", closeDialog), btn("Elegir otra carpeta", addMusic, true)]);
+  }
   body.push(el("p", {}, el("strong", { text: `${fmt(info.n_audio)} ${info.n_audio === 1 ? "tema" : "temas"}` }),
     info.n_known ? ` (${fmt(info.n_known)} ya están organizados; se agregan los otros ${fmt(info.n_audio - info.n_known)})` : "", ` · ${fmt(info.size_mb)} MB`));
   if (!info.inside) body.push(el("div", { class: "callout", style: "--c: var(--warning)" },
