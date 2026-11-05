@@ -7,12 +7,14 @@ PURPOSE: Receptor local de traktor-api-client (mod QML del controlador Kontrol D
          Solo biblioteca estándar; escucha en 127.0.0.1 y ::1, nunca en la red.
 CHANGELOG:
   - 2026-11-04: Creación inicial (prueba de instalación del mod en Traktor 4.4.1).
+  - 2026-11-04: Ctrl+C apaga los dos servidores sin excepción en el hilo de ::1; tonalidad desde key.
 """
 from __future__ import annotations
 
 import argparse
 import datetime as dt
 import json
+import signal
 import socket
 import sys
 import threading
@@ -130,6 +132,23 @@ class _Server6(ThreadingHTTPServer):
     address_family = socket.AF_INET6
 
 
+def serve(servers: List[ThreadingHTTPServer], stop: threading.Event) -> None:
+    """Atiende en hilos hasta que stop se activa (Ctrl+C) y después apaga cada servidor antes de
+    cerrarlo: cerrar el socket con serve_forever corriendo tiraba una excepción en el hilo."""
+    threads = [threading.Thread(target=s.serve_forever, daemon=True) for s in servers]
+    for t in threads:
+        t.start()
+    try:
+        while not stop.wait(0.25):
+            pass
+    finally:
+        for s in servers:
+            s.shutdown()
+            s.server_close()
+        for t in threads:
+            t.join(timeout=2)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Recibe el estado de Traktor desde traktor-api-client")
     ap.add_argument("--port", type=int, default=8080, help="Puerto (el de ApiClient.js, 8080)")
@@ -149,18 +168,15 @@ def main() -> int:
         servers.append(_Server6(("::1", args.port), handler))
     except OSError:
         pass
-    for s in servers[1:]:
-        threading.Thread(target=s.serve_forever, daemon=True).start()
     print(f"[INFO] Escuchando en localhost:{args.port}. Carga un tema en Traktor; Ctrl+C para salir.")
     if log_path is not None:
         print(f"[INFO] Eventos en {log_path}")
+    stop = threading.Event()
+    previous = signal.signal(signal.SIGINT, lambda *_: stop.set())
     try:
-        servers[0].serve_forever()
-    except KeyboardInterrupt:
-        pass
+        serve(servers, stop)
     finally:
-        for s in servers:
-            s.server_close()
+        signal.signal(signal.SIGINT, previous)
     loaded = ", ".join(f"{d}={v.get('title', '')}" for d, v in sorted(state.decks.items()))
     print(f"[INFO] Fin. Decks: {loaded or 'sin datos'}")
     return 0

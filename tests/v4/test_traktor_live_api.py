@@ -21,6 +21,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from tools.traktor_live import instalar_api_client as inst  # noqa: E402
 from tools.traktor_live import sugerencias_explorer as sx  # noqa: E402
+from tools.traktor_live import traktor_estado  # noqa: E402
 from tools.traktor_live.sugerencias_itunes import Track  # noqa: E402
 from tools.traktor_live.traktor_estado import State, make_handler, parse_endpoint  # noqa: E402
 
@@ -99,6 +100,33 @@ def test_server_receives_non_ascii_json(tmp_path):
     assert st.decks["B"]["title"] == "Feel the Fun (Каа)"
     ev = json.loads(log.read_text(encoding="utf-8").splitlines()[0])
     assert ev["kind"] == "deckLoaded" and ev["target"] == "B" and "Каа" in ev["data"]["filePath"]
+
+
+def test_serve_stops_both_servers_without_thread_errors():
+    errors = []
+    previous = threading.excepthook
+    threading.excepthook = lambda a: errors.append(a.exc_value)
+    try:
+        st = State()
+        servers = [ThreadingHTTPServer(("127.0.0.1", 0), make_handler(st, None))]
+        try:
+            servers.append(traktor_estado._Server6(("::1", 0), make_handler(st, None)))
+        except OSError:
+            pass
+        stop = threading.Event()
+        runner = threading.Thread(target=traktor_estado.serve, args=(servers, stop))
+        runner.start()
+        for s in servers:
+            host = "[::1]" if s.address_family != 2 else "127.0.0.1"
+            req = urllib.request.Request(f"http://{host}:{s.server_address[1]}/updateChannel/1",
+                                         data=b'{"isOnAir": true}', method="POST")
+            assert urllib.request.urlopen(req, timeout=5).status == 200
+        stop.set()
+        runner.join(timeout=5)
+        assert not runner.is_alive()
+    finally:
+        threading.excepthook = previous
+    assert errors == [] and st.channels["1"]["isOnAir"] is True
 
 
 def _entry(path: str, title: str) -> ET.Element:
