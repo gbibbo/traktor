@@ -51,8 +51,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
 5. Sugerencias en vivo (`docs/SUGERENCIAS_EN_VIVO.md`): D0 del K2 lleva a 10 nuevas y vuelve; probado
-   en Windows (tag `sugerencias-vivo-v1`), macOS solo con tests. GABRIEL: repetir la prueba con la
-   versión multiplataforma; cálculo de las sugerencias con la trayectoria del set.
+   en Windows (tags `sugerencias-vivo-v1` y `-v2`), macOS solo con tests. GABRIEL + LOCAL: el cálculo
+   de las sugerencias con la trayectoria del set.
 
 ## RUN RECIPES
 

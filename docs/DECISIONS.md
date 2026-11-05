@@ -30,7 +30,8 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    - hay lanzadores `.bat` y `.command`.
 
    macOS está cubierto por tests (corren en Windows y Linux), pero falta probarlo en un Mac con
-   Traktor.
+   Traktor. Gabriel probó esta versión en Windows el mismo día y funcionó (etiqueta
+   `sugerencias-vivo-v2`).
 
 ## 2026-11-04
 

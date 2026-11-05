@@ -11,6 +11,9 @@ Funciona mientras se toca: Traktor sigue usando el controlador como siempre.
   - Desde `#1 BIBO` y `#1 BIBO › PRO`, cada ida mostró la lista recién escrita, en 0,5 a 0,65 s.
   - Cada vuelta llegó a la carpeta con el mismo tema elegido, en 0,6 a 0,8 s.
   - La versión probada tiene la etiqueta `sugerencias-vivo-v1` en GitHub.
+  - La versión para Windows y macOS (`sugerencias-vivo-v2`) se probó en Windows el mismo día, con el
+    lanzador `.bat`: idas de 0,4 a 0,75 s, también desde el pendrive `D:`, y vueltas de 0,6 a 1,1 s,
+    también a una carpeta cuatro niveles adentro (`#1 BIBO › PRO › #2 VA - Best Of Toolroom 2015`).
 - **macOS:** el código y los tests ya cubren las rutas, el MIDI (python-rtmidi), el instalador y el
   permiso de administrador, pero todavía no se probó en un Mac con Traktor.
 - **Los temas son de prueba:** salen al azar de la colección. El cálculo de las sugerencias, con la
