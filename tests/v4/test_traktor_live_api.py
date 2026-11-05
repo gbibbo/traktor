@@ -71,6 +71,9 @@ def test_state_lines():
     assert st.apply("deckLoaded", "A", {"filePath": "C:\\M\\x.mp3", "title": "Friends", "artist": "Solomun",
                                          "bpm": 120.0, "keyText": "10A"}) == [
         "Deck A cargó: Solomun - Friends  [120.0 BPM, 10A]  C:\\M\\x.mp3"]
+    # Traktor 4.4.1 manda keyText vacío y la tonalidad en key (Open Key, "3m" = 10A)
+    assert st.apply("deckLoaded", "B", {"filePath": "C:\\M\\y.mp3", "title": "Younan", "artist": "Ali Farahani",
+                                         "bpm": 208.0, "key": "3m", "keyText": ""})[0].endswith("[208.0 BPM, 3m]  C:\\M\\y.mp3")
     assert st.apply("updateDeck", "A", {"isPlaying": True, "elapsedTime": 65.2}) == ["Deck A ▶ suena en 1:05"]
     assert st.apply("updateDeck", "A", {"elapsedTime": 66.2}) == []
     assert st.apply("updateChannel", "1", {"isOnAir": True}) == ["Canal 1 AL AIRE"]

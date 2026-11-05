@@ -62,7 +62,7 @@ class State:
                 if not data.get("filePath"):
                     return [f"Deck {target}: vacío"]
                 return [f"Deck {target} cargó: {data.get('artist', '')} - {data.get('title', '')}  "
-                        f"[{float(data.get('bpm') or 0):.1f} BPM, {data.get('keyText') or '?'}]  {data.get('filePath')}"]
+                        f"[{float(data.get('bpm') or 0):.1f} BPM, {data.get('keyText') or data.get('key') or '?'}]  {data.get('filePath')}"]
             if kind == "updateDeck":
                 deck = self.decks.setdefault(target, {})
                 lines = []
