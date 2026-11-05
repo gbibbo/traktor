@@ -6,6 +6,19 @@ anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_impl
 Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 `[REEMPLAZADO <fecha> por <decisión>: <lo que rige ahora>]` (o `[REFUTADO …]` si era un error).
 
+## 2026-11-05
+
+1. **Sugerencias en vivo dentro de Traktor con un botón del K2, sin clics en la pantalla** (Gabriel).
+   Gabriel descartó los clics automáticos: no son robustos si él navega el árbol o pliega el panel de
+   temas. Tampoco hace falta rehacer Traktor. Eligió un solo botón, Ch15.Note.D0, cuya preescucha no
+   usaba (no C#0, que despliega el panel): la primera pulsación lleva a 10 sugerencias nuevas y la
+   segunda vuelve a la carpeta donde estaba. Cómo (agente): `sugerencias_vivo.py` lee el K2 junto con
+   Traktor. Escribe el `.nml` en `C:\TRAKTOR ML Sugerencias` y mueve el árbol con el navegador de la
+   pantalla del D2 virtual (`ApiBrowserProbe.qml`). Probado por Gabriel el 11-05 desde `#1 BIBO` y
+   `#1 BIBO › PRO`: cada ida muestra la lista nueva (0,5-0,65 s) y la vuelta llega a la carpeta con el
+   mismo tema elegido (0,6-0,8 s; el tema lo conserva Traktor). Siguiente: el cálculo de las
+   sugerencias con la trayectoria del set (ideas de Gabriel, sin empezar).
+
 ## 2026-11-04
 
 1. **La Organización en el PC de escritorio, sin copiar la música** (Gabriel): del ordenador que

@@ -148,6 +148,8 @@ Kontrol D2 (QML `Traktor.Browser`, también con un D2 virtual) es el de la venta
 Entrar a un **tema** desde esa pantalla lo carga en un deck: la sonda solo entra a carpetas.
 Esa pantalla vio vacía `C:\Users\bibbo` durante 6 s y tardó más de 2 s en dar los nombres de
 `C:\Users` (2026-11-05): las sugerencias van en la raíz de la unidad y el "goto" espera cada nivel.
+Al volver a una carpeta, Traktor conserva solo el tema elegido en la ventana: el `currentIndex` del D2
+no hace falta (en `PRO` la sonda llegó con la lista aún vacía y no lo pudo poner, y el tema estaba).
 
 ### Si Traktor arranca sin la DJM, cambia solo el audio y el K2 deja de responder
 

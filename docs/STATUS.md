@@ -4,7 +4,7 @@ Se inyecta al abrir cada sesión de Claude Code (hook `SessionStart` en `.claude
 Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. Tope 6 KB
 (`tests/test_status_doc.py`). La historia vive en `git log`, `docs/DECISIONS.md` y `docs/reports/`.
 
-## CURRENT STATE (2026-11-04)
+## CURRENT STATE (2026-11-05)
 
 - **Foco: MVP sobre la biblioteca completa** para Rekordbox y Traktor, en CPU local (DECISIONS
   2026-09-27). Dataset `musica` = `Música/` en la raíz del repo (git-ignorada): 37,8 GB, 2440 archivos
@@ -50,9 +50,9 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    tracklists y descarga del audio se consultan antes de implementar.
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
-5. GABRIEL: probar `sugerencias_vivo.py` (D0 del K2: ir a 10 sugerencias y volver), con la DJM
-   encendida antes de abrir Traktor y la sonda del 11-05 (`instalar_api_client.py --sonda`).
-   Probado: el D2 mueve el árbol; Traktor relee el .nml al entrar desde otra carpeta. Temas de prueba.
+5. Sugerencias en vivo (DECISIONS 11-05): D0 del K2 lleva a 10 nuevas y vuelve, probado por Gabriel
+   (`sugerencias_vivo.py`; la DJM encendida antes de abrir Traktor). Los temas aún son de prueba.
+   GABRIEL + LOCAL: el cálculo de las sugerencias con la trayectoria del set.
 
 ## RUN RECIPES
 
