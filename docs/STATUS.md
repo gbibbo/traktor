@@ -50,9 +50,9 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    tracklists y descarga del audio se consultan antes de implementar.
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
-5. GABRIEL: probar `sugerencias_vivo.py` (botón D0 del K2: ir a 10 sugerencias y volver), tras
-   `instalar_api_client.py --sonda` y quitar la preescucha de D0. Base probada: el D2 mueve el árbol
-   y Traktor relee el .nml al entrar desde otra carpeta. Los temas aún son de prueba.
+5. GABRIEL: probar `sugerencias_vivo.py` (D0 del K2: ir a 10 sugerencias y volver), con la DJM
+   encendida antes de abrir Traktor y la sonda del 11-05 (`instalar_api_client.py --sonda`).
+   Probado: el D2 mueve el árbol; Traktor relee el .nml al entrar desde otra carpeta. Temas de prueba.
 
 ## RUN RECIPES
 

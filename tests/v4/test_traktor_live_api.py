@@ -250,6 +250,31 @@ def test_explorer_path_of_the_suggestions_playlist():
                                      "TRAKTOR ML Sugerencias", "TRAKTOR ML Sugerencias NML"]
 
 
+def test_live_suggestions_live_at_the_drive_root():
+    nml = Path("C:\\TRAKTOR ML Sugerencias\\TRAKTOR ML Sugerencias NML.nml")
+    assert sv.explorer_path(nml) == ["Browser", "Explorer", "C:", "TRAKTOR ML Sugerencias",
+                                     "TRAKTOR ML Sugerencias NML"]
+    assert sv.LIVE_DIR.parent == Path(Path.home().anchor)
+
+
+def test_traktor_note_names_and_default_button():
+    assert sv.traktor_name(15, 13) == "Ch15.Note.C#0" and sv.traktor_name(15, 14) == "Ch15.Note.D0"
+    assert sv.traktor_name(1, 60) == "Ch01.Note.C4"
+    assert sv.traktor_name(**sv.DEFAULT_BUTTON) == "Ch15.Note.D0"
+
+
+def test_toggle_retries_a_failed_trip_without_saving_the_halfway_place():
+    target = ["Browser", "Explorer", "C:", "Sug", "Sug NML"]
+    tg = sv.Toggle(target)
+    assert tg.decide("Browser | Explorer | C: | Música", 2) == ("sugerencias", target, 0)
+    tg.failed("sugerencias", target, 0)                    # se quedó en C: > Users
+    assert tg.decide("Browser | Explorer | C: | Users", 0) == ("sugerencias", target, 0)
+    back = tg.decide("Browser | Explorer | C: | Sug | Sug NML", 0)
+    assert back == ("volver", ["Browser", "Explorer", "C:", "Música"], 2)
+    tg.failed(*back)                                       # la vuelta tampoco llegó: se repite
+    assert tg.decide("Browser | Explorer | C:", 0) == back
+
+
 def test_same_name_only_case_and_final_s():
     assert sv.same_name("Playlist", "Playlists") and sv.same_name("música", "Música")
     assert not sv.same_name("A1", "A10") and not sv.same_name("Cluster_0", "Cluster_02")

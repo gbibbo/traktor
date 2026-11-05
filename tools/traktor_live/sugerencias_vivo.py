@@ -11,6 +11,10 @@ PURPOSE: Sugerencias en vivo dentro de Traktor con un botón del K2 (D0 del cana
          sugerencias, con la trayectoria del set, viene después.
 CHANGELOG:
   - 2026-11-04: Creación inicial.
+  - 2026-11-05: El botón es Ch15.Note.D0 sin aprender (la primera prueba aprendió C#0, el que despliega
+                el panel); --aprender sigue para cambiarlo y dice el nombre de Traktor. El .nml va a
+                <unidad>:\\TRAKTOR ML Sugerencias: la pantalla del D2 vio vacía C:\\Users\\bibbo. Si una
+                ida o una vuelta falla, la pulsación siguiente la repite sin pisar el lugar guardado.
 """
 from __future__ import annotations
 
@@ -32,14 +36,21 @@ import src.v4.common  # noqa: E402,F401  (salida UTF-8 en consolas cp1252)
 from src.v4.common.traktor_nml import find_collection  # noqa: E402
 from tools.traktor_live import traktor_estado as te  # noqa: E402
 from tools.traktor_live.midi_monitor import MidiInput, decode, find_input, list_inputs  # noqa: E402
-from tools.traktor_live.sugerencias_explorer import (  # noqa: E402
-    DEFAULT_DIR, entries_by_path, nml_bytes, write_atomic,
-)
+from tools.traktor_live.sugerencias_explorer import entries_by_path, nml_bytes, write_atomic  # noqa: E402
 from tools.traktor_live.sugerencias_itunes import PLAYLIST_NAME, collection_tracks, pick  # noqa: E402
 
-BUTTON_FILE = te.DEFAULT_LOG_DIR / "boton_k2.json"
+BUTTON_FILE = te.DEFAULT_LOG_DIR / "boton_k2.json"          # solo si se cambió con --aprender
+DEFAULT_BUTTON = {"channel": 15, "note": 14}                # Ch15.Note.D0 en el mapeo de Gabriel
 NML_NAME = f"{PLAYLIST_NAME} NML"
+# En la raíz de la unidad del usuario: la pantalla del D2 vio vacía C:\Users\bibbo (2026-11-05)
+LIVE_DIR = Path(Path.home().anchor) / PLAYLIST_NAME
 DEBOUNCE_S = 0.4
+NOTE_NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+
+
+def traktor_name(channel: int, note: int) -> str:
+    """Nombre que muestra el Controller Manager de Traktor: nota 13 = C#0, 14 = D0."""
+    return f"Ch{channel:02d}.Note.{NOTE_NAMES[note % 12]}{note // 12 - 1}"
 
 
 def explorer_path(nml: Path) -> List[str]:
@@ -65,8 +76,17 @@ class Toggle:
     def __init__(self, target: List[str]):
         self.target = target
         self.saved: Optional[Tuple[List[str], int]] = None
+        self.retry: Optional[Tuple[str, List[str], int]] = None
+
+    def failed(self, action: str, path: List[str], index: int) -> None:
+        """No llegó: la pulsación siguiente repite lo mismo (el árbol quedó a medio camino, no es un
+        lugar del DJ que haya que guardar)."""
+        self.retry = (action, path, index)
 
     def decide(self, path: str, index: int) -> Tuple[str, List[str], int]:
+        if self.retry is not None:
+            retry, self.retry = self.retry, None
+            return retry
         cur = [p for p in path.split(" | ") if p]
         if same_path(cur, self.target):
             if self.saved is not None:
@@ -86,7 +106,7 @@ def load_button() -> Optional[dict]:
 
 
 def learn_button(midi: MidiInput, stop: threading.Event) -> Optional[dict]:
-    print("[INFO] Aprieta el botón del K2 que va a abrir las sugerencias (D0)...")
+    print("[INFO] Aprieta el botón del K2 que va a abrir las sugerencias...")
     while not stop.is_set():
         try:
             packed, _ = midi.events.get(timeout=0.2)
@@ -97,7 +117,7 @@ def learn_button(midi: MidiInput, stop: threading.Event) -> Optional[dict]:
             b = {"channel": ch, "note": note}
             BUTTON_FILE.parent.mkdir(parents=True, exist_ok=True)
             BUTTON_FILE.write_text(json.dumps(b), encoding="utf-8")
-            print(f"[OK] Botón: canal {ch}, nota {note} (guardado en {BUTTON_FILE})")
+            print(f"[OK] Botón: {traktor_name(ch, note)} (guardado en {BUTTON_FILE})")
             return b
     return None
 
@@ -127,9 +147,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Sugerencias en vivo en Traktor con un botón del K2")
     ap.add_argument("--port", type=int, default=8080, help="Puerto del receptor (el de ApiClient.js)")
     ap.add_argument("--midi", default="K2", help="Entrada MIDI del K2 (palabra del nombre)")
-    ap.add_argument("--aprender", action="store_true", help="Volver a elegir el botón del K2")
+    ap.add_argument("--aprender", action="store_true",
+                    help="Elegir otro botón del K2 apretándolo (por defecto Ch15.Note.D0)")
     ap.add_argument("--n", type=int, default=10, help="Temas por lista")
-    ap.add_argument("--dir", default=str(DEFAULT_DIR), help="Carpeta del .nml de sugerencias")
+    ap.add_argument("--dir", default=str(LIVE_DIR), help="Carpeta del .nml de sugerencias")
     ap.add_argument("--collection", default=None, help="collection.nml (por defecto la de Traktor)")
     args = ap.parse_args()
 
@@ -176,12 +197,13 @@ def main() -> int:
     serve_thread = threading.Thread(target=te.serve, args=(servers, stop), daemon=True)
     serve_thread.start()
     try:
-        button = None if args.aprender else load_button()
-        if button is None:
+        if args.aprender:
             button = learn_button(midi, stop)
             if button is None:
                 return 0
-        print(f"[INFO] Listo. Botón: canal {button['channel']}, nota {button['note']}. "
+        else:
+            button = load_button() or DEFAULT_BUTTON
+        print(f"[INFO] Listo. Botón: {traktor_name(button['channel'], button['note'])}. "
               f"Sugerencias en {sugg.nml}. Ctrl+C para salir.")
         toggle = Toggle(target)
         last = 0.0
@@ -220,16 +242,17 @@ def press(state: te.State, toggle: Toggle, sugg: Suggestions) -> None:
         print(f"[{dt.datetime.now():%H:%M:%S}] Sugerencias (lista {sugg.round}): "
               + "; ".join(f"{t.artist} - {t.title}" for t in chosen[:3]) + " ...")
     gid = state.enqueue("goto", {"path": path, "index": index})
-    res = state.wait_result(gid, 10.0)
+    res = state.wait_result(gid, 12.0)
     ms = (time.perf_counter() - t0) * 1000
-    if res is None:
-        print("[AVISO] El navegador del D2 no contestó a tiempo")
-    elif res.get("reason") == "gotoDone":
+    now = f"{dt.datetime.now():%H:%M:%S}"
+    if res is not None and res.get("reason") == "gotoDone":
         where = " › ".join(path[1:])
-        print(f"[{dt.datetime.now():%H:%M:%S}] {'En las sugerencias' if action == 'sugerencias' else 'De vuelta en ' + where}"
+        print(f"[{now}] {'En las sugerencias' if action == 'sugerencias' else 'De vuelta en ' + where}"
               f" ({ms:.0f} ms)")
-    else:
-        print(f"[AVISO] No pude llegar: {res.get('error')}")
+        return
+    toggle.failed(action, path, index)
+    why = "el navegador del D2 no contestó a tiempo" if res is None else res.get("error")
+    print(f"[{now}] [AVISO] No pude llegar ({why}). Apretando otra vez lo reintento.")
 
 
 if __name__ == "__main__":

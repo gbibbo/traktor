@@ -14,6 +14,7 @@ CHANGELOG:
   - 2026-11-04: Puerto exclusivo: un segundo receptor avisa y sale (antes Windows lo dejaba abrir en el
                 mismo puerto y el viejo seguía recibiendo).
   - 2026-11-04: Orden "goto" (ruta completa) y wait_result() para esperar el reporte de una orden.
+  - 2026-11-05: Con show_browser=False tampoco imprime el "goto" fallido (lo avisa sugerencias_vivo.py).
 """
 from __future__ import annotations
 
@@ -121,8 +122,8 @@ class State:
                     return [f"Orden «{data.get('cmd')}» rechazada (lo elegido no es una carpeta) en {where}"]
                 if reason == "gotoDone":
                     return [f"Navegador del D2 llegó a {where}"] if self.show_browser else []
-                if reason == "gotoFailed":
-                    return [f"[AVISO] El navegador del D2 no pudo llegar: {data.get('error')}"]
+                if reason == "gotoFailed":              # sugerencias_vivo.py avisa por su cuenta
+                    return [f"[AVISO] El navegador del D2 no pudo llegar: {data.get('error')}"] if self.show_browser else []
                 if reason == "error":
                     return [f"[AVISO] La sonda dio un error: {data.get('error')}"]
                 return [f"Navegador del D2 ({target}) sigue en {where}"] if self.verbose else []

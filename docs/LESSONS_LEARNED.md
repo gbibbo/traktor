@@ -146,6 +146,16 @@ tiene comando para volver a la posición anterior del árbol, pero el navegador 
 Kontrol D2 (QML `Traktor.Browser`, también con un D2 virtual) es el de la ventana: `enterNode` y
 `exitNode` mueven el árbol que ve el DJ y `currentPath` dice dónde está (`ApiBrowserProbe.qml`).
 Entrar a un **tema** desde esa pantalla lo carga en un deck: la sonda solo entra a carpetas.
+Esa pantalla vio vacía `C:\Users\bibbo` durante 6 s y tardó más de 2 s en dar los nombres de
+`C:\Users` (2026-11-05): las sugerencias van en la raíz de la unidad y el "goto" espera cada nivel.
+
+### Si Traktor arranca sin la DJM, cambia solo el audio y el K2 deja de responder
+
+El 2026-11-05 la DJM-750MK2 no estaba conectada al abrir Traktor: Traktor pasó solo de
+`DJM-750MK2 ASIO` a la tarjeta interna (`Senary Audio`), borró el ruteo (Master 3/4, Monitor 1/2) y el
+mapeo del K2 no hacía nada, aunque el K2 mandaba MIDI y el puerto no estaba tomado. Primero conectar y
+encender la DJM, después abrir Traktor. Para volver: Preferences > Audio Setup, o copiar las entradas
+`Audio.*` y `Routing.*Out.Internal.*` de un respaldo en `Backup\Settings\` con Traktor cerrado.
 
 ## Entorno HPC (ver también memory/MEMORY.md)
 
