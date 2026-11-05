@@ -15,3 +15,4 @@ essentia
 nnAudio
 torch==2.7.1  # >=2.6 lo exige transformers para cargar CLAP; 2.14 lo bloquea Smart App Control
 mutagen
+python-rtmidi==1.5.8 ; sys_platform != "win32"  # MIDI de las sugerencias en vivo en macOS (Windows usa winmm)

@@ -1,27 +1,26 @@
 """
-PURPOSE: Monitor MIDI mínimo para Windows (winmm por ctypes, sin paquetes extra). Lista las entradas
-         MIDI, abre una por nombre y muestra cada mensaje (CC, notas) y, al terminar, el mínimo y el
-         máximo de cada control. Sirve para dos pruebas de las sugerencias en vivo: el recorrido de los
-         faders del DJM (CC 17-20 en el canal 1) y si este programa puede leer el K2 mientras Traktor
-         lo tiene abierto (si Windows no comparte el puerto, midiInOpen devuelve "en uso"). El reloj MIDI
-         (el DJM manda el tempo de su contador de BPM) se cuenta aparte y se resume en BPM.
+PURPOSE: Monitor MIDI mínimo (Windows con winmm, macOS con python-rtmidi; ver midi_io.py). Lista las
+         entradas MIDI, abre una por nombre y muestra cada mensaje (CC, notas) y, al terminar, el mínimo
+         y el máximo de cada control. Sirve para dos pruebas de las sugerencias en vivo: el recorrido de
+         los faders del DJM (CC 17-20 en el canal 1) y si este programa puede leer el controlador
+         mientras Traktor lo tiene abierto (si el sistema no comparte el puerto, abrirlo da "en uso").
+         El reloj MIDI (el DJM manda el tempo de su contador de BPM) se cuenta aparte y se resume en BPM.
 CHANGELOG:
   - 2026-11-04: Creación inicial.
   - 2026-11-04: Ctrl+C por un manejador de señal: en la prueba del K2 el KeyboardInterrupt se escapó
                 sin el resumen.
   - 2026-11-04: MidiInput (abrir y cerrar con callback) separado de monitor() para sugerencias_vivo.py.
+  - 2026-11-05: La entrada MIDI pasa a midi_io.py (winmm o python-rtmidi): corre también en macOS.
 """
 from __future__ import annotations
 
 import argparse
-import ctypes
 import queue
 import re
 import signal
 import sys
 import threading
 import time
-from ctypes import wintypes
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -29,20 +28,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
 import src.v4.common  # noqa: E402,F401  (salida UTF-8 en consolas cp1252)
-
-MIM_DATA = 0x3C3
-CALLBACK_FUNCTION = 0x30000
-MMSYSERR_ALLOCATED = 4
-ERRORS = {2: "dispositivo inexistente", 4: "en uso por otro programa (Windows no comparte el puerto)",
-          6: "sin driver", 7: "sin memoria"}
-
+from tools.traktor_live.midi_io import BACKENDS, default_backend, list_inputs, open_input  # noqa: E402,F401
 
 SYSTEM = {0xF8: "clock", 0xFA: "start", 0xFB: "continue", 0xFC: "stop", 0xFE: "active_sensing"}
 QUIET_KINDS = {"clock", "active_sensing"}   # llegan decenas por segundo: se cuentan, no se imprimen
 
 
 def decode(packed: int) -> Tuple[str, int, int, int]:
-    """Mensaje corto de winmm -> (tipo, canal 1-16 o 0 si es de sistema, dato1, dato2)."""
+    """Mensaje corto empaquetado (midi_io) -> (tipo, canal 1-16 o 0 si es de sistema, dato1, dato2)."""
     status, d1, d2 = packed & 0xFF, (packed >> 8) & 0xFF, (packed >> 16) & 0xFF
     if status >= 0xF0:
         return SYSTEM.get(status, f"system_{status:02X}"), 0, d1, d2
@@ -81,27 +74,6 @@ def summarize(events: List[Tuple[str, int, int, int]]) -> Dict[Tuple[int, int], 
     return out
 
 
-class MIDIINCAPSW(ctypes.Structure):
-    _fields_ = [("wMid", wintypes.WORD), ("wPid", wintypes.WORD), ("vDriverVersion", wintypes.UINT),
-                ("szPname", wintypes.WCHAR * 32), ("dwSupport", wintypes.DWORD)]
-
-
-def _winmm():
-    return ctypes.WinDLL("winmm")
-
-
-def list_inputs() -> List[str]:
-    mm = _winmm()
-    names = []
-    for i in range(mm.midiInGetNumDevs()):
-        caps = MIDIINCAPSW()
-        if mm.midiInGetDevCapsW(ctypes.c_size_t(i), ctypes.byref(caps), ctypes.sizeof(caps)) == 0:
-            names.append(caps.szPname)
-        else:
-            names.append(f"<entrada {i} sin datos>")
-    return names
-
-
 def find_input(names: List[str], text: str) -> Optional[int]:
     """Entrada cuyo nombre tiene una palabra que empieza con text ("K2" -> "XONE:K2 MIDI", nunca
     "DJM-750MK2", aunque el K2 no esté conectado). None si no hay ninguna o hay más de una."""
@@ -110,46 +82,8 @@ def find_input(names: List[str], text: str) -> Optional[int]:
     return hits[0] if len(hits) == 1 else None
 
 
-class MidiInput:
-    """Entrada MIDI abierta con callback de winmm: cada mensaje corto va a self.events como
-    (mensaje empaquetado, instante). La usan el monitor y sugerencias_vivo.py."""
-
-    def __init__(self, index: int):
-        self.index = index
-        self.events: "queue.SimpleQueue[Tuple[int, float]]" = queue.SimpleQueue()
-        self._mm = _winmm()
-        self._handle = wintypes.HANDLE()
-        PROC = ctypes.WINFUNCTYPE(None, wintypes.HANDLE, wintypes.UINT, ctypes.c_size_t, ctypes.c_size_t,
-                                  ctypes.c_size_t)
-
-        def on_msg(_h, msg, _inst, p1, _p2):
-            if msg == MIM_DATA:
-                self.events.put((int(p1), time.perf_counter()))
-
-        self._proc = PROC(on_msg)                      # referencia viva mientras la entrada esté abierta
-        self._mm.midiInOpen.argtypes = [ctypes.POINTER(wintypes.HANDLE), wintypes.UINT, PROC, ctypes.c_size_t,
-                                        wintypes.DWORD]
-        self._open = False
-
-    def open(self) -> Optional[str]:
-        """None si quedó abierta; si no, el motivo."""
-        err = self._mm.midiInOpen(ctypes.byref(self._handle), self.index, self._proc, 0, CALLBACK_FUNCTION)
-        if err:
-            return ERRORS.get(err, f"código {err}")
-        self._mm.midiInStart(self._handle)
-        self._open = True
-        return None
-
-    def close(self) -> None:
-        if self._open:
-            self._mm.midiInStop(self._handle)
-            self._mm.midiInReset(self._handle)
-            self._mm.midiInClose(self._handle)
-            self._open = False
-
-
-def monitor(index: int, seconds: Optional[float], quiet: bool) -> int:
-    midi = MidiInput(index)
+def monitor(index: int, seconds: Optional[float], quiet: bool, backend: Optional[str] = None) -> int:
+    midi = open_input(index, backend)
     events = midi.events
     error = midi.open()
     if error:
@@ -189,15 +123,18 @@ def monitor(index: int, seconds: Optional[float], quiet: bool) -> int:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Monitor MIDI (winmm) para las pruebas en vivo")
+    ap = argparse.ArgumentParser(description="Monitor MIDI para las pruebas en vivo")
     ap.add_argument("--port", default=None, help="Parte del nombre de la entrada, p. ej. DJM o K2")
     ap.add_argument("--seconds", type=float, default=None, help="Escuchar N segundos (sin esto, hasta Ctrl+C)")
     ap.add_argument("--quiet", action="store_true", help="Solo el resumen final")
+    ap.add_argument("--backend", choices=BACKENDS, default=None,
+                    help=f"Motor MIDI (por defecto {default_backend()} en este sistema)")
     args = ap.parse_args()
-    if sys.platform != "win32":
-        print("[ERROR] Solo Windows")
+    try:
+        names = list_inputs(args.backend)
+    except RuntimeError as exc:
+        print(f"[ERROR] {exc}")
         return 1
-    names = list_inputs()
     print("[INFO] Entradas MIDI:")
     for i, n in enumerate(names):
         print(f"  {i}: {n}")
@@ -208,7 +145,7 @@ def main() -> int:
         print(f"[ERROR] '{args.port}' no identifica una sola entrada de la lista")
         return 1
     print(f"[INFO] Abriendo {index}: {names[index]}")
-    return monitor(index, args.seconds, args.quiet)
+    return monitor(index, args.seconds, args.quiet, args.backend)
 
 
 if __name__ == "__main__":

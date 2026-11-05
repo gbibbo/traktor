@@ -15,6 +15,7 @@ CHANGELOG:
                 mismo puerto y el viejo seguía recibiendo).
   - 2026-11-04: Orden "goto" (ruta completa) y wait_result() para esperar el reporte de una orden.
   - 2026-11-05: Con show_browser=False tampoco imprime el "goto" fallido (lo avisa sugerencias_vivo.py).
+  - 2026-11-05: open_servers() para este receptor y sugerencias_vivo.py; ::1 solo si el equipo tiene IPv6.
 """
 from __future__ import annotations
 
@@ -236,6 +237,20 @@ class _Server6(ExclusiveServer):
     address_family = socket.AF_INET6
 
 
+def open_servers(port: int, handler) -> List[ThreadingHTTPServer]:
+    """Servidores en 127.0.0.1 y, si el equipo tiene IPv6, en ::1 ("localhost" puede resolver primero a
+    ::1). Si el puerto está ocupado, cierra lo abierto y deja pasar el OSError (ver port_in_use)."""
+    servers: List[ThreadingHTTPServer] = [ExclusiveServer(("127.0.0.1", port), handler)]
+    try:
+        servers.append(_Server6(("::1", port), handler))
+    except OSError as exc:
+        if port_in_use(exc):
+            for s in servers:
+                s.server_close()
+            raise
+    return servers
+
+
 def serve(servers: List[ThreadingHTTPServer], stop: threading.Event) -> None:
     """Atiende en hilos hasta que stop se activa (Ctrl+C) y después apaga cada servidor antes de
     cerrarlo: cerrar el socket con serve_forever corriendo tiraba una excepción en el hilo."""
@@ -267,17 +282,9 @@ def main() -> int:
         log_path.parent.mkdir(parents=True, exist_ok=True)
     state = State(verbose=args.verbose)
     handler = make_handler(state, log_path)
-    servers: List[ThreadingHTTPServer] = []
     try:
-        servers.append(ExclusiveServer(("127.0.0.1", args.port), handler))
-        try:                                    # "localhost" puede resolver primero a ::1
-            servers.append(_Server6(("::1", args.port), handler))
-        except OSError as exc:
-            if port_in_use(exc):
-                raise
+        servers = open_servers(args.port, handler)
     except OSError as exc:
-        for s in servers:
-            s.server_close()
         if port_in_use(exc):
             print(f"[ERROR] El puerto {args.port} ya lo usa otro programa (¿otra ventana con este receptor?). "
                   "Cerrarla con Ctrl+C y volver a correr esto.")

@@ -1,12 +1,18 @@
 """
-PURPOSE: Sugerencias en vivo dentro de Traktor con un botón del K2 (D0 del canal 15, sin otra función en
-         Traktor). Junta el receptor de traktor_estado.py (estado de los decks y el navegador de la
-         pantalla del D2, que es el mismo árbol que ve el DJ) y la entrada MIDI del K2, que Windows
-         comparte con Traktor. Al apretar el botón: guarda en qué carpeta y en qué tema está el árbol,
-         escribe 10 temas nuevos en el .nml de la carpeta de sugerencias y lleva el árbol a esa playlist
-         pasando por su carpeta (Traktor relee un .nml del Explorer al entrar desde otra carpeta). Al
-         apretarlo otra vez, vuelve a la carpeta y al tema guardados. Si el DJ se fue de las sugerencias
-         por su cuenta, el botón vuelve a mostrarle 10 nuevas.
+PURPOSE: Sugerencias en vivo dentro de Traktor con un botón del controlador MIDI, en Windows y macOS
+         (guía completa: docs/SUGERENCIAS_EN_VIVO.md). Junta el receptor de traktor_estado.py (estado de
+         los decks y el navegador de la pantalla del D2, que es el mismo árbol que ve el DJ) y la entrada
+         MIDI del controlador (midi_io.py), que el sistema comparte con Traktor. Al apretar el botón:
+         guarda en qué carpeta está el árbol, escribe N temas nuevos en el .nml de la carpeta de
+         sugerencias y lleva el árbol a esa playlist pasando por su carpeta (Traktor relee un .nml del
+         Explorer al entrar desde otra carpeta). Al apretarlo otra vez, vuelve a la carpeta guardada, y
+         Traktor conserva el tema que estaba elegido. Si el DJ se fue de las sugerencias por su cuenta,
+         el botón vuelve a mostrarle N nuevas.
+         Se adapta sin tocar el código: controlador (--midi), botón (--aprender, nota o CC), cantidad
+         (--n), carpeta (--dir), motor MIDI (--backend). Lo elegido queda en
+         artifacts/v4/traktor_live/sugerencias_vivo.json, junto con el camino del árbol hasta la
+         playlist si Traktor lo muestra distinto del calculado (navegar una vez a mano hasta la playlist
+         y apretar el botón lo enseña).
          Los temas son de prueba (rondas de la colección con cues propios): el cálculo de las
          sugerencias, con la trayectoria del set, viene después.
 CHANGELOG:
@@ -15,49 +21,108 @@ CHANGELOG:
                 el panel); --aprender sigue para cambiarlo y dice el nombre de Traktor. El .nml va a
                 <unidad>:\\TRAKTOR ML Sugerencias: la pantalla del D2 vio vacía C:\\Users\\bibbo. Si una
                 ida o una vuelta falla, la pulsación siguiente la repite sin pisar el lugar guardado.
+  - 2026-11-05: Probado por Gabriel en Traktor 4.4.1 (Windows): ida 0,5-0,65 s, vuelta 0,6-0,8 s.
+  - 2026-11-05: Windows y macOS (midi_io.py; en Mac el .nml va a /Users/Shared/TRAKTOR ML Sugerencias),
+                cualquier controlador y botón (nota o CC), ajustes guardados en sugerencias_vivo.json y
+                camino del árbol aprendido si Traktor no muestra la carpeta como se calculó.
 """
 from __future__ import annotations
 
 import argparse
 import datetime as dt
 import json
+import queue
 import signal
 import sys
 import threading
 import time
 import xml.etree.ElementTree as ET
-from pathlib import Path
-from typing import List, Optional, Tuple
+from dataclasses import asdict, dataclass
+from pathlib import Path, PurePosixPath, PureWindowsPath
+from typing import Callable, Dict, List, Optional, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
 import src.v4.common  # noqa: E402,F401  (salida UTF-8 en consolas cp1252)
-from src.v4.common.traktor_nml import find_collection  # noqa: E402
+from src.v4.common.traktor_nml import DEFAULT_MAC_BOOT_VOLUME, find_collection, mac_boot_volume  # noqa: E402
 from tools.traktor_live import traktor_estado as te  # noqa: E402
-from tools.traktor_live.midi_monitor import MidiInput, decode, find_input, list_inputs  # noqa: E402
+from tools.traktor_live.midi_io import BACKENDS, default_backend, list_inputs, open_input  # noqa: E402
+from tools.traktor_live.midi_monitor import decode, find_input  # noqa: E402
 from tools.traktor_live.sugerencias_explorer import entries_by_path, nml_bytes, write_atomic  # noqa: E402
 from tools.traktor_live.sugerencias_itunes import PLAYLIST_NAME, collection_tracks, pick  # noqa: E402
 
-BUTTON_FILE = te.DEFAULT_LOG_DIR / "boton_k2.json"          # solo si se cambió con --aprender
-DEFAULT_BUTTON = {"channel": 15, "note": 14}                # Ch15.Note.D0 en el mapeo de Gabriel
+SETTINGS_FILE = te.DEFAULT_LOG_DIR / "sugerencias_vivo.json"
 NML_NAME = f"{PLAYLIST_NAME} NML"
-# En la raíz de la unidad del usuario: la pantalla del D2 vio vacía C:\Users\bibbo (2026-11-05)
-LIVE_DIR = Path(Path.home().anchor) / PLAYLIST_NAME
+DEFAULT_MIDI = "K2"
 DEBOUNCE_S = 0.4
 NOTE_NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 
 
+@dataclass(frozen=True)
+class Button:
+    """Botón del controlador: una nota (note_on con velocidad > 0) o un CC (valor >= 64)."""
+    kind: str          # "note" o "cc"
+    channel: int       # 1-16
+    number: int        # nota o número de CC
+
+    def name(self) -> str:
+        """Como lo muestra el Controller Manager de Traktor: nota 13 = C#0, 14 = D0."""
+        if self.kind == "cc":
+            return f"Ch{self.channel:02d}.CC.{self.number:03d}"
+        return f"Ch{self.channel:02d}.Note.{NOTE_NAMES[self.number % 12]}{self.number // 12 - 1}"
+
+    def pressed(self, kind: str, ch: int, d1: int, d2: int) -> bool:
+        if ch != self.channel or d1 != self.number:
+            return False
+        return (kind == "note_on" and d2 > 0) if self.kind == "note" else (kind == "cc" and d2 >= 64)
+
+    @staticmethod
+    def from_event(kind: str, ch: int, d1: int, d2: int) -> Optional["Button"]:
+        """El botón que mandó este mensaje, si parece un botón apretado."""
+        if kind == "note_on" and d2 > 0:
+            return Button("note", ch, d1)
+        if kind == "cc" and d2 >= 64:
+            return Button("cc", ch, d1)
+        return None
+
+
+DEFAULT_BUTTON = Button("note", 15, 14)             # Ch15.Note.D0 en el mapeo del K2 de Gabriel
+
+
 def traktor_name(channel: int, note: int) -> str:
-    """Nombre que muestra el Controller Manager de Traktor: nota 13 = C#0, 14 = D0."""
-    return f"Ch{channel:02d}.Note.{NOTE_NAMES[note % 12]}{note // 12 - 1}"
+    return Button("note", channel, note).name()
 
 
-def explorer_path(nml: Path) -> List[str]:
-    """Ruta del navegador de Traktor hasta la playlist: Browser | Explorer | C: | ... | <nombre>."""
-    parts = [p for p in nml.parent.parts]
-    drive = parts[0].rstrip("\\/")
-    return ["Browser", "Explorer", drive] + parts[1:] + [nml.stem]
+def default_live_dir(platform: Optional[str] = None, home: Optional[str] = None) -> str:
+    """Carpeta del .nml de sugerencias. Windows: raíz de la unidad del usuario (la pantalla del D2 vio
+    vacía C:\\Users\\bibbo). macOS: /Users/Shared, que todos pueden escribir y no pasa por la carpeta
+    personal. Otros sistemas: la carpeta personal."""
+    system = platform or sys.platform
+    home = home or str(Path.home())
+    if system == "win32":
+        return str(PureWindowsPath(PureWindowsPath(home).anchor) / PLAYLIST_NAME)
+    if system == "darwin":
+        return str(PurePosixPath("/Users/Shared") / PLAYLIST_NAME)
+    return str(PurePosixPath(home) / PLAYLIST_NAME)
+
+
+def explorer_path(nml, platform: Optional[str] = None, boot_volume: Optional[str] = None) -> List[str]:
+    """Ruta del navegador de Traktor hasta la playlist. Windows: Browser | Explorer | C: | ... | <nombre>.
+    macOS: Browser | Explorer | <disco> | ... | <nombre>, con el disco de arranque para lo que cuelga de
+    "/" y el nombre del disco para /Volumes/<disco>/... (si Traktor lo muestra distinto, se aprende)."""
+    system = platform or sys.platform
+    if system == "win32":
+        p = PureWindowsPath(str(nml))
+        return ["Browser", "Explorer", p.drive] + list(p.parts[1:-1]) + [p.stem]
+    p = PurePosixPath(str(nml))
+    parts = list(p.parts[1:-1])
+    if parts[:1] == ["Volumes"] and len(parts) >= 2:
+        volume, rest = parts[1], parts[2:]
+    else:
+        volume = boot_volume or (mac_boot_volume() if system == "darwin" else DEFAULT_MAC_BOOT_VOLUME)
+        rest = parts
+    return ["Browser", "Explorer", volume] + rest + [p.stem]
 
 
 def same_name(a: str, b: str) -> bool:
@@ -71,53 +136,83 @@ def same_path(a: List[str], b: List[str]) -> bool:
 
 
 class Toggle:
-    """Qué hace cada pulsación: ir a las sugerencias (guardando dónde estaba) o volver."""
+    """Qué hace cada pulsación: ir a las sugerencias (guardando dónde estaba) o volver. La playlist se
+    reconoce por su camino o, si Traktor la muestra por otro, por sus dos últimos nombres (carpeta y
+    playlist): ese camino nuevo pasa a ser el destino y se avisa a on_learn para guardarlo."""
 
-    def __init__(self, target: List[str]):
-        self.target = target
+    def __init__(self, target: List[str], on_learn: Optional[Callable[[List[str]], None]] = None):
+        self.target = list(target)
         self.saved: Optional[Tuple[List[str], int]] = None
         self.retry: Optional[Tuple[str, List[str], int]] = None
+        self.on_learn = on_learn
 
     def failed(self, action: str, path: List[str], index: int) -> None:
         """No llegó: la pulsación siguiente repite lo mismo (el árbol quedó a medio camino, no es un
         lugar del DJ que haya que guardar)."""
         self.retry = (action, path, index)
 
+    def at_target(self, cur: List[str]) -> bool:
+        if same_path(cur, self.target):
+            return True
+        tail = self.target[-2:]
+        if len(cur) > len(tail) and same_path(cur[-len(tail):], tail):
+            self.target = list(cur)
+            if self.on_learn is not None:
+                self.on_learn(list(cur))
+            return True
+        return False
+
     def decide(self, path: str, index: int) -> Tuple[str, List[str], int]:
+        cur = [p for p in path.split(" | ") if p]
         if self.retry is not None:
             retry, self.retry = self.retry, None
-            return retry
-        cur = [p for p in path.split(" | ") if p]
-        if same_path(cur, self.target):
+            if not (retry[0] == "sugerencias" and self.at_target(cur)):
+                return retry if retry[0] == "volver" else ("sugerencias", self.target, 0)
+            # el DJ llegó a mano a las sugerencias después de un intento fallido: sigue como siempre
+        if self.at_target(cur):
             if self.saved is not None:
                 saved, self.saved = self.saved, None
                 return "volver", saved[0], saved[1]
-            return "sugerencias", self.target, 0          # sin lugar guardado: 10 nuevas
+            return "sugerencias", self.target, 0          # sin lugar guardado: N nuevas
         self.saved = (cur, index)
         return "sugerencias", self.target, 0
 
 
-def load_button() -> Optional[dict]:
+# ---------------------------------------------------------------- ajustes guardados
+
+def load_settings(path: Path = SETTINGS_FILE) -> dict:
     try:
-        b = json.loads(BUTTON_FILE.read_text(encoding="utf-8"))
-        return {"channel": int(b["channel"]), "note": int(b["note"])}
-    except (OSError, ValueError, KeyError, TypeError):
-        return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
 
 
-def learn_button(midi: MidiInput, stop: threading.Event) -> Optional[dict]:
-    print("[INFO] Aprieta el botón del K2 que va a abrir las sugerencias...")
+def save_settings(data: dict, path: Path = SETTINGS_FILE) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(path)
+
+
+def button_from_settings(data: dict) -> Button:
+    b = data.get("button")
+    try:
+        return Button(str(b["kind"]), int(b["channel"]), int(b["number"]))
+    except (TypeError, KeyError, ValueError):
+        return DEFAULT_BUTTON
+
+
+def learn_button(events: "queue.SimpleQueue", stop: threading.Event) -> Optional[Button]:
+    print("[INFO] Aprieta el botón del controlador que va a abrir las sugerencias...")
     while not stop.is_set():
         try:
-            packed, _ = midi.events.get(timeout=0.2)
-        except Exception:
+            packed, _ = events.get(timeout=0.2)
+        except queue.Empty:
             continue
-        kind, ch, note, vel = decode(packed)
-        if kind == "note_on" and vel > 0:
-            b = {"channel": ch, "note": note}
-            BUTTON_FILE.parent.mkdir(parents=True, exist_ok=True)
-            BUTTON_FILE.write_text(json.dumps(b), encoding="utf-8")
-            print(f"[OK] Botón: {traktor_name(ch, note)} (guardado en {BUTTON_FILE})")
+        b = Button.from_event(*decode(packed))
+        if b is not None:
+            print(f"[OK] Botón: {b.name()}")
             return b
     return None
 
@@ -144,31 +239,66 @@ class Suggestions:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Sugerencias en vivo en Traktor con un botón del K2")
-    ap.add_argument("--port", type=int, default=8080, help="Puerto del receptor (el de ApiClient.js)")
-    ap.add_argument("--midi", default="K2", help="Entrada MIDI del K2 (palabra del nombre)")
+    ap = argparse.ArgumentParser(description="Sugerencias en vivo en Traktor con un botón del controlador "
+                                             "(Windows y macOS; guía: docs/SUGERENCIAS_EN_VIVO.md)")
+    ap.add_argument("--midi", default=None,
+                    help=f"Parte del nombre de la entrada MIDI del controlador (por defecto la guardada o {DEFAULT_MIDI})")
     ap.add_argument("--aprender", action="store_true",
-                    help="Elegir otro botón del K2 apretándolo (por defecto Ch15.Note.D0)")
-    ap.add_argument("--n", type=int, default=10, help="Temas por lista")
-    ap.add_argument("--dir", default=str(LIVE_DIR), help="Carpeta del .nml de sugerencias")
+                    help=f"Elegir otro botón apretándolo (por defecto {DEFAULT_BUTTON.name()}); nota o CC")
+    ap.add_argument("--n", type=int, default=None, help="Temas por lista (por defecto el guardado o 10)")
+    ap.add_argument("--dir", default=None, help="Carpeta del .nml de sugerencias (por defecto la guardada o "
+                                                f"{default_live_dir()})")
+    ap.add_argument("--backend", choices=BACKENDS, default=None,
+                    help=f"Motor MIDI (por defecto {default_backend()} en este sistema)")
+    ap.add_argument("--listar", action="store_true", help="Mostrar las entradas MIDI y salir")
     ap.add_argument("--collection", default=None, help="collection.nml (por defecto la de Traktor)")
+    ap.add_argument("--port", type=int, default=8080,
+                    help="Puerto del receptor; tiene que ser el de ApiClient.js y ApiBrowserProbe.qml (8080)")
+    ap.add_argument("--ajustes", default=str(SETTINGS_FILE), help=argparse.SUPPRESS)
     args = ap.parse_args()
+
+    settings_path = Path(args.ajustes)
+    settings = load_settings(settings_path)
+    if args.midi:
+        settings["midi"] = args.midi
+    if args.n:
+        settings["n"] = args.n
+    if args.dir:
+        settings["dir"] = args.dir
+    if args.backend:
+        settings["backend"] = args.backend
+
+    backend = settings.get("backend") or default_backend()
+    try:
+        names = list_inputs(backend)
+    except RuntimeError as exc:
+        print(f"[ERROR] {exc}")
+        return 1
+    if args.listar:
+        print(f"[INFO] Entradas MIDI ({backend}):")
+        for i, name in enumerate(names):
+            print(f"  {i}: {name}")
+        return 0
 
     collection = Path(args.collection) if args.collection else find_collection()
     if collection is None or not collection.exists():
-        print("[ERROR] No encontré collection.nml de Traktor")
+        print("[ERROR] No encontré collection.nml de Traktor (Documentos/Native Instruments/Traktor*); "
+              "indicarlo con --collection")
         return 1
-    sugg = Suggestions(collection, Path(args.dir), args.n)
+    out_dir = Path(settings.get("dir") or default_live_dir())
+    sugg = Suggestions(collection, out_dir, int(settings.get("n") or 10))
     if not sugg.nml.exists():
         sugg.next()                                         # para que la playlist exista en el Explorer
-    target = explorer_path(sugg.nml)
+    learned: Dict[str, List[str]] = settings.get("destinos") or {}
+    target = learned.get(str(sugg.nml)) or explorer_path(sugg.nml)
 
-    names = list_inputs()
-    idx = find_input(names, args.midi)
+    midi_text = settings.get("midi") or DEFAULT_MIDI
+    idx = find_input(names, midi_text)
     if idx is None:
-        print(f"[ERROR] No encontré una sola entrada MIDI con «{args.midi}»: {names}")
+        print(f"[ERROR] «{midi_text}» no identifica una sola entrada MIDI. Entradas: {names}. "
+              "Elegir con --midi (una palabra del nombre)")
         return 1
-    midi = MidiInput(idx)
+    midi = open_input(idx, backend)
     error = midi.open()
     if error:
         print(f"[ERROR] No pude abrir {names[idx]}: {error}")
@@ -177,18 +307,13 @@ def main() -> int:
     state = te.State(show_browser=False)
     log_path = te.DEFAULT_LOG_DIR / f"sugerencias_vivo_{dt.datetime.now():%Y%m%d_%H%M%S}.jsonl"
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    handler = te.make_handler(state, log_path)
-    servers: List = []
     try:
-        servers.append(te.ExclusiveServer(("127.0.0.1", args.port), handler))
-        servers.append(te._Server6(("::1", args.port), handler))
+        servers = te.open_servers(args.port, te.make_handler(state, log_path))
     except OSError as exc:
-        for s in servers:
-            s.server_close()
         midi.close()
         if te.port_in_use(exc):
-            print(f"[ERROR] El puerto {args.port} ya lo usa otro programa (¿traktor_estado.py abierto?). "
-                  "Cerrarlo con Ctrl+C y volver a correr esto.")
+            print(f"[ERROR] El puerto {args.port} ya lo usa otro programa (¿traktor_estado.py u otra ventana de "
+                  "esto abierta?). Cerrarlo con Ctrl+C y volver a correr esto.")
             return 1
         raise
 
@@ -198,22 +323,29 @@ def main() -> int:
     serve_thread.start()
     try:
         if args.aprender:
-            button = learn_button(midi, stop)
+            button = learn_button(midi.events, stop)
             if button is None:
                 return 0
+            settings["button"] = asdict(button)
         else:
-            button = load_button() or DEFAULT_BUTTON
-        print(f"[INFO] Listo. Botón: {traktor_name(button['channel'], button['note'])}. "
+            button = button_from_settings(settings)
+        save_settings(settings, settings_path)
+
+        def remember(path: List[str]) -> None:
+            settings.setdefault("destinos", {})[str(sugg.nml)] = path
+            save_settings(settings, settings_path)
+            print(f"[OK] Aprendí el camino hasta las sugerencias: {' › '.join(path[1:])}")
+
+        print(f"[INFO] Listo. Controlador: {names[idx]}. Botón: {button.name()}. "
               f"Sugerencias en {sugg.nml}. Ctrl+C para salir.")
-        toggle = Toggle(target)
+        toggle = Toggle(target, on_learn=remember)
         last = 0.0
         while not stop.is_set():
             try:
                 packed, t = midi.events.get(timeout=0.1)
-            except Exception:
+            except queue.Empty:
                 continue
-            kind, ch, note, vel = decode(packed)
-            if not (kind == "note_on" and vel > 0 and ch == button["channel"] and note == button["note"]):
+            if not button.pressed(*decode(packed)):
                 continue
             if t - last < DEBOUNCE_S:
                 continue
@@ -233,8 +365,8 @@ def press(state: te.State, toggle: Toggle, sugg: Suggestions) -> None:
     rid = state.enqueue("report")
     rep = state.wait_result(rid, 2.0)
     if rep is None:
-        print("[AVISO] La pantalla del D2 no responde: ¿Traktor abierto, con el Kontrol D2 agregado y la sonda "
-              "instalada (instalar_api_client.py --sonda)?")
+        print("[AVISO] La pantalla del D2 no responde: ¿Traktor abierto, con el Kontrol D2 agregado en el "
+              "Controller Manager y la sonda instalada (instalar_api_client.py --sonda)?")
         return
     action, path, index = toggle.decide(rep.get("path", ""), int(rep.get("currentIndex", -1)))
     if action == "sugerencias":
@@ -253,6 +385,9 @@ def press(state: te.State, toggle: Toggle, sugg: Suggestions) -> None:
     toggle.failed(action, path, index)
     why = "el navegador del D2 no contestó a tiempo" if res is None else res.get("error")
     print(f"[{now}] [AVISO] No pude llegar ({why}). Apretando otra vez lo reintento.")
+    if action == "sugerencias":
+        print(f"         Si Traktor muestra la carpeta por otro camino: navega a mano una vez hasta la playlist "
+              f"«{NML_NAME}» y aprieta el botón; aprendo ese camino.")
 
 
 if __name__ == "__main__":

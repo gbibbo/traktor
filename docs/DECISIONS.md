@@ -18,6 +18,19 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    `#1 BIBO › PRO`: cada ida muestra la lista nueva (0,5-0,65 s) y la vuelta llega a la carpeta con el
    mismo tema elegido (0,6-0,8 s; el tema lo conserva Traktor). Siguiente: el cálculo de las
    sugerencias con la trayectoria del set (ideas de Gabriel, sin empezar).
+2. **Las sugerencias en vivo quedan registradas en GitHub y tienen que funcionar en Windows y macOS, y
+   adaptarse a otro equipo** (Gabriel). Cómo (agente):
+   - la versión probada tiene la etiqueta `sugerencias-vivo-v1`;
+   - la guía es `docs/SUGERENCIAS_EN_VIVO.md`;
+   - el MIDI va por `midi_io.py`: winmm en Windows, python-rtmidi en macOS;
+   - el instalador encuentra Traktor en los dos sistemas;
+   - las rutas de la colección de Mac se leen (VOLUME es el nombre del disco);
+   - el controlador, el botón (nota o CC), la cantidad y la carpeta se eligen y quedan guardados;
+   - el camino del árbol se aprende si Traktor lo muestra distinto;
+   - hay lanzadores `.bat` y `.command`.
+
+   macOS está cubierto por tests (corren en Windows y Linux), pero falta probarlo en un Mac con
+   Traktor.
 
 ## 2026-11-04
 

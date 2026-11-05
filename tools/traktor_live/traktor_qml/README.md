@@ -15,4 +15,10 @@ No lee nada de la red: solo envía. La recibe `tools/traktor_live/traktor_estado
 
 El original reemplaza `CSI/D2/D2.qml` por uno propio. Ese archivo es el de Traktor con dos líneas
 más (`import "./Api"` y `ApiModule {}`), así que `instalar_api_client.py` agrega esas dos líneas al
-`D2.qml` de la versión instalada de Traktor en vez de reemplazarlo, y guarda antes una copia.
+`D2.qml` de la versión instalada de Traktor en vez de reemplazarlo, y guarda antes una copia. Funciona
+en Windows (`Resources64/qml`) y macOS (`Traktor*.app/Contents/Resources/qml`).
+
+`Screens/ApiBrowserProbe.qml` es nuestro (no viene del mod): la sonda que mueve el navegador de la
+pantalla del D2, que es el árbol de Traktor, para las sugerencias en vivo
+(`docs/SUGERENCIAS_EN_VIVO.md`). `instalar_api_client.py --sonda` la agrega al final de
+`Screens/S8/Views/Screen.qml`.

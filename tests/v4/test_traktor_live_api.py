@@ -5,8 +5,11 @@ PURPOSE: Tests de las herramientas en vivo de Traktor: instalar_api_client.py (p
          copiadas de la colección, no pisa ni borra archivos ajenos).
 CHANGELOG:
   - 2026-11-04: Creación inicial.
+  - 2026-11-05: Rutas de Windows explícitas (corren igual en macOS y Linux); lo multiplataforma, en
+                test_traktor_live_platforms.py.
 """
 import json
+import re
 import sys
 import threading
 import time
@@ -14,7 +17,7 @@ import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
 from http.server import ThreadingHTTPServer
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import pytest
 
@@ -208,7 +211,9 @@ def test_serve_stops_both_servers_without_thread_errors():
 
 
 def _entry(path: str, title: str) -> ET.Element:
-    p = Path(path)
+    """ENTRY como la escribe Traktor: "C:" y la ruta en Windows; en macOS/Linux (archivos de prueba en
+    /tmp) VOLUME vacío, que entry_path lee desde "/"."""
+    p = PureWindowsPath(path) if re.match(r"[A-Za-z]:", path) else PurePosixPath(path)
     e = ET.Element("ENTRY", TITLE=title, ARTIST="A")
     ET.SubElement(e, "LOCATION", DIR="/:" + "/:".join(p.parent.parts[1:]) + "/:", FILE=p.name, VOLUME=p.drive)
     ET.SubElement(e, "CUE_V2", NAME="n.n.", TYPE="0", START="1000.0", HOTCUE="0")
@@ -245,22 +250,22 @@ def test_explorer_never_overwrites_or_removes_foreign_files(tmp_path):
 
 
 def test_explorer_path_of_the_suggestions_playlist():
-    nml = Path("C:\\Users\\bibbo\\Music\\TRAKTOR ML Sugerencias\\TRAKTOR ML Sugerencias NML.nml")
-    assert sv.explorer_path(nml) == ["Browser", "Explorer", "C:", "Users", "bibbo", "Music",
-                                     "TRAKTOR ML Sugerencias", "TRAKTOR ML Sugerencias NML"]
+    nml = "C:\\Users\\bibbo\\Music\\TRAKTOR ML Sugerencias\\TRAKTOR ML Sugerencias NML.nml"
+    assert sv.explorer_path(nml, "win32") == ["Browser", "Explorer", "C:", "Users", "bibbo", "Music",
+                                              "TRAKTOR ML Sugerencias", "TRAKTOR ML Sugerencias NML"]
 
 
 def test_live_suggestions_live_at_the_drive_root():
-    nml = Path("C:\\TRAKTOR ML Sugerencias\\TRAKTOR ML Sugerencias NML.nml")
-    assert sv.explorer_path(nml) == ["Browser", "Explorer", "C:", "TRAKTOR ML Sugerencias",
-                                     "TRAKTOR ML Sugerencias NML"]
-    assert sv.LIVE_DIR.parent == Path(Path.home().anchor)
+    nml = "C:\\TRAKTOR ML Sugerencias\\TRAKTOR ML Sugerencias NML.nml"
+    assert sv.explorer_path(nml, "win32") == ["Browser", "Explorer", "C:", "TRAKTOR ML Sugerencias",
+                                              "TRAKTOR ML Sugerencias NML"]
+    assert sv.default_live_dir("win32", "C:\\Users\\bibbo") == "C:\\TRAKTOR ML Sugerencias"
 
 
 def test_traktor_note_names_and_default_button():
     assert sv.traktor_name(15, 13) == "Ch15.Note.C#0" and sv.traktor_name(15, 14) == "Ch15.Note.D0"
     assert sv.traktor_name(1, 60) == "Ch01.Note.C4"
-    assert sv.traktor_name(**sv.DEFAULT_BUTTON) == "Ch15.Note.D0"
+    assert sv.DEFAULT_BUTTON.name() == "Ch15.Note.D0"
 
 
 def test_toggle_retries_a_failed_trip_without_saving_the_halfway_place():

@@ -93,6 +93,26 @@ playlists/V4_5/
 
 Raw HDBSCAN noise is preserved for diagnosis. For playlist export, V4 can reassign noise points to the nearest cluster with 1-NN so that every processed track can be placed in a usable playlist.
 
+## Live suggestions inside Traktor
+
+While playing, one button on the MIDI controller opens a playlist of suggested tracks inside Traktor.
+A second press takes the browser back to the folder the DJ was in, with the same track still
+selected. No screen clicks are involved.
+
+- **Tested:** Windows, Traktor Pro 4.4.1, Xone K2, 2026-11-05. The suggestions open in 0.5-0.65 s and
+  the return takes 0.6-0.8 s.
+- **macOS:** the code and the tests cover it, but it has not been tried on a Mac running Traktor.
+- **Suggestions are placeholders for now:** they are random tracks from the collection.
+
+How it works:
+- `tools/traktor_live/sugerencias_vivo.py` reads the controller alongside Traktor.
+- It writes the suggestions as an Explorer `.nml` playlist.
+- It moves Traktor's browser through a QML probe on the screen of a virtual Kontrol D2. The probe
+  builds on the MIT [`traktor-api-client`](tools/traktor_live/traktor_qml/README.md) mod.
+
+Setup, usage and troubleshooting (in Spanish) are in
+[`docs/SUGERENCIAS_EN_VIVO.md`](docs/SUGERENCIAS_EN_VIVO.md).
+
 ## Repository layout
 
 ```text
@@ -103,6 +123,7 @@ src/v4/evaluation/          Clustering, retrieval, ordering and noise metrics
 src/v4/ui/app.py            Streamlit clustering explorer
 src/v4/adaptation/          Projection-head and contrastive-training scaffolding
 slurm/jobs/v4/              GPU and CPU jobs for the HPC workflow
+tools/traktor_live/         Live suggestions inside Traktor (Windows and macOS)
 tests/v4/                   Block-level validation tests
 docs/                       Usage guide, project map, job status and implementation notes
 playlists/                  Exported M3U playlist examples
