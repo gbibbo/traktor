@@ -168,6 +168,16 @@ def test_probe_command_queue_and_state_over_http():
         server.server_close()
 
 
+def test_second_receiver_on_the_same_port_is_refused():
+    first = traktor_estado.ExclusiveServer(("127.0.0.1", 0), make_handler(State(), None))
+    try:
+        with pytest.raises(OSError) as exc:
+            traktor_estado.ExclusiveServer(("127.0.0.1", first.server_address[1]), make_handler(State(), None))
+        assert traktor_estado.port_in_use(exc.value)
+    finally:
+        first.server_close()
+
+
 def test_serve_stops_both_servers_without_thread_errors():
     errors = []
     previous = threading.excepthook

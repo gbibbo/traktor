@@ -11,11 +11,14 @@ CHANGELOG:
   - 2026-11-04: browserProbe/<lado>: la sonda de la pantalla del D2 (creada, nodo de su navegador).
   - 2026-11-04: Órdenes para la sonda (POST /enqueue, GET /command/<lado>) y GET /state, para probar si
                 el navegador del D2 mueve el árbol de Traktor.
+  - 2026-11-04: Puerto exclusivo: un segundo receptor avisa y sale (antes Windows lo dejaba abrir en el
+                mismo puerto y el viejo seguía recibiendo).
 """
 from __future__ import annotations
 
 import argparse
 import datetime as dt
+import errno
 import json
 import signal
 import socket
@@ -195,7 +198,22 @@ def make_handler(state: State, log_path: Optional[Path]):
     return Handler
 
 
-class _Server6(ThreadingHTTPServer):
+def port_in_use(exc: OSError) -> bool:
+    return getattr(exc, "winerror", None) in (10048, 10013) or exc.errno == errno.EADDRINUSE
+
+
+class ExclusiveServer(ThreadingHTTPServer):
+    """Puerto exclusivo: con SO_REUSEADDR (lo que pone http.server), Windows dejó abrir un segundo receptor
+    en el mismo puerto y el tráfico siguió yendo al viejo. Así el segundo falla al arrancar."""
+    allow_reuse_address = False
+
+    def server_bind(self):
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
+class _Server6(ExclusiveServer):
     address_family = socket.AF_INET6
 
 
@@ -230,11 +248,22 @@ def main() -> int:
         log_path.parent.mkdir(parents=True, exist_ok=True)
     state = State(verbose=args.verbose)
     handler = make_handler(state, log_path)
-    servers = [ThreadingHTTPServer(("127.0.0.1", args.port), handler)]
-    try:                                        # "localhost" puede resolver primero a ::1
-        servers.append(_Server6(("::1", args.port), handler))
-    except OSError:
-        pass
+    servers: List[ThreadingHTTPServer] = []
+    try:
+        servers.append(ExclusiveServer(("127.0.0.1", args.port), handler))
+        try:                                    # "localhost" puede resolver primero a ::1
+            servers.append(_Server6(("::1", args.port), handler))
+        except OSError as exc:
+            if port_in_use(exc):
+                raise
+    except OSError as exc:
+        for s in servers:
+            s.server_close()
+        if port_in_use(exc):
+            print(f"[ERROR] El puerto {args.port} ya lo usa otro programa (¿otra ventana con este receptor?). "
+                  "Cerrarla con Ctrl+C y volver a correr esto.")
+            return 1
+        raise
     print(f"[INFO] Escuchando en localhost:{args.port}. Carga un tema en Traktor; Ctrl+C para salir.")
     if log_path is not None:
         print(f"[INFO] Eventos en {log_path}")
