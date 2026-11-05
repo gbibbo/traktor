@@ -19,6 +19,52 @@ Funciona mientras se toca: Traktor sigue usando el controlador como siempre.
 - **Los temas son de prueba:** salen al azar de la colección. El cálculo de las sugerencias, con la
   trayectoria del set, viene después.
 
+## Desde cero en otro ordenador
+
+Hace falta un ordenador con Traktor y la música de su colección. El repo es público y esta herramienta no
+necesita el resto del proyecto: ni modelos, ni `requirements_v4.txt`, ni la música en el repo.
+
+1. **Instalar Git y Python 3.11.** Desde python.org, o desde la Microsoft Store en Windows. Probado con
+   3.11 y 3.12.
+2. **Bajar el repo:**
+
+   ```
+   git clone https://github.com/gbibbo/traktor.git
+   ```
+
+   Para la versión exacta probada, agregar `--branch sugerencias-vivo-v2`.
+3. **Preparar Traktor**, en Preferences > Controller Manager:
+   - Importar el mapeo del controlador y elegir su entrada y salida MIDI. En Windows el K2 aparece como
+     `XONE:K2 MIDI`.
+   - Borrar la función que tenga en Traktor el botón que se va a usar. En el K2 de Gabriel es D0.
+   - Agregar un Kontrol D2: Add… > Traktor > Kontrol D2. No hace falta tenerlo.
+   - Elegir la placa de sonido en Audio Setup.
+4. **Cerrar Traktor e instalar la sonda una vez**, desde la carpeta del repo:
+   - Windows: `python tools\traktor_live\instalar_api_client.py --sonda`
+   - macOS: `python3 tools/traktor_live/instalar_api_client.py --sonda`
+
+   Hay que aceptar el permiso de administrador.
+5. **Encender la placa de sonido, abrir Traktor y dar doble clic al lanzador:**
+   - Windows: `Sugerencias en vivo.bat`
+   - macOS: `Sugerencias en vivo.command`
+
+   La primera vez el lanzador crea el entorno de Python en `.venv`. En macOS también instala
+   python-rtmidi, y para eso hace falta internet. Si a Traktor le falta la sonda, el programa lo avisa
+   al arrancar y dice el comando.
+6. **Si el controlador no es un K2 o el botón es otro**, cerrar con Ctrl+C y abrir una vez desde la
+   terminal:
+
+   ```
+   .venv\Scripts\python.exe tools\traktor_live\sugerencias_vivo.py --midi <palabra del nombre> --aprender
+   ```
+
+   En macOS: `.venv/bin/python tools/traktor_live/sugerencias_vivo.py ...`. Queda guardado.
+7. **Apretar el botón.** Si el programa dice «No pude llegar», navegar una vez a mano hasta la playlist
+   `TRAKTOR ML Sugerencias NML` y apretarlo: aprende el camino.
+
+Si la colección no tiene 10 temas con cue points propios, las listas de prueba salen de toda la
+colección.
+
 ## Cómo funciona
 
 ```mermaid
@@ -63,8 +109,8 @@ flowchart LR
 - **Un controlador MIDI con un botón libre** (nota o CC). Por defecto es el D0 del canal 15 del Xone K2
   de Gabriel, la nota 14, que antes cargaba la preescucha. En el Controller Manager hay que borrarle la
   función que tenga.
-- **Python 3.11** en el `.venv` del repo, sin paquetes extra en Windows. En macOS hace falta
-  `python-rtmidi`:
+- **Python 3.11** en el `.venv` del repo, sin paquetes extra en Windows. Lo crea el lanzador. En macOS
+  hace falta `python-rtmidi`, que el lanzador `.command` instala solo. A mano:
 
   ```
   .venv/bin/python -m pip install python-rtmidi==1.5.8

@@ -14,6 +14,7 @@ CHANGELOG:
                 virtual y sigue al árbol de Traktor; --quitar-sonda y --uninstall la sacan.
   - 2026-11-05: macOS (carpeta dentro de la app y permiso con osascript; las copias vuelven a ser del
                 usuario) y cualquier Traktor instalado (Pro 3 o 4): si hay varios, el más nuevo o --d2.
+  - 2026-11-05: is_ready(): chequeo sin imprimir, para que sugerencias_vivo.py avise si falta la sonda.
 """
 from __future__ import annotations
 
@@ -213,6 +214,21 @@ def probe_status(d2: Path) -> bool:
     print(f"[INFO] {sq}: {'con la sonda' if patched else 'sin la sonda'}; {probe.name} "
           f"{'igual al del repo' if same else 'ausente o distinto'}")
     return patched and same
+
+
+def is_ready(d2: Path) -> bool:
+    """¿Están el módulo y la sonda instalados e iguales a los del repo? Sin imprimir (para
+    sugerencias_vivo.py, que avisa si hay que correr esto)."""
+    sq = screen_qml(d2)
+    probe = sq.parent / VENDOR_PROBE.name
+    try:
+        return ("ApiModule" in (d2 / "D2.qml").read_text(encoding="utf-8-sig")
+                and all((d2 / "Api" / p.name).exists() and sha256(d2 / "Api" / p.name) == sha256(p)
+                        for p in api_files())
+                and "ApiBrowserProbe" in sq.read_text(encoding="utf-8-sig")
+                and probe.exists() and sha256(probe) == sha256(VENDOR_PROBE))
+    except OSError:
+        return False
 
 
 def _replace_text(path: Path, text: str) -> None:

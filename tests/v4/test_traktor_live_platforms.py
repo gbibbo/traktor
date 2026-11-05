@@ -87,6 +87,40 @@ def test_settings_roundtrip_and_bad_button(tmp_path):
     assert sv.load_settings(path) == {}
 
 
+def _collection_without_cues(tmp_path, n):
+    """collection.nml como la de una instalación nueva: temas sin cues propios."""
+    import xml.etree.ElementTree as ET
+    music = tmp_path / "music"
+    music.mkdir()
+    root = ET.Element("NML", VERSION="20")
+    coll = ET.SubElement(root, "COLLECTION", ENTRIES=str(n))
+    for i in range(n):
+        f = music / f"Tema {i}.mp3"
+        f.write_bytes(b"")
+        e = ET.SubElement(coll, "ENTRY", TITLE=f"Tema {i}", ARTIST="A")
+        p = f.resolve()
+        volume = p.drive if p.drive else ""
+        ET.SubElement(e, "LOCATION", VOLUME=volume, FILE=p.name,
+                      DIR="/:" + "/:".join(p.parent.parts[1:]) + "/:")
+    out = tmp_path / "collection.nml"
+    ET.ElementTree(root).write(out, encoding="utf-8", xml_declaration=True)
+    return out
+
+
+def test_a_new_collection_without_cues_still_gives_lists(tmp_path):
+    sugg = sv.Suggestions(_collection_without_cues(tmp_path, 12), tmp_path / "sug", 10)
+    assert sugg.pool == "temas de la colección" and len(sugg.tracks) == 12
+    assert len(sugg.next()) == 10 and sugg.nml.exists()
+    small = tmp_path / "chica"
+    small.mkdir()
+    try:
+        sv.Suggestions(_collection_without_cues(small, 3), small / "sug", 10)
+    except ValueError as exc:
+        assert "3 temas" in str(exc)
+    else:
+        raise AssertionError("con 3 temas y n=10 tenía que avisar")
+
+
 class _FakeMidiIn:
     """Lo mínimo de rtmidi.MidiIn para probar RtMidiInput sin un controlador."""
     instances = []

@@ -25,6 +25,9 @@ CHANGELOG:
   - 2026-11-05: Windows y macOS (midi_io.py; en Mac el .nml va a /Users/Shared/TRAKTOR ML Sugerencias),
                 cualquier controlador y botón (nota o CC), ajustes guardados en sugerencias_vivo.json y
                 camino del árbol aprendido si Traktor no muestra la carpeta como se calculó.
+  - 2026-11-05: En otro ordenador: si la colección tiene menos de N temas con cues propios, las listas de
+                prueba salen de toda la colección (antes se caía); si ni así alcanzan, un mensaje claro.
+                Al arrancar avisa si a Traktor le falta la sonda, con el comando para instalarla.
 """
 from __future__ import annotations
 
@@ -46,6 +49,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 import src.v4.common  # noqa: E402,F401  (salida UTF-8 en consolas cp1252)
 from src.v4.common.traktor_nml import DEFAULT_MAC_BOOT_VOLUME, find_collection, mac_boot_volume  # noqa: E402
+from tools.traktor_live import instalar_api_client as inst  # noqa: E402
 from tools.traktor_live import traktor_estado as te  # noqa: E402
 from tools.traktor_live.midi_io import BACKENDS, default_backend, list_inputs, open_input  # noqa: E402
 from tools.traktor_live.midi_monitor import decode, find_input  # noqa: E402
@@ -218,10 +222,19 @@ def learn_button(events: "queue.SimpleQueue", stop: threading.Event) -> Optional
 
 
 class Suggestions:
-    """Escribe cada ronda de prueba en el .nml (las entradas copiadas de la colección)."""
+    """Escribe cada ronda de prueba en el .nml (las entradas copiadas de la colección). Los temas salen de
+    los que tienen cues propios (se nota al cargarlos que Traktor usa su entrada); si son menos de n,
+    como en una colección recién armada, de todos los que tienen el archivo en su lugar."""
 
     def __init__(self, collection: Path, out_dir: Path, n: int):
         self.tracks = collection_tracks(collection)
+        self.pool = "temas con cues propios"
+        if len(self.tracks) < n:
+            self.tracks = collection_tracks(collection, own_cues_only=False)
+            self.pool = "temas de la colección"
+        if len(self.tracks) < n:
+            raise ValueError(f"La colección {collection} tiene {len(self.tracks)} temas con el archivo en su "
+                             f"lugar y hacen falta {n}: agregar música a Traktor o usar --n más chico")
         self.by_path = entries_by_path(collection)
         self.version = ET.parse(collection).getroot().get("VERSION", "20")
         self.nml = out_dir / f"{NML_NAME}.nml"
@@ -286,9 +299,22 @@ def main() -> int:
               "indicarlo con --collection")
         return 1
     out_dir = Path(settings.get("dir") or default_live_dir())
-    sugg = Suggestions(collection, out_dir, int(settings.get("n") or 10))
-    if not sugg.nml.exists():
-        sugg.next()                                         # para que la playlist exista en el Explorer
+    try:
+        sugg = Suggestions(collection, out_dir, int(settings.get("n") or 10))
+        if not sugg.nml.exists():
+            sugg.next()                                     # para que la playlist exista en el Explorer
+    except (ValueError, OSError) as exc:
+        print(f"[ERROR] {exc}")
+        return 1
+    print(f"[INFO] Colección: {collection} ({len(sugg.tracks)} {sugg.pool} para las listas de prueba)")
+    d2 = inst.default_d2()
+    if d2 is None:
+        print("[AVISO] No encontré Traktor instalado en el lugar de siempre: si está en otro, instalar la sonda "
+              "con instalar_api_client.py --sonda --d2 <carpeta qml/CSI/D2>")
+    elif not inst.is_ready(d2):
+        installer = Path(__file__).resolve().parent / "instalar_api_client.py"
+        print(f"[AVISO] A Traktor le falta la sonda o está desactualizada. Cerrar Traktor y correr una vez:\n"
+              f'         "{sys.executable}" "{installer}" --sonda')
     learned: Dict[str, List[str]] = settings.get("destinos") or {}
     target = learned.get(str(sugg.nml)) or explorer_path(sugg.nml)
 
