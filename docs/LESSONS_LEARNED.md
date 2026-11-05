@@ -151,6 +151,20 @@ Esa pantalla vio vacía `C:\Users\bibbo` durante 6 s y tardó más de 2 s en dar
 Al volver a una carpeta, Traktor conserva solo el tema elegido en la ventana: el `currentIndex` del D2
 no hace falta (en `PRO` la sonda llegó con la lista aún vacía y no lo pudo poner, y el tema estaba).
 
+### Probar "desde otro ordenador" con un clon nuevo, y comparar texto sin finales de línea
+
+Para saber si algo se puede seguir desde GitHub, clonarlo en una carpeta vacía y arrancarlo ahí, con
+un Python sin paquetes. El 2026-11-05 eso encontró tres cosas que los tests no veían:
+- el lanzador suponía un `.venv` o el comando `py`, que esta PC no tiene;
+- con una colección sin cues el programa se caía;
+- aparecía un aviso falso de «sonda desactualizada».
+
+El aviso salía porque Git con `core.autocrlf` deja los QML con CRLF en un clon de Windows y con LF en
+otros lados. Por eso los archivos del repo se comparan con sus copias instaladas sin importar los
+finales de línea (`instalar_api_client.same_text`). En un clon superficial (`--depth 1`),
+`git pull` falla con "unrelated histories": para actualizarlo, `git fetch --depth 1 origin main` y
+`git reset --hard origin/main`.
+
 ### Si Traktor arranca sin la DJM, cambia solo el audio y el K2 deja de responder
 
 El 2026-11-05 la DJM-750MK2 no estaba conectada al abrir Traktor: Traktor pasó solo de

@@ -32,7 +32,12 @@ necesita el resto del proyecto: ni modelos, ni `requirements_v4.txt`, ni la mús
    git clone https://github.com/gbibbo/traktor.git
    ```
 
-   Para la versión exacta probada, agregar `--branch sugerencias-vivo-v2`.
+   `main` trae todo lo de esta guía. La etiqueta `sugerencias-vivo-v2` es la versión que se probó en
+   Traktor, de antes de los arreglos para instalar desde cero. Comprobado el 2026-11-05 en una carpeta
+   vacía, como en un ordenador nuevo:
+   - el lanzador creó el `.venv` con Python 3.11, sin paquetes extra;
+   - encontró el K2 y la colección;
+   - el programa arrancó y se cerró bien con Ctrl+C.
 3. **Preparar Traktor**, en Preferences > Controller Manager:
    - Importar el mapeo del controlador y elegir su entrada y salida MIDI. En Windows el K2 aparece como
      `XONE:K2 MIDI`.
