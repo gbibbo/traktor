@@ -2,3 +2,5 @@
 tools/git_hooks/pre-commit text eol=lf
 # Lanzadores de macOS: bash no acepta CRLF.
 *.command text eol=lf
+# Mapeos de Traktor: tal cual los escribe Traktor (CRLF), iguales en Windows y macOS.
+*.tsi -text

@@ -113,6 +113,10 @@ How it works:
 Setup, usage and troubleshooting (in Spanish) are in
 [`docs/SUGERENCIAS_EN_VIVO.md`](docs/SUGERENCIAS_EN_VIVO.md).
 
+- The Xone K2 and keyboard mappings used in the tests are in
+  [`tools/traktor_live/mapeos/`](tools/traktor_live/mapeos/README.md), ready to import.
+- To have any LLM guide someone through the setup, give it [`PROMPT_LLM.md`](PROMPT_LLM.md).
+
 ## Repository layout
 
 ```text

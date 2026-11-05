@@ -7,7 +7,9 @@ Canonical instructions for coding agents in this repository.
 1. Read `docs/STATUS.md` first: current state, open items, and run recipes. Claude Code injects it at session start. Then read `README.md` for the V4 pipeline and project scope.
 2. Read `docs/PROJECT_MAP.md`, `docs/V4_USAGE.md`, `docs/v4/TODO.md`, and `docs/DECISIONS.md` before substantial work. `docs/v4/JOBS_STATUS.md` is the legacy HPC/Slurm record from March 2026, not current state.
 3. Inspect the actual Git repository, code, tests, configuration, generated artifacts, and dataset state before asserting that prior work or a milestone exists.
-4. Treat `v4_implementation_plan.md` and `dj_music_clustering_deterministic_implementation_plan_v6.md` as design history and planning context. The current implementation under `src/v4/` and current documentation take precedence when they disagree with older plans.
+4. If you are helping a person reproduce the live suggestions inside Traktor on another computer,
+   follow `PROMPT_LLM.md`. The setup guide is `docs/SUGERENCIAS_EN_VIVO.md`.
+5. Treat `v4_implementation_plan.md` and `dj_music_clustering_deterministic_implementation_plan_v6.md` as design history and planning context. The current implementation under `src/v4/` and current documentation take precedence when they disagree with older plans.
 
 ## Project boundary
 

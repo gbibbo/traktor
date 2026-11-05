@@ -21,6 +21,9 @@ Funciona mientras se toca: Traktor sigue usando el controlador como siempre.
 
 ## Desde cero en otro ordenador
 
+Para que otro LLM acompañe a una persona en estos pasos, darle `PROMPT_LLM.md`, que está en la raíz
+del repo.
+
 Hace falta un ordenador con Traktor y la música de su colección. El repo es público y esta herramienta no
 necesita el resto del proyecto: ni modelos, ni `requirements_v4.txt`, ni la música en el repo.
 
@@ -39,9 +42,12 @@ necesita el resto del proyecto: ni modelos, ni `requirements_v4.txt`, ni la mús
    - encontró el K2 y la colección;
    - el programa arrancó y se cerró bien con Ctrl+C.
 3. **Preparar Traktor**, en Preferences > Controller Manager:
-   - Importar el mapeo del controlador y elegir su entrada y salida MIDI. En Windows el K2 aparece como
-     `XONE:K2 MIDI`.
-   - Borrar la función que tenga en Traktor el botón que se va a usar. En el K2 de Gabriel es D0.
+   - Importar el mapeo del controlador con Add… > Import TSI > Import Other…. Los de Gabriel están en
+     `tools/traktor_live/mapeos/`: el Xone K2 con D0 ya libre, y su teclado. Ver el README de esa
+     carpeta.
+   - Elegir la entrada y la salida MIDI del controlador. En Windows el K2 aparece como `XONE:K2 MIDI`.
+   - Con otro mapeo, borrar la función que tenga en Traktor el botón que se va a usar.
+     `tools/traktor_live/mapeo_tsi.py --liberar` lo hace sobre un `.tsi`.
    - Agregar un Kontrol D2: Add… > Traktor > Kontrol D2. No hace falta tenerlo.
    - Elegir la placa de sonido en Audio Setup.
 4. **Cerrar Traktor e instalar la sonda una vez**, desde la carpeta del repo:
@@ -223,6 +229,9 @@ carpeta personal.
 | `tools/traktor_live/instalar_api_client.py` | Instala, revisa y desinstala el mod y la sonda en Windows y macOS. |
 | `tools/traktor_live/midi_monitor.py` | Monitor MIDI para probar controladores. |
 | `Sugerencias en vivo.bat` / `.command` | Lanzadores de doble clic. |
+| `tools/traktor_live/mapeos/` | Mapeos de Gabriel para importar: Xone K2 con D0 libre y teclado. |
+| `tools/traktor_live/mapeo_tsi.py` | Exporta un mapeo de Traktor a `.tsi` y libera botones (`--liberar`). |
+| `PROMPT_LLM.md` | Prompt para que otro LLM guíe a una persona a replicar esto. |
 | `tests/v4/test_traktor_live_api.py`, `test_traktor_live_platforms.py` | Tests. Corren en Windows, macOS y Linux. |
 
 La historia está en `docs/DECISIONS.md` (2026-11-05) y `docs/LESSONS_LEARNED.md`: cómo Traktor relee
