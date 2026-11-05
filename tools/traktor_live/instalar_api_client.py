@@ -7,6 +7,9 @@ PURPOSE: Instala, revisa o desinstala traktor-api-client (tools/traktor_live/tra
          administrador, se vuelve a abrir pidiéndolo (Windows muestra el aviso de UAC).
 CHANGELOG:
   - 2026-11-04: Creación inicial (Traktor 4.4.1).
+  - 2026-11-04: --sonda agrega ApiBrowserProbe.qml (traktor_qml/Screens/) al final de
+                Screens/S8/Views/Screen.qml, la pantalla del D2, para ver si su navegador existe con un D2
+                virtual y sigue al árbol de Traktor; --quitar-sonda y --uninstall la sacan.
 """
 from __future__ import annotations
 
@@ -27,11 +30,13 @@ import src.v4.common  # noqa: E402,F401  (salida UTF-8 en consolas cp1252)
 from src.v4.common.traktor_nml import traktor_running  # noqa: E402
 
 VENDOR_API = Path(__file__).resolve().parent / "traktor_qml" / "Api"
+VENDOR_PROBE = Path(__file__).resolve().parent / "traktor_qml" / "Screens" / "ApiBrowserProbe.qml"
 BACKUP_ROOT = REPO_ROOT / "artifacts" / "v4" / "traktor_backups"
 LOG_PATH = BACKUP_ROOT / "instalar_api_client.log"
 IMPORT_LINE = 'import "./Api"'
 MODULE_LINE = "  ApiModule {}"
 ANCHOR_IMPORT = 'import "../Common/Settings"'
+PROBE_LINE = '  ApiBrowserProbe { screenSide: screen.isLeftScreen ? "left" : "right" }'
 
 
 def default_d2() -> Path:
@@ -79,6 +84,29 @@ def unpatch_d2(text: str) -> str:
     return nl.join(out)
 
 
+def patch_screen(text: str) -> str:
+    """Screen.qml con la sonda como último hijo del Item raíz (antes de su llave final)."""
+    if "ApiBrowserProbe" in text:
+        return text
+    nl = "\r\n" if "\r\n" in text else "\n"
+    lines = text.split(nl)
+    closing = [i for i, ln in enumerate(lines) if ln.rstrip() == "}"]
+    if not closing:
+        raise ValueError("Screen.qml no tiene la forma esperada: no lo toco")
+    lines.insert(closing[-1], PROBE_LINE)
+    return nl.join(lines)
+
+
+def unpatch_screen(text: str) -> str:
+    nl = "\r\n" if "\r\n" in text else "\n"
+    return nl.join(ln for ln in text.split(nl) if ln != PROBE_LINE)
+
+
+def screen_qml(d2: Path) -> Path:
+    """Pantalla del D2 (la misma vista que el S8): qml/Screens/S8/Views/Screen.qml."""
+    return d2.parent.parent / "Screens" / "S8" / "Views" / "Screen.qml"
+
+
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -121,6 +149,56 @@ def status(d2: Path) -> bool:
     print(f"[INFO] {qml}: {'con ApiModule' if patched else 'sin ApiModule'} (sha256 {sha256(qml)[:12]})")
     print(f"[INFO] {d2 / 'Api'}: {sum(same)} de {len(same)} archivos iguales a los del repo")
     return patched and all(same)
+
+
+def probe_status(d2: Path) -> bool:
+    sq = screen_qml(d2)
+    patched = sq.exists() and "ApiBrowserProbe" in sq.read_text(encoding="utf-8-sig")
+    probe = sq.parent / VENDOR_PROBE.name
+    same = probe.exists() and sha256(probe) == sha256(VENDOR_PROBE)
+    print(f"[INFO] {sq}: {'con la sonda' if patched else 'sin la sonda'}; {probe.name} "
+          f"{'igual al del repo' if same else 'ausente o distinto'}")
+    return patched and same
+
+
+def _replace_text(path: Path, text: str) -> None:
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_bytes(text.encode("utf-8"))
+    os.replace(tmp, path)
+
+
+def install_probe(d2: Path) -> None:
+    sq = screen_qml(d2)
+    text = sq.read_bytes().decode("utf-8")
+    new = patch_screen(text)
+    if new == text and probe_status(d2):
+        log(f"[OK] La sonda ya estaba en {sq}: no cambié nada")
+        return
+    backup = BACKUP_ROOT / f"qml_Screens_S8_Views_{dt.datetime.now():%Y%m%d_%H%M%S}"
+    backup.mkdir(parents=True)
+    shutil.copy2(sq, backup / sq.name)
+    log(f"[OK] Copia de {sq} en {backup} (sha256 {sha256(sq)})")
+    shutil.copy2(VENDOR_PROBE, sq.parent / VENDOR_PROBE.name)
+    if new != text:
+        _replace_text(sq, new)
+    ok = probe_status(d2)
+    log(f"[{'OK' if ok else 'ERROR'}] Sonda instalada en {sq.parent}" + ("" if ok else ": revisar"))
+
+
+def uninstall_probe(d2: Path) -> None:
+    sq = screen_qml(d2)
+    probe = sq.parent / VENDOR_PROBE.name
+    text = sq.read_bytes().decode("utf-8")
+    new = unpatch_screen(text)
+    if new == text and not probe.exists():
+        return
+    backup = BACKUP_ROOT / f"qml_Screens_S8_Views_{dt.datetime.now():%Y%m%d_%H%M%S}_antes_de_quitar_sonda"
+    backup.mkdir(parents=True)
+    shutil.copy2(sq, backup / sq.name)
+    if new != text:
+        _replace_text(sq, new)
+    probe.unlink(missing_ok=True)
+    log(f"[OK] Sonda quitada de {sq.parent} (copia previa en {backup}; Screen.qml sha256 {sha256(sq)})")
 
 
 def install(d2: Path) -> None:
@@ -167,7 +245,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Instala traktor-api-client en Traktor")
     ap.add_argument("--d2", default=None, help="Carpeta qml/CSI/D2 de Traktor (por defecto la de Program Files)")
     ap.add_argument("--status", action="store_true", help="Solo mostrar si está instalado")
-    ap.add_argument("--uninstall", action="store_true", help="Quitar el mod y dejar el D2.qml original")
+    ap.add_argument("--uninstall", action="store_true", help="Quitar el mod y la sonda y dejar los QML originales")
+    ap.add_argument("--sonda", action="store_true", help="Instalar también la sonda del navegador del D2")
+    ap.add_argument("--quitar-sonda", action="store_true", help="Quitar solo la sonda")
     ap.add_argument("--pause", action="store_true", help=argparse.SUPPRESS)
     args = ap.parse_args()
     d2 = Path(args.d2) if args.d2 else default_d2()
@@ -176,11 +256,13 @@ def main() -> int:
             print(f"[ERROR] No existe {d2 / 'D2.qml'}")
             return 1
         if args.status:
-            return 0 if status(d2) else 2
+            ok = status(d2)
+            probe_status(d2)
+            return 0 if ok else 2
         if traktor_running():
             log("[ERROR] Traktor está abierto: no cambié nada. Cerrarlo y volver a correr esto")
             return 1
-        if not writable(d2):
+        if not (writable(d2) and writable(screen_qml(d2).parent)):
             if args.pause:
                 log(f"[ERROR] Sin permiso de escritura en {d2} aun como administrador")
                 return 1
@@ -192,7 +274,15 @@ def main() -> int:
             log(f"[ERROR] Windows no dio el permiso de administrador (aviso rechazado o sin respuesta): "
                 "no cambié nada. Volver a correrlo y aceptar el aviso")
             return 1
-        uninstall(d2) if args.uninstall else install(d2)
+        if args.uninstall:
+            uninstall_probe(d2)
+            uninstall(d2)
+        elif args.quitar_sonda:
+            uninstall_probe(d2)
+        else:
+            install(d2)
+            if args.sonda:
+                install_probe(d2)
         return 0
     except Exception as exc:  # en la ventana de administrador, que se lea el error antes de cerrarse
         log(f"[ERROR] {type(exc).__name__}: {exc}")

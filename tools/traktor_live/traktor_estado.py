@@ -8,6 +8,7 @@ PURPOSE: Receptor local de traktor-api-client (mod QML del controlador Kontrol D
 CHANGELOG:
   - 2026-11-04: Creación inicial (prueba de instalación del mod en Traktor 4.4.1).
   - 2026-11-04: Ctrl+C apaga los dos servidores sin excepción en el hilo de ::1; tonalidad desde key.
+  - 2026-11-04: browserProbe/<lado>: la sonda de la pantalla del D2 (creada, nodo de su navegador).
 """
 from __future__ import annotations
 
@@ -28,7 +29,7 @@ sys.path.insert(0, str(REPO_ROOT))
 import src.v4.common  # noqa: E402,F401  (salida UTF-8 en consolas cp1252)
 
 DEFAULT_LOG_DIR = REPO_ROOT / "artifacts" / "v4" / "traktor_live"
-KINDS = ("deckLoaded", "updateDeck", "updateChannel", "updateMasterClock")
+KINDS = ("deckLoaded", "updateDeck", "updateChannel", "updateMasterClock", "browserProbe")
 
 
 def parse_endpoint(path: str) -> Optional[Tuple[str, str]]:
@@ -54,6 +55,7 @@ class State:
         self.decks: Dict[str, dict] = {}
         self.channels: Dict[str, dict] = {}
         self.master: dict = {}
+        self.probe: Dict[str, dict] = {}
         self.verbose = verbose
         self.lock = threading.Lock()
 
@@ -89,6 +91,16 @@ class State:
                           (self.master.get("deck"), round(float(self.master.get("bpm") or 0), 1))
                 self.master = dict(data)
                 return [f"Master: deck {data.get('deck') or '-'}, {float(data.get('bpm') or 0):.1f} BPM"] if changed else []
+            if kind == "browserProbe":              # sonda de la pantalla del D2 (ApiBrowserProbe.qml)
+                self.probe[target] = dict(data)
+                where = (f"«{data.get('path') or '(vacío)'}»  [{data.get('count')} elementos, "
+                         f"índice {data.get('currentIndex')}, {'lista de temas' if data.get('isContentList') else 'nodos'}]")
+                reason = data.get("reason")
+                if reason == "screenLoaded":
+                    return [f"Pantalla del D2 ({target}) creada; su navegador está en {where}"]
+                if reason == "pathChanged":
+                    return [f"Navegador del D2 ({target}) en {where}"]
+                return [f"Navegador del D2 ({target}) sigue en {where}"] if self.verbose else []
         return []
 
 

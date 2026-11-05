@@ -61,6 +61,48 @@ def test_install_and_uninstall_in_a_test_folder(tmp_path, monkeypatch):
     assert not (d2 / "Api").exists()
 
 
+SCREEN_SAMPLE = "import QtQuick 2.0\n\nItem {\n  id: screen\n  function f() {\n    x = 1\n  }\n}\n"
+
+
+def test_patch_screen_adds_probe_as_last_child_and_roundtrips():
+    patched = inst.patch_screen(SCREEN_SAMPLE)
+    lines = patched.split("\n")
+    assert lines[-3:] == [inst.PROBE_LINE, "}", ""]
+    assert inst.patch_screen(patched) == patched
+    assert inst.unpatch_screen(patched) == SCREEN_SAMPLE
+
+
+def test_install_probe_and_uninstall_restore_screen(tmp_path, monkeypatch):
+    monkeypatch.setattr(inst, "BACKUP_ROOT", tmp_path / "backups")
+    monkeypatch.setattr(inst, "LOG_PATH", tmp_path / "backups" / "log.txt")
+    qml = tmp_path / "qml"
+    d2 = qml / "CSI" / "D2"
+    views = qml / "Screens" / "S8" / "Views"
+    d2.mkdir(parents=True)
+    views.mkdir(parents=True)
+    (d2 / "D2.qml").write_bytes(D2_SAMPLE.encode("utf-8"))
+    (views / "Screen.qml").write_bytes(SCREEN_SAMPLE.encode("utf-8"))
+    inst.install(d2)
+    inst.install_probe(d2)
+    assert inst.probe_status(d2) and (views / "ApiBrowserProbe.qml").exists()
+    inst.uninstall_probe(d2)
+    inst.uninstall(d2)
+    assert (views / "Screen.qml").read_bytes() == SCREEN_SAMPLE.encode("utf-8")
+    assert not (views / "ApiBrowserProbe.qml").exists()
+    assert (d2 / "D2.qml").read_bytes() == D2_SAMPLE.encode("utf-8")
+
+
+def test_probe_lines():
+    st = State()
+    data = {"reason": "screenLoaded", "path": "Explorer | Music", "count": 12, "currentIndex": 3,
+            "isContentList": False}
+    assert st.apply("browserProbe", "left", data) == [
+        "Pantalla del D2 (left) creada; su navegador está en «Explorer | Music»  [12 elementos, índice 3, nodos]"]
+    assert st.apply("browserProbe", "left", {**data, "reason": "heartbeat"}) == []
+    assert st.apply("browserProbe", "left", {**data, "reason": "pathChanged", "path": "Playlists"})[0].startswith(
+        "Navegador del D2 (left) en «Playlists»")
+
+
 def test_parse_endpoint():
     assert parse_endpoint("/deckLoaded/A") == ("deckLoaded", "A")
     assert parse_endpoint("/updateMasterClock") == ("updateMasterClock", "")
