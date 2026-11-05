@@ -15,6 +15,9 @@ CHANGELOG:
   - 2026-11-05: macOS (carpeta dentro de la app y permiso con osascript; las copias vuelven a ser del
                 usuario) y cualquier Traktor instalado (Pro 3 o 4): si hay varios, el más nuevo o --d2.
   - 2026-11-05: is_ready(): chequeo sin imprimir, para que sugerencias_vivo.py avise si falta la sonda.
+                Los QML se comparan sin importar CRLF/LF: desde un clon nuevo de Windows (CRLF), la sonda
+                instalada desde otra copia (LF) parecía desactualizada. Respaldos en carpetas únicas
+                (dos en el mismo segundo fallaban).
 """
 from __future__ import annotations
 
@@ -147,6 +150,22 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def backup_dir(name: str) -> Path:
+    """Carpeta de respaldo que todavía no existe: <name>, o <name>_2, _3... (dos respaldos en el mismo
+    segundo chocaban)."""
+    path, n = BACKUP_ROOT / name, 1
+    while path.exists():
+        n += 1
+        path = BACKUP_ROOT / f"{name}_{n}"
+    return path
+
+
+def same_text(a: Path, b: Path) -> bool:
+    """Mismo contenido sin importar los finales de línea: un clon en Windows trae CRLF y uno en macOS
+    LF, y la sonda instalada desde uno no tiene que parecer otra vista desde el otro."""
+    return a.read_bytes().replace(b"\r\n", b"\n") == b.read_bytes().replace(b"\r\n", b"\n")
+
+
 def log(msg: str) -> None:
     print(msg, flush=True)
     BACKUP_ROOT.mkdir(parents=True, exist_ok=True)
@@ -200,7 +219,7 @@ def api_files() -> List[Path]:
 def status(d2: Path) -> bool:
     qml = d2 / "D2.qml"
     patched = qml.exists() and "ApiModule" in qml.read_text(encoding="utf-8-sig")
-    same = [(d2 / "Api" / p.name).exists() and sha256(d2 / "Api" / p.name) == sha256(p) for p in api_files()]
+    same = [(d2 / "Api" / p.name).exists() and same_text(d2 / "Api" / p.name, p) for p in api_files()]
     print(f"[INFO] {qml}: {'con ApiModule' if patched else 'sin ApiModule'} (sha256 {sha256(qml)[:12]})")
     print(f"[INFO] {d2 / 'Api'}: {sum(same)} de {len(same)} archivos iguales a los del repo")
     return patched and all(same)
@@ -210,7 +229,7 @@ def probe_status(d2: Path) -> bool:
     sq = screen_qml(d2)
     patched = sq.exists() and "ApiBrowserProbe" in sq.read_text(encoding="utf-8-sig")
     probe = sq.parent / VENDOR_PROBE.name
-    same = probe.exists() and sha256(probe) == sha256(VENDOR_PROBE)
+    same = probe.exists() and same_text(probe, VENDOR_PROBE)
     print(f"[INFO] {sq}: {'con la sonda' if patched else 'sin la sonda'}; {probe.name} "
           f"{'igual al del repo' if same else 'ausente o distinto'}")
     return patched and same
@@ -223,10 +242,10 @@ def is_ready(d2: Path) -> bool:
     probe = sq.parent / VENDOR_PROBE.name
     try:
         return ("ApiModule" in (d2 / "D2.qml").read_text(encoding="utf-8-sig")
-                and all((d2 / "Api" / p.name).exists() and sha256(d2 / "Api" / p.name) == sha256(p)
+                and all((d2 / "Api" / p.name).exists() and same_text(d2 / "Api" / p.name, p)
                         for p in api_files())
                 and "ApiBrowserProbe" in sq.read_text(encoding="utf-8-sig")
-                and probe.exists() and sha256(probe) == sha256(VENDOR_PROBE))
+                and probe.exists() and same_text(probe, VENDOR_PROBE))
     except OSError:
         return False
 
@@ -244,7 +263,7 @@ def install_probe(d2: Path) -> None:
     if new == text and probe_status(d2):
         log(f"[OK] La sonda ya estaba en {sq}: no cambié nada")
         return
-    backup = BACKUP_ROOT / f"qml_Screens_S8_Views_{dt.datetime.now():%Y%m%d_%H%M%S}"
+    backup = backup_dir(f"qml_Screens_S8_Views_{dt.datetime.now():%Y%m%d_%H%M%S}")
     backup.mkdir(parents=True)
     shutil.copy2(sq, backup / sq.name)
     give_back(backup)
@@ -263,7 +282,7 @@ def uninstall_probe(d2: Path) -> None:
     new = unpatch_screen(text)
     if new == text and not probe.exists():
         return
-    backup = BACKUP_ROOT / f"qml_Screens_S8_Views_{dt.datetime.now():%Y%m%d_%H%M%S}_antes_de_quitar_sonda"
+    backup = backup_dir(f"qml_Screens_S8_Views_{dt.datetime.now():%Y%m%d_%H%M%S}_antes_de_quitar_sonda")
     backup.mkdir(parents=True)
     shutil.copy2(sq, backup / sq.name)
     give_back(backup)
@@ -281,7 +300,7 @@ def install(d2: Path) -> None:
         log(f"[OK] Ya estaba instalado en {d2}: no cambié nada")
         return
     stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup = BACKUP_ROOT / f"qml_CSI_D2_{stamp}"
+    backup = backup_dir(f"qml_CSI_D2_{stamp}")
     shutil.copytree(d2, backup)
     give_back(backup)
     log(f"[OK] Copia de {d2} en {backup} (D2.qml sha256 {sha256(qml)})")
@@ -299,7 +318,7 @@ def install(d2: Path) -> None:
 def uninstall(d2: Path) -> None:
     qml = d2 / "D2.qml"
     stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup = BACKUP_ROOT / f"qml_CSI_D2_{stamp}_antes_de_desinstalar"
+    backup = backup_dir(f"qml_CSI_D2_{stamp}_antes_de_desinstalar")
     shutil.copytree(d2, backup)
     give_back(backup)
     text = qml.read_bytes().decode("utf-8")

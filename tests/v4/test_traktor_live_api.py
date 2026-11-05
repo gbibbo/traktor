@@ -93,6 +93,13 @@ def test_install_probe_and_uninstall_restore_screen(tmp_path, monkeypatch):
     assert not inst.is_ready(d2)                         # falta la sonda
     inst.install_probe(d2)
     assert inst.probe_status(d2) and (views / "ApiBrowserProbe.qml").exists() and inst.is_ready(d2)
+    installed = views / "ApiBrowserProbe.qml"           # instalada desde un clon con otros finales de línea
+    text = installed.read_bytes().replace(b"\r\n", b"\n")
+    installed.write_bytes(text.replace(b"\n", b"\r\n"))
+    assert inst.is_ready(d2) and inst.probe_status(d2)
+    installed.write_bytes(text + b"// otra version\n")
+    assert not inst.is_ready(d2)
+    inst.install_probe(d2)
     inst.uninstall_probe(d2)
     assert not inst.is_ready(d2)
     inst.uninstall(d2)
