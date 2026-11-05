@@ -9,6 +9,8 @@ PURPOSE: Prueba de factibilidad del refresco sin clics de la lista de sugerencia
          escrito este script.
 CHANGELOG:
   - 2026-11-04: Creación inicial (el refresco del nodo iTunes solo existe en su menú contextual).
+  - 2026-11-04: Traktor mostró un solo nodo para el .m3u8 y el .nml con el mismo nombre: cada formato
+                lleva su nombre ("... M3U", "... NML", también dentro del .nml) y se borran los viejos.
 """
 from __future__ import annotations
 
@@ -46,7 +48,7 @@ def playlist_uuid(round_no: int) -> str:
     return UUID_PREFIX + f"{round_no:016x}"
 
 
-def nml_bytes(entries: List[ET.Element], round_no: int, version: str = "20") -> bytes:
+def nml_bytes(entries: List[ET.Element], round_no: int, version: str = "20", name: str = PLAYLIST_NAME) -> bytes:
     """Playlist NML como las del History de Traktor: las entradas de la colección (copiadas tal cual,
     con cues y grilla) y una playlist que las lista en orden por su clave de ruta."""
     root = ET.Element("NML", VERSION=version)
@@ -58,7 +60,7 @@ def nml_bytes(entries: List[ET.Element], round_no: int, version: str = "20") -> 
     playlists = ET.SubElement(root, "PLAYLISTS")
     folder = ET.SubElement(playlists, "NODE", TYPE="FOLDER", NAME="$ROOT")
     sub = ET.SubElement(folder, "SUBNODES", COUNT="1")
-    node = ET.SubElement(sub, "NODE", TYPE="PLAYLIST", NAME=PLAYLIST_NAME)
+    node = ET.SubElement(sub, "NODE", TYPE="PLAYLIST", NAME=name)
     pl = ET.SubElement(node, "PLAYLIST", ENTRIES=str(len(entries)), TYPE="LIST", UUID=playlist_uuid(round_no))
     for e in entries:
         ET.SubElement(ET.SubElement(pl, "ENTRY"), "PRIMARYKEY", TYPE="TRACK", KEY=entry_key(e))
@@ -111,10 +113,17 @@ def entries_by_path(collection: Path) -> Dict[str, ET.Element]:
 
 
 def targets(out_dir: Path, archive_dir: Optional[Path]) -> List[Path]:
-    paths = [out_dir / f"{PLAYLIST_NAME}.m3u8", out_dir / f"{PLAYLIST_NAME}.nml"]
+    """Un nombre por formato: Traktor mostró un solo nodo para dos archivos con el mismo nombre."""
+    paths = [out_dir / f"{PLAYLIST_NAME} M3U.m3u8", out_dir / f"{PLAYLIST_NAME} NML.nml"]
     if archive_dir is not None:
-        paths.append(archive_dir / f"{PLAYLIST_NAME}.nml")
+        paths.append(archive_dir / f"{PLAYLIST_NAME} NML.nml")
     return paths
+
+
+def legacy_targets(out_dir: Path, archive_dir: Optional[Path]) -> List[Path]:
+    """Nombres de la primera versión (los dos formatos con el mismo nombre)."""
+    paths = [out_dir / f"{PLAYLIST_NAME}.m3u8", out_dir / f"{PLAYLIST_NAME}.nml"]
+    return paths + ([archive_dir / f"{PLAYLIST_NAME}.nml"] if archive_dir is not None else [])
 
 
 def main() -> int:
@@ -138,7 +147,7 @@ def main() -> int:
     paths = targets(out_dir, archive_dir)
 
     if args.remove:
-        for p in paths:
+        for p in paths + legacy_targets(out_dir, archive_dir):
             print(f"[INFO] {'Borrado' if remove_ours(p) else 'No existía'}: {p}")
         if out_dir.exists() and not any(out_dir.iterdir()):
             out_dir.rmdir()
@@ -157,7 +166,11 @@ def main() -> int:
         return 0
     write_atomic(m3u8_text(chosen, args.round).encode("utf-8"), paths[0])
     for p in paths[1:]:
-        write_atomic(nml_bytes(entries, args.round, version), p)
+        write_atomic(nml_bytes(entries, args.round, version, name=p.stem), p)
+    for p in legacy_targets(out_dir, archive_dir):
+        if p.exists() and is_ours(p):
+            p.unlink()
+            print(f"[INFO] Borré el nombre viejo {p}")
     for p in paths:
         print(f"[OK] Escrito {p}")
     print(f"[OK] Ronda {args.round} a las {time.strftime('%H:%M:%S')}: el primer tema es {chosen[0].artist} - {chosen[0].title}")
