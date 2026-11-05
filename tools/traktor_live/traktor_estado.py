@@ -13,6 +13,7 @@ CHANGELOG:
                 el navegador del D2 mueve el árbol de Traktor.
   - 2026-11-04: Puerto exclusivo: un segundo receptor avisa y sale (antes Windows lo dejaba abrir en el
                 mismo puerto y el viejo seguía recibiendo).
+  - 2026-11-04: Orden "goto" (ruta completa) y wait_result() para esperar el reporte de una orden.
 """
 from __future__ import annotations
 
@@ -35,6 +36,7 @@ import src.v4.common  # noqa: E402,F401  (salida UTF-8 en consolas cp1252)
 
 DEFAULT_LOG_DIR = REPO_ROOT / "artifacts" / "v4" / "traktor_live"
 KINDS = ("deckLoaded", "updateDeck", "updateChannel", "updateMasterClock", "browserProbe")
+PROBE_COMMANDS = ("exit", "select", "enter", "report", "goto")   # solo navegación: ninguna carga temas
 
 
 def parse_endpoint(path: str) -> Optional[Tuple[str, str]]:
@@ -56,15 +58,18 @@ def _clock(seconds) -> str:
 class State:
     """Último estado conocido de decks, canales y master. apply() devuelve las líneas a imprimir."""
 
-    def __init__(self, verbose: bool = False):
+    def __init__(self, verbose: bool = False, show_browser: bool = True):
         self.decks: Dict[str, dict] = {}
         self.channels: Dict[str, dict] = {}
         self.master: dict = {}
         self.probe: Dict[str, dict] = {}
         self.commands: List[dict] = []
         self.next_id = 0
+        self.results: Dict[int, dict] = {}
         self.verbose = verbose
+        self.show_browser = show_browser          # imprimir cada cambio de carpeta del navegador del D2
         self.lock = threading.Lock()
+        self.cond = threading.Condition(self.lock)
 
     def apply(self, kind: str, target: str, data: dict) -> List[str]:
         with self.lock:
@@ -103,18 +108,31 @@ class State:
                 where = (f"«{data.get('path') or '(vacío)'}»  [{data.get('count')} elementos, "
                          f"índice {data.get('currentIndex')}, {'lista de temas' if data.get('isContentList') else 'nodos'}]")
                 reason = data.get("reason")
+                if data.get("id") and reason in ("done", "refused", "gotoDone", "gotoFailed"):
+                    self.results[int(data["id"])] = dict(data)      # para wait_result()
+                    self.cond.notify_all()
                 if reason == "screenLoaded":
                     return [f"Pantalla del D2 ({target}) creada; su navegador está en {where}"]
                 if reason == "pathChanged":
-                    return [f"Navegador del D2 ({target}) en {where}"]
+                    return [f"Navegador del D2 ({target}) en {where}"] if self.show_browser else []
                 if reason == "done":
-                    return [f"Orden «{data.get('cmd')}» hecha; navegador del D2 en {where}"]
+                    return [f"Orden «{data.get('cmd')}» hecha; navegador del D2 en {where}"] if self.show_browser else []
                 if reason == "refused":
                     return [f"Orden «{data.get('cmd')}» rechazada (lo elegido no es una carpeta) en {where}"]
+                if reason == "gotoDone":
+                    return [f"Navegador del D2 llegó a {where}"] if self.show_browser else []
+                if reason == "gotoFailed":
+                    return [f"[AVISO] El navegador del D2 no pudo llegar: {data.get('error')}"]
                 if reason == "error":
                     return [f"[AVISO] La sonda dio un error: {data.get('error')}"]
                 return [f"Navegador del D2 ({target}) sigue en {where}"] if self.verbose else []
         return []
+
+    def wait_result(self, cmd_id: int, timeout: float) -> Optional[dict]:
+        """Reporte de la sonda para la orden cmd_id (None si no llegó a tiempo)."""
+        with self.cond:
+            self.cond.wait_for(lambda: cmd_id in self.results, timeout)
+            return self.results.pop(cmd_id, None)
 
     def enqueue(self, cmd: str, arg=None) -> int:
         """Orden para la sonda (la primera pantalla que pregunte la toma)."""
@@ -145,7 +163,7 @@ def make_handler(state: State, log_path: Optional[Path]):
             if self.path.startswith("/command/"):
                 cmd = state.pop_command()
                 self._reply(json.dumps(cmd or {}).encode("utf-8"))
-                if cmd:
+                if cmd and state.verbose:
                     print(f"[{dt.datetime.now():%H:%M:%S}] Orden «{cmd['cmd']}» {cmd.get('arg') if cmd.get('arg') is not None else ''} "
                           f"entregada a la sonda", flush=True)
             elif self.path == "/state":
@@ -160,10 +178,10 @@ def make_handler(state: State, log_path: Optional[Path]):
         def do_POST(self):  # noqa: N802 (nombre de http.server)
             length = int(self.headers.get("Content-Length") or 0)
             raw = self.rfile.read(length) if length > 0 else b""
-            if self.path == "/enqueue":           # orden para la sonda: {"cmd": "exit"|"select"|"enter"|"report", "arg": n}
+            if self.path == "/enqueue":           # orden para la sonda: {"cmd": ..., "arg": ...}
                 try:
                     req = json.loads(raw.decode("utf-8") or "{}")
-                    ok = req.get("cmd") in ("exit", "select", "enter", "report")
+                    ok = req.get("cmd") in PROBE_COMMANDS
                 except json.JSONDecodeError:
                     ok = False
                 if not ok:

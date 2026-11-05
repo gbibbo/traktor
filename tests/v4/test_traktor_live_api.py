@@ -9,6 +9,7 @@ CHANGELOG:
 import json
 import sys
 import threading
+import time
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -22,6 +23,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from tools.traktor_live import instalar_api_client as inst  # noqa: E402
 from tools.traktor_live import sugerencias_explorer as sx  # noqa: E402
+from tools.traktor_live import sugerencias_vivo as sv  # noqa: E402
 from tools.traktor_live import traktor_estado  # noqa: E402
 from tools.traktor_live.sugerencias_itunes import Track  # noqa: E402
 from tools.traktor_live.traktor_estado import State, make_handler, parse_endpoint  # noqa: E402
@@ -240,3 +242,84 @@ def test_explorer_never_overwrites_or_removes_foreign_files(tmp_path):
     with pytest.raises(FileExistsError):
         sx.remove_ours(foreign)
     assert foreign.exists()
+
+
+def test_explorer_path_of_the_suggestions_playlist():
+    nml = Path("C:\\Users\\bibbo\\Music\\TRAKTOR ML Sugerencias\\TRAKTOR ML Sugerencias NML.nml")
+    assert sv.explorer_path(nml) == ["Browser", "Explorer", "C:", "Users", "bibbo", "Music",
+                                     "TRAKTOR ML Sugerencias", "TRAKTOR ML Sugerencias NML"]
+
+
+def test_same_name_only_case_and_final_s():
+    assert sv.same_name("Playlist", "Playlists") and sv.same_name("música", "Música")
+    assert not sv.same_name("A1", "A10") and not sv.same_name("Cluster_0", "Cluster_02")
+
+
+def test_toggle_goes_to_suggestions_and_back_to_the_saved_place():
+    target = ["Browser", "Explorer", "C:", "Sug", "Sug NML"]
+    tg = sv.Toggle(target)
+    assert tg.decide("Browser | Playlist | Cluster_02", 7) == ("sugerencias", target, 0)
+    assert tg.decide("Browser | Explorer | C: | Sug | Sug NML", 3) == (
+        "volver", ["Browser", "Playlist", "Cluster_02"], 7)
+    # sin lugar guardado (el DJ volvió a mano o se reinició el programa): 10 nuevas, no "volver"
+    assert tg.decide("Browser | Explorer | C: | Sug | Sug NML", 0)[0] == "sugerencias"
+    # se fue de las sugerencias por su cuenta: guarda el lugar nuevo
+    assert tg.decide("Browser | Explorer | C: | Música | #1 BIBO", 2)[0] == "sugerencias"
+    assert tg.decide("Browser | Explorer | C: | Sug | Sug NML", 0)[1:] == (
+        ["Browser", "Explorer", "C:", "Música", "#1 BIBO"], 2)
+
+
+def _fake_collection(tmp_path, n=12):
+    music = tmp_path / "music"
+    music.mkdir()
+    root = ET.Element("NML", VERSION="20")
+    coll = ET.SubElement(root, "COLLECTION", ENTRIES=str(n))
+    for i in range(n):
+        f = music / f"Tema {i}.mp3"
+        f.write_bytes(b"")
+        coll.append(_entry(str(f), f"Tema {i}"))
+    out = tmp_path / "collection.nml"
+    ET.ElementTree(root).write(out, encoding="utf-8", xml_declaration=True)
+    return out
+
+
+def test_press_goes_to_suggestions_then_back_with_a_fake_probe(tmp_path):
+    st = State(show_browser=False)
+    sugg = sv.Suggestions(_fake_collection(tmp_path), tmp_path / "sug", 5)
+    target = sv.explorer_path(sugg.nml)
+    tg = sv.Toggle(target)
+    where = {"path": "Browser | Playlist | Cluster_02", "index": 7}
+    done = threading.Event()
+
+    def fake_probe():                                   # hace lo que haría ApiBrowserProbe.qml
+        while not done.is_set():
+            cmd = st.pop_command()
+            if cmd is None:
+                time.sleep(0.01)
+                continue
+            if cmd["cmd"] == "goto":
+                where["path"] = " | ".join(cmd["arg"]["path"])
+                where["index"] = cmd["arg"]["index"]
+            reason = "gotoDone" if cmd["cmd"] == "goto" else "done"
+            st.apply("browserProbe", "left", {"reason": reason, "id": cmd["id"], "path": where["path"],
+                                              "currentIndex": where["index"]})
+    threading.Thread(target=fake_probe, daemon=True).start()
+    try:
+        sv.press(st, tg, sugg)
+        assert where["path"].endswith("TRAKTOR ML Sugerencias NML") and where["index"] == 0
+        assert len(list(ET.parse(sugg.nml).getroot().iter("PRIMARYKEY"))) == 5
+        sv.press(st, tg, sugg)
+        assert where == {"path": "Browser | Playlist | Cluster_02", "index": 7}
+    finally:
+        done.set()
+
+
+def test_wait_result_returns_the_probe_report_for_an_order():
+    st = State(show_browser=False)
+    cid = st.enqueue("goto", {"path": ["Browser", "Playlist"], "index": 0})
+    assert st.pop_command() == {"id": cid, "cmd": "goto", "arg": {"path": ["Browser", "Playlist"], "index": 0}}
+    threading.Timer(0.1, lambda: st.apply("browserProbe", "left", {
+        "reason": "gotoDone", "id": cid, "path": "Browser | Playlist", "count": 3})).start()
+    res = st.wait_result(cid, 2.0)
+    assert res["reason"] == "gotoDone" and st.wait_result(cid, 0.05) is None
+    assert st.apply("browserProbe", "left", {"reason": "pathChanged", "path": "Browser"}) == []

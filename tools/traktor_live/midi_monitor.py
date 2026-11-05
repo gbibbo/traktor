@@ -9,6 +9,7 @@ CHANGELOG:
   - 2026-11-04: Creación inicial.
   - 2026-11-04: Ctrl+C por un manejador de señal: en la prueba del K2 el KeyboardInterrupt se escapó
                 sin el resumen.
+  - 2026-11-04: MidiInput (abrir y cerrar con callback) separado de monitor() para sugerencias_vivo.py.
 """
 from __future__ import annotations
 
@@ -109,25 +110,51 @@ def find_input(names: List[str], text: str) -> Optional[int]:
     return hits[0] if len(hits) == 1 else None
 
 
+class MidiInput:
+    """Entrada MIDI abierta con callback de winmm: cada mensaje corto va a self.events como
+    (mensaje empaquetado, instante). La usan el monitor y sugerencias_vivo.py."""
+
+    def __init__(self, index: int):
+        self.index = index
+        self.events: "queue.SimpleQueue[Tuple[int, float]]" = queue.SimpleQueue()
+        self._mm = _winmm()
+        self._handle = wintypes.HANDLE()
+        PROC = ctypes.WINFUNCTYPE(None, wintypes.HANDLE, wintypes.UINT, ctypes.c_size_t, ctypes.c_size_t,
+                                  ctypes.c_size_t)
+
+        def on_msg(_h, msg, _inst, p1, _p2):
+            if msg == MIM_DATA:
+                self.events.put((int(p1), time.perf_counter()))
+
+        self._proc = PROC(on_msg)                      # referencia viva mientras la entrada esté abierta
+        self._mm.midiInOpen.argtypes = [ctypes.POINTER(wintypes.HANDLE), wintypes.UINT, PROC, ctypes.c_size_t,
+                                        wintypes.DWORD]
+        self._open = False
+
+    def open(self) -> Optional[str]:
+        """None si quedó abierta; si no, el motivo."""
+        err = self._mm.midiInOpen(ctypes.byref(self._handle), self.index, self._proc, 0, CALLBACK_FUNCTION)
+        if err:
+            return ERRORS.get(err, f"código {err}")
+        self._mm.midiInStart(self._handle)
+        self._open = True
+        return None
+
+    def close(self) -> None:
+        if self._open:
+            self._mm.midiInStop(self._handle)
+            self._mm.midiInReset(self._handle)
+            self._mm.midiInClose(self._handle)
+            self._open = False
+
+
 def monitor(index: int, seconds: Optional[float], quiet: bool) -> int:
-    mm = _winmm()
-    events: "queue.SimpleQueue[Tuple[int, float]]" = queue.SimpleQueue()
-    PROC = ctypes.WINFUNCTYPE(None, wintypes.HANDLE, wintypes.UINT, ctypes.c_size_t, ctypes.c_size_t,
-                              ctypes.c_size_t)
-
-    def on_msg(_h, msg, _inst, p1, _p2):
-        if msg == MIM_DATA:
-            events.put((int(p1), time.perf_counter()))
-
-    proc = PROC(on_msg)
-    handle = wintypes.HANDLE()
-    mm.midiInOpen.argtypes = [ctypes.POINTER(wintypes.HANDLE), wintypes.UINT, PROC, ctypes.c_size_t,
-                              wintypes.DWORD]
-    err = mm.midiInOpen(ctypes.byref(handle), index, proc, 0, CALLBACK_FUNCTION)
-    if err:
-        print(f"[ERROR] No pude abrir la entrada: {ERRORS.get(err, f'código {err}')}")
+    midi = MidiInput(index)
+    events = midi.events
+    error = midi.open()
+    if error:
+        print(f"[ERROR] No pude abrir la entrada: {error}")
         return 2
-    mm.midiInStart(handle)
     print("[OK] Escuchando. Ctrl+C para terminar." if seconds is None else f"[OK] Escuchando {seconds:.0f} s.")
     seen: List[Tuple[str, int, int, int]] = []
     clock: List[float] = []
@@ -151,9 +178,7 @@ def monitor(index: int, seconds: Optional[float], quiet: bool) -> int:
                 print("  " + describe(*ev), flush=True)
     finally:
         signal.signal(signal.SIGINT, previous)
-        mm.midiInStop(handle)
-        mm.midiInReset(handle)
-        mm.midiInClose(handle)
+        midi.close()
     print(f"[INFO] {len(seen)} mensajes (sin contar {len(clock)} pulsos de reloj)")
     bpm = clock_bpm(clock)
     if bpm is not None:
