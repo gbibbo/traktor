@@ -9,6 +9,8 @@ CHANGELOG:
   - 2026-11-04: Creación inicial (prueba de instalación del mod en Traktor 4.4.1).
   - 2026-11-04: Ctrl+C apaga los dos servidores sin excepción en el hilo de ::1; tonalidad desde key.
   - 2026-11-04: browserProbe/<lado>: la sonda de la pantalla del D2 (creada, nodo de su navegador).
+  - 2026-11-04: Órdenes para la sonda (POST /enqueue, GET /command/<lado>) y GET /state, para probar si
+                el navegador del D2 mueve el árbol de Traktor.
 """
 from __future__ import annotations
 
@@ -56,6 +58,8 @@ class State:
         self.channels: Dict[str, dict] = {}
         self.master: dict = {}
         self.probe: Dict[str, dict] = {}
+        self.commands: List[dict] = []
+        self.next_id = 0
         self.verbose = verbose
         self.lock = threading.Lock()
 
@@ -100,20 +104,71 @@ class State:
                     return [f"Pantalla del D2 ({target}) creada; su navegador está en {where}"]
                 if reason == "pathChanged":
                     return [f"Navegador del D2 ({target}) en {where}"]
+                if reason == "done":
+                    return [f"Orden «{data.get('cmd')}» hecha; navegador del D2 en {where}"]
+                if reason == "refused":
+                    return [f"Orden «{data.get('cmd')}» rechazada (lo elegido no es una carpeta) en {where}"]
+                if reason == "error":
+                    return [f"[AVISO] La sonda dio un error: {data.get('error')}"]
                 return [f"Navegador del D2 ({target}) sigue en {where}"] if self.verbose else []
         return []
+
+    def enqueue(self, cmd: str, arg=None) -> int:
+        """Orden para la sonda (la primera pantalla que pregunte la toma)."""
+        with self.lock:
+            self.next_id += 1
+            self.commands.append({"id": self.next_id, "cmd": cmd, "arg": arg})
+            return self.next_id
+
+    def pop_command(self) -> Optional[dict]:
+        with self.lock:
+            return self.commands.pop(0) if self.commands else None
 
 
 def make_handler(state: State, log_path: Optional[Path]):
     log_lock = threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
+        def _reply(self, body: bytes = b"", ctype: str = "application/json") -> None:
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            if body:
+                self.wfile.write(body)
+
+        def do_GET(self):  # noqa: N802
+            """/command/<lado>: la próxima orden para la sonda ({} si no hay); /state: último estado."""
+            if self.path.startswith("/command/"):
+                cmd = state.pop_command()
+                self._reply(json.dumps(cmd or {}).encode("utf-8"))
+                if cmd:
+                    print(f"[{dt.datetime.now():%H:%M:%S}] Orden «{cmd['cmd']}» {cmd.get('arg') if cmd.get('arg') is not None else ''} "
+                          f"entregada a la sonda", flush=True)
+            elif self.path == "/state":
+                with state.lock:
+                    snap = {"decks": state.decks, "channels": state.channels, "master": state.master,
+                            "probe": state.probe, "pending": state.commands}
+                    body = json.dumps(snap, ensure_ascii=False).encode("utf-8")
+                self._reply(body)
+            else:
+                self.send_error(404)
+
         def do_POST(self):  # noqa: N802 (nombre de http.server)
             length = int(self.headers.get("Content-Length") or 0)
             raw = self.rfile.read(length) if length > 0 else b""
-            self.send_response(200)
-            self.send_header("Content-Length", "0")
-            self.end_headers()
+            if self.path == "/enqueue":           # orden para la sonda: {"cmd": "exit"|"select"|"enter"|"report", "arg": n}
+                try:
+                    req = json.loads(raw.decode("utf-8") or "{}")
+                    ok = req.get("cmd") in ("exit", "select", "enter", "report")
+                except json.JSONDecodeError:
+                    ok = False
+                if not ok:
+                    self.send_error(400)
+                    return
+                self._reply(json.dumps({"id": state.enqueue(req["cmd"], req.get("arg"))}).encode("utf-8"))
+                return
+            self._reply()
             ep = parse_endpoint(self.path)
             if ep is None:
                 print(f"[AVISO] Ruta desconocida: {self.path}")

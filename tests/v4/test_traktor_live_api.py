@@ -9,6 +9,7 @@ CHANGELOG:
 import json
 import sys
 import threading
+import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
 from http.server import ThreadingHTTPServer
@@ -142,6 +143,29 @@ def test_server_receives_non_ascii_json(tmp_path):
     assert st.decks["B"]["title"] == "Feel the Fun (Каа)"
     ev = json.loads(log.read_text(encoding="utf-8").splitlines()[0])
     assert ev["kind"] == "deckLoaded" and ev["target"] == "B" and "Каа" in ev["data"]["filePath"]
+
+
+def test_probe_command_queue_and_state_over_http():
+    st = State()
+    server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(st, None))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{server.server_address[1]}"
+
+    def call(path, body=None):
+        req = urllib.request.Request(base + path, data=body, method="POST" if body is not None else "GET")
+        return json.loads(urllib.request.urlopen(req, timeout=5).read().decode("utf-8") or "{}")
+    try:
+        assert call("/enqueue", b'{"cmd": "select", "arg": 2}')["id"] == 1
+        with pytest.raises(urllib.error.HTTPError):
+            call("/enqueue", b'{"cmd": "load"}')            # solo órdenes de navegación
+        assert call("/command/left") == {"id": 1, "cmd": "select", "arg": 2}
+        assert call("/command/left") == {}
+        call("/browserProbe/left", json.dumps({"reason": "done", "cmd": "select", "path": "Browser | Playlists",
+                                               "names": ["A", "B"]}).encode("utf-8"))
+        assert call("/state")["probe"]["left"]["names"] == ["A", "B"]
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 def test_serve_stops_both_servers_without_thread_errors():

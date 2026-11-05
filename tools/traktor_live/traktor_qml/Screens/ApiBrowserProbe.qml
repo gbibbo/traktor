@@ -1,48 +1,101 @@
+import CSI 1.0
 import QtQuick 2.0
 import Traktor.Gui 1.0 as Traktor
 
 // TRAKTOR ML - sonda del navegador de la pantalla del D2 (prueba de factibilidad, 2026-11-04).
-// Se agrega al final de Screens/S8/Views/Screen.qml (instalar_api_client.py --sonda). Envia a
-// http://localhost:8080/browserProbe/<lado> cuando se crea la pantalla, cada vez que cambia el nodo de su
-// navegador (revisado cada 1 s) y un latido cada 10 s. Sirve para saber (1) si Traktor crea la pantalla
-// de un D2 virtual sin el aparato conectado y (2) si su navegador sigue al arbol que se ve en Traktor.
-// Solo lee: no navega ni carga nada.
+// Se agrega al final de Screens/S8/Views/Screen.qml (instalar_api_client.py --sonda).
+// Envia a http://localhost:8080/browserProbe/<lado>: cuando se crea la pantalla (con la lista de
+// propiedades y funciones de Traktor.Browser), cada vez que cambia el nodo de su navegador (revisado cada
+// 250 ms, con los nombres de las carpetas del nivel actual) y un latido cada 10 s.
+// Pide ordenes a GET http://localhost:8080/command/<lado> cada 500 ms (cada 5 s si el receptor no
+// responde): "exit" (subir un nivel), "select" con un indice, "enter" (entrar a la carpeta elegida) y
+// "report". Nunca entra a un tema: en la pantalla del D2, entrar a un tema lo carga en el deck.
 
 Item {
   id: probe
   property string screenSide: ""
   property string lastPath: "-"
   property int beats: 0
+  property int pollInterval: 500
   visible: false
 
   Traktor.Browser { id: probeBrowser; isActive: true }
 
-  ListView {
-    id: probeList
-    model: probeBrowser.dataSet
-    visible: false
-    width: 1
-    height: 1
-    delegate: Item { width: 1; height: 1 }
+  // Una instancia por elemento del nivel actual (solo listas de carpetas, para no crear miles con los temas)
+  Repeater {
+    id: rows
+    model: probeBrowser.isContentList ? 0 : probeBrowser.dataSet
+    delegate: Item {
+      visible: false
+      property string nm: model.nodeName
+      property bool isFolder: model.dataType == BrowserDataType.Folder
+    }
   }
 
-  function send(reason) {
-    var request = new XMLHttpRequest()
-    request.open("POST", "http://localhost:8080/browserProbe/" + screenSide, true)
-    request.setRequestHeader("Content-Type", "application/json")
-    request.send(JSON.stringify({
+  function names() {
+    var out = []
+    for (var i = 0; i < rows.count && i < 300; i++) {
+      var it = rows.itemAt(i)
+      out.push(it ? (it.isFolder ? "" : "~") + it.nm : "?")
+    }
+    return out
+  }
+
+  function apiKeys() {
+    var keys = []
+    for (var k in probeBrowser) keys.push(k + ":" + typeof probeBrowser[k])
+    return keys
+  }
+
+  function post(reason, extra) {
+    var body = {
       reason: reason,
       path: String(probeBrowser.currentPath),
       isContentList: probeBrowser.isContentList,
       currentIndex: probeBrowser.currentIndex,
-      count: probeList.count
-    }))
+      count: rows.count,
+      names: probeBrowser.isContentList ? [] : names()
+    }
+    if (extra) for (var k in extra) body[k] = extra[k]
+    var request = new XMLHttpRequest()
+    request.open("POST", "http://localhost:8080/browserProbe/" + screenSide, true)
+    request.setRequestHeader("Content-Type", "application/json")
+    request.send(JSON.stringify(body))
   }
 
-  Component.onCompleted: send("screenLoaded")
+  function run(cmd) {
+    if (cmd.cmd == "exit") {
+      probeBrowser.exitNode()
+    } else if (cmd.cmd == "select") {
+      probeBrowser.changeCurrentIndex(cmd.arg)
+    } else if (cmd.cmd == "enter") {
+      var it = rows.itemAt(probeBrowser.currentIndex)
+      if (probeBrowser.isContentList || !it || !it.isFolder) {
+        post("refused", {cmd: cmd.cmd})
+        return
+      }
+      if (probeBrowser.enterNode(0, probeBrowser.currentIndex)) probeBrowser.relocateCurrentIndex()
+    }
+    post("done", {cmd: cmd.cmd, id: cmd.id})
+  }
+
+  function poll() {
+    var request = new XMLHttpRequest()
+    request.onreadystatechange = function() {
+      if (request.readyState != XMLHttpRequest.DONE) return
+      probe.pollInterval = (request.status == 200) ? 500 : 5000
+      if (request.status == 200 && request.responseText.length > 2) {
+        try { run(JSON.parse(request.responseText)) } catch (e) { post("error", {error: String(e)}) }
+      }
+    }
+    request.open("GET", "http://localhost:8080/command/" + screenSide, true)
+    request.send()
+  }
+
+  Component.onCompleted: post("screenLoaded", {api: apiKeys()})
 
   Timer {
-    interval: 1000
+    interval: 250
     repeat: true
     running: true
     onTriggered: {
@@ -50,10 +103,17 @@ Item {
       probe.beats += 1
       if (p != probe.lastPath) {
         probe.lastPath = p
-        probe.send("pathChanged")
-      } else if (probe.beats % 10 == 0) {
-        probe.send("heartbeat")
+        probe.post("pathChanged")
+      } else if (probe.beats % 40 == 0) {
+        probe.post("heartbeat")
       }
     }
+  }
+
+  Timer {
+    interval: probe.pollInterval
+    repeat: true
+    running: true
+    onTriggered: probe.poll()
   }
 }
