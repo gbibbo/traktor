@@ -178,7 +178,7 @@ def main() -> int:
         if args.status:
             return 0 if status(d2) else 2
         if traktor_running():
-            print("[ERROR] Traktor está abierto: cerrarlo y volver a correr esto")
+            log("[ERROR] Traktor está abierto: no cambié nada. Cerrarlo y volver a correr esto")
             return 1
         if not writable(d2):
             if args.pause:
@@ -186,11 +186,11 @@ def main() -> int:
                 return 1
             argv = [a for a in sys.argv[1:]]
             if relaunch_as_admin(argv):
-                print("[INFO] Hace falta permiso de administrador: Windows va a preguntar. "
-                      f"El resultado queda en {LOG_PATH}")
+                log("[INFO] Pedí permiso de administrador: el resultado sale en la ventana nueva y en "
+                    f"{LOG_PATH}")
                 return 0
-            print(f"[ERROR] Sin permiso para escribir en {d2}: Windows no dio el permiso de administrador "
-                  "(aviso de UAC rechazado o sin respuesta). No cambié nada; volver a correrlo y aceptar el aviso")
+            log(f"[ERROR] Windows no dio el permiso de administrador (aviso rechazado o sin respuesta): "
+                "no cambié nada. Volver a correrlo y aceptar el aviso")
             return 1
         uninstall(d2) if args.uninstall else install(d2)
         return 0

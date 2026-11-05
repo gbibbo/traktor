@@ -151,7 +151,7 @@ def main() -> int:
         pass
     for s in servers[1:]:
         threading.Thread(target=s.serve_forever, daemon=True).start()
-    print(f"[INFO] Escuchando en localhost:{args.port}. Cargá un tema en Traktor; Ctrl+C para salir.")
+    print(f"[INFO] Escuchando en localhost:{args.port}. Carga un tema en Traktor; Ctrl+C para salir.")
     if log_path is not None:
         print(f"[INFO] Eventos en {log_path}")
     try:
