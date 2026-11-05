@@ -1,0 +1,135 @@
+"""
+PURPOSE: Tests de las herramientas en vivo de Traktor: instalar_api_client.py (parche de D2.qml,
+         instalar y desinstalar en una carpeta de prueba), traktor_estado.py (rutas, estado y servidor
+         HTTP con texto no ASCII) y sugerencias_explorer.py (playlists .m3u8 y .nml en orden, entradas
+         copiadas de la colección, no pisa ni borra archivos ajenos).
+CHANGELOG:
+  - 2026-11-04: Creación inicial.
+"""
+import json
+import sys
+import threading
+import urllib.request
+import xml.etree.ElementTree as ET
+from http.server import ThreadingHTTPServer
+from pathlib import Path
+
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
+
+from tools.traktor_live import instalar_api_client as inst  # noqa: E402
+from tools.traktor_live import sugerencias_explorer as sx  # noqa: E402
+from tools.traktor_live.sugerencias_itunes import Track  # noqa: E402
+from tools.traktor_live.traktor_estado import State, make_handler, parse_endpoint  # noqa: E402
+
+D2_SAMPLE = ("\r\nimport CSI 1.0\r\nimport QtQuick 2.0\r\n\r\nimport \"../../Defines\"\r\nimport \"../Common\"\r\n"
+             "import \"../Common/Settings\"\r\n\r\nMapping\r\n{\r\n  // LOOP\r\n  LoopModePads {}\r\n}\r\n")
+
+
+def test_patch_d2_matches_mod_layout_and_roundtrips():
+    patched = inst.patch_d2(D2_SAMPLE)
+    lines = patched.split("\r\n")
+    assert lines[lines.index('import "../Common/Settings"') + 1] == 'import "./Api"'
+    assert lines[lines.index("{") + 1: lines.index("{") + 3] == ["  ApiModule {}", ""]
+    assert inst.patch_d2(patched) == patched
+    assert inst.unpatch_d2(patched) == D2_SAMPLE
+
+
+def test_patch_d2_refuses_unknown_layout():
+    with pytest.raises(ValueError):
+        inst.patch_d2("import CSI 1.0\nItem {}\n")
+
+
+def test_install_and_uninstall_in_a_test_folder(tmp_path, monkeypatch):
+    monkeypatch.setattr(inst, "BACKUP_ROOT", tmp_path / "backups")
+    monkeypatch.setattr(inst, "LOG_PATH", tmp_path / "backups" / "log.txt")
+    d2 = tmp_path / "D2"
+    d2.mkdir()
+    (d2 / "D2.qml").write_bytes(D2_SAMPLE.encode("utf-8"))
+    inst.install(d2)
+    assert inst.status(d2)
+    assert "ApiModule {}" in (d2 / "D2.qml").read_text(encoding="utf-8")
+    backups = list((tmp_path / "backups").glob("qml_CSI_D2_*"))
+    assert len(backups) == 1 and (backups[0] / "D2.qml").read_bytes() == D2_SAMPLE.encode("utf-8")
+    inst.install(d2)                                    # segunda vez: no cambia nada ni copia de nuevo
+    assert len(list((tmp_path / "backups").glob("qml_CSI_D2_*"))) == 1
+    inst.uninstall(d2)
+    assert (d2 / "D2.qml").read_bytes() == D2_SAMPLE.encode("utf-8")
+    assert not (d2 / "Api").exists()
+
+
+def test_parse_endpoint():
+    assert parse_endpoint("/deckLoaded/A") == ("deckLoaded", "A")
+    assert parse_endpoint("/updateMasterClock") == ("updateMasterClock", "")
+    assert parse_endpoint("/otra/cosa") is None
+
+
+def test_state_lines():
+    st = State()
+    assert st.apply("deckLoaded", "A", {"filePath": "C:\\M\\x.mp3", "title": "Friends", "artist": "Solomun",
+                                         "bpm": 120.0, "keyText": "10A"}) == [
+        "Deck A cargó: Solomun - Friends  [120.0 BPM, 10A]  C:\\M\\x.mp3"]
+    assert st.apply("updateDeck", "A", {"isPlaying": True, "elapsedTime": 65.2}) == ["Deck A ▶ suena en 1:05"]
+    assert st.apply("updateDeck", "A", {"elapsedTime": 66.2}) == []
+    assert st.apply("updateChannel", "1", {"isOnAir": True}) == ["Canal 1 AL AIRE"]
+    assert st.apply("updateChannel", "1", {"onAirLevel": 0.5}) == []
+    assert st.apply("updateMasterClock", "", {"deck": "A", "bpm": 120.0}) == ["Master: deck A, 120.0 BPM"]
+    assert st.apply("updateMasterClock", "", {"deck": "A", "bpm": 120.01}) == []
+
+
+def test_server_receives_non_ascii_json(tmp_path):
+    st = State()
+    log = tmp_path / "ev.jsonl"
+    server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(st, log))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        body = json.dumps({"filePath": "C:\\Música\\#1 BIBO\\Electric Tease - Feel the Fun (Каа).mp3",
+                           "title": "Feel the Fun (Каа)", "artist": "Electric Tease"}).encode("utf-8")
+        req = urllib.request.Request(f"http://127.0.0.1:{server.server_address[1]}/deckLoaded/B", data=body,
+                                     headers={"Content-Type": "application/json"}, method="POST")
+        assert urllib.request.urlopen(req, timeout=5).status == 200
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert st.decks["B"]["title"] == "Feel the Fun (Каа)"
+    ev = json.loads(log.read_text(encoding="utf-8").splitlines()[0])
+    assert ev["kind"] == "deckLoaded" and ev["target"] == "B" and "Каа" in ev["data"]["filePath"]
+
+
+def _entry(path: str, title: str) -> ET.Element:
+    p = Path(path)
+    e = ET.Element("ENTRY", TITLE=title, ARTIST="A")
+    ET.SubElement(e, "LOCATION", DIR="/:" + "/:".join(p.parent.parts[1:]) + "/:", FILE=p.name, VOLUME=p.drive)
+    ET.SubElement(e, "CUE_V2", NAME="n.n.", TYPE="0", START="1000.0", HOTCUE="0")
+    return e
+
+
+def test_explorer_playlists_keep_order_and_entries(tmp_path):
+    paths = ["C:\\Música\\#1 BIBO\\Lights.mp3", "C:\\TRAKTOR ML\\Musica\\L - House & Techno\\Zimmz.mp3"]
+    entries = [_entry(p, f"T{i}") for i, p in enumerate(paths)]
+    tracks = [Track(path=Path(p), title=f"T{i}", artist="A", seconds=200.4, bpm="125", key="8A")
+              for i, p in enumerate(paths)]
+    text = sx.m3u8_text(tracks, 3)
+    assert text.split("\r\n")[:4] == ["#EXTM3U", "#TRAKTOR-ML-SUGERENCIAS ronda 3", "#EXTINF:200,A - T0", paths[0]]
+    out = tmp_path / "TRAKTOR ML Sugerencias.nml"
+    sx.write_atomic(sx.nml_bytes(entries, 3), out)
+    root = ET.parse(out).getroot()
+    keys = [pk.get("KEY") for pk in root.iter("PRIMARYKEY")]
+    assert keys == ["C:/:Música/:#1 BIBO/:Lights.mp3", "C:/:TRAKTOR ML/:Musica/:L - House & Techno/:Zimmz.mp3"]
+    assert [e.find("CUE_V2").get("START") for e in root.find("COLLECTION")] == ["1000.0", "1000.0"]
+    assert sx.is_ours(out)
+    m3u = tmp_path / "TRAKTOR ML Sugerencias.m3u8"
+    sx.write_atomic(text.encode("utf-8"), m3u)
+    assert sx.is_ours(m3u) and sx.remove_ours(m3u) and not m3u.exists()
+
+
+def test_explorer_never_overwrites_or_removes_foreign_files(tmp_path):
+    foreign = tmp_path / "TRAKTOR ML Sugerencias.nml"
+    foreign.write_text('<NML><PLAYLISTS><PLAYLIST UUID="0123"/></PLAYLISTS></NML>', encoding="utf-8")
+    with pytest.raises(FileExistsError):
+        sx.write_atomic(b"<NML/>", foreign)
+    with pytest.raises(FileExistsError):
+        sx.remove_ours(foreign)
+    assert foreign.exists()

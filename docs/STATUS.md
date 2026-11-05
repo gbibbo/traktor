@@ -19,17 +19,13 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 - **Temas repetidos, cerrado** (DECISIONS 2026-09-29, 8-13): una copia por tema; `biblioteca` v11
   (1760 temas); copias en `Música/_copias/` (`dedupe.py restore-copies` las devuelve). Export
   `exports/biblioteca_v11/` (2026-10-08): 51 playlists, 0 rutas faltantes, 907 Vocal, 27 GB.
-- **Smart App Control activo en la laptop**: bloquea DLLs nuevas; `.venv` fijado en torch 2.7.1 y
-  pyarrow 16.1 (`requirements_v4.txt`).
+- `requirements_v4.txt` fija torch 2.7.1 y pyarrow 16.1 (Smart App Control de la laptop).
 - **Tripletas (n = 57): ninguna representación supera al BPM de forma concluyente.** Entre
   representaciones decide la escucha de playlists enteras, no el puntaje.
-- **Etiqueta Vocal (clap_probe, calculada 2026-10-06)**: CLAP del tema entero + clasificador lineal de
-  Electrobyte; Vocal si >= 5 % del tema tiene voz (regla de Gabriel). 936 de 1823 temas Vocal. Escrita
-  por Gabriel 2026-10-06 (respaldo `vocal_tags_backup_20261006_111119.csv`): marca y cálculo coinciden
-  en los 1792 MP3/FLAC.
-- **Tags de Beatport escritos y verificados** (Gabriel corrió `write_beatport_tags.py`, 2026-09-29):
-  1087 archivos, 0 errores, track_uid intacto. Catálogo refrescado (respaldo
-  `catalog_before_beatport_tags_20260929.parquet`). Los 110 sin confirmar conservan su género.
+- **Etiqueta Vocal (clap_probe, 2026-10-06)**: Vocal si >= 5 % del tema tiene voz (regla de Gabriel);
+  936 de 1823. Escrita (respaldo `vocal_tags_backup_20261006_111119.csv`) y verificada en 1792 MP3/FLAC.
+- **Tags de Beatport** (2026-09-29): 1087 archivos, 0 errores, track_uid intacto (respaldo
+  `catalog_before_beatport_tags_20260929.parquet`); los 110 sin confirmar conservan su género.
 - **Pendrive `D:\TRAKTOR ML` (copia en `C:\TRAKTOR ML`)** (DECISIONS 2026-10-30, 11-02): los 1760
   temas de `biblioteca` por playlist; `_organizacion.csv` da archivo y track_uid de cada uno
   (verificado en ambas el 11-04). Carátulas 1630/1760. Rekordbox: `Preparar Rekordbox.bat`.
@@ -41,11 +37,10 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 
 ## OPEN ITEMS (por prioridad; LOCAL = trabajo del agente, GABRIEL = lo hace o decide Gabriel)
 
-1. GABRIEL: probar el pendrive en Rekordbox con la controladora. Sus 1752 MP3/FLAC ya llevan
-   embedding y lugar (`file_embeddings.py`). LOCAL: no correr `usb_package.py` desde `Música/`
-   (pisaría el paquete, que ahora manda). `Preparar Traktor.bat`
-   del pendrive sigue armando un NML: Traktor importa una sola playlist. Refrescar Traktor de esta
-   PC (`traktor_collection.py`).
+1. GABRIEL: probar el pendrive en Rekordbox con la controladora (sus 1752 MP3/FLAC llevan embedding y
+   lugar, `file_embeddings.py`). LOCAL: no correr `usb_package.py` desde `Música/` (pisaría el
+   paquete, que manda). `Preparar Traktor.bat` arma un NML y Traktor importa una sola playlist:
+   refrescar Traktor de esta PC (`traktor_collection.py`).
 2. GABRIEL: probar la app (pestaña Organización): agregar música, fusiones, orden a mano (⇅),
    preparar para Rekordbox/Traktor y deshacer; decidir si las playlists usan solo lo elegido en
    Colección. Solo el escritorio (laptop retirada, 11-04), todo en D:: `artifacts/v4/datasets/musica`
@@ -55,10 +50,14 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    tracklists y descarga del audio se consultan antes de implementar.
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
+5. GABRIEL: sugerencias en vivo en Traktor (`tools/traktor_live/`): instalar traktor-api-client
+   (`instalar_api_client.py`, UAC) y probar si Explorer relee una playlist del disco al elegir su
+   favorito (`sugerencias_explorer.py`); iTunes solo se relee con un clic. LOCAL: refresco por el K2.
 
 ## RUN RECIPES
 
-- Intérprete en Windows: `.venv/Scripts/python.exe` (este `.venv` es Python 3.12; AGENTS.md declara 3.11).
+- Intérprete: `.venv/Scripts/python.exe`; en el escritorio ese `.venv` no tiene pandas ni yaml (`Abrir
+  TRAKTOR ML.bat` falla): usar el Python 3.11 de la Store, con `pytest --basetemp` propio.
 - Tests: `.venv/Scripts/python.exe -m pytest tests -q`.
 - Pipeline del MVP, comandos exactos: `docs/V4_USAGE.md`, sección 0b. La organización elegida sale de
   `phase2_cluster.py --dataset-name musica --rep clap_full --bpm-weight 0.3 --method ward --n-l1 15
