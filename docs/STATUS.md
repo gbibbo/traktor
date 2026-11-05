@@ -50,9 +50,9 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    tracklists y descarga del audio se consultan antes de implementar.
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
-5. GABRIEL: sugerencias en vivo en Traktor (`tools/traktor_live/`): instalar traktor-api-client
-   (`instalar_api_client.py`, UAC) y probar si Explorer relee una playlist del disco al elegir su
-   favorito (`sugerencias_explorer.py`); iTunes solo se relee con un clic. LOCAL: refresco por el K2.
+5. LOCAL: sugerencias en vivo (`tools/traktor_live/`, mod D2 y sonda instalados): Traktor relee un
+   .nml del Explorer al entrar desde otra carpeta y la sonda del D2 mueve el árbol. Falta «ir a ruta»
+   y el botón del K2 (guardar posición, sugerencias, volver); GABRIEL elige el botón.
 
 ## RUN RECIPES
 

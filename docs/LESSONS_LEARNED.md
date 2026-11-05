@@ -137,6 +137,16 @@ reproducciones vacío). La entrada original queda intacta. Un "#" en la ruta (%2
 para que no lo reconozca (prueba del 2026-11-04). Para revisar después de una prueba, contar las
 entradas por ruta (`entry_key`), no solo las rutas distintas: un dict por ruta esconde el duplicado.
 
+### Traktor relee un .nml del Explorer solo al entrar desde otra carpeta; el D2 mueve el árbol
+
+El Explorer de Traktor 4.4.1 muestra como playlist los `.nml` de cualquier carpeta (los `.m3u8` no).
+Si el archivo cambia, sigue mostrando lo que leyó hasta que se entra a la playlist viniendo de otra
+carpeta: volver a elegir el mismo favorito no alcanza (prueba de Gabriel, 2026-11-04). Traktor no
+tiene comando para volver a la posición anterior del árbol, pero el navegador de la pantalla del
+Kontrol D2 (QML `Traktor.Browser`, también con un D2 virtual) es el de la ventana: `enterNode` y
+`exitNode` mueven el árbol que ve el DJ y `currentPath` dice dónde está (`ApiBrowserProbe.qml`).
+Entrar a un **tema** desde esa pantalla lo carga en un deck: la sonda solo entra a carpetas.
+
 ## Entorno HPC (ver también memory/MEMORY.md)
 
 [REEMPLAZADO 2026-09-12 por DECISIONS 2026-09-12, punto 4: Surrey HPC ya no existe; se trabaja en CPU local (AGENTS.md). Se conserva como registro.]
