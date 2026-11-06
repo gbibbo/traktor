@@ -33,6 +33,10 @@ CHANGELOG:
   - 2026-11-06: run_session() (la usa también el servicio automático, sugerencias_servicio.py) y
                 MidiWatcher: si el controlador aparece tarde o se desenchufa y vuelve, se reabre solo.
                 Los avisos van por say(nivel, texto).
+  - 2026-11-06: Tema principal (tema_principal.py): cada evento de Traktor y los faders de la DJM (otro
+                MidiWatcher, en su hilo; que falte no es un aviso) deciden el tema principal y lo tocado,
+                que quedan en el registro de la sesión ("principal", "tocado", "fader", "mezcla"). El
+                modo de mezcla sale de Traktor Settings.tsi. Las sugerencias todavía son de prueba.
 """
 from __future__ import annotations
 
@@ -55,6 +59,7 @@ sys.path.insert(0, str(REPO_ROOT))
 import src.v4.common  # noqa: E402,F401  (salida UTF-8 en consolas cp1252)
 from src.v4.common.traktor_nml import DEFAULT_MAC_BOOT_VOLUME, find_collection, mac_boot_volume  # noqa: E402
 from tools.traktor_live import instalar_api_client as inst  # noqa: E402
+from tools.traktor_live import tema_principal as tp  # noqa: E402
 from tools.traktor_live import traktor_estado as te  # noqa: E402
 from tools.traktor_live.midi_io import BACKENDS, default_backend, list_inputs, open_input  # noqa: E402
 from tools.traktor_live.midi_monitor import decode, find_input  # noqa: E402
@@ -64,6 +69,7 @@ from tools.traktor_live.sugerencias_itunes import PLAYLIST_NAME, collection_trac
 SETTINGS_FILE = te.DEFAULT_LOG_DIR / "sugerencias_vivo.json"
 NML_NAME = f"{PLAYLIST_NAME} NML"
 DEFAULT_MIDI = "K2"
+DEFAULT_DJM = "DJM"                   # entrada MIDI del mezclador (DJM-750MK2): sus faders, CC 17 a 20
 DEBOUNCE_S = 0.4
 MIDI_POLL_S = 2.0                     # cada cuánto se revisa si el controlador se desenchufó o apareció
 LEVELS = {"info": "INFO", "ok": "OK", "aviso": "AVISO", "error": "ERROR"}
@@ -316,13 +322,16 @@ def console_say(level: str, text: str) -> None:
 
 
 class MidiWatcher:
-    """Mantiene abierta la entrada del controlador: la busca por una palabra de su nombre, la abre y, si
-    cambia la lista de entradas (se desenchufó y se volvió a enchufar, o apareció más tarde), la vuelve a
-    abrir. Avisa una sola vez por cada problema distinto."""
+    """Mantiene abierta una entrada MIDI (el controlador o el mezclador): la busca por una palabra de su
+    nombre, la abre y, si cambia la lista de entradas (se desenchufó y se volvió a enchufar, o apareció
+    más tarde), la vuelve a abrir. Avisa una sola vez por cada problema distinto; que no esté se avisa con
+    missing_level (la DJM puede faltar: con la mezcla interna no hace falta)."""
 
-    def __init__(self, text: str, backend: str, say: Say, lister=list_inputs, opener=open_input):
+    def __init__(self, text: str, backend: str, say: Say, lister=list_inputs, opener=open_input,
+                 label: str = "controlador", missing_level: str = "aviso", hint: str = "--midi elige otro"):
         self.text, self.backend, self.say = text, backend, say
         self.lister, self.opener = lister, opener
+        self.label, self.missing_level, self.hint = label, missing_level, hint
         self.names: Optional[List[str]] = None
         self.input = None
         self.name = ""
@@ -346,11 +355,11 @@ class MidiWatcher:
         if self.input is not None:
             self.input.close()
             self.input = None
-            self.say("aviso", "Cambiaron las entradas MIDI: vuelvo a abrir el controlador")
+            self.say("aviso", f"Cambiaron las entradas MIDI: vuelvo a abrir el {self.label}")
         idx = find_input(names, self.text)
         if idx is None:
-            self._problem("aviso", f"No veo el controlador «{self.text}» entre las entradas MIDI {names}: "
-                                   "lo sigo buscando (¿enchufado?; --midi elige otro)")
+            self._problem(self.missing_level, f"No veo el {self.label} «{self.text}» entre las entradas MIDI "
+                                              f"{names}: lo sigo buscando (¿enchufado?; {self.hint})")
             return
         inp = self.opener(idx, self.backend)
         error = inp.open()
@@ -359,7 +368,7 @@ class MidiWatcher:
             return
         self.input, self.name = inp, names[idx]
         if self._last_problem or changed:
-            self.say("ok", f"Controlador abierto: {self.name}")
+            self.say("ok", f"{self.label.capitalize()} abierto: {self.name}")
         self._last_problem = ""
 
     def get(self, timeout: float):
@@ -411,8 +420,10 @@ def run_session(settings_path: Path, stop: threading.Event, say: Say = console_s
     state = te.State(show_browser=False)
     log_path = te.DEFAULT_LOG_DIR / f"sugerencias_vivo_{dt.datetime.now():%Y%m%d_%H%M%S}.jsonl"
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    live = tp.Live(tp.Tracker(faders=tp.faders_from(settings.get("faders"))), log_path, say)
+    mixer = tp.MixerWatch(tp.settings_tsi(collection))
     try:
-        servers = te.open_servers(port, te.make_handler(state, log_path))
+        servers = te.open_servers(port, te.make_handler(state, log_path, listener=live.http))
     except OSError as exc:
         if te.port_in_use(exc):
             say("error", f"El puerto {port} ya lo usa otro programa: ¿ya corren las sugerencias (en otra ventana "
@@ -420,9 +431,16 @@ def run_session(settings_path: Path, stop: threading.Event, say: Say = console_s
             return 1
         raise
 
+    mixer.poll()
+    live.set_mixer(mixer.mode)
     serve_thread = threading.Thread(target=te.serve, args=(servers, stop), daemon=True)
     serve_thread.start()
     midi = MidiWatcher(settings.get("midi") or DEFAULT_MIDI, backend, say)
+    djm = MidiWatcher(settings.get("djm") or DEFAULT_DJM, backend, say, label="mezclador", missing_level="info",
+                      hint="«djm» en sugerencias_vivo.json elige otro; con la mezcla interna no hace falta")
+    djm_thread = threading.Thread(target=watch_mixer, args=(djm, mixer, live, stop), daemon=True,
+                                  name="tema principal")
+    djm_thread.start()
     try:
         midi.poll()
         if learn:
@@ -463,9 +481,32 @@ def run_session(settings_path: Path, stop: threading.Event, say: Say = console_s
     finally:
         stop.set()
         serve_thread.join(timeout=3)
+        djm_thread.join(timeout=3)
         midi.close()
     say("info", "Fin de la sesión de sugerencias.")
     return 0
+
+
+def watch_mixer(djm: MidiWatcher, mixer: "tp.MixerWatch", live: "tp.Live", stop: threading.Event) -> None:
+    """Hilo del tema principal: los faders de la DJM (llegan con su reloj MIDI, decenas de mensajes por
+    segundo) y el modo de mezcla, que se vuelve a leer cuando Traktor reescribe sus ajustes."""
+    last_poll = 0.0
+    try:
+        while not stop.is_set():
+            if time.monotonic() - last_poll > MIDI_POLL_S:
+                djm.poll()
+                if mixer.poll():
+                    live.set_mixer(mixer.mode)
+                last_poll = time.monotonic()
+            event = djm.get(0.1)
+            if event is None:
+                continue
+            try:
+                live.midi(event[0])
+            except Exception as exc:                    # noqa: BLE001 (un mensaje raro no corta el hilo)
+                print(f"[AVISO] Error con un mensaje de la DJM: {type(exc).__name__}: {exc}", flush=True)
+    finally:
+        djm.close()
 
 
 def press(state: te.State, toggle: Toggle, sugg: Suggestions, log_path: Optional[Path] = None,

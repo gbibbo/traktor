@@ -111,6 +111,21 @@ flowchart LR
 
    Al apretarlo otra vez, vuelve a la carpeta guardada, y Traktor conserva el tema que estaba elegido
    en ella. Si una ida o una vuelta falla, el siguiente apretón la repite.
+6. **El tema principal** (`tema_principal.py`; reglas en `docs/DECISIONS.md`, 2026-11-06, puntos 6 y 7).
+   Con cada aviso de Traktor y cada movimiento de un fader, el programa decide qué tema manda:
+   - si el MASTER de Traktor es un deck, el tema cargado en ese deck;
+   - si es el master tempo, el que está al aire con el fader al 90 % o más, prefiriendo la parte media
+     del tema (30 a 70 %) a la intro y la intro al final.
+
+   Los faders salen de la DJM con la mezcla externa (CC 17 a 20 en el canal 1 = decks A a D;
+   `"faders"` y `"djm"` en `sugerencias_vivo.json` los cambian) y de Traktor con la interna. Qué mezcla
+   usa Traktor se lee en `Traktor Settings.tsi`. Si la DJM no está conectada, se anota en el registro sin
+   avisar, y sus faders cuentan como arriba. En la ventana aparece una línea «Tema principal: ...»
+   por cada cambio.
+
+   Si el programa arranca con Traktor ya abierto, no sabe qué hay cargado ni quién es el MASTER hasta que
+   algo cambie: Traktor avisa cada cambio una sola vez. El servicio automático no tiene ese problema,
+   porque arranca antes que Traktor.
 
 ## Requisitos
 
@@ -213,7 +228,7 @@ El programa aprende ese camino y lo guarda.
 | --- | --- | --- |
 | Playlist de sugerencias | `C:\TRAKTOR ML Sugerencias\` (raíz de la unidad del usuario) | `/Users/Shared/TRAKTOR ML Sugerencias/` |
 | Ajustes (botón, controlador, camino aprendido) | `artifacts/v4/traktor_live/sugerencias_vivo.json` | igual |
-| Registro de cada sesión (`.jsonl`) | `artifacts/v4/traktor_live/` | igual |
+| Registro de cada sesión (`.jsonl`: avisos de Traktor, pulsaciones, faders de la DJM, mezcla, tema principal y temas tocados) | `artifacts/v4/traktor_live/` | igual |
 | Copias de los QML de Traktor | `artifacts/v4/traktor_backups/` | igual |
 
 En Windows la playlist no va en la carpeta personal porque la pantalla del D2 vio vacía

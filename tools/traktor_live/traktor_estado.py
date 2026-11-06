@@ -17,6 +17,7 @@ CHANGELOG:
   - 2026-11-05: Con show_browser=False tampoco imprime el "goto" fallido (lo avisa sugerencias_vivo.py).
   - 2026-11-05: open_servers() para este receptor y sugerencias_vivo.py; ::1 solo si el equipo tiene IPv6.
   - 2026-11-06: log_event(): el registro de la sesión con un solo candado para todos los que escriben.
+  - 2026-11-06: make_handler(listener=...): cada evento llega también al tema principal (tema_principal.py).
 """
 from __future__ import annotations
 
@@ -30,7 +31,7 @@ import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
@@ -163,7 +164,9 @@ def log_event(log_path: Optional[Path], kind: str, target: str, data: dict) -> N
         f.write(line + "\n")
 
 
-def make_handler(state: State, log_path: Optional[Path]):
+def make_handler(state: State, log_path: Optional[Path], listener: Optional[Callable[[str, str, dict], None]] = None):
+    """listener(kind, target, data) ve cada evento de Traktor después de State (el tema principal de
+    sugerencias_vivo.py); si falla, se avisa y el receptor sigue."""
 
     class Handler(BaseHTTPRequestHandler):
         def _reply(self, body: bytes = b"", ctype: str = "application/json") -> None:
@@ -222,6 +225,11 @@ def make_handler(state: State, log_path: Optional[Path]):
                 return
             for line in state.apply(ep[0], ep[1], data):
                 print(f"[{now:%H:%M:%S}] {line}", flush=True)
+            if listener is not None:
+                try:
+                    listener(ep[0], ep[1], data)
+                except Exception as exc:            # noqa: BLE001 (un error ahí no corta el receptor)
+                    print(f"[AVISO] Error al procesar {ep[0]}/{ep[1]}: {type(exc).__name__}: {exc}", flush=True)
 
         def log_message(self, *args):  # silencia el log por pedido de http.server
             pass

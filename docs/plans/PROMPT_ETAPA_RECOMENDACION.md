@@ -37,13 +37,18 @@ Estas definiciones son de Gabriel. Proponé, mostrá datos y preguntá; no las d
      `sugerencias_vivo_*.jsonl` ya tienen los dos casos.
    - **Cambio de modo:** si el MASTER cambia en medio del set, el tema principal se recalcula con el
      modo nuevo.
-   - **Falta comprobar:** que Traktor mande el valor al arrancar, y no solo cuando cambia.
+   - [REEMPLAZADO 2026-11-06 por los registros de los arranques del 11-04 22:28 y el 11-06 15:53: Traktor
+     manda el MASTER en la primera décima de segundo al abrirse; si el receptor arranca con Traktor ya
+     abierto, no llega hasta que cambie] **Falta comprobar:** que Traktor mande el valor al arrancar, y no
+     solo cuando cambia.
    - **El modo difícil, con el mezclador interno de Traktor:** `updateChannel/<n>` trae `isOnAir`
      (volumen > 0) y `onAirLevel` (volumen por crossfader).
    - **Con la DJM (mezcla externa):** Traktor no ve los faders. La DJM manda sus faders de canal por
      MIDI, canal 1, CC 17 a 20 (0 a 127). Gabriel nunca usa el crossfader.
-   - **Qué canal de la DJM corresponde a cada deck:** sale del ruteo externo de Traktor
-     (`Routing.Out.External.*` en `Traktor Settings.tsi`). Confirmarlo con Gabriel.
+   - [REEMPLAZADO 2026-11-06 por Gabriel y su `DJM + K2 (external mix) (1).tsi`: A a D van a los canales
+     1 a 4; el `Traktor Settings.tsi` de hoy está en mezcla interna y no trae ese ruteo] **Qué canal de la DJM
+     corresponde a cada deck:** sale del ruteo externo de Traktor (`Routing.Out.External.*` en
+     `Traktor Settings.tsi`). Confirmarlo con Gabriel.
    - **Valor de los faders al arrancar:** la DJM manda un fader solo cuando se mueve.
    - **Señales que se combinan:** `isPlaying` y `elapsedTime` de cada deck (`updateDeck`), nivel del
      fader, cuánto tiempo lleva al aire.

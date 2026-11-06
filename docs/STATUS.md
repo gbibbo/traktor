@@ -50,9 +50,9 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    tracklists y descarga del audio se consultan antes de implementar.
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
-5. Sugerencias en vivo: etapa cerrada el 11-06 (tag `sugerencias-vivo-v3`, `docs/SUGERENCIAS_EN_VIVO.md`;
-   arrancan solas con Traktor; macOS solo con tests). SIGUIENTE, en un chat nuevo:
-   `docs/plans/PROMPT_ETAPA_RECOMENDACION.md` (tema principal, registro, sugerencias reales).
+5. Recomendación en vivo (`docs/plans/PROMPT_ETAPA_RECOMENDACION.md`; reglas: DECISIONS 11-06 p. 7).
+   Hecho: tema principal (`tema_principal.py`). GABRIEL: probarlo tocando. LOCAL: registro por tema,
+   índice de la biblioteca, sugerencias CLAP. Base que anda: tag `sugerencias-vivo-v3`.
 
 ## RUN RECIPES
 

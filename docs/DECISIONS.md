@@ -74,6 +74,27 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
      tempo.
 
    Se agregó al prompt de la etapa de recomendación.
+7. **Reglas del tema principal y de las sugerencias** (Gabriel, 2026-11-06, al plan de la etapa de
+   recomendación).
+   - Usa las dos mezclas: la interna con `XONE K2 + TECLADO (TEMPO).tsi` y la externa con
+     `DJM + K2 (external mix) (1).tsi`, donde los decks A a D van a los canales 1 a 4 de la DJM.
+   - Hace mezclas largas con los dos temas arriba. Un tema tiene intro (el primer 30 %), main (del 30
+     al 70 %) y outro (desde el 70 %): main gana a intro e intro gana a outro; el outro siempre pierde.
+     El tema principal casi seguro tiene el fader por encima del 90 %.
+   - Un fader sin dato al arrancar cuenta como arriba (él los va a mover al abrir Traktor).
+   - Sugerencias por ahora solo por parecido CLAP, las 10 o 30 más cercanas; la trayectoria, después.
+     Filtros: BPM ±20 y tonalidad compatible transponiendo hasta 2 semitonos
+     (`docs/HARMONIC_COMPATIBILITY.md`). Se excluye lo tocado en la sesión, comprobando que sonó: cargar
+     no alcanza.
+   - El pendrive está siempre conectado; el agente elige una sola ubicación de los temas.
+
+   Cómo (agente), en `tools/traktor_live/tema_principal.py`:
+   - la mezcla se lee de `Routing.Mixer.External` en `Traktor Settings.tsi`, porque la API de Traktor
+     no la informa;
+   - con la mezcla externa los faders salen de la DJM (CC 17 a 20) y con la interna, de Traktor;
+   - un cambio con el tema anterior todavía al aire se sostiene 3 s; si el anterior sale del aire,
+     cambia enseguida;
+   - tocado = 30 s en play con el fader al 50 % o más.
 
 ## 2026-11-04
 
