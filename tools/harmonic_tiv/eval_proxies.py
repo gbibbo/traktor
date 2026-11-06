@@ -74,12 +74,12 @@ def scores_from_tivs(T: np.ndarray, metric: str = "tivlib"):
 
 
 def key_rule_matrix(keys, max_shift=0):
-    n = len(keys)
-    m = np.full((n, n), 0.5)
-    for i in range(n):
-        for j in range(n):
-            m[i, j] = best_key_shift(keys[i], keys[j], max_shift=max_shift)[0]
-    return m
+    """Regla Camelot de harmonic.py para todos los pares, por tabla de 25 x 25 (24 tonalidades + '?')."""
+    labels = [f"{n}{m}" for n in range(1, 13) for m in "AB"] + ["?"]
+    table = np.array([[best_key_shift(a, b, max_shift=max_shift)[0] for b in labels] for a in labels])
+    idx = {k: i for i, k in enumerate(labels)}
+    ki = np.array([idx.get(k, idx["?"]) for k in keys])
+    return table[np.ix_(ki, ki)]
 
 
 def estimated_keys(cache_dir: Path, ids, cfg: ft.TivConfig, profile="temperley"):
@@ -125,15 +125,20 @@ def run_thesis48(args) -> dict:
 
 
 def run_musica(args) -> dict:
-    keys = pd.read_csv(args.eval_dir / "keys_musica.csv")
-    keys = keys[keys["split"] == args.split]
-    tag_bp = keys[(keys.k_tag != "?") & (keys.k_tag == keys.k_beatport)]
+    """TIV de toda la biblioteca. Teoría de tonalidades: pares de consenso (MIK == Beatport) del split de
+    temas. Transiciones reales: sesiones del split, con toda la biblioteca como candidatos (como en vivo).
+    Hubness: toda la biblioteca."""
+    keys_all = pd.read_csv(args.eval_dir / "keys_musica.csv")
+    split_of = keys_all.set_index("track_uid")["split"]
+    tag_of = keys_all.set_index("track_uid")["k_tag"]
+    cons_ids = list(keys_all[(keys_all.k_tag != "?") & (keys_all.k_tag == keys_all.k_beatport)
+                             & (keys_all.split == args.split)]["track_uid"])
     bpm = pd.read_parquet(args.bpm)[["track_uid", "bpm"]].set_index("track_uid")["bpm"]
     trans = pd.read_csv(args.eval_dir / "transitions_history.csv").dropna(subset=["a_uid", "b_uid"])
     trans = trans[trans["split"] == args.split]
+    all_ids = list(keys_all["track_uid"])
     results = []
-    all_ids = list(keys["track_uid"])
-    tag_of = keys.set_index("track_uid")["k_tag"]
+    kr = None
     for label, change in ONE_AT_A_TIME:
         t0 = time.time()
         cfg, metric = split_change(change)
@@ -142,14 +147,14 @@ def run_musica(args) -> dict:
         T = np.stack([tivs[i] for i in ids])
         pos = {i: k for k, i in enumerate(ids)}
         score, best, _ = scores_from_tivs(T, metric)
-        cons = [i for i in tag_bp["track_uid"] if i in pos]
-        ci = [pos[i] for i in cons]
-        ck = list(tag_bp.set_index("track_uid").loc[cons, "k_tag"])
+        if kr is None:
+            kr = key_rule_matrix([tag_of[i] for i in ids])
+        ci = [pos[i] for i in cons_ids if i in pos]
+        ck = [tag_of[ids[k]] for k in ci]
         pm = ev.key_pair_metrics(score[np.ix_(ci, ci)], ck)
         sa = ev.shift_accuracy(best[np.ix_(ci, ci)], ck)
         hub = ev.hubness(score, k=10)
-        # transiciones reales: a y b en este split con TIV; pool = temas del split con BPM compatible
-        all_trans = [(a, b) for a, b in zip(trans.a_uid, trans.b_uid) if a in pos and b in pos and a != b]
+        pairs = [(a, b) for a, b in zip(trans.a_uid, trans.b_uid) if a in pos and b in pos and a != b]
         bpm_of = {i: float(bpm.get(i, np.nan)) for i in ids}
         pools = {}
 
@@ -157,17 +162,24 @@ def run_musica(args) -> dict:
             if a not in pools:
                 pools[a] = [x for x in ids if ev.bpm_compatible(bpm_of[a], bpm_of[x])]
             return pools[a]
-        tp = ev.transition_percentile(all_trans, lambda a, b: score[pos[a], pos[b]], pool_fn)
+
+        def sc(a, b):
+            return score[pos[a], pos[b]]
+
+        def kclass(a, b):
+            return round(float(kr[pos[a], pos[b]]), 2)
         row = {"variant": label, "config": cfg.name() + "/" + metric, "n_tracks": len(ids), "consensus_n": len(ci),
                "spearman": round(pm["spearman_fifths"], 3), "auc_near_far": round(pm["auc_near_far"], 3),
                "auc_rule": round(pm["auc_rule"], 3), "mrr_same": round(pm["mrr_same"], 3),
                "shift_exact": round(sa["exact"], 3), "hub_skew": round(hub["skew"], 2),
-               "hub_never": round(hub["never"], 3), "hub_max": hub["max_occ"], "history": tp,
+               "hub_never": round(hub["never"], 3), "hub_max": hub["max_occ"],
+               "history": ev.transition_percentile(pairs, sc, pool_fn),
+               "history_within_camelot": ev.within_class_percentile(pairs, sc, kclass, pool_fn),
                "seconds": round(time.time() - t0, 1)}
         if label.startswith("base"):
-            kr = key_rule_matrix([tag_of[i] for i in ids])
-            row["camelot_tag_history"] = ev.transition_percentile(all_trans, lambda a, b: kr[pos[a], pos[b]], pool_fn)
+            row["camelot_tag_history"] = ev.transition_percentile(pairs, lambda a, b: kr[pos[a], pos[b]], pool_fn)
             row["camelot_tag_hubness"] = ev.hubness(kr + 1e-6 * np.random.default_rng(0).random(kr.shape), k=10)
+            row["n_pairs_history"] = len(pairs)
         results.append(row)
         print(json.dumps(row, ensure_ascii=False), flush=True)
     return {"set": "musica", "split": args.split, "results": results}

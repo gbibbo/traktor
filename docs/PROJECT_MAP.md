@@ -257,7 +257,9 @@ escucha lo apruebe. Protocolo y criterios: `docs/plans/armonia_tiv_protocolo.md`
 | `src/v4/harmonic_tiv/evaluate.py` | Métricas proxy: Perf de la tesis, teoría de tonalidades (Spearman, AUC, MRR), transposición, hubness, percentil de las transiciones reales |
 | `tools/harmonic_tiv/build_eval_sets.py` | Arma thesis48, tonalidades de `musica` por fuente (MIK, Beatport, Traktor) con consenso, transiciones reales de los History de Traktor y los splits dev/test |
 | `tools/harmonic_tiv/extract_semitones.py` | Caché de espectros por semitono por tema (`--manifest`, `--folder`, `--workers`, `--low-priority`), con reintento si un proceso muere |
-| `tools/harmonic_tiv/eval_proxies.py` | Grilla de variantes de a una variable contra FEM#10 y la regla Camelot (`--set thesis48` o `--set musica --split dev`) |
+| `tools/harmonic_tiv/eval_proxies.py` | Grilla de variantes de a una variable contra FEM#10 y la regla Camelot (`--set thesis48` o `--set musica --split dev`), con el percentil de las transiciones reales dentro de cada clase Camelot |
+| `src/v4/harmonic_tiv/render.py` | Transiciones de DJ para la escucha: tramo más tonal, tempo igualado con rubberband (ffmpeg), fase de bombo calibrada contra la grilla de Traktor y autoalineación dentro de la mezcla, cambio de graves por EQ |
+| `tools/harmonic_tiv/listening_test.py` | Etapa C: `build` elige ítems donde Camelot y el TIV discrepan (vecinos CLAP con BPM compatible), renderiza, agrega repetidos y escribe una página local a ciegas; `score` aplica el criterio del protocolo |
 | `tests/v4/test_harmonic_tiv.py` | TIV igual a TIV.lib, transposición, front-end con señales sintéticas, HPSS por tramos, métricas |
 
 ## Herramienta de feedback del DJ (`tools/dj_feedback/`)

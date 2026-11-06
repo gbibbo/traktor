@@ -110,6 +110,42 @@ def test_segmented_hpss_equals_whole_signal():
     assert np.allclose(whole, seg, atol=1e-5)
 
 
+def _kick_track(bpm, first_beat_s, seconds, sr, hat=True):
+    """Bombos (seno de 55 Hz con caída) en cada beat y hi-hats (ruido) a contratiempo."""
+    rng = np.random.default_rng(0)
+    x = np.zeros(int(seconds * sr), dtype=np.float32)
+    beat = 60.0 / bpm
+    kick = (np.sin(2 * np.pi * 55 * np.arange(int(0.15 * sr)) / sr) * np.exp(-np.arange(int(0.15 * sr)) / (0.04 * sr)))
+    hh = rng.standard_normal(int(0.03 * sr)) * np.exp(-np.arange(int(0.03 * sr)) / (0.005 * sr)) * 0.8
+    t = first_beat_s
+    while t < seconds - 0.2:
+        i = int(t * sr)
+        x[i:i + len(kick)] += kick
+        if hat:
+            j = int((t + beat / 2) * sr)
+            x[j:j + len(hh)] += hh
+        t += beat
+    return x
+
+
+def test_beat_phase_follows_the_kick_not_the_offbeat_hat():
+    from src.v4.harmonic_tiv import render as rd
+    x = _kick_track(126.0, 0.137, 20.0, rd.SR)
+    phase, conf = rd.beat_phase_conf(x, 126.0)
+    assert abs(phase - 0.137) < 0.012 and conf > 2.0
+
+
+def test_mix_transition_length_and_finite():
+    from src.v4.harmonic_tiv import render as rd
+    t = rd.Template()
+    beat = 60.0 / 125.0
+    tgt = _kick_track(125.0, 0.0, (t.lead_beats + t.overlap_beats) * beat, rd.SR)
+    cand = _kick_track(125.0, 0.0, (t.overlap_beats + t.tail_beats) * beat, rd.SR)
+    out = rd.mix_transition(tgt, cand, beat, t)
+    expected = sum(int(round(n * beat * rd.SR)) for n in (t.lead_beats, t.overlap_beats, t.tail_beats))
+    assert len(out) == expected and np.all(np.isfinite(out))
+
+
 def test_fifths_distance_and_shift_target():
     assert ev.fifths_distance("8A", "8B") == 0
     assert ev.fifths_distance("8A", "9A") == 1

@@ -14,7 +14,8 @@ PURPOSE: Arma los conjuntos de evaluación y ajuste de la compatibilidad armóni
               fecha para las sesiones (las más viejas = dev).
          Uso: python tools/harmonic_tiv/build_eval_sets.py --out <dir> [--thesis-src <clon de harmonic_mix>]
 CHANGELOG:
-  - 2026-11-06: Creación (rama harmonic-tiv).
+  - 2026-11-06: Creación (rama harmonic-tiv). keys_musica.csv lleva también BPM y grilla de Traktor
+                (primer beat en s, BPM de la grilla) para alinear las transiciones de la prueba de escucha.
 """
 from __future__ import annotations
 
@@ -109,9 +110,16 @@ def traktor_index(collection: Path) -> pd.DataFrame:
     for e in root.find("COLLECTION").findall("ENTRY"):
         mk = e.find("MUSICAL_KEY")
         info = e.find("INFO")
+        tempo = e.find("TEMPO")
+        grid = [c for c in e.findall("CUE_V2") if c.get("TYPE") == "4"]
+        g_bpm = grid[0].find("GRID").get("BPM") if grid and grid[0].find("GRID") is not None else None
         rows.append({"path": str(entry_path(e)),
                      "traktor_value": mk.get("VALUE") if mk is not None else None,
-                     "traktor_info_key": info.get("KEY") if info is not None else None})
+                     "traktor_info_key": info.get("KEY") if info is not None else None,
+                     "traktor_bpm": float(tempo.get("BPM")) if tempo is not None and tempo.get("BPM") else None,
+                     # START de los CUE_V2 está en milisegundos
+                     "grid_start_s": float(grid[0].get("START")) / 1000.0 if grid else None,
+                     "grid_bpm": float(g_bpm) if g_bpm else None})
     return pd.DataFrame(rows)
 
 
@@ -149,7 +157,7 @@ def build_keys(cat: pd.DataFrame, beatport: pd.DataFrame, trk: pd.DataFrame, has
     trk["track_uid"] = match_paths_to_uids(trk["path"], cat, hash_cache)
     trk = trk.dropna(subset=["track_uid"]).drop_duplicates("track_uid")
     trk["k_traktor"] = trk["traktor_value"].map(traktor_value_to_camelot)
-    df = df.merge(trk[["track_uid", "k_traktor"]], on="track_uid", how="left")
+    df = df.merge(trk[["track_uid", "k_traktor", "traktor_bpm", "grid_start_s", "grid_bpm"]], on="track_uid", how="left")
     for c in ("k_tag", "k_beatport", "k_traktor"):
         df[c] = df[c].fillna("?")
 

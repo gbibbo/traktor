@@ -171,9 +171,33 @@ def transition_percentile(pairs: List[tuple], score_fn: Callable[[str, str], flo
         sb = score_fn(a, b)
         sp = np.array([score_fn(a, x) for x in pool])
         pct.append(float((sp < sb).mean() + 0.5 * (sp == sb).mean()))
+    return _summ(pct, rng, n_boot)
+
+
+def _summ(pct, rng, n_boot):
     pct = np.array(pct)
     if not len(pct):
         return {"n": 0}
     boots = [rng.choice(pct, len(pct)).mean() for _ in range(n_boot)]
     return {"n": int(len(pct)), "mean_pct": float(pct.mean()), "ci95": [float(np.percentile(boots, 2.5)),
                                                                          float(np.percentile(boots, 97.5))]}
+
+
+def within_class_percentile(pairs: List[tuple], score_fn: Callable[[str, str], float],
+                            class_fn: Callable[[str, str], object], pool_fn: Callable[[str], List[str]],
+                            min_pool: int = 5, rng: Optional[np.random.Generator] = None, n_boot: int = 2000) -> Dict:
+    """Como transition_percentile, pero el pool de cada transición real (a, b) son solo los candidatos x
+    con class_fn(a, x) == class_fn(a, b) (p. ej. el mismo score Camelot con la tonalidad que Gabriel ve).
+    Ahí la regla de referencia empata por construcción: un percentil > 0,5 dice que `score_fn` aporta
+    información sobre lo que Gabriel tocó más allá de esa clase."""
+    rng = rng or np.random.default_rng(0)
+    pct = []
+    for a, b in pairs:
+        cb = class_fn(a, b)
+        pool = [x for x in pool_fn(a) if x not in (a, b) and class_fn(a, x) == cb]
+        if len(pool) < min_pool:
+            continue
+        sb = score_fn(a, b)
+        sp = np.array([score_fn(a, x) for x in pool])
+        pct.append(float((sp < sb).mean() + 0.5 * (sp == sb).mean()))
+    return _summ(pct, rng, n_boot)
