@@ -3,6 +3,9 @@
 PURPOSE: Run the complete Spotify -> Soulseek + loopback fallback workflow.
 
 CHANGELOG:
+- 2026-11-06: --recording-output NAME (or SPOTIFY_RECORDING_OUTPUT in .env): record that output, e.g.
+              "Voicemeeter Input" with Spotify alone routed to it, instead of the Windows default output
+              (CONFIGURAR_OTRO_ORDENADOR.md, «Grabar sin que suene nada»).
 - 2026-11-06: The output that is recorded is checked before each session (playlist_loopback_recorder.py
               --check-device), before any Spotify playlist is created: an output another program holds
               (Traktor on the DJM, 2026-11-06: "Invalid device") is said so at the start, the download goes
@@ -791,9 +794,11 @@ def stop_leftover_daemon(run_dir: Path) -> None:
         pass
 
 
-def check_recording_device(env: dict[str, str]) -> tuple[bool, str]:
-    """¿Se puede grabar ahora la salida de audio predeterminada? (ok, nombre de la salida o el problema)."""
+def check_recording_device(env: dict[str, str], output: str | None = None) -> tuple[bool, str]:
+    """¿Se puede grabar ahora la salida elegida (o la predeterminada)? (ok, nombre de la salida o el problema)."""
     cmd = [sys.executable, "-u", str(SCRIPT_DIR / "playlist_loopback_recorder.py"), "--check-device"]
+    if output:
+        cmd += ["--output-device", output]
     try:
         result = subprocess.run(cmd, env=env, capture_output=True, text=True, encoding="utf-8",
                                 errors="replace", timeout=60, check=False)
@@ -875,6 +880,8 @@ class SessionRecorder:
             "--resume",
             "--watchdog-file", str(playback_status),
         ]
+        if getattr(self.args, "recording_output", None):
+            recorder_cmd += ["--output-device", self.args.recording_output]
         print(f"\n[grabación] Abriendo grabador ({label}: {total - completed} tema(s))...", flush=True)
         deferred = False
         try:
@@ -1268,6 +1275,7 @@ def run_workflow(args: argparse.Namespace) -> int:
         "playlists_root": str(playlists_root),
         "status": "running",
         "resumed": resumed is not None,
+        "recording_output": getattr(args, "recording_output", None) or None,
     }
     # Lo que ya se guardó en la carpeta (al posponer o detenerse la grabación) sigue contando.
     summary.update({
@@ -1336,8 +1344,9 @@ def run_workflow(args: argparse.Namespace) -> int:
             summary["recording_waiting"] = reason
             write_summary(summary_path, summary)
 
+        recording_output = getattr(args, "recording_output", None) or None
         if not defer_file.exists():
-            ok, detail = check_recording_device(env)
+            ok, detail = check_recording_device(env, recording_output)
             if ok:
                 print(f"[grabación] Se graba lo que suena por «{detail}».", flush=True)
             else:
@@ -1350,7 +1359,7 @@ def run_workflow(args: argparse.Namespace) -> int:
             can_record = blocked is None and not defer_file.exists() and time.monotonic() >= output_retry_at
             if can_record and (pending or unassigned):
                 idle_announced = False
-                ok, detail = check_recording_device(env)  # antes de crear la playlist y de poner Spotify
+                ok, detail = check_recording_device(env, recording_output)  # antes de la playlist y de Spotify
                 if not ok:
                     output_busy(detail)
                     if downloader_done:  # ya no hay nada que esperar: queda pendiente, con el motivo
@@ -1535,6 +1544,14 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=30.0,
         help="Segundos máximos para abrir el dispositivo loopback y empezar a reproducir",
+    )
+    parser.add_argument(
+        "--recording-output",
+        default=os.environ.get("SPOTIFY_RECORDING_OUTPUT", ""),
+        help=(
+            "Salida de audio que se graba (su nombre o una parte, p. ej. \"Voicemeeter Input\"; default: "
+            "SPOTIFY_RECORDING_OUTPUT o la salida predeterminada de Windows). Spotify tiene que sonar por ahí"
+        ),
     )
     parser.add_argument(
         "--parallel",

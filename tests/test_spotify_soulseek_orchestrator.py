@@ -752,14 +752,14 @@ class TrackByTrackFlowTests(unittest.TestCase):
         return FakeProcess(step)
 
     def run_flow(self, root: Path, script=(), code=0, *, defer=False, recorder_ops=None, playlist_error=None,
-                 recorder_timeout=30.0):
+                 recorder_timeout=30.0, recording_output=""):
         fake, calls = self.popen(script, code, dict(recorder_ops or {}))
         pauses: list[str] = []
         playlists: list[list[str]] = []
         deleted: list[str] = []
 
-        def check_output(env):
-            self.events.append(("check",))
+        def check_output(env, output=None):
+            self.events.append(("check",) if output is None else ("check", output))
             if self.output_checks:
                 return self.output_checks.pop(0)
             return True, "CABLE Input"
@@ -774,7 +774,7 @@ class TrackByTrackFlowTests(unittest.TestCase):
         args = argparse.Namespace(playlist_url=f"https://open.spotify.com/playlist/{self.PID}",
                                   output_root=root / "runs", library_root=root / "lib",
                                   recorder_timeout=recorder_timeout, fresh=False, defer_recording=defer,
-                                  parallel=2)
+                                  parallel=2, recording_output=recording_output)
         with mock.patch.object(ORCHESTRATOR.subprocess, "Popen", side_effect=fake), \
                 mock.patch.object(ORCHESTRATOR, "validate_environment"), \
                 mock.patch.object(ORCHESTRATOR, "find_required_program", return_value=root / "tool.exe"), \
@@ -976,6 +976,16 @@ class TrackByTrackFlowTests(unittest.TestCase):
             self.assertEqual([e for e in self.events if e[0] == "recorder"], [("recorder", "01", 0), ("recorder", "01", 0)])
             self.assertEqual(self.library(root), ["Artista - Tema 1.mp3", "Artista - Tema 2.mp3"])
 
+    def test_the_chosen_output_is_what_is_checked_and_recorded(self) -> None:
+        script = [[("availability", [1, 2]), ("download", 1), ("queue", 2), ("close", "finished")]]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            code, calls, _, report, _ = self.run_flow(root, script, recording_output="Voicemeeter Input")
+            self.assertEqual((code, report["status"]), (0, "completed"))
+            self.assertIn(("check", "Voicemeeter Input"), self.events)
+            recorder = next(cmd for name, cmd in calls if name == "playlist_loopback_recorder.py")
+            self.assertEqual(recorder[recorder.index("--output-device") + 1], "Voicemeeter Input")
+
     def test_spotify_is_paused_before_the_next_session_starts_recording(self) -> None:
         # 12 en la cola: tanda de 10 y tanda de 2, una detrás de la otra. La reproducción automática que
         # sigue a la primera no puede ser lo que el grabador de la segunda toma como su comienzo.
@@ -1139,22 +1149,85 @@ class TrackByTrackFlowTests(unittest.TestCase):
 
 
 class OutputCheckTests(unittest.TestCase):
+    class SilentStream:
+        """Un loopback por el que no suena nada: no entrega datos (una lectura bloqueante esperaría siempre)."""
+
+        def get_read_available(self):
+            return 0
+
+        def read(self, frames, exception_on_overflow=False):
+            raise AssertionError("no se lee sin datos: se bloquearía")
+
+        def stop_stream(self):
+            pass
+
+        def close(self):
+            pass
+
     class FakeAudio:
-        def __init__(self, fail_open):
+        LOOPBACKS = [
+            {"name": "Line (DJM-750MK2) [Loopback]", "index": 23, "maxInputChannels": 2, "defaultSampleRate": 48000.0},
+            {"name": "Voicemeeter Input (VB-Audio Voicemeeter VAIO) [Loopback]", "index": 31, "maxInputChannels": 2,
+             "defaultSampleRate": 48000.0},
+        ]
+
+        def __init__(self, fail_open=False, stream=None):
             self.fail_open = fail_open
+            self.stream = stream
             self.terminated = False
+            self.opened: list[int] = []
 
         def get_default_wasapi_loopback(self):
-            return {"name": "Line (DJM-750MK2) [Loopback]", "index": 23, "maxInputChannels": 2,
-                    "defaultSampleRate": 48000.0}
+            return self.LOOPBACKS[0]
+
+        def get_loopback_device_info_generator(self):
+            yield from self.LOOPBACKS
+
+        def get_sample_size(self, fmt):
+            return 2
 
         def open(self, **kwargs):
             if self.fail_open:
                 raise OSError(-9996, "Invalid device")
-            return mock.Mock()
+            self.opened.append(kwargs["input_device_index"])
+            return self.stream or mock.Mock()
 
         def terminate(self):
             self.terminated = True
+
+    def test_an_output_is_chosen_by_its_name_or_part_of_it(self) -> None:
+        audio = self.FakeAudio()
+        self.assertEqual(RECORDER.find_output_loopback(audio, "Voicemeeter Input")["index"], 31)
+        self.assertEqual(RECORDER.find_output_loopback(audio, "voicemeeter input (vb-audio voicemeeter vaio)")["index"], 31)
+        self.assertEqual(RECORDER.find_output_loopback(audio, None)["index"], 23)  # la predeterminada
+        with self.assertRaises(LookupError):
+            RECORDER.find_output_loopback(audio, "CABLE Input")
+        with mock.patch.object(RECORDER.pyaudio, "PyAudio", return_value=self.FakeAudio()):
+            missing = RECORDER.check_device("CABLE Input")
+            found = RECORDER.check_device("Voicemeeter Input")
+        self.assertFalse(missing["ok"])
+        self.assertIn("No encuentro la salida de audio «CABLE Input»", missing["error"])
+        self.assertEqual(found, {"ok": True, "device": "Voicemeeter Input (VB-Audio Voicemeeter VAIO)"})
+
+    def test_a_silent_output_ends_the_recording_with_the_reason_instead_of_waiting_forever(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manifest = root / "session.json"
+            manifest.write_text(json.dumps({"tracks": [{"playlist_position": 1, "duration_seconds": 120.0,
+                                                        "spotify": RecordedMetadataTests.spotify_report()}]}),
+                                encoding="utf-8")
+            audio = self.FakeAudio(stream=self.SilentStream())
+            argv = ["recorder", str(manifest), "--output-dir", str(root / "out"), "--output-device", "Voicemeeter",
+                    "--start-timeout", "0.3"]
+            with mock.patch.object(RECORDER.pyaudio, "PyAudio", return_value=audio), \
+                    mock.patch.object(RECORDER, "check_ffmpeg", return_value="ffmpeg"), \
+                    mock.patch.object(sys, "argv", argv), contextlib.redirect_stderr(io.StringIO()), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                code = RECORDER.main()
+            self.assertEqual(code, RECORDER.STALL_EXIT_CODE)
+            self.assertEqual(audio.opened, [31])  # grabó la salida elegida, no la predeterminada
+            progress = json.loads((root / "out" / "recording_progress.json").read_text(encoding="utf-8"))
+            self.assertIn("No llegó sonido a «Voicemeeter Input (VB-Audio Voicemeeter VAIO)»", progress["last_error"])
 
     def test_an_output_held_by_another_program_is_explained(self) -> None:
         audio = self.FakeAudio(fail_open=True)

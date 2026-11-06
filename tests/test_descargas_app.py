@@ -993,3 +993,25 @@ def test_several_tracks_in_progress_and_one_waiting_for_its_second_search(tmp_pa
     tracks = by_pos(APP.run_state(run, alive=True))
     assert [tracks[p]["state"] for p in range(1, 5)] == ["downloaded", "downloading", "searching", "queued"]
     assert "Se vuelve a buscar al final" in tracks[4]["detail"]
+
+
+
+def test_the_recording_output_goes_to_the_download_and_frees_listening(tmp_path, monkeypatch):
+    settings = {"runs_root": str(tmp_path / "runs"), "library_root": str(tmp_path / "lib"),
+                "recording_output": "Voicemeeter Input"}
+    cmd = APP.build_job_command(tmp_path / "stop", "https://open.spotify.com/playlist/" + PID, settings, False)
+    assert cmd[cmd.index("--recording-output") + 1] == "Voicemeeter Input"
+    assert "--recording-output" not in APP.build_job_command(tmp_path / "stop", "x", {**settings, "recording_output": ""}, False)
+    monkeypatch.setattr(APP, "default_output_name", lambda: "Line (DJM-750MK2)")
+    assert APP.records_what_sounds("") is True                     # se graba lo que suena
+    assert APP.records_what_sounds("Voicemeeter Input") is False   # solo Spotify: escuchar no entra en la grabación
+    monkeypatch.setattr(APP, "default_output_name", lambda: "Voicemeeter Input (VB-Audio Voicemeeter VAIO)")
+    assert APP.records_what_sounds("Voicemeeter Input") is True    # si además es la predeterminada, sí entra
+
+
+def test_an_empty_recording_output_is_kept(tmp_path):
+    path = tmp_path / "settings.json"
+    write(path, {"recording_output": "", "library_root": str(tmp_path)})
+    assert APP.load_settings(path)["recording_output"] == ""
+    write(path, {"recording_output": " Voicemeeter Input "})
+    assert APP.load_settings(path)["recording_output"] == "Voicemeeter Input"

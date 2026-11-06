@@ -44,8 +44,12 @@ En la pestaña Descargas:
   a Spotify en el navegador; es una autorización propia de la app y no toca la del descargador).
   Toda autorización de Spotify abre el navegador predeterminado y además muestra el enlace con
   «Copiar enlace», para pegarlo en el navegador donde están las contraseñas (5 minutos);
-* elegir la **salida de audio** de Windows (abajo a la derecha). Es la salida predeterminada:
-  por ahí suena Spotify y eso es lo que graba el loopback. «Probar sonido» toca un ding-dong y lo
+* elegir la **salida de audio** de Windows (abajo a la derecha) y, en el mismo panel, qué se
+  **graba** («Grabar desde»): lo que suena por la salida predeterminada, o una salida concreta.
+  Con Voicemeeter, Spotify sale solo por «Voicemeeter Input», no suena nada, el DJM queda libre
+  para Traktor y se graba solo Spotify (`CONFIGURAR_OTRO_ORDENADOR.md`, paso 7b;
+  `SPOTIFY_RECORDING_OUTPUT` en el `.env`, `--recording-output` en la terminal). Si lo que se
+  graba no es lo que suena, la app deja escuchar mientras graba. «Probar sonido» toca un ding-dong y lo
   graba para medirlo; «Medir lo que suena» muestra el nivel mientras suena Spotify. Con una
   descarga en curso no se puede cambiar ni probar, porque cortaría o ensuciaría la grabación;
 * elegir la **carpeta de destino** (`--library-root`) y, en avanzado, la de trabajo (`--output-root`);

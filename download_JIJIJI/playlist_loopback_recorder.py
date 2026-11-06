@@ -3,6 +3,14 @@
 PURPOSE: Record a Spotify playlist through Windows WASAPI loopback and split it.
 
 CHANGELOG:
+- 2026-11-06: --output-device NAME records the loopback of that output (by name, e.g. "Voicemeeter Input")
+              instead of the Windows default: Spotify alone is routed there (Windows volume mixer), so
+              nothing sounds, the DJM stays free for Traktor and Windows sounds are not recorded. An output
+              that is not there, or that Spotify does not play to, is said so. The loopback only delivers
+              audio while something plays on that output, so reads no longer block: with no audio for
+              --start-timeout (before the first track) or --stall-timeout (after it) the recorder stops
+              and says why, and the Spotify watchdog is seen at once. --check-device only opens and closes
+              the output (a blocking read waited forever on a silent one).
 - 2026-11-06: An output that cannot be captured (another program holds it exclusively, like Traktor on the
               DJM; or it was unplugged) ends with a clear message and DEVICE_UNAVAILABLE_EXIT_CODE instead
               of a traceback. --check-device only tries to open the loopback of the default output and
@@ -122,17 +130,48 @@ def device_problem(name: str, error: object) -> str:
     where = f"la salida de audio «{name}»" if name else "la salida de audio predeterminada"
     return (
         f"No se puede grabar {where} ({error}). Suele pasar cuando otro programa la usa en exclusiva, "
-        "por ejemplo Traktor con esa misma salida: cerrá ese programa o elegí otra salida de audio "
-        "predeterminada (en la app, abajo a la derecha)."
+        "por ejemplo Traktor con esa misma salida: cerrá ese programa o elegí otra en «Grabar desde» "
+        "(en la app, abajo a la derecha)."
     )
 
 
-def open_loopback(p: "pyaudio.PyAudio") -> tuple[dict[str, Any], Any]:
-    """El loopback de la salida predeterminada, abierto para leer; DeviceUnavailable si no se puede."""
+def missing_output(name: str) -> str:
+    return (
+        f"No encuentro la salida de audio «{name}» para grabar. Si es Voicemeeter, revisá que esté instalado "
+        "(y la PC reiniciada después) y abierto: download_JIJIJI/CONFIGURAR_OTRO_ORDENADOR.md, «Grabar sin "
+        "que suene nada»."
+    )
+
+
+def output_name(device: dict[str, Any]) -> str:
+    return str(device.get("name") or "").replace(" [Loopback]", "").strip()
+
+
+def find_output_loopback(p: "pyaudio.PyAudio", name: str | None) -> dict[str, Any]:
+    """El loopback de la salida «name» (el nombre completo o una parte, sin mayúsculas); sin nombre, el de la
+    salida predeterminada de Windows. LookupError si no está."""
+    if not name:
+        return p.get_default_wasapi_loopback()
+    wanted = name.replace(" [Loopback]", "").strip().casefold()
+    partial: list[dict[str, Any]] = []
+    for device in p.get_loopback_device_info_generator():
+        base = output_name(device).casefold()
+        if base == wanted:
+            return device
+        if wanted and wanted in base:
+            partial.append(device)
+    if partial:
+        return partial[0]
+    raise LookupError(name)
+
+
+def open_loopback(p: "pyaudio.PyAudio", name: str | None = None) -> tuple[dict[str, Any], Any]:
+    """El loopback de la salida elegida (o la predeterminada), abierto para leer; DeviceUnavailable si no se
+    puede."""
     try:
-        device = p.get_default_wasapi_loopback()
+        device = find_output_loopback(p, name)
     except (OSError, LookupError) as exc:
-        raise DeviceUnavailable(device_problem("", "Windows no da su loopback")) from exc
+        raise DeviceUnavailable(missing_output(name) if name else device_problem("", "Windows no da su loopback")) from exc
     name = str(device.get("name") or "").replace(" [Loopback]", "")
     if int(device.get("maxInputChannels") or 0) < CHANNELS:
         raise DeviceUnavailable(device_problem(name, f"tiene {device.get('maxInputChannels')} canal(es), no estéreo"))
@@ -150,16 +189,21 @@ def open_loopback(p: "pyaudio.PyAudio") -> tuple[dict[str, Any], Any]:
     return device, stream
 
 
-def check_device() -> dict[str, Any]:
-    """Abre y cierra el loopback de la salida predeterminada: si se puede grabar ahora."""
+def read_available(stream: Any, frames: int = CHUNK) -> bytes | None:
+    """Un bloque del loopback si ya llegó; None si todavía no. El loopback solo entrega audio mientras algo
+    suena por esa salida: una lectura bloqueante esperaría para siempre."""
+    if stream.get_read_available() < frames:
+        return None
+    return stream.read(frames, exception_on_overflow=False)
+
+
+def check_device(name: str | None = None) -> dict[str, Any]:
+    """Abre y cierra el loopback de la salida elegida (o la predeterminada): si se puede grabar ahora."""
     p = pyaudio.PyAudio()
     try:
-        device, stream = open_loopback(p)
-        try:
-            stream.read(CHUNK, exception_on_overflow=False)
-        finally:
-            stream.close()
-        return {"ok": True, "device": str(device.get("name") or "").replace(" [Loopback]", "")}
+        device, stream = open_loopback(p, name)
+        stream.close()  # abrirla alcanza: leer esperaría para siempre si no suena nada por ahí
+        return {"ok": True, "device": output_name(device)}
     except DeviceUnavailable as exc:
         return {"ok": False, "error": str(exc)}
     except OSError as exc:
@@ -691,6 +735,12 @@ def main() -> int:
     )
     parser.add_argument("json_file", type=Path, nargs="?", help="Playlist JSON manifest")
     parser.add_argument(
+        "--output-device",
+        default=None,
+        help="Record the loopback of this output (its name or part of it, e.g. \"Voicemeeter Input\") "
+             "instead of the Windows default output",
+    )
+    parser.add_argument(
         "--check-device",
         action="store_true",
         help="Only check that the default output can be recorded; print one JSON line and exit "
@@ -757,7 +807,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.check_device:
-        result = check_device()
+        result = check_device(args.output_device)
         print(json.dumps(result, ensure_ascii=False), flush=True)
         return 0 if result["ok"] else DEVICE_UNAVAILABLE_EXIT_CODE
     if args.json_file is None:
@@ -822,7 +872,7 @@ def main() -> int:
 
     try:
         p = pyaudio.PyAudio()
-        device, stream = open_loopback(p)
+        device, stream = open_loopback(p, args.output_device)
         rate = int(device["defaultSampleRate"])
 
         keep_seconds = args.search_before + args.search_after + START_HISTORY_SEC + 2.0
@@ -871,6 +921,7 @@ def main() -> int:
         start_confirm_blocks = 0
         blocks_needed = max(1, math.ceil((START_CONFIRM_MS / 1000.0) * rate / CHUNK))
 
+        last_audio = time.monotonic()
         while not capture_finished:
             if playback_watchdog_stalled(args.watchdog_file):
                 raise PlaybackStalled("El watchdog confirmó que Spotify se detuvo.")
@@ -878,7 +929,23 @@ def main() -> int:
                 if future.done():
                     future.result()
 
-            raw = stream.read(CHUNK, exception_on_overflow=False)
+            raw = read_available(stream)
+            if raw is None:
+                # No llega nada: no suena nada por esa salida (todavía no empezó, Spotify se detuvo o sale
+                # por otra salida).
+                waited = time.monotonic() - last_audio
+                if playlist_start is None and waited >= args.start_timeout:
+                    hint = (f" No llegó sonido a «{output_name(device)}»: revisá que Spotify salga por ahí "
+                            "(Configuración de Windows → Sonido → Mezclador de volumen → Spotify)."
+                            if args.output_device else "")
+                    raise PlaybackStalled("Spotify no inició la primera pista pendiente dentro del timeout." + hint)
+                if playlist_start is not None and waited >= args.stall_timeout:
+                    spotify = tracks[next_track_index].get("spotify") or {}
+                    title = spotify.get("title") or f"Track {next_track_index + 1}"
+                    raise PlaybackStalled(f"Spotify dejó de producir audio durante «{title}».")
+                time.sleep(0.005)
+                continue
+            last_audio = time.monotonic()
             wav_file.writeframesraw(raw)
 
             arr = np.frombuffer(raw, dtype="<i2")
@@ -890,8 +957,11 @@ def main() -> int:
 
             if playlist_start is None:
                 if now_sec >= args.start_timeout:
+                    hint = (f" No llegó sonido a «{output_name(device)}»: revisá que Spotify salga por ahí "
+                            "(Configuración de Windows → Sonido → Mezclador de volumen → Spotify)."
+                            if args.output_device else "")
                     raise PlaybackStalled(
-                        "Spotify no inició la primera pista pendiente dentro del timeout."
+                        "Spotify no inició la primera pista pendiente dentro del timeout." + hint
                     )
                 if block_dbfs(arr) >= START_THRESHOLD_DBFS:
                     start_confirm_blocks += 1

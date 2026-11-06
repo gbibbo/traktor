@@ -498,8 +498,11 @@ details summary::before { content: "▸ "; } details[open] summary::before { con
 
 <div class="pop" id="pop-dev">
   <h4>Salida de audio</h4>
-  <div class="sub">Spotify suena por esta salida y el grabador graba lo que sale por ella. Elige una y pruébala.</div>
+  <div class="sub">La salida predeterminada de Windows: por ahí suena todo lo que no tenga otra elegida.</div>
   <div class="devlist" id="devlist"><div class="small">Buscando salidas…</div></div>
+  <h4>Grabar desde</h4>
+  <div class="sub">Lo que se graba de Spotify. Con «Voicemeeter Input», y Spotify mandado ahí en Windows (Configuración → Sonido → Mezclador de volumen), se graba solo Spotify, no suena nada y el DJM queda libre para Traktor. Guía: <code>CONFIGURAR_OTRO_ORDENADOR.md</code>, «Grabar sin que suene nada».</div>
+  <div class="devlist" id="reclist"></div>
   <div class="btnrow">
     <button class="pill green small" id="btn-test"><svg class="ico sm fill"><use href="#i-play"/></svg>Probar sonido</button>
     <button class="pill ghost small" id="btn-meter">Medir lo que suena</button>
@@ -586,7 +589,7 @@ details summary::before { content: "▸ "; } details[open] summary::before { con
     <div class="choice" id="m-defer-row"><label><input type="checkbox" id="m-defer"><div><b>Grabar después</b><span>Ahora solo busca y baja de Soulseek, y eso va a la carpeta. Lo que haya que grabar queda pendiente hasta que pulses «Grabar ahora».</span></div></label></div>
     <div class="note amber" id="m-spotify" hidden style="margin:10px 0 0;padding:12px 14px"><div><b>Spotify de escritorio está cerrado</b><p>Ábrelo con tu cuenta Premium antes de que empiece a grabar (justo después de la búsqueda), o marca «Grabar después».</p></div></div>
     <div class="sumrow"><svg class="ico"><use href="#i-folder"/></svg><div><div class="k">Se guarda en</div><div class="v" id="m-dest"></div></div><button class="pill ghost small" id="m-change-dest">Cambiar</button></div>
-    <div class="sumrow"><svg class="ico"><use href="#i-speaker"/></svg><div><div class="k">Suena y se graba por</div><div class="v" id="m-dev"></div></div><button class="pill ghost small" id="m-change-dev">Cambiar</button></div>
+    <div class="sumrow"><svg class="ico"><use href="#i-speaker"/></svg><div><div class="k">Se graba lo que sale por</div><div class="v" id="m-dev"></div></div><button class="pill ghost small" id="m-change-dev">Cambiar</button></div>
     <div class="tips"><b>Mientras graba:</b> activa No molestar (Windows + N), no reproduzcas nada más y no toques Spotify. Todo lo que suene por esa salida queda grabado. Mantén Spotify de escritorio abierto con tu cuenta Premium.</div>
     <div class="modal-actions">
       <button class="pill ghost" data-close="modal-start">Cancelar</button>
@@ -1060,7 +1063,7 @@ function renderPlayer() {
   if ($("#now").innerHTML !== now) $("#now").innerHTML = now;
   if ($("#center").innerHTML !== center) $("#center").innerHTML = center;
   const dev = S.devices.find((d) => d.default);
-  $("#dev-name").textContent = dev ? dev.name : "Salida de audio";
+  $("#dev-name").textContent = recOutput() ? `Graba: ${recOutput()}` : dev ? dev.name : "Salida de audio";
   $("#btn-dev").classList.toggle("green", Boolean(ownLive || (S.st && S.st.external)));
   const lib = S.st ? S.st.settings.library_root : "";
   $("#folder-name").textContent = lib ? lib.split(/[\\/]/).filter(Boolean).pop() : "Destino";
@@ -1347,8 +1350,7 @@ function openStartModal(fresh, queue = false) {
   const meta = v.meta || {};
   $("#m-name").textContent = meta.name || (v.run && v.run.name) || "la playlist";
   $("#m-dest").textContent = S.st.settings.library_root;
-  const dev = S.devices.find((d) => d.default);
-  $("#m-dev").textContent = dev ? dev.name : "la salida predeterminada de Windows";
+  $("#m-dev").textContent = recordedName();
   const deferred = v.run && v.run.status === "deferred";
   const resumable = v.run && (v.run.status === "paused" || deferred);
   $("#m-choice").innerHTML = resumable ? `<div class="choice">
@@ -1412,10 +1414,24 @@ async function loadDevices() {
   renderPlayer();
 }
 
+const recOutput = () => (S.st && S.st.settings && S.st.settings.recording_output) || "";
+function recordedName() {
+  const r = recOutput();
+  if (r) return r;
+  const dev = S.devices.find((d) => d.default);
+  return dev ? dev.name : "la salida predeterminada de Windows";
+}
+
 function renderDevices(busy) {
+  const rec = recOutput();
   $("#devlist").innerHTML = S.devices.map((d) => `<button class="devrow ${d.default ? "cur" : ""}" data-dev="${esc(d.id)}" ${busy ? "disabled" : ""}>
-    ${icon(DEV_ICON(d.name))}<div><div class="dn">${esc(d.name)}</div><div class="dd">${d.default ? "Suena y se graba por aquí" : "Usar esta salida"}</div></div></button>`).join("")
+    ${icon(DEV_ICON(d.name))}<div><div class="dn">${esc(d.name)}</div><div class="dd">${d.default ? (rec ? "Suena por aquí" : "Suena y se graba por aquí") : "Usar esta salida"}</div></div></button>`).join("")
     || `<div class="small">No hay salidas de audio activas.</div>`;
+  const choices = [{ name: "", label: "Lo que suena por la salida predeterminada", sub: "Se graba todo lo que suena por la de arriba" },
+    ...S.devices.map((d) => ({ name: d.name, label: d.name, sub: "Se graba solo lo que salga por aquí" }))];
+  if (rec && !S.devices.some((d) => d.name === rec)) choices.push({ name: rec, label: rec, sub: "No está ahora: ¿Voicemeeter instalado y abierto?" });
+  $("#reclist").innerHTML = choices.map((c) => `<button class="devrow ${c.name === rec ? "cur" : ""}" data-rec="${esc(c.name)}" data-rec-pick="1" ${busy ? "disabled" : ""}>
+    ${icon(c.name ? DEV_ICON(c.name) : "speaker")}<div><div class="dn">${esc(c.label)}</div><div class="dd">${c.name === rec ? "Se graba esta" : esc(c.sub)}</div></div></button>`).join("");
   $("#dev-busy").hidden = !busy;
   $("#dev-busy").textContent = busy ? `${busy} No se puede cambiar ni probar la salida hasta que termine.` : "";
   $("#btn-test").disabled = Boolean(busy);
@@ -1433,6 +1449,17 @@ async function setDevice(id) {
   } catch (e) { fail(e); }
 }
 
+async function setRecordingOutput(name) {
+  try {
+    const r = await api("/api/settings", { recording_output: name });
+    S.st.settings = r.settings;
+    renderDevices(null);
+    renderPlayer();
+    $("#test-result").innerHTML = "";
+    toast(name ? `Se grabará lo que salga por «${name}». Pruébalo con «Probar sonido».` : "Se grabará lo que suena por la salida predeterminada.");
+  } catch (e) { fail(e); }
+}
+
 async function testDevice() {
   const btn = $("#btn-test");
   btn.disabled = true;
@@ -1442,6 +1469,7 @@ async function testDevice() {
     const ok = r.recorded && r.stereo;
     const msg = !r.recorded ? `No se grabó nada por «${esc(r.device)}». Revisa que esa salida esté encendida y con volumen.`
       : !r.stereo ? `Se grabó, pero la salida es mono: el grabador necesita estéreo.`
+      : r.silent_output ? `Sonó por «${esc(r.device)}» y se grabó bien (pico ${r.peak_db} dB). No se oye: esa salida no va a los parlantes.`
       : `Sonó por «${esc(r.device)}» y se grabó bien (pico ${r.peak_db} dB). Si no lo escuchaste, sube el volumen de esa salida.`;
     $("#test-result").innerHTML = `<div class="result ${ok ? "ok" : "bad"}">${icon(ok ? "check" : "warn")}<span>${msg}</span></div>`;
   } catch (e) {
@@ -1464,6 +1492,7 @@ async function toggleMeter() {
         $("#meter").style.width = `${pct}%`;
         $("#meter-txt").textContent = l.error ? l.error
           : l.db > -55 ? `Está sonando por «${l.device || "la salida"}»: se grabaría (${Math.round(l.db)} dB).`
+          : recOutput() ? `Silencio en «${l.device || recOutput()}». Dale play en Spotify: si la barra no se mueve, Spotify no sale por ahí.`
           : "Silencio. Dale play en Spotify: la barra tiene que moverse.";
         if (!l.active) stopMeterUi();
       } catch { stopMeterUi(); }
@@ -1980,6 +2009,7 @@ document.addEventListener("click", (e) => {
     return;
   }
   if (t.dataset.dev) { setDevice(t.dataset.dev); return; }
+  if (t.dataset.recPick) { setRecordingOutput(t.dataset.rec || ""); return; }
   if (t.hasAttribute("data-open-active")) {
     const a = S.active;
     if (a && a.url) openPlaylist(a.url);

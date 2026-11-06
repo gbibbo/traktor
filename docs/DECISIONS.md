@@ -39,6 +39,13 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 3. **Las playlists temporales de Spotify se borran al terminar cada tanda** (Gabriel lo pidió). Cómo
    (agente): `DELETE /me/library`, el reemplazo de «dejar de seguir» desde febrero de 2026; un fallo
    queda anotado y no corta la descarga.
+4. **Grabar Spotify por Voicemeeter, sin que suene nada y sin el DJM** (Gabriel). El DJM servía para
+   grabar horas con los parlantes apagados, pero con Traktor abierto el DJM queda en exclusiva y no se
+   puede grabar (la prueba del 2026-11-06 falló así). Gabriel eligió Voicemeeter (ya tenía el
+   instalador) entre las opciones del agente: un cable virtual, o la salida del K2. Cómo (agente):
+   Spotify sale solo por «Voicemeeter Input» (Mezclador de volumen de Windows) y el grabador graba
+   esa salida («Grabar desde» en la app, `SPOTIFY_RECORDING_OUTPUT`). Pasos en
+   `download_JIJIJI/CONFIGURAR_OTRO_ORDENADOR.md`, paso 7b. Falta que Gabriel lo instale y lo pruebe.
 
 ## 2026-11-05
 

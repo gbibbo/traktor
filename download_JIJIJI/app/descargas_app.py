@@ -39,6 +39,10 @@ CHANGELOG:
                 con ella, después de la tarea en curso).
   - 2026-11-02: Si al Python de la app le falta el pipeline, la Organización prueba con el del PATH, y el
                 aviso dice lo que falta de verdad (la música organizada, no solo paquetes).
+  - 2026-11-06: «Grabar desde»: la salida que se graba (p. ej. «Voicemeeter Input», por donde sale solo Spotify)
+                en vez de la predeterminada; también para la prueba de sonido y el medidor, y escuchar ya no
+                se bloquea si lo que suena no va a la grabación. En ajustes como recording_output
+                (SPOTIFY_RECORDING_OUTPUT en el .env).
   - 2026-11-06: La salida de audio que no se puede grabar (otro programa la usa, como Traktor con el DJM) se
                 muestra mientras la descarga sigue y vuelve a probarse.
   - 2026-11-06: Varios temas a la vez: «Buscando…»/«Bajando…» en cada tema en curso, y «se vuelve a buscar al
@@ -181,6 +185,8 @@ def default_settings() -> dict[str, str]:
     return {
         "library_root": str(Path(os.environ.get("SPOTIFY_PLAYLISTS_ROOT") or orch.DEFAULT_PLAYLISTS_DIR)),
         "runs_root": str(Path(os.environ.get("SPOTIFY_DOWNLOAD_ROOT") or orch.DEFAULT_RUNS_DIR)),
+        # La salida que se graba; vacía = la predeterminada de Windows (por donde suena Spotify).
+        "recording_output": os.environ.get("SPOTIFY_RECORDING_OUTPUT", "").strip(),
     }
 
 
@@ -188,8 +194,8 @@ def load_settings(path: Path) -> dict[str, str]:
     settings = default_settings()
     saved = read_json(path) or {}
     for key in settings:
-        if isinstance(saved.get(key), str) and saved[key].strip():
-            settings[key] = saved[key]
+        if isinstance(saved.get(key), str) and (saved[key].strip() or key == "recording_output"):
+            settings[key] = saved[key].strip()
     return settings
 
 
@@ -1000,6 +1006,8 @@ def build_job_command(stop_file: Path, url: str, settings: dict[str, str], fresh
                       defer: bool = False) -> list[str]:
     cmd = [console_python(), "-u", str(APP_DIR / "run_job.py"), str(stop_file), url,
            "--output-root", settings["runs_root"], "--library-root", settings["library_root"]]
+    if settings.get("recording_output"):
+        cmd += ["--recording-output", settings["recording_output"]]
     return cmd + (["--fresh"] if fresh else []) + (["--defer-recording"] if defer else [])
 
 
@@ -1367,8 +1375,44 @@ def _chime(rate: int, channels: int) -> bytes:
     return frames.tobytes()
 
 
+def recorder_module() -> Any:
+    """playlist_loopback_recorder: elige el loopback de una salida igual que el grabador."""
+    import playlist_loopback_recorder
+    return playlist_loopback_recorder
+
+
+_DEFAULT_OUTPUT: dict[str, Any] = {"at": 0.0, "name": None}
+
+
+def default_output_name() -> str | None:
+    """La salida predeterminada de Windows (cacheada unos segundos: se pregunta en cada actualización)."""
+    if time.time() - _DEFAULT_OUTPUT["at"] < 10:
+        return _DEFAULT_OUTPUT["name"]
+    name = None
+    try:
+        import pyaudiowpatch as pyaudio
+        p = pyaudio.PyAudio()
+        try:
+            wasapi = p.get_host_api_info_by_type(pyaudio.paWASAPI)
+            name = str(p.get_device_info_by_index(int(wasapi["defaultOutputDevice"]))["name"])
+        finally:
+            p.terminate()
+    except Exception:  # noqa: BLE001 (sin audio: se trata como si fuera la misma salida)
+        name = None
+    _DEFAULT_OUTPUT.update(at=time.time(), name=name)
+    return name
+
+
+def records_what_sounds(recording_output: str | None) -> bool:
+    """¿Lo que suena por la salida predeterminada entra en la grabación?"""
+    if not recording_output:
+        return True
+    default = default_output_name()
+    return default is None or recording_output.casefold() in default.casefold()
+
+
 class AudioMonitor:
-    """Escucha el loopback de la salida predeterminada y guarda el nivel del último bloque."""
+    """Escucha el loopback de la salida que se graba y guarda el nivel del último bloque."""
 
     def __init__(self):
         self.lock = threading.Lock()
@@ -1379,6 +1423,7 @@ class AudioMonitor:
         self.device: str | None = None
         self.error: str | None = None
         self.thread: threading.Thread | None = None
+        self.output: str | None = None  # la salida que se graba; None = la predeterminada
 
     def level(self) -> dict[str, Any]:
         active = time.time() < self.until and self.thread is not None and self.thread.is_alive()
@@ -1386,8 +1431,9 @@ class AudioMonitor:
         return {"active": active, "db": round(db, 1), "peak_db": round(self.peak_db, 1),
                 "device": self.device, "error": self.error, "remaining": max(0, int(self.until - time.time()))}
 
-    def start(self, seconds: float = 25) -> None:
+    def start(self, seconds: float = 25, output: str | None = None) -> None:
         with self.lock:
+            self.output = output or None
             self.until = time.time() + seconds
             self.peak_db, self.error = -90.0, None
             if self.thread and self.thread.is_alive():
@@ -1404,8 +1450,13 @@ class AudioMonitor:
             import pyaudiowpatch as pyaudio
             p = pyaudio.PyAudio()
             try:
-                loop = p.get_default_wasapi_loopback()
-                self.device = str(loop["name"]).replace(" [Loopback]", "")
+                recorder = recorder_module()
+                try:
+                    loop = recorder.find_output_loopback(p, self.output)
+                except LookupError:
+                    self.error = recorder.missing_output(str(self.output))
+                    return
+                self.device = recorder.output_name(loop)
                 stream = p.open(format=pyaudio.paInt16, channels=int(loop["maxInputChannels"]),
                                 rate=int(loop["defaultSampleRate"]), input=True,
                                 input_device_index=int(loop["index"]), frames_per_buffer=2048)
@@ -1429,15 +1480,24 @@ class AudioMonitor:
             self.error = f"{type(exc).__name__}: {exc}"
 
 
-def audio_test() -> dict[str, Any]:
-    """Suena un tono por la salida predeterminada y lo graba por su loopback, igual que el grabador."""
+def audio_test(output: str | None = None) -> dict[str, Any]:
+    """Suena un tono por la salida que se graba (o la predeterminada) y lo graba por su loopback, igual que el
+    grabador."""
     import numpy as np
     import pyaudiowpatch as pyaudio
     p = pyaudio.PyAudio()
     try:
+        recorder = recorder_module()
+        try:
+            loop = recorder.find_output_loopback(p, output)
+        except LookupError as exc:
+            raise RuntimeError(recorder.missing_output(str(output))) from exc
+        name = recorder.output_name(loop)
         wasapi = p.get_host_api_info_by_type(pyaudio.paWASAPI)
-        out = p.get_device_info_by_index(int(wasapi["defaultOutputDevice"]))
-        loop = p.get_default_wasapi_loopback()
+        outputs = [p.get_device_info_by_index(i) for i in range(p.get_device_count())]
+        out = next((d for d in outputs if d.get("hostApi") == wasapi["index"] and int(d["maxOutputChannels"] or 0)
+                    and not d.get("isLoopbackDevice") and str(d["name"]) == name),
+                   p.get_device_info_by_index(int(wasapi["defaultOutputDevice"])))
         captured: list[Any] = []
 
         def on_block(data, _frames, _info, _status):
@@ -1462,7 +1522,8 @@ def audio_test() -> dict[str, Any]:
         peak = float(np.max(np.abs(audio.astype(np.float32)))) / 32768
         peak_db = 20 * math.log10(max(peak, 1e-6))
         stereo = int(loop["maxInputChannels"]) >= 2
-        return {"device": out["name"], "peak_db": round(peak_db, 1), "recorded": peak_db > -45, "stereo": stereo}
+        return {"device": out["name"], "peak_db": round(peak_db, 1), "recorded": peak_db > -45, "stereo": stereo,
+                "silent_output": bool(output)}
     finally:
         p.terminate()
 
@@ -1778,7 +1839,9 @@ class App:
     def update_settings(self, changes: dict[str, Any]) -> dict[str, str]:
         with self.lock:
             if self.job and self.job.alive:
-                raise RuntimeError("Espera a que termine la descarga para cambiar las carpetas.")
+                raise RuntimeError("Espera a que termine la descarga para cambiar las carpetas o la salida que se graba.")
+            if "recording_output" in changes:
+                self.settings["recording_output"] = str(changes["recording_output"] or "").strip()[:200]
             for key in ("library_root", "runs_root"):
                 if key in changes:
                     path = Path(str(changes[key])).expanduser()
@@ -1886,6 +1949,10 @@ class App:
             run_dir = self.runs_root() / external["run"]
         if run_dir is not None and (run_dir / orch.DEFER_SIGNAL).exists():
             return None
+        report = (read_json(run_dir / "orchestration_report.json") or {}) if run_dir is not None else {}
+        recording_output = report.get("recording_output") or self.settings.get("recording_output")
+        if not records_what_sounds(recording_output):
+            return None  # se graba otra salida (Voicemeeter): lo que suena aquí no entra en la grabación
         return ("Hay una descarga en curso que puede estar grabando: lo que suene ahora quedaría en la grabación. "
                 "Para escuchar, pospón la grabación o espera a que termine.")
 
@@ -2224,7 +2291,7 @@ class App:
         reason = self.busy_reason()
         if reason:
             raise RuntimeError(reason + " El tono de prueba quedaría grabado.")
-        return audio_test()
+        return audio_test(self.settings.get("recording_output") or None)
 
     def state(self) -> dict[str, Any]:
         self.last_seen = time.time()
@@ -2450,7 +2517,7 @@ def make_handler(app: App):
                         reason = app.busy_reason()
                         if reason:
                             raise RuntimeError(reason)
-                        app.monitor.start()
+                        app.monitor.start(output=app.settings.get("recording_output") or None)
                     return self._json(200, app.monitor.level())
             except (ValueError, RuntimeError, KeyError, orch.WorkflowError) as exc:
                 return self._json(400, {"error": str(exc)})
