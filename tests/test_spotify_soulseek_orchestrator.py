@@ -751,21 +751,26 @@ class TrackByTrackFlowTests(unittest.TestCase):
         fake, calls = self.popen(script, code, dict(recorder_ops or {}))
         pauses: list[str] = []
         playlists: list[list[str]] = []
+        deleted: list[str] = []
 
         def create_playlist(source, tracks, name):
             if playlist_error:
                 raise RuntimeError(playlist_error)
             playlists.append([t["spotify"]["spotify_id"] for t in tracks])
-            return {"id": "p", "url": f"https://open.spotify.com/playlist/s{len(playlists)}", "name": name}
+            return {"id": f"s{len(playlists)}", "url": f"https://open.spotify.com/playlist/s{len(playlists)}",
+                    "name": name}
 
         args = argparse.Namespace(playlist_url=f"https://open.spotify.com/playlist/{self.PID}",
                                   output_root=root / "runs", library_root=root / "lib",
-                                  recorder_timeout=recorder_timeout, fresh=False, defer_recording=defer)
+                                  recorder_timeout=recorder_timeout, fresh=False, defer_recording=defer,
+                                  parallel=2)
         with mock.patch.object(ORCHESTRATOR.subprocess, "Popen", side_effect=fake), \
                 mock.patch.object(ORCHESTRATOR, "validate_environment"), \
                 mock.patch.object(ORCHESTRATOR, "find_required_program", return_value=root / "tool.exe"), \
                 mock.patch.object(ORCHESTRATOR, "_validate_final_mp3", side_effect=ORCHESTRATOR.embedded_spotify_id), \
                 mock.patch.object(ORCHESTRATOR, "create_spotify_playlist", side_effect=create_playlist), \
+                mock.patch.object(ORCHESTRATOR, "delete_spotify_playlist",
+                                  side_effect=lambda playlist: deleted.append(playlist["id"])), \
                 mock.patch.object(ORCHESTRATOR, "pause_spotify",
                                   side_effect=lambda env, device: pauses.append(device) or self.events.append(("pause", device))), \
                 mock.patch.object(ORCHESTRATOR.time, "sleep"), \
@@ -773,7 +778,7 @@ class TrackByTrackFlowTests(unittest.TestCase):
             code = ORCHESTRATOR.run_workflow(args)
         run_dir = sorted((root / "runs").iterdir())[-1]
         report = json.loads((run_dir / "orchestration_report.json").read_text(encoding="utf-8"))
-        return code, calls, run_dir, report, {"pauses": pauses, "playlists": playlists}
+        return code, calls, run_dir, report, {"pauses": pauses, "playlists": playlists, "deleted": deleted}
 
     def library(self, root: Path) -> list[str]:
         return sorted(p.name for p in (root / "lib" / "Lista").glob("*.mp3"))
@@ -797,6 +802,7 @@ class TrackByTrackFlowTests(unittest.TestCase):
             self.assertEqual((code, report["status"]), (0, "completed"))
             self.assertEqual(self.library(root), self.ALL3)
             self.assertEqual(spotify["playlists"], [["id2"], ["id3"]])  # una playlist por tanda
+            self.assertEqual(spotify["deleted"], ["s1", "s2"])  # cada una se borra al terminar su tanda
             order = [e[:2] for e in self.events if e[0] in {"recorder", "downloader"}]
             # Se grabó el primero antes de que la búsqueda siguiera, y el segundo apenas entró.
             self.assertLess(order.index(("recorder", "01")), order.index(("downloader", "queue")) + 3)
@@ -808,6 +814,7 @@ class TrackByTrackFlowTests(unittest.TestCase):
             self.assertTrue((run_dir / "diagnostics" / "recordings" / "01" / "session.json").is_file())
             downloader = next(cmd for name, cmd in calls if name == "spotify_soulseek_download.py")
             self.assertIn("--recording-queue", downloader)
+            self.assertEqual(downloader[downloader.index("--parallel") + 1], "2")
 
     def test_postponed_from_the_start_saves_soulseek_and_records_later(self) -> None:
         script = [[("availability", [1, 2, 3]), ("download", 1), ("queue", 2)], [("queue", 3), ("close", "finished")]]
@@ -834,15 +841,17 @@ class TrackByTrackFlowTests(unittest.TestCase):
             self.assertEqual((code, report["status"], report["pending_recordings"]),
                              (ORCHESTRATOR.EXIT_RESUMABLE, "recording_deferred", 1))
             self.assertIn("dev1", spotify["pauses"])
+            self.assertEqual(spotify["deleted"], [])  # la tanda quedó a medias: su playlist hace falta para seguir
             status = json.loads((run_dir / "spotify_playback_status.json").read_text(encoding="utf-8"))
             self.assertEqual(status["reason"], "deferred")
             self.assertTrue((run_dir / "recordings" / "01" / "Artista - Tema 2.mp3").is_file())  # se conserva
 
             (run_dir / ORCHESTRATOR.DEFER_SIGNAL).unlink()
             self.events.clear()
-            code, _, _, report, _ = self.run_flow(root)
+            code, _, _, report, spotify = self.run_flow(root)
             self.assertEqual((code, report["status"]), (0, "completed"))
             self.assertIn(("player", "https://open.spotify.com/playlist/s1", 1), self.events)  # sigue en el 2.º
+            self.assertEqual(spotify["deleted"], ["s1"])
             self.assertEqual(self.library(root), self.ALL3)
 
     def test_spotify_stopping_stops_the_recording_but_not_the_download(self) -> None:
@@ -896,6 +905,26 @@ class TrackByTrackFlowTests(unittest.TestCase):
             self.assertIsNone(session["playlist"])
             code, _, _, report, spotify = self.run_flow(root)  # «Continuar»: playlist nueva para la tanda
             self.assertEqual((code, report["status"], spotify["playlists"]), (0, "completed", [["id2"]]))
+
+    def test_a_playlist_that_cannot_be_removed_stays_noted_and_is_retried(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            session = Path(temp_dir) / "recordings" / "01"
+            write_json(session / "session.json", {"tracks": [], "playlist": {"id": "s9", "name": "Grabar - Lista"}})
+            with (
+                mock.patch.object(ORCHESTRATOR, "delete_spotify_playlist", side_effect=RuntimeError("403")),
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                ORCHESTRATOR.forget_session_playlist(session)  # no corta nada
+            self.assertIn("403", json.loads((session / "session.json").read_text(encoding="utf-8"))["playlist_delete_error"])
+            with (
+                mock.patch.object(ORCHESTRATOR, "delete_spotify_playlist") as delete,
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                ORCHESTRATOR.forget_session_playlist(session)
+                ORCHESTRATOR.forget_session_playlist(session)  # ya borrada: no se pide de nuevo
+            delete.assert_called_once_with({"id": "s9", "name": "Grabar - Lista"})
+            stored = json.loads((session / "session.json").read_text(encoding="utf-8"))
+            self.assertTrue(stored["playlist_deleted"] and "playlist_delete_error" not in stored)
 
     def test_spotify_is_paused_before_the_next_session_starts_recording(self) -> None:
         # 12 en la cola: tanda de 10 y tanda de 2, una detrás de la otra. La reproducción automática que

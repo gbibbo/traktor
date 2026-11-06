@@ -39,6 +39,8 @@ CHANGELOG:
                 con ella, después de la tarea en curso).
   - 2026-11-02: Si al Python de la app le falta el pipeline, la Organización prueba con el del PATH, y el
                 aviso dice lo que falta de verdad (la música organizada, no solo paquetes).
+  - 2026-11-06: Varios temas a la vez: «Buscando…»/«Bajando…» en cada tema en curso, y «se vuelve a buscar al
+                final» para el que no recibió ningún archivo.
   - 2026-11-06: Descargas tema a tema: el estado de cada tema sale de la búsqueda en curso, la cola de
                 grabación (recording_queue.jsonl) y las tandas grabadas (recordings/NN/); «En espera» y
                 «Buscando» para lo que falta buscar; la grabación detenida (Spotify) se muestra mientras
@@ -477,11 +479,14 @@ def track_by_track_state(run_dir: Path, report: dict[str, Any], availability: di
         for row in (read_json(path) or {}).get("tracks") or []:
             if isinstance(row, dict) and isinstance(row.get("position"), int):
                 downloads[row["position"]] = row
-    current = (availability or {}).get("current") if running else None
-    current = current if isinstance(current, dict) else {}
-    current_pos = current.get("position") if isinstance(current.get("position"), int) else (
-        current_download if running else None)
-    step = current.get("step")
+    # Los temas en curso: varios a la vez (una lista) o, en descargas anteriores, uno solo.
+    in_progress: dict[int, dict[str, Any]] = {}
+    raw_current = (availability or {}).get("current") if running else None
+    for item in raw_current if isinstance(raw_current, list) else [raw_current]:
+        if isinstance(item, dict) and isinstance(item.get("position"), int):
+            in_progress[item["position"]] = item
+    if running and not in_progress and isinstance(current_download, int):
+        in_progress[current_download] = {"position": current_download, "step": "search"}
     defer = running and (run_dir / orch.DEFER_SIGNAL).exists()
     blocked = report.get("recording_blocked") if running else None
 
@@ -537,10 +542,14 @@ def track_by_track_state(run_dir: Path, report: dict[str, Any], availability: di
         elif download and not running:
             state = "failed"
             detail = friendly_failure(download)
-        elif running and pos == current_pos:
+        elif running and pos in in_progress:
+            step = in_progress[pos].get("step")
             state = "downloading" if step == "download" else "searching"
             if step == "wait":
                 detail = "Soulseek permite 34 búsquedas cada 220 s: espera su turno"
+        elif running and download.get("retry_pending"):
+            state = "queued"
+            detail = friendly_failure(download) + ". Se vuelve a buscar al final, con otros usuarios"
         elif row.get("status") == "error":
             state = "search_error"
             detail = str(row.get("error") or "Error al buscar en Soulseek")

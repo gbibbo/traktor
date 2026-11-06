@@ -7,6 +7,8 @@ CHANGELOG: 2026-10-05: Cover size gates, live limits, bounded conversion and ima
                        finished MP3s from earlier runs.
            2026-11-06: Track by track: search and download interleaved, recording queue, search limiter
                        across processes, failed searches held until another search works, resume.
+           2026-11-06: Several tracks at once through one daemon session, stalled transfers dropped,
+                       free upload slots first, a second search for tracks whose files never arrived.
 """
 
 from __future__ import annotations
@@ -712,7 +714,7 @@ def playlist(n: int) -> list:
     return tracks
 
 
-def run_downloader(tmp_path, monkeypatch, tracks, results, *, downloads_fail=(), extra=(), searches=None):
+def run_downloader(tmp_path, monkeypatch, tracks, results, *, downloads_fail=(), extra=(), searches=None, barrier=None):
     """main() con Spotify, sockseek y la descarga simulados. `results`: id -> estados que devuelve cada
     búsqueda de ese tema (el último se repite). Devuelve (código, eventos, cola, filas de disponibilidad)."""
     events = [] if searches is None else searches
@@ -738,6 +740,8 @@ def run_downloader(tmp_path, monkeypatch, tracks, results, *, downloads_fail=(),
                                     error="timeout" if status == "error" else None)]
 
     def download(track_, staging, length_tol=60, *, availability=None, verify=None, prefer_extended=True, **_):
+        if barrier is not None:
+            barrier.wait()
         events.append(("download", track_.spotify_id))
         if track_.spotify_id in downloads_fail:
             return []
@@ -765,7 +769,8 @@ def run_downloader(tmp_path, monkeypatch, tracks, results, *, downloads_fail=(),
         "--output", str(tmp_path / "run" / "soulseek"), "--recording-queue", str(queue),
         "--availability-report", str(tmp_path / "run" / "soulseek_availability.json"),
         "--report", str(tmp_path / "run" / "spotify_reconcile_report.json"),
-        "--search-log", str(tmp_path / "searches.json"), "--staging", str(tmp_path / "staging"), *extra])
+        "--search-log", str(tmp_path / "searches.json"), "--staging", str(tmp_path / "staging"),
+        *(extra if "--parallel" in extra else ("--no-daemon", *extra))])
     (tmp_path / "staging").mkdir(exist_ok=True)
     code = D.main()
     rows = json.loads((tmp_path / "run" / "soulseek_availability.json").read_text(encoding="utf-8"))["tracks"]
@@ -777,9 +782,11 @@ def test_each_track_is_searched_and_downloaded_before_the_next(tmp_path, monkeyp
         tmp_path, monkeypatch, playlist(4),
         {"id1": ["available"], "id2": ["missing"], "id3": ["available"], "id4": ["available"]},
         downloads_fail={"id3"})
-    # Como a mano: buscar un tema y bajarlo enseguida, antes de buscar el siguiente.
+    # Como a mano: buscar un tema y bajarlo enseguida, antes de buscar el siguiente. Del 3 no llegó ningún
+    # archivo: se busca de nuevo al final y, como tampoco llega, va a grabarse.
     assert events == [("search", "id1"), ("download", "id1"), ("search", "id2"), ("search", "id3"),
-                      ("download", "id3"), ("search", "id4"), ("download", "id4")]
+                      ("download", "id3"), ("search", "id4"), ("download", "id4"), ("search", "id3"),
+                      ("download", "id3")]
     assert [(t["spotify"]["spotify_id"], t["origin"]) for t in queue.tracks] == [("id2", "missing"), ("id3", "failed")]
     assert queue.tracks[0]["spotify"]["title"] == "Tema 2" and queue.tracks[0]["duration_seconds"] == 300
     assert queue.end["status"] == "finished"
@@ -889,9 +896,9 @@ def test_search_limit_holds_across_processes_and_runs(tmp_path):
     # Una búsqueda cuenta desde que terminó: sockseek se conecta antes de buscar (hasta 20 s).
     now[0] = 5000.0
     third = D.SearchLimiter(log, per_window=3, window_s=100, clock=lambda: now[0], sleep=sleep)
-    third.acquire()
+    stamp = third.acquire()
     now[0] += 20
-    third.finish()
+    third.finish(stamp)
     assert max(json.loads(log.read_text(encoding="utf-8"))["searches"]) == 5020.0
     assert 5000.0 not in json.loads(log.read_text(encoding="utf-8"))["searches"]
     log.write_text(json.dumps({"searches": [now[0] + 5000] * 5}), encoding="utf-8")  # reloj atrasado
@@ -918,3 +925,128 @@ def test_queue_reader_skips_a_line_still_being_written_and_duplicates(tmp_path):
     state = D.read_queue(path)
     assert state.ids() == ["id1", "id2"] and state.closed
     assert D.read_queue(tmp_path / "no_existe.jsonl").tracks == []
+
+
+# ---------------------------------------------------------------------------
+# Varios temas a la vez con una sola sesión (2026-11-06)
+# ---------------------------------------------------------------------------
+
+class FakeDaemon:
+    started: list = []
+
+    def __init__(self, binary, *, state_path, log_path, mock_dir=None):
+        self.url = "http://127.0.0.1:1"
+
+    def start(self, timeout=30.0):
+        FakeDaemon.started.append(self)
+        return self.url
+
+    def stop(self):
+        FakeDaemon.started.remove(self)
+
+    def cancel_matching(self, query_text):
+        return 0
+
+
+def test_two_tracks_are_searched_and_downloaded_at_the_same_time(tmp_path, monkeypatch):
+    import threading
+    together = threading.Barrier(2, timeout=10)  # solo pasa si los dos temas se están bajando a la vez
+    monkeypatch.setattr(D, "SockseekDaemon", FakeDaemon)
+    code, events, queue, rows = run_downloader(
+        tmp_path, monkeypatch, playlist(2), {"id1": ["available"], "id2": ["available"]},
+        extra=("--parallel", "2"), barrier=together)
+    assert code == 0 and [r["status"] for r in rows] == ["available", "available"]
+    assert sorted(events) == [("download", "id1"), ("download", "id2"), ("search", "id1"), ("search", "id2")]
+    assert sorted(p.name for p in (tmp_path / "run" / "soulseek").glob("*.mp3")) == [
+        "Artista - Tema 1.mp3", "Artista - Tema 2.mp3"]
+    assert FakeDaemon.started == []  # la sesión se cerró al terminar
+
+
+def test_without_the_shared_session_it_goes_one_track_at_a_time(tmp_path, monkeypatch, capsys):
+    class Broken(FakeDaemon):
+        def start(self, timeout=30.0):
+            raise RuntimeError("puerto ocupado")
+    monkeypatch.setattr(D, "SockseekDaemon", Broken)
+    code, events, _, _ = run_downloader(
+        tmp_path, monkeypatch, playlist(3), {"id1": ["missing"], "id2": ["missing"], "id3": ["missing"]},
+        extra=("--parallel", "3"))
+    assert code == 0 and events == [("search", "id1"), ("search", "id2"), ("search", "id3")]
+    assert "1 tema(s) a la vez" in capsys.readouterr().out
+
+
+def test_a_track_whose_files_never_arrived_is_searched_again_at_the_end(tmp_path, monkeypatch):
+    code, events, queue, _ = run_downloader(tmp_path, monkeypatch, playlist(2),
+                                            {"id1": ["available"], "id2": ["missing"]}, downloads_fail={"id1"})
+    assert events == [("search", "id1"), ("download", "id1"), ("search", "id2"), ("search", "id1"), ("download", "id1")]
+    assert queue.ids() == ["id2", "id1"] and queue.tracks[1]["origin"] == "failed"
+
+
+def test_a_transfer_that_receives_nothing_is_dropped(tmp_path):
+    with mock.patch.object(D, "TRANSFER_STALL_SECONDS", 0.3):
+        with pytest.raises(RuntimeError, match="no avanzó"):
+            D._run_sockseek_transfer([sys.executable, "-c", "import time; time.sleep(10)"], tmp_path, 1024,
+                                     tmp_path / "sockseek.conf")
+
+
+def test_peers_with_a_free_upload_slot_and_speed_come_first():
+    spotify = spotify_track("Track", ["Artist"], 300)
+    cands = [candidate(filename="Music/Artist - Track.mp3", username="busy", has_free_upload_slot=False,
+                       upload_speed_mib_s=50),
+             candidate(filename="Music/Artist - Track.mp3", username="slow", has_free_upload_slot=True,
+                       upload_speed_mib_s=0.1),
+             candidate(filename="Music/Artist - Track.mp3", username="fast", has_free_upload_slot=True,
+                       upload_speed_mib_s=5)]
+    assert [c["username"] for c in D.rank_candidates(spotify, cands)] == ["fast", "slow", "busy"]
+
+
+def test_failed_transfers_do_not_use_up_the_verification_attempts(tmp_path):
+    cands = [candidate(filename=f"Music/{i}.mp3", username=f"u{i}") for i in range(10)]
+    avoid: set = set()
+    outcome: dict = {}
+    with mock.patch.object(D, "find_sockseek", return_value="sockseek"), mock.patch.object(
+        D, "_check_antivirus_ready"
+    ), mock.patch.object(D, "_write_sockseek_safe_config"), mock.patch.object(
+        D, "_run_sockseek_transfer", return_value=1
+    ) as transfer:
+        files = D.download_with_sockseek(track(), tmp_path, availability=D.AvailabilityCheck("available", 10, cands),
+                                         verify=lambda path: True, avoid=avoid, outcome=outcome)
+    assert files == [] and transfer.call_count == D.MAX_TRANSFER_ATTEMPTS > D.MAX_CANDIDATE_TRANSFERS
+    assert outcome == {"attempts": D.MAX_TRANSFER_ATTEMPTS, "arrived": 0} and len(avoid) == D.MAX_TRANSFER_ATTEMPTS
+
+
+def test_a_stale_daemon_is_closed_only_if_it_is_that_daemon(tmp_path, monkeypatch):
+    state = tmp_path / D.DAEMON_STATE_NAME
+    killed = []
+    monkeypatch.setattr(D.subprocess, "run", lambda cmd, **k: killed.append(cmd))
+    monkeypatch.setattr(D.os, "kill", lambda pid, sig: killed.append(pid), raising=False)
+    D.write_report(state, {"pid": 4242, "port": 5555})
+    monkeypatch.setattr(D, "_process_command_line", lambda pid: "C:/x/notepad.exe")
+    assert D.stop_daemon_from_state(state) is False and killed == [] and not state.exists()
+    D.write_report(state, {"pid": 4242, "port": 5555})
+    monkeypatch.setattr(D, "_process_command_line", lambda pid: "C:/tools/sockseek.exe daemon --server-port 5555 --config=x")
+    assert D.stop_daemon_from_state(state) is True and len(killed) == 1
+
+
+def test_the_daemon_cancels_only_live_jobs_of_that_file(monkeypatch):
+    daemon = D.SockseekDaemon("sockseek", state_path=Path("x.json"), log_path=Path("x.log"))
+    daemon.url = "http://127.0.0.1:1"
+    calls = []
+
+    def request(method, path, timeout=5):
+        calls.append((method, path))
+        if path == "/api/jobs":
+            return [{"jobId": "a", "kind": "song", "lifecycleState": "Running", "queryText": "Artist - Track"},
+                    {"jobId": "b", "kind": "song", "lifecycleState": "Terminal", "queryText": "Artist - Track"},
+                    {"jobId": "c", "kind": "song", "lifecycleState": "Running", "queryText": "Otro"}]
+        return None
+    monkeypatch.setattr(daemon, "_request", request)
+    assert daemon.cancel_matching("Artist - Track") == 1
+    assert ("POST", "/api/jobs/a/cancel") in calls and ("POST", "/api/jobs/c/cancel") not in calls
+
+
+def test_through_the_daemon_sockseek_runs_without_config_or_its_own_session(tmp_path, monkeypatch):
+    monkeypatch.setattr(D, "_SOCKSEEK_REMOTE", "http://127.0.0.1:5392")
+    assert D._sockseek_session_args(tmp_path, "sockseek") == ["--no-config", "--remote=http://127.0.0.1:5392"]
+    monkeypatch.setattr(D, "_SOCKSEEK_REMOTE", None)
+    monkeypatch.setattr(D, "_SOCKSEEK_MOCK_DIR", tmp_path)
+    assert D._sockseek_session_args(tmp_path, "sockseek")[1] == f"--mock-files-dir={tmp_path}"

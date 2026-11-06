@@ -981,3 +981,15 @@ def test_finished_track_by_track_run_reads_its_sessions_from_diagnostics(tmp_pat
     assert state["status"] == "done" and [t["state"] for t in state["tracks"]] == ["downloaded", "recorded"]
     source = APP.track_source(run, 2, [])
     assert source["origin"] == "loopback" and source["end_s"] == 201.0
+
+
+def test_several_tracks_in_progress_and_one_waiting_for_its_second_search(tmp_path):
+    run = track_by_track_run(tmp_path, ["available", "available", "pending", "available"],
+                             current=[{"position": 2, "step": "download"}, {"position": 3, "step": "search"}])
+    write(run / "spotify_reconcile_report.json", {"tracks": [
+        {"position": 1, "spotify": spotify(1), "status": "finalized", "output": "C:/x/a.mp3"},
+        {"position": 4, "spotify": spotify(4), "status": "availability_changed_or_download_failed",
+         "retry_pending": True, "candidates": []}]})
+    tracks = by_pos(APP.run_state(run, alive=True))
+    assert [tracks[p]["state"] for p in range(1, 5)] == ["downloaded", "downloading", "searching", "queued"]
+    assert "Se vuelve a buscar al final" in tracks[4]["detail"]

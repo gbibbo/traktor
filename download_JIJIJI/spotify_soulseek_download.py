@@ -6,6 +6,15 @@ spotify_soulseek_download.py
 PURPOSE: Reconcile a Spotify playlist against Soulseek and download matches.
 
 CHANGELOG:
+- 2026-11-06: Several tracks at once (--parallel, 2 by default) through one Soulseek session: a sockseek
+              daemon started for the run takes every search and transfer (separate sockseek processes
+              each log in with the same account and cut each other off). A transfer that receives
+              nothing for TRANSFER_STALL_SECONDS is dropped and the next file is tried, and the daemon
+              job is cancelled; candidates with a free upload slot and a faster peer go first; up to
+              MAX_TRANSFER_ATTEMPTS files per track when transfers fail, within a time budget; a track
+              whose files all failed to arrive is searched again at the end before it goes to
+              recording. --sockseek-mock-dir runs everything against local files (sockseek's mock).
+              Spotify.remove_from_library (DELETE /me/library) removes the temporary playlists.
 - 2026-11-06: Track by track, as when searching by hand: each track is searched on its own (one sockseek
               process) and, if it is there, downloaded right away. The batch preflight opened 20 searches
               at once, spent the 34 allowed in under 2 minutes and then sat idle ~2 minutes, over and over
@@ -137,6 +146,8 @@ except ImportError:
     print("Instala requests: pip install requests", file=sys.stderr)
     sys.exit(1)
 
+import socket  # noqa: E402
+
 if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 from recording_queue import END_FINISHED, END_SEARCH_FAILED, append_track, close_queue, read_queue  # noqa: E402
@@ -156,6 +167,12 @@ REQUIRED_SCOPES = set(SCOPES.split())
 DEFAULT_MISSING_PLAYLIST_BATCH_SIZE = 10
 DURATION_TOLERANCE_S = 8          # misma versión que Spotify (no Extended)
 MAX_CANDIDATE_TRANSFERS = 4       # archivos que se llegan a bajar por tema hasta que uno pase la verificación
+MAX_TRANSFER_ATTEMPTS = 8         # transferencias por tema contando las que fallan por la red (no llegó nada)
+TRACK_DOWNLOAD_BUDGET_S = 420     # tiempo por tema: después se deja para el segundo intento o para grabar
+TRANSFER_STALL_SECONDS = 45       # sin recibir ni un byte: el usuario no responde o nos tiene en cola
+DEFAULT_PARALLEL = 2              # temas a la vez (búsqueda y descarga), con una sola sesión de Soulseek
+MAX_PARALLEL = 4
+DAEMON_STATE_NAME = "sockseek_daemon.json"  # PID y puerto del daemon de la descarga, para cerrarlo si queda
 # Soulseek banea la cuenta 30 min si se pasan 34 búsquedas cada 220 s (el límite de sockseek). Con un
 # proceso de sockseek por búsqueda, la cuenta la lleva SearchLimiter, en un archivo del ordenador.
 SOULSEEK_SEARCHES_PER_WINDOW = 34
@@ -282,6 +299,183 @@ def _check_antivirus_ready() -> None:
         _scan_antivirus(probe)
 
 
+_PRINT_LOCK = threading.Lock()
+_TRACK_TAG = threading.local()
+
+
+def say(*parts: Any, file: Any = None) -> None:
+    """print para lo que pasa con un tema: con varios a la vez, cada línea lleva el número del tema."""
+    text = " ".join(str(part) for part in parts)
+    tag = getattr(_TRACK_TAG, "value", None)
+    if tag:
+        text = "\n".join(f"{tag:>5} {line}" if line.strip() else line for line in text.split("\n"))
+    with _PRINT_LOCK:
+        print(text, file=file or sys.stdout, flush=True)
+
+
+# ------------------------------------------------------------------ una sola sesión de Soulseek
+_SOCKSEEK_REMOTE: str | None = None      # URL del daemon de esta descarga
+_SOCKSEEK_MOCK_DIR: Path | None = None   # pruebas sin Soulseek: archivos locales (--mock-files-dir de sockseek)
+_DAEMON: "SockseekDaemon | None" = None
+
+
+def _sockseek_session_args(tmp_dir: Path, binary: str) -> list[str]:
+    """Cómo entra un proceso de sockseek a Soulseek: por el daemon de la descarga (una sola sesión para
+    todo), con archivos locales de prueba, o con su propia sesión (credenciales sin perfiles ni comandos)."""
+    if _SOCKSEEK_REMOTE:
+        return ["--no-config", f"--remote={_SOCKSEEK_REMOTE}"]
+    if _SOCKSEEK_MOCK_DIR is not None:
+        return ["--no-config", f"--mock-files-dir={_SOCKSEEK_MOCK_DIR}", "--no-listen"]
+    config = tmp_dir / "sockseek.conf"
+    _write_sockseek_safe_config(config, binary)
+    return [f"--config={config}"]
+
+
+def _free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+def _process_command_line(pid: int) -> str | None:
+    if os.name == "nt":
+        try:
+            result = subprocess.run(
+                ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+                 f"(Get-CimInstance Win32_Process -Filter 'ProcessId={int(pid)}').CommandLine"],
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        return result.stdout.strip() or None
+    try:
+        return Path(f"/proc/{int(pid)}/cmdline").read_bytes().replace(b"\0", b" ").decode(errors="replace").strip()
+    except OSError:
+        return None
+
+
+def stop_daemon_from_state(state_path: Path) -> bool:
+    """Cierra el daemon que dejó una descarga cortada (su sesión de Soulseek cortaría la de la próxima). Solo si
+    el proceso es ese daemon: sockseek, «daemon» y el mismo puerto en su línea de comandos."""
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        pid, port = int(state["pid"]), int(state["port"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+    command = _process_command_line(pid) or ""
+    stopped = False
+    if "sockseek" in command.lower() and " daemon" in command and f"--server-port {port}" in command:
+        try:
+            if os.name == "nt":
+                subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True, timeout=20,
+                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            else:
+                os.kill(pid, 9)
+            stopped = True
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    state_path.unlink(missing_ok=True)
+    return stopped
+
+
+class SockseekDaemon:
+    """El daemon de sockseek de una descarga: una sola sesión de Soulseek para todas las búsquedas y
+    transferencias, que llegan como procesos de sockseek con --remote. Dos sesiones con la misma cuenta se
+    cortan entre sí; así se pueden hacer varias cosas a la vez."""
+
+    def __init__(self, binary: str, *, state_path: Path, log_path: Path, mock_dir: Path | None = None):
+        self.binary = binary
+        self.state_path = state_path
+        self.log_path = log_path
+        self.mock_dir = mock_dir
+        self.process: subprocess.Popen[bytes] | None = None
+        self.url: str | None = None
+        self._tmp: tempfile.TemporaryDirectory[str] | None = None
+        self._log: Any = None
+
+    def start(self, timeout: float = 30.0) -> str:
+        self._tmp = tempfile.TemporaryDirectory(prefix="sockseek_daemon_")
+        port = _free_port()
+        cmd = [self.binary, "daemon", "--server-port", str(port)]
+        if self.mock_dir is not None:
+            cmd += ["--no-config", f"--mock-files-dir={self.mock_dir}", "--no-listen"]
+        else:
+            config = Path(self._tmp.name) / "sockseek.conf"
+            _write_sockseek_safe_config(config, self.binary)
+            cmd.append(f"--config={config}")
+        self.log_path.parent.mkdir(parents=True, exist_ok=True)
+        self._log = self.log_path.open("ab")
+        self.process = subprocess.Popen(cmd, cwd=self._tmp.name, stdin=subprocess.DEVNULL, stdout=self._log,
+                                        stderr=subprocess.STDOUT)
+        self.url = f"http://127.0.0.1:{port}"
+        write_report(self.state_path, {"pid": self.process.pid, "port": port, "url": self.url,
+                                       "started_at": time.time()})
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if self.process.poll() is not None:
+                self.stop()
+                raise RuntimeError(f"el daemon de sockseek terminó al arrancar (código {self.process.returncode})")
+            try:
+                self._request("GET", "/api/server/status", timeout=2)
+                return self.url
+            except (OSError, ValueError):
+                time.sleep(0.3)
+        self.stop()
+        raise RuntimeError("el daemon de sockseek no respondió a tiempo")
+
+    def _request(self, method: str, path: str, timeout: float = 5) -> Any:
+        assert self.url is not None
+        request = urllib.request.Request(self.url + path, method=method, data=b"" if method == "POST" else None)
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            body = response.read()
+        return json.loads(body) if body else None
+
+    def cancel_matching(self, query_text: str) -> int:
+        """Cancela las transferencias del daemon que siguen vivas para ese archivo (por si cortar el proceso
+        de sockseek no las cancela)."""
+        if not query_text:
+            return 0
+        cancelled = 0
+        try:
+            jobs = self._request("GET", "/api/jobs") or []
+            for job in jobs:
+                if (isinstance(job, dict) and job.get("kind") == "song" and job.get("lifecycleState") != "Terminal"
+                        and query_text in {job.get("queryText"), job.get("itemName")}):
+                    self._request("POST", f"/api/jobs/{job.get('jobId')}/cancel")
+                    cancelled += 1
+        except (OSError, ValueError):
+            pass
+        return cancelled
+
+    def stop(self) -> None:
+        if self.process is not None and self.process.poll() is None:
+            self.process.terminate()
+            try:
+                self.process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait(timeout=10)
+        if self._log is not None:
+            self._log.close()
+            self._log = None
+        if self._tmp is not None:
+            self._tmp.cleanup()
+            self._tmp = None
+        self.state_path.unlink(missing_ok=True)
+
+
+def use_daemon(daemon: "SockseekDaemon | None") -> None:
+    global _SOCKSEEK_REMOTE, _DAEMON
+    _DAEMON = daemon
+    _SOCKSEEK_REMOTE = daemon.url if daemon is not None else None
+
+
+def use_mock_dir(path: Path | None) -> None:
+    global _SOCKSEEK_MOCK_DIR
+    _SOCKSEEK_MOCK_DIR = path
+
+
 def _print_failed_transfer_log(code: int, log: Any) -> None:
     """Without this the temporary log vanishes and a failed transfer leaves no trace; lines that
     mention credentials are left out."""
@@ -289,13 +483,13 @@ def _print_failed_transfer_log(code: int, log: Any) -> None:
     text = _ANSI_ESCAPE.sub("", log.read().decode("utf-8", errors="replace"))
     lines = [line.strip() for line in re.split(r"[\r\n]+", text)
              if line.strip() and not _CREDENTIAL_LINE.search(line)]
-    print(f"    ! sockseek terminó con código {code}")
-    for line in lines[-FAILED_TRANSFER_LOG_LINES:]:
-        print(f"      sockseek> {line}")
+    say(f"    ! sockseek terminó con código {code}\n" + "\n".join(
+        f"      sockseek> {line}" for line in lines[-FAILED_TRANSFER_LOG_LINES:]))
 
 
 def _run_sockseek_transfer(cmd: list[str], incoming: Path, expected_bytes: int, config: Path) -> int:
-    """Watch received bytes while the CLI runs; always reap it before cleaning files."""
+    """Watch received bytes while the CLI runs; always reap it before cleaning files. A transfer that receives
+    nothing new for TRANSFER_STALL_SECONDS (the peer does not answer or keeps us queued) is dropped."""
     limit = min(expected_bytes, MAX_SOURCE_BYTES)
     if limit <= 0 or shutil.disk_usage(incoming).free < limit + MIN_DISK_FREE_BYTES:
         raise RuntimeError("espacio libre insuficiente para la transferencia")
@@ -303,6 +497,7 @@ def _run_sockseek_transfer(cmd: list[str], incoming: Path, expected_bytes: int, 
     with tempfile.TemporaryFile() as log:
         process = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT)
         deadline = time.monotonic() + TRANSFER_TIMEOUT_SECONDS
+        last_received, last_progress = -1, time.monotonic()
         try:
             while True:
                 received = 0
@@ -325,6 +520,11 @@ def _run_sockseek_transfer(cmd: list[str], incoming: Path, expected_bytes: int, 
                     raise RuntimeError("espacio libre agotándose; transferencia cancelada")
                 if time.monotonic() >= deadline:
                     raise RuntimeError("timeout de transferencia Soulseek")
+                if received != last_received:
+                    last_received, last_progress = received, time.monotonic()
+                elif time.monotonic() - last_progress >= TRANSFER_STALL_SECONDS:
+                    raise RuntimeError(f"la transferencia no avanzó en {TRANSFER_STALL_SECONDS:.0f} s (el usuario "
+                                       "no responde o nos tiene en cola); pruebo otro archivo")
                 code = process.poll()
                 if code is not None:
                     if code != 0:
@@ -800,6 +1000,43 @@ class Spotify:
                 }
             )
         return playlists
+
+    def remove_from_library(self, uris: list[str]) -> None:
+        """Quita de la biblioteca (para una playlist propia, la borra): DELETE /me/library, que reemplazó a
+        «dejar de seguir una playlist» en febrero de 2026. Hasta 40 URIs por pedido."""
+        url = API_ROOT + "/me/library"
+        for start in range(0, len(uris), 40):
+            params = {"uris": ",".join(uris[start:start + 40])}
+            headers = {"Authorization": f"Bearer {self.token()}"}
+            for attempt in range(4):
+                r = self.session.delete(url, params=params, headers=headers, timeout=25)
+                if r.status_code == 401:
+                    headers["Authorization"] = f"Bearer {self._force_refresh_after_401()}"
+                    continue
+                if r.status_code == 429 and attempt < 3:
+                    try:
+                        delay = max(1.0, min(float(r.headers.get("Retry-After", "1")), 30.0))
+                    except ValueError:
+                        delay = 1.0
+                    time.sleep(delay)
+                    continue
+                if 500 <= r.status_code < 600 and attempt < 3:
+                    time.sleep(1.0 + attempt)
+                    continue
+                r.raise_for_status()
+                break
+
+    def own_playlists(self) -> list[dict[str, Any]]:
+        """Las playlists de la biblioteca del usuario (GET /me/playlists)."""
+        found: list[dict[str, Any]] = []
+        url: str | None = "/me/playlists"
+        params: dict[str, Any] | None = {"limit": 50}
+        while url:
+            page = self._get(url, params=params)
+            params = None
+            found += [item for item in page.get("items") or [] if isinstance(item, dict)]
+            url = str(page["next"]) if page.get("next") else None
+        return found
 
     def _album_details(self, album_id: str | None) -> dict[str, Any]:
         if not album_id:
@@ -1514,8 +1751,7 @@ def check_soulseek_availability_batch(
     with tempfile.TemporaryDirectory(prefix="sockseek_preflight_") as tmp:
         batch_csv = Path(tmp) / "spotify_preflight.csv"
         _write_sockseek_preflight_csv(batch_csv, tracks)
-        safe_config = Path(tmp) / "sockseek.conf"
-        _write_sockseek_safe_config(safe_config, bin_)
+        session_args = _sockseek_session_args(Path(tmp), bin_)
         # El rango de duración real (hasta 1,9× para una Extended) lo aplica _classify_availability_raw; con
         # la tolerancia de antes (60 s) sockseek ya descartaba la Original Mix larga de un radio edit.
         sockseek_tol = max([length_tol] + [math.ceil(0.9 * t.duration_s) for t in tracks if t.duration_s > 0])
@@ -1523,7 +1759,7 @@ def check_soulseek_availability_batch(
         cmd = [
             bin_,
             str(batch_csv),
-            f"--config={safe_config}",
+            *session_args,
             # El título lo decide _classify_availability_raw con las reglas de la verificación. --strict-title
             # exigía el «Título - Versión» de Spotify al pie de la letra y perdía «Título (Versión)»: en una
             # playlist de 152 temas, 29 de los 46 «no disponibles» estaban (2026-11-02).
@@ -1725,15 +1961,17 @@ def rank_candidates(
     2. La duración de Spotify (± DURATION_TOLERANCE_S): la misma versión.
     3. El resto (puede pasar como Extended inferida o ser otra versión).
     Dentro de cada grupo, primero los que tienen el título en el nombre del archivo (no solo en la
-    carpeta: «Wave (1967)/04 - Batidinha»), después los de una carpeta con el nombre del álbum de
-    Spotify y, salvo en las Extended, los de duración más cercana; si empatan, el orden de sockseek.
+    carpeta: «Wave (1967)/04 - Batidinha»), después los de un usuario con un lugar libre para subir (los
+    demás nos ponen en cola: en el log del 2026-11-02, 33 de 52 transferencias fallidas fueron esperas sin
+    avance), los de una carpeta con el nombre del álbum de Spotify, los de duración más cercana (salvo en
+    las Extended) y los de usuarios más rápidos; si empatan, el orden de sockseek.
     """
     duration = track.duration_s
     album = norm(track.album)
     title = norm(strip_variants(track.title))
     spotify_extended = "extended" in variants(track.title)
 
-    def key(item: tuple[int, dict[str, Any]]) -> tuple[int, int, int, float, int]:
+    def key(item: tuple[int, dict[str, Any]]) -> tuple[int, int, int, int, float, float, int]:
         index, candidate = item
         raw = str(candidate.get("filename") or "")
         name = norm(raw)
@@ -1749,7 +1987,10 @@ def rank_candidates(
         titled = bool(title) and re.search(rf"\b{re.escape(title)}\b", file_name) is not None
         same_album = bool(album) and re.search(rf"\b{re.escape(album)}\b", name) is not None
         closeness = 0.0 if tier == 0 or delta is None else delta
-        return (tier, 0 if titled else 1, 0 if same_album else 1, closeness, index)
+        busy = 0 if candidate.get("has_free_upload_slot") else 1
+        speed = candidate.get("upload_speed_mib_s")
+        speed = float(speed) if isinstance(speed, (int, float)) and not isinstance(speed, bool) else 0.0
+        return (tier, 0 if titled else 1, busy, 0 if same_album else 1, closeness, -speed, index)
 
     return [candidate for _, candidate in sorted(enumerate(candidates), key=key)]
 
@@ -1763,11 +2004,18 @@ def download_with_sockseek(
     verify: Callable[[Path], bool] | None = None,
     max_transfers: int = MAX_CANDIDATE_TRANSFERS,
     prefer_extended: bool = True,
+    max_attempts: int = MAX_TRANSFER_ATTEMPTS,
+    budget_s: float = TRACK_DOWNLOAD_BUDGET_S,
+    avoid: set[tuple[str, str]] | None = None,
+    outcome: dict[str, int] | None = None,
 ) -> list[Path]:
     """Download only preflight-approved single files, scan before exposing to parsers.
 
     With `verify`, each file that passes the safety gates is checked as the right track; a rejected
-    file is deleted and the next candidate is tried, up to `max_transfers` transfers.
+    file is deleted and the next candidate is tried, up to `max_transfers` files that arrived and
+    `max_attempts` transfers in all (a transfer that fails brings nothing: it does not use up the
+    verification attempts), within `budget_s`. `avoid` holds (user, file) pairs that already failed and
+    gets the new failures; `outcome` gets the counts ("attempts", "arrived").
     """
     bin_ = find_sockseek()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1777,9 +2025,15 @@ def download_with_sockseek(
         if check.error:
             raise RuntimeError(check.error)
         return []
-    transfers = 0
+    arrived = attempts = 0
+    started = time.monotonic()
+    counts = outcome if outcome is not None else {}
+    counts.update(attempts=0, arrived=0)
     for candidate in rank_candidates(track, check.candidates, prefer_extended):
-        if transfers >= max_transfers:
+        if arrived >= max_transfers or attempts >= max_attempts:
+            break
+        if time.monotonic() - started >= budget_s:
+            say(f"    ! se agotó el tiempo para este tema ({budget_s / 60:.0f} min)")
             break
         if not _safe_audio_filename(str(candidate.get("filename") or "")) or _audio_size_error(candidate):
             continue
@@ -1787,17 +2041,20 @@ def download_with_sockseek(
         if not isinstance(username, str) or not username:
             continue
         remote_path = candidate["filename"].replace("\\", "/")
+        if avoid is not None and (username, remote_path) in avoid:
+            continue
         link = "slsk://" + urllib.parse.quote(username, safe="") + "/" + urllib.parse.quote(remote_path, safe="/")
-        transfers += 1
+        attempts += 1
+        counts["attempts"] = attempts
         destination: Path | None = None
         # Each attempt is isolated. Rejected and incomplete payloads are removed.
         with tempfile.TemporaryDirectory(prefix="incoming_", dir=out_dir) as tmp:
             incoming = Path(tmp)
             safe_config = incoming / "sockseek.conf"
-            _write_sockseek_safe_config(safe_config, bin_)
+            session_args = _sockseek_session_args(incoming, bin_)
             cmd = [
                 bin_, link, "--input-type=soulseek", "--song",
-                f"--config={safe_config}",
+                *session_args,
                 "--format=flac,wav,mp3", "--min-bitrate=315",
                 "--yt-dlp=false", "--album=false",
                 "--upgrade-to-album=false", "--aggregate=false",
@@ -1809,24 +2066,32 @@ def download_with_sockseek(
             try:
                 code = _run_sockseek_transfer(cmd, incoming, int(candidate["size_bytes"]), safe_config)
                 if code != 0:
+                    if avoid is not None:
+                        avoid.add((username, remote_path))
                     continue
                 files = [p for p in incoming.rglob("*") if p.is_file() and p != safe_config]
                 if len(files) != 1:
-                    print(f"    ! sockseek dejó {len(files)} archivos en vez de 1; candidato descartado")
+                    say(f"    ! sockseek dejó {len(files)} archivos en vez de 1; candidato descartado")
                     continue
                 path = files[0]
                 if not path.resolve().is_relative_to(incoming.resolve()):
                     raise RuntimeError("archivo fuera del directorio de recepción")
+                arrived += 1
+                counts["arrived"] = arrived
                 _validate_download(path, candidate)
                 destination = Path(tempfile.mkdtemp(prefix="verified_", dir=out_dir)) / path.name
                 shutil.move(str(path), destination)
             except (RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
-                print(f"    ! candidato bloqueado: {exc}")
+                say(f"    ! candidato bloqueado: {exc}")
+                if avoid is not None:
+                    avoid.add((username, remote_path))
+                if _DAEMON is not None:  # que el daemon no siga bajando lo que se dejó
+                    _DAEMON.cancel_matching(Path(remote_path).stem)
         if destination is None:
             continue
         if verify is None or verify(destination):
             return [destination]
-        print(f"    ✗ no pasó la verificación: {destination.name}; pruebo otro candidato")
+        say(f"    ✗ no pasó la verificación: {destination.name}; pruebo otro candidato")
         shutil.rmtree(destination.parent, ignore_errors=True)
     return []
 
@@ -2378,7 +2643,7 @@ class SearchLimiter:
         self.clock = clock
         self.sleep = sleep
         self.stamps: list[float] = []
-        self._last: float | None = None
+        self._lock = threading.Lock()  # varios temas a la vez: una cuenta para todos
 
     def _recent(self) -> list[float]:
         now = self.clock()
@@ -2396,33 +2661,37 @@ class SearchLimiter:
             return 0.0
         return max(0.0, recent[-self.per_window] + self.window_s - self.clock())
 
-    def acquire(self, on_wait: Callable[[float], None] | None = None) -> None:
+    def acquire(self, on_wait: Callable[[float], None] | None = None) -> float:
+        """Espera turno y anota la búsqueda; devuelve su marca, para `finish`."""
         announced = False
         while True:
-            wait = self.wait_s()
-            if wait <= 0:
-                break
+            with self._lock:
+                wait = self.wait_s()
+                if wait <= 0:
+                    stamp = self.clock()
+                    self.stamps = self._recent() + [stamp]
+                    self._save()
+                    return stamp
             if on_wait is not None and not announced:
                 on_wait(wait)
                 announced = True
             self.sleep(min(wait, 5.0))
-        self._last = self.clock()
-        self.stamps = self._recent() + [self._last]
-        self._save()
 
-    def finish(self) -> None:
+    def finish(self, stamp: float) -> None:
         """La búsqueda terminó: cuenta desde ahora. Sockseek se conecta antes de buscar (hasta 20 s), así que
         la hora de inicio subestima cuándo salió la búsqueda; la de fin, no."""
-        stamps = [s for s in self._recent() if s != self._last]
-        self._last = self.clock()
-        self.stamps = stamps + [self._last]
-        self._save()
+        with self._lock:
+            stamps = self._recent()
+            if stamp in stamps:
+                stamps.remove(stamp)
+            self.stamps = stamps + [self.clock()]
+            self._save()
 
     def _save(self) -> None:
         if self.path is None:
             return
         # Un temporal propio de este proceso. Una descarga a la vez (la app no lanza dos).
-        tmp = self.path.with_name(f"{self.path.name}.{os.getpid()}.tmp")
+        tmp = self.path.with_name(f"{self.path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             tmp.write_text(json.dumps({"searches": self.stamps}), encoding="utf-8")
@@ -2442,7 +2711,7 @@ def _append_sockseek_log(source: Path | None, destination: Path | None, track: T
         return
     try:
         text = source.read_text(encoding="utf-8", errors="replace")
-        with destination.open("a", encoding="utf-8") as handle:
+        with _PRINT_LOCK, destination.open("a", encoding="utf-8") as handle:
             handle.write(f"\n===== {track.primary_artist} - {track.title} =====\n{text}")
     except OSError:
         pass
@@ -2464,9 +2733,9 @@ def search_track(
     check = AvailabilityCheck(status="error", result_count=0, candidates=[], error="sin búsqueda")
     for attempt in range(max(1, attempts)):
         if attempt:
-            print(f"    ! la búsqueda falló ({check.error}); reintento en {retry_pause:.0f} s", flush=True)
+            say(f"    ! la búsqueda falló ({check.error}); reintento en {retry_pause:.0f} s")
             time.sleep(retry_pause)
-        limiter.acquire(on_wait)
+        stamp = limiter.acquire(on_wait)
         with tempfile.TemporaryDirectory(prefix="sockseek_search_") as tmp:
             own_log = Path(tmp) / "sockseek.log" if log_file is not None else None
             try:
@@ -2474,24 +2743,11 @@ def search_track(
                     [track], length_tol=length_tol, timeout=timeout, log_file=own_log
                 )[0]
             finally:
-                limiter.finish()
+                limiter.finish(stamp)
             _append_sockseek_log(own_log, log_file, track)
         if check.status != "error":
             return check
     return check
-
-
-def wait_announcer(state: dict[str, Any], publish: Callable[[], None]) -> Callable[[float], None]:
-    def on_wait(seconds: float) -> None:
-        print(
-            f"    Soulseek permite {SOULSEEK_SEARCHES_PER_WINDOW} búsquedas cada {SOULSEEK_SEARCH_WINDOW_S} s: "
-            f"espero {seconds:.0f} s antes de buscar el siguiente.",
-            flush=True,
-        )
-        state["step"] = "wait"
-        state["until"] = time.time() + seconds
-        publish()
-    return on_wait
 
 
 # ---------------------------------------------------------------------------
@@ -2545,6 +2801,25 @@ def main() -> int:
         "--search-log",
         default=None,
         help="Archivo con las búsquedas recientes, para el límite de Soulseek (default: %%APPDATA%%)",
+    )
+    ap.add_argument(
+        "--parallel",
+        type=int,
+        default=DEFAULT_PARALLEL,
+        help=(
+            f"Temas a la vez, cada uno buscado y bajado por su lado, con una sola sesión de Soulseek "
+            f"(default {DEFAULT_PARALLEL}, hasta {MAX_PARALLEL}; 1 = de a uno)"
+        ),
+    )
+    ap.add_argument(
+        "--no-daemon",
+        action="store_true",
+        help="Sin el daemon de sockseek: cada búsqueda y descarga abre su propia sesión (de a un tema)",
+    )
+    ap.add_argument(
+        "--sockseek-mock-dir",
+        default=None,
+        help="Pruebas sin Soulseek: busca y baja de esta carpeta local (--mock-files-dir de sockseek)",
     )
     ap.add_argument(
         "--search-timeout",
@@ -2677,12 +2952,14 @@ def main() -> int:
                                                     "error", "note") if k in earlier})
         rows.append(row)
     downloads: dict[int, dict[str, Any]] = {}
-    current: dict[str, Any] = {}
-    counts = {"searched": 0, "found": 0}
+    current: dict[int, dict[str, Any]] = {}  # los temas en curso (uno por trabajador): buscando, bajando, esperando
+    counts = {"searched": 0, "found": 0, "done": 0}
     missing_playlists: list[dict[str, Any]] | None = None
     staging = Path(args.staging or tempfile.mkdtemp(prefix="soulseek_staging_")).expanduser().resolve()
     staging_is_temporary = args.staging is None
     log_file = availability_report_path.with_name("sockseek_preflight.log") if queue_path is not None else None
+    lock = threading.RLock()  # filas, cola, reportes y contadores, compartidos por los trabajadores
+    parallel = max(1, min(MAX_PARALLEL, int(args.parallel or 1)))
 
     def summary(final: bool = False) -> dict[str, Any]:
         statuses = [row["status"] for row in rows]
@@ -2694,40 +2971,51 @@ def main() -> int:
             "missing": statuses.count("missing"),
             "errors": statuses.count("error"),
             "preflight_mode": "track_by_track",
-            "current": None if final else (dict(current) if current else None),
+            "parallel": parallel,
+            "current": None if final else ([dict(c) for c in current.values()] or None),
             "tracks": rows,
         }
 
     def publish(final: bool = False) -> None:
-        _replace_report(availability_report_path, summary(final), attempts=60 if final else 5)
+        with lock:
+            _replace_report(availability_report_path, summary(final), attempts=60 if final else 5)
 
     def publish_downloads(final: bool = False) -> None:
-        ordered = [downloads[p] for p in sorted(downloads)]
-        failed_now = sum(row["status"] not in DOWNLOADED_STATUSES for row in ordered)
-        _replace_report(report_path, {
-            "playlist": {"name": pl_name, "source": args.playlist},
-            "availability_report": str(availability_report_path),
-            "recording_queue": str(queue_path) if queue_path else None,
-            "output": str(out),
-            "staging": str(staging),
-            "staging_is_temporary": staging_is_temporary,
-            "prefer_extended": not args.no_extended,
-            "completed": len(ordered) - failed_now,
-            "failed": failed_now,
-            "tracks": ordered,
-        }, attempts=60 if final else 5)
+        with lock:
+            ordered = [downloads[p] for p in sorted(downloads)]
+            failed_now = sum(row["status"] not in DOWNLOADED_STATUSES for row in ordered)
+            _replace_report(report_path, {
+                "playlist": {"name": pl_name, "source": args.playlist},
+                "availability_report": str(availability_report_path),
+                "recording_queue": str(queue_path) if queue_path else None,
+                "output": str(out),
+                "staging": str(staging),
+                "staging_is_temporary": staging_is_temporary,
+                "prefer_extended": not args.no_extended,
+                "completed": len(ordered) - failed_now,
+                "failed": failed_now,
+                "tracks": ordered,
+            }, attempts=60 if final else 5)
+
+    def set_step(position: int, step: str | None, **extra: Any) -> None:
+        with lock:
+            if step is None:
+                current.pop(position, None)
+            else:
+                current[position] = {"position": position, "step": step, **extra}
+        publish()
 
     to_record: list[tuple[int, Track]] = []
-    handled: set[str] = set()  # un tema repetido en la playlist se resuelve una sola vez
 
     def queue_for_recording(position: int, track: Track, origin: str, reason: str) -> None:
-        if track.spotify_id in queued_ids:
-            return
-        if queue_path is not None:
-            append_track(queue_path, recording_entry(position, track), origin=origin, reason=reason)
-        queued_ids.add(track.spotify_id)
-        to_record.append((position, track))
-        print(f"    ↻ se grabará de Spotify: {reason}", flush=True)
+        with lock:
+            if track.spotify_id in queued_ids:
+                return
+            if queue_path is not None:
+                append_track(queue_path, recording_entry(position, track), origin=origin, reason=reason)
+            queued_ids.add(track.spotify_id)
+            to_record.append((position, track))
+        say(f"    ↻ se grabará de Spotify: {reason}")
 
     def download_row(position: int, track: Track, availability: AvailabilityCheck | None) -> dict[str, Any]:
         row: dict[str, Any] = {"position": position, "spotify": _track_report(track), "status": "pending",
@@ -2741,108 +3029,132 @@ def main() -> int:
     if queue_path is not None:
         print("Lo que no se consiga se graba de Spotify mientras sigue la búsqueda.")
     limiter = SearchLimiter(Path(args.search_log).expanduser().resolve() if args.search_log else default_search_log())
-    on_wait = wait_announcer(current, publish)
     held_errors: list[tuple[int, Track, str]] = []  # se mandan a grabar solo si después otra búsqueda funciona
     consecutive_errors = 0
     last_ok: Track | None = None  # el último tema que se pudo buscar en esta descarga
     aborted: str | None = None
-    publish()
+    retry_later: list[tuple[int, Track]] = []  # Soulseek los tenía pero no llegó ningún archivo: otra búsqueda al final
+    avoid: set[tuple[str, str]] = set()  # (usuario, archivo) que ya fallaron: no se vuelven a pedir
 
+    # Una sola sesión de Soulseek para todo (el daemon de sockseek); sin ella, de a un tema.
+    mock_dir = Path(args.sockseek_mock_dir).expanduser().resolve() if args.sockseek_mock_dir else None
+    use_mock_dir(mock_dir)
+    daemon_state = availability_report_path.with_name(DAEMON_STATE_NAME)
+    stop_daemon_from_state(daemon_state)  # el de una descarga cortada: su sesión cortaría la de esta
+    daemon: SockseekDaemon | None = None
+    if not args.no_daemon:
+        daemon = SockseekDaemon(find_sockseek(), state_path=daemon_state,
+                                log_path=availability_report_path.with_name("sockseek_daemon.log"),
+                                mock_dir=mock_dir)
+        try:
+            daemon.start()
+        except (RuntimeError, OSError) as exc:
+            print(f"! No se pudo abrir la sesión compartida de Soulseek ({exc}): sigo de a un tema.", flush=True)
+            daemon = None
+    if daemon is None:
+        parallel = 1  # dos sesiones con la misma cuenta se cortan entre sí
+    use_daemon(daemon)
+    print(f"Soulseek: {'una sola sesión para todo' if daemon else 'una sesión por búsqueda y descarga'}; "
+          f"{parallel} tema(s) a la vez.", flush=True)
+
+    # Un tema repetido en la playlist se resuelve una vez (la primera aparición) y se copia al final.
+    work: list[tuple[int, Track]] = []
+    repeated: list[tuple[int, Track, int]] = []
+    first_position: dict[str, int] = {}
     for position, track in enumerate(tracks, 1):
+        if track.spotify_id in first_position:
+            repeated.append((position, track, first_position[track.spotify_id]))
+        else:
+            first_position[track.spotify_id] = position
+            work.append((position, track))
+
+    def process_track(position: int, track: Track, second_try: bool) -> None:
+        nonlocal consecutive_errors, last_ok, aborted
         row = rows[position - 1]
         tid = track.spotify_id
-        if position > 1 and (position - 1) % 10 == 0:
-            print(f"Soulseek: {position - 1}/{len(tracks)} temas vistos, {counts['found']} encontrados, "
-                  f"{len(queued_ids)} para grabar", flush=True)
-        print(f"[{position}/{len(tracks)} | Spotify #{position}] {track.primary_artist} - {track.title}", flush=True)
+        say(f"[{position}/{len(tracks)} | Spotify #{position}] {track.primary_artist} - {track.title}"
+            + ("  (segundo intento)" if second_try else ""))
 
-        in_folder = saved.get(tid)
-        if in_folder is not None:
-            print(f"    → ya está en tu carpeta: {in_folder.name}")
-            downloads[position] = {**download_row(position, track, None), "status": "already_finalized",
-                                   "output": str(in_folder),
-                                   "selected": {"path": str(in_folder), "reasons": ["ya estaba en tu carpeta de música"]}}
-            handled.add(tid)
-            continue
-        earlier = previous_downloads.get(tid)
-        if (earlier and earlier.get("status") in DOWNLOADED_STATUSES and earlier.get("output")
-                and Path(str(earlier["output"])).is_file()):
-            print(f"    → ya bajado: {Path(str(earlier['output'])).name}")
-            downloads[position] = {**earlier, "position": position}
-            handled.add(tid)
-            continue
-        if tid in handled:
-            print("    = repetido en la playlist: ya se resolvió más arriba")
-            first_row = next(r for r in rows[: position - 1] if r["spotify"].get("spotify_id") == tid)
-            row.update({k: first_row.get(k) for k in ("status", "result_count", "quality_unknown", "top_candidates",
-                                                      "error")}, note="repetido en la playlist")
-            first = next((d for d in downloads.values() if d["spotify"].get("spotify_id") == tid), None)
-            if first is not None:
-                downloads[position] = {**first, "position": position}
-            continue
+        if not second_try:
+            in_folder = saved.get(tid)
+            if in_folder is not None:
+                say(f"    → ya está en tu carpeta: {in_folder.name}")
+                with lock:
+                    downloads[position] = {**download_row(position, track, None), "status": "already_finalized",
+                                           "output": str(in_folder),
+                                           "selected": {"path": str(in_folder),
+                                                        "reasons": ["ya estaba en tu carpeta de música"]}}
+                return
+            earlier = previous_downloads.get(tid)
+            if (earlier and earlier.get("status") in DOWNLOADED_STATUSES and earlier.get("output")
+                    and Path(str(earlier["output"])).is_file()):
+                say(f"    → ya bajado: {Path(str(earlier['output'])).name}")
+                with lock:
+                    downloads[position] = {**earlier, "position": position}
+                return
+            if tid in queued_ids:
+                say("    ↻ ya está en la cola para grabar de Spotify")
+                if earlier is not None:
+                    with lock:
+                        downloads[position] = {**earlier, "position": position}
+                return
+            previous = reusable.get(tid)
+            if previous is not None and downloads_enabled:
+                try:
+                    dest = reuse_download(previous, out, tid, require_cover=not args.allow_missing_cover)
+                except (RuntimeError, OSError) as exc:
+                    say(f"    ! no se pudo reutilizar {previous.name}: {exc}; lo busco")
+                else:
+                    say(f"    → reutilizado de una descarga anterior: {dest.name}")
+                    with lock:
+                        row.update(status="available", note="bajado en una descarga anterior")
+                        downloads[position] = {**download_row(position, track, None), "status": "already_finalized",
+                                               "output": str(dest),
+                                               "selected": {"path": str(previous),
+                                                            "reasons": ["reutilizado de una descarga anterior"]}}
+                    publish_downloads()
+                    return
 
-        if tid in queued_ids:
-            print("    ↻ ya está en la cola para grabar de Spotify")
-            if earlier is not None:
-                downloads[position] = {**earlier, "position": position}
-            handled.add(tid)
-            continue
-        previous = reusable.get(tid)
-        if previous is not None and downloads_enabled:
-            try:
-                dest = reuse_download(previous, out, tid, require_cover=not args.allow_missing_cover)
-            except (RuntimeError, OSError) as exc:
-                print(f"    ! no se pudo reutilizar {previous.name}: {exc}; lo busco")
-            else:
-                print(f"    → reutilizado de una descarga anterior: {dest.name}")
-                row.update(status="available", note="bajado en una descarga anterior")
-                downloads[position] = {**download_row(position, track, None), "status": "already_finalized",
-                                       "output": str(dest),
-                                       "selected": {"path": str(previous), "reasons": ["reutilizado de una descarga anterior"]}}
-                handled.add(tid)
-                publish()
-                publish_downloads()
-                continue
+        def on_wait(seconds: float) -> None:
+            say(f"    Soulseek permite {SOULSEEK_SEARCHES_PER_WINDOW} búsquedas cada {SOULSEEK_SEARCH_WINDOW_S} s: "
+                f"espero {seconds:.0f} s antes de buscar este.")
+            set_step(position, "wait", until=time.time() + seconds)
 
-        current.clear()
-        current.update(position=position, step="search")
-        publish()
+        set_step(position, "search")
         check = search_track(track, limiter=limiter, timeout=args.search_timeout, length_tol=args.length_tol,
                              log_file=log_file, on_wait=on_wait)
-        current.pop("until", None)
-        row.update(status=check.status, result_count=check.result_count, quality_unknown=check.quality_unknown,
-                   top_candidates=check.candidates, error=check.error)
-        handled.add(tid)
-        if check.status == "error":
-            consecutive_errors += 1
-            held_errors.append((position, track, check.error or "error desconocido"))
-            print(f"    ! la búsqueda en Soulseek falló: {check.error}", flush=True)
-            publish()
-            if consecutive_errors >= MAX_CONSECUTIVE_SEARCH_ERRORS:
-                aborted = check.error or "error desconocido"
-                break
-            continue
-        consecutive_errors = 0
-        last_ok = track
-        counts["searched"] += 1
-        for held_position, held_track, error in held_errors:  # la búsqueda funciona: el error era de ese tema
+        set_step(position, "search")
+        flush: list[tuple[int, Track, str]] = []
+        with lock:
+            row.update(status=check.status, result_count=check.result_count, quality_unknown=check.quality_unknown,
+                       top_candidates=check.candidates, error=check.error)
+            if check.status == "error":
+                consecutive_errors += 1
+                held_errors.append((position, track, check.error or "error desconocido"))
+                if consecutive_errors >= MAX_CONSECUTIVE_SEARCH_ERRORS and aborted is None:
+                    aborted = check.error or "error desconocido"
+            else:
+                consecutive_errors = 0
+                last_ok = track
+                counts["searched"] += 1
+                flush, held_errors[:] = list(held_errors), []
+        for held_position, held_track, error in flush:  # la búsqueda funciona: el error era de ese tema
             queue_for_recording(held_position, held_track, "search_error", f"La búsqueda en Soulseek falló ({error})")
-        held_errors.clear()
-
+        if check.status == "error":
+            say(f"    ! la búsqueda en Soulseek falló: {check.error}")
+            return
         if check.status == "missing":
-            print("    ✗ no está en Soulseek")
+            say("    ✗ no está en Soulseek")
             queue_for_recording(position, track, "missing", "No está en Soulseek")
-            publish()
-            continue
-        counts["found"] += 1
-        print(f"    ✓ en Soulseek: {check.result_count} archivo(s) utilizable(s)"
-              + (" (bitrate no anunciado)" if check.quality_unknown else ""))
+            return
+        with lock:
+            counts["found"] += 1
+        say(f"    ✓ en Soulseek: {check.result_count} archivo(s) utilizable(s)"
+            + (" (bitrate no anunciado)" if check.quality_unknown else ""))
         if not downloads_enabled:
-            publish()
-            continue
+            return
 
-        current.update(step="download")
-        publish()
+        set_step(position, "download")
         drow = download_row(position, track, check)
         best: LocalFile | None = None
         best_score = -1.0
@@ -2862,51 +3174,122 @@ def main() -> int:
                 best, best_score, best_ext, best_reasons = local, score, extended, reasons
             return accepted
 
+        outcome: dict[str, int] = {}
         try:
             files = download_with_sockseek(track, staging, length_tol=args.length_tol, availability=check,
-                                           verify=verify, prefer_extended=not args.no_extended)
+                                           verify=verify, prefer_extended=not args.no_extended, avoid=avoid,
+                                           outcome=outcome)
         except Exception as exc:
-            print(f"    ✗ error descarga: {exc}")
+            say(f"    ✗ error descarga: {exc}")
             drow.update(status="download_error", error=str(exc))
             files = []
         if drow["status"] == "pending" and (not files or best is None):
             if drow["candidates"]:
-                print(f"    ✗ ninguno de los {len(drow['candidates'])} archivos bajados pasó la verificación")
+                say(f"    ✗ ninguno de los {len(drow['candidates'])} archivos bajados pasó la verificación")
                 drow["status"] = "verification_failed"
             else:
-                print("    ✗ Soulseek tenía resultados, pero la descarga no produjo archivo")
+                say("    ✗ Soulseek tenía resultados, pero la descarga no produjo archivo")
                 drow["status"] = "availability_changed_or_download_failed"
         if drow["status"] == "pending":
             assert best is not None
-            print(f"    ✓ elegido: {best.path.name}" + ("  [Extended]" if best_ext else ""))
+            say(f"    ✓ elegido: {best.path.name}" + ("  [Extended]" if best_ext else ""))
             drow["selected"] = {"path": str(best.path), "score": best_score, "extended": best_ext, "reasons": best_reasons}
             try:
                 dest, already_exists = finalize(best.path, out, track, best, best_ext, overwrite=args.overwrite,
                                                 require_cover=not args.allow_missing_cover)
-                print(f"    → {'ya existía: ' if already_exists else ''}{dest.name}")
+                say(f"    → {'ya existía: ' if already_exists else ''}{dest.name}")
                 drow.update(status="already_finalized" if already_exists else "finalized", output=str(dest))
             except Exception as exc:
-                print(f"    ✗ finalize: {exc}")
+                say(f"    ✗ finalize: {exc}")
                 drow.update(status="finalize_error", error=str(exc))
-        downloads[position] = drow
-        if drow["status"] not in DOWNLOADED_STATUSES:
+        nothing_arrived = drow["status"] == "availability_changed_or_download_failed" and not outcome.get("arrived")
+        if drow["status"] not in DOWNLOADED_STATUSES and nothing_arrived and not second_try:
+            # Ningún usuario llegó a mandar el archivo (en cola, desconectado, sin avanzar): otra búsqueda al
+            # final, con otros usuarios, antes de grabarlo.
+            drow["retry_pending"] = True
+            with lock:
+                retry_later.append((position, track))
+            say("    ↺ no llegó ningún archivo: se vuelve a buscar al final")
+        elif drow["status"] not in DOWNLOADED_STATUSES:
             queue_for_recording(position, track, "failed", _download_failure_reason(drow))
-        publish()
+        with lock:
+            downloads[position] = drow
         publish_downloads()
 
-    if aborted is None and held_errors:
-        # Los últimos temas fallaron y no hay otro después que pruebe que la búsqueda funciona: se prueba
-        # con uno que sí se encontró. Si tampoco funciona, el problema es la búsqueda y no se graban.
-        probe = None
-        if last_ok is not None:
-            print(f"Compruebo que la búsqueda en Soulseek funciona con «{last_ok.title}»…", flush=True)
-            probe = search_track(last_ok, limiter=limiter, timeout=args.search_timeout, length_tol=args.length_tol,
-                                 log_file=log_file, on_wait=on_wait)
-        if probe is not None and probe.status != "error":
-            for held_position, held_track, error in held_errors:
-                queue_for_recording(held_position, held_track, "search_error", f"La búsqueda en Soulseek falló ({error})")
-        else:
-            aborted = held_errors[-1][2]
+    fatal: list[BaseException] = []
+
+    def run_pool(items: list[tuple[int, Track]], second_try: bool = False) -> None:
+        index = 0
+
+        def worker() -> None:
+            nonlocal index
+            while True:
+                with lock:
+                    if aborted is not None or fatal or index >= len(items):
+                        return
+                    position, track = items[index]
+                    index += 1
+                _TRACK_TAG.value = f"#{position}" if parallel > 1 else None
+                try:
+                    process_track(position, track, second_try)
+                except BaseException as exc:  # un error inesperado corta la descarga (no se manda nada a grabar por él)
+                    with lock:
+                        fatal.append(exc)
+                    return
+                finally:
+                    set_step(position, None)
+                    _TRACK_TAG.value = None
+                with lock:
+                    counts["done"] += 1
+                    done = counts["done"]
+                if done % 10 == 0:
+                    say(f"Soulseek: {done} temas vistos, {counts['found']} encontrados, {len(queued_ids)} para grabar")
+
+        threads = [threading.Thread(target=worker, name=f"tema-{n + 1}", daemon=True)
+                   for n in range(max(1, min(parallel, len(items))))]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        if fatal:
+            raise fatal[0]
+
+    publish()
+    try:
+        run_pool(work)
+        if aborted is None and retry_later:
+            retry_later.sort(key=lambda item: item[0])
+            print(f"\n=== SEGUNDO INTENTO: {len(retry_later)} tema(s) que Soulseek tenía pero no llegaron ===", flush=True)
+            for position, _ in retry_later:
+                downloads[position].pop("retry_pending", None)
+            run_pool(list(retry_later), second_try=True)
+        if aborted is None and held_errors:
+            # Los últimos temas fallaron y no hay otro después que pruebe que la búsqueda funciona: se prueba
+            # con uno que sí se encontró. Si tampoco funciona, el problema es la búsqueda y no se graban.
+            probe = None
+            if last_ok is not None:
+                print(f"Compruebo que la búsqueda en Soulseek funciona con «{last_ok.title}»…", flush=True)
+                probe = search_track(last_ok, limiter=limiter, timeout=args.search_timeout,
+                                     length_tol=args.length_tol, log_file=log_file)
+            if probe is not None and probe.status != "error":
+                for held_position, held_track, error in list(held_errors):
+                    queue_for_recording(held_position, held_track, "search_error",
+                                        f"La búsqueda en Soulseek falló ({error})")
+            else:
+                aborted = held_errors[-1][2]
+    finally:
+        use_daemon(None)
+        if daemon is not None:
+            daemon.stop()
+
+    for position, track, first in repeated:  # lo que se resolvió en su primera aparición
+        say(f"[{position}/{len(tracks)} | Spotify #{position}] {track.primary_artist} - {track.title}\n"
+            "    = repetido en la playlist: ya se resolvió más arriba")
+        rows[position - 1].update({k: rows[first - 1].get(k) for k in ("status", "result_count", "quality_unknown",
+                                                                       "top_candidates", "error")},
+                                  note="repetido en la playlist")
+        if first in downloads:
+            downloads[position] = {**downloads[first], "position": position}
     current.clear()
     publish(final=True)
     publish_downloads(final=True)
@@ -2921,7 +3304,7 @@ def main() -> int:
 
     if aborted is not None:
         print(
-            f"\nERROR: la búsqueda en Soulseek falló en {len(held_errors)} tema(s) seguido(s) ({aborted}). Se corta "
+            f"\nERROR: la búsqueda en Soulseek falló en {max(1, len(held_errors))} tema(s) seguido(s) ({aborted}). Se corta "
             "aquí: el problema es la búsqueda, no los temas, y esos no se mandan a grabar. Revisa que la cuenta de "
             "Soulseek no esté abierta en otra PC y vuelve a intentar.",
             file=sys.stderr,

@@ -109,10 +109,14 @@ completo se ejecuta pasando únicamente la URL de una playlist:
 
 El orquestador va **tema a tema**, como cuando se busca a mano en Soulseek (2026-11-06):
 
-1. el descargador busca cada tema en Soulseek por separado (un proceso de sockseek por
-   búsqueda) y, si está, lo baja enseguida, antes de buscar el siguiente. El preflight en lote
-   de antes gastaba las 34 búsquedas permitidas en menos de 2 minutos y quedaba otros 2 parado,
-   una y otra vez: eso era lo que parecía «trancado»;
+1. el descargador busca cada tema en Soulseek por separado y, si está, lo baja enseguida. Trabaja
+   con **2 temas a la vez** (`--parallel`, de 1 a 4) por **una sola sesión de Soulseek**: un
+   daemon de sockseek que se abre al empezar y se cierra al terminar, al que cada búsqueda y cada
+   transferencia le llegan como un proceso de sockseek con `--remote`. Dos procesos de sockseek
+   con su propia sesión no sirven: la misma cuenta conectada dos veces corta la primera. Si el
+   daemon no arranca, sigue de a un tema, con una sesión por búsqueda o descarga. El preflight en
+   lote de antes gastaba las 34 búsquedas permitidas en menos de 2 minutos y quedaba otros 2
+   parado, una y otra vez: eso era lo que parecía «trancado»;
 2. lo que no está en Soulseek, o está pero ningún archivo pasó la verificación, va a la **cola
    de grabación** (`recording_queue.jsonl`) apenas se sabe;
 3. mientras la búsqueda sigue, el orquestador graba esa cola de Spotify en **tandas**: cada
@@ -123,7 +127,10 @@ El orquestador va **tema a tema**, como cuando se busca a mano en Soulseek (2026
    que su reproducción automática no siga sonando); cuando entra uno, abre otra tanda. Antes de
    abrir el grabador de cada tanda también se pausa Spotify: lo que siga sonando no puede ser lo
    que el grabador tome como comienzo del primer tema;
-5. cuando la búsqueda terminó y no queda nada por grabar, mueve todos los MP3 a
+5. la playlist privada de cada tanda se borra de tu Spotify apenas se termina de grabar
+   (`DELETE /me/library`, el reemplazo de «dejar de seguir» desde febrero de 2026). Si no se
+   puede, queda anotado en la tanda y se reintenta antes de guardar; nunca corta la descarga;
+6. cuando la búsqueda terminó y no queda nada por grabar, mueve todos los MP3 a
    `Playlists_DOWNLOAD/<nombre de playlist>/`, elimina duplicados por Spotify Track ID, escribe
    `<playlist>.m3u8` y limpia los intermedios del run.
 
@@ -132,6 +139,19 @@ búsqueda es un proceso, la cuenta la lleva el descargador en
 `%APPDATA%\traktor_soulseek_searches.json`, compartida por todas las descargas del ordenador:
 si se llega al límite, espera su turno (la app lo muestra en el tema). Tema a tema el límite casi
 no se toca, porque bajar cada tema lleva tiempo.
+
+**Transferencias trabadas.** Una transferencia que no recibe ningún byte nuevo en 45 s (el usuario
+no responde o nos tiene en cola) se deja, se cancela también en el daemon y se prueba el siguiente
+archivo. sockseek, por su lado, deja una descarga que lleva 30 s sin avanzar. Primero se piden los
+archivos de usuarios con un lugar libre para subir y, entre ellos, los más rápidos: en la descarga
+del 2026-11-02, 33 de las 52 transferencias fallidas fueron esperas sin avance. Por tema se prueban
+hasta 8 archivos si fallan por la red (los que llegan y no pasan la verificación siguen siendo 4
+como máximo), en hasta 7 minutos. Si de un tema no llegó ningún archivo, se busca de nuevo al final,
+sin volver a pedirle a los usuarios que fallaron, y recién si tampoco llega se manda a grabar.
+
+Para probar sin Soulseek: `spotify_soulseek_download.py … --sockseek-mock-dir <carpeta>` busca y
+baja de una carpeta local (el modo de prueba de sockseek), con el mismo daemon y la misma
+verificación.
 
 Una búsqueda que falla (tiempo agotado, sesión) se reintenta una vez. Si sigue fallando, ese tema
 se manda a grabar recién cuando la búsqueda del siguiente funciona (el problema era del tema, no

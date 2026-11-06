@@ -85,6 +85,18 @@ Buscar por el título base no agregó ninguno. El título ahora lo juzga el desc
 de la verificación (`_availability_title_error`): la búsqueda nueva dio 132 disponibles contra 106.
 Ojo al leer el log de sockseek: «N results found» cuenta lo que pasa sus filtros, no lo que llegó.
 
+### Varias cosas a la vez en Soulseek: el daemon de sockseek, no varios procesos
+
+Cada proceso de sockseek abre su sesión, y la misma cuenta conectada dos veces corta la primera:
+no se puede buscar y bajar en paralelo con procesos sueltos. sockseek 3.0.5 trae un daemon
+(`sockseek daemon --server-port N`, API REST en 127.0.0.1) con una sola sesión, y los procesos de
+sockseek con `--remote=http://127.0.0.1:N` le pasan el trabajo con las mismas opciones de siempre:
+la búsqueda devuelve el mismo JSON y la descarga cae en el `--output-dir` del cliente. La API tiene
+`/api/openapi.json`, `/api/jobs` y `/api/jobs/{id}/cancel`. Para probar sin la cuenta:
+`--mock-files-dir <carpeta>` (en el daemon o en el proceso) busca y «baja» archivos locales; el
+daemon los indexa al arrancar y las descargas simuladas aparecen enteras de golpe, así que no sirven
+para probar una transferencia que se traba. Verificado el 2026-11-06 con el daemon simulado.
+
 ### Probar en Soulseek mientras baja una descarga: otra cuenta y `--no-config`
 
 Una segunda sesión con la misma cuenta corta la otra, y el descargador abre una por transferencia.

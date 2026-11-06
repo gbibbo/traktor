@@ -3,6 +3,10 @@
 PURPOSE: Run the complete Spotify -> Soulseek + loopback fallback workflow.
 
 CHANGELOG:
+- 2026-11-06: The downloader works on --parallel tracks at once (2 by default) through one Soulseek session
+              (a sockseek daemon); a daemon left by a downloader that was cut off is closed. The private
+              Spotify playlist of each recording session is removed (DELETE /me/library) as soon as the
+              session is recorded, or abandoned; one that could not be removed is retried at the end.
 - 2026-11-06: Track by track (Gabriel's way of using Soulseek by hand): the downloader searches each
               track on its own and downloads it at once; what it cannot get goes to the recording queue
               (recording_queue.py) as soon as it is known, and this orchestrator records the queue from
@@ -686,6 +690,7 @@ def abandon_session(session_dir: Path) -> None:
     session["abandoned"] = True
     session["completed_ids"] = session_recorded_ids(session_dir)
     write_summary(session_dir / SESSION_FILE, session)
+    forget_session_playlist(session_dir)
 
 
 def discard_unfinished_recordings(run_dir: Path) -> None:
@@ -732,6 +737,46 @@ def ensure_session_playlist(session_dir: Path, playlist_name: str) -> str:
             write_summary(session_dir / SESSION_FILE, session)
             return str(created["url"])
     raise RecordingUnavailable(f"No se pudo crear la playlist de Spotify para grabar ({last_error}).")
+
+
+def delete_spotify_playlist(playlist: dict[str, Any]) -> None:
+    """Quita de tu Spotify la playlist temporal de una tanda (DELETE /me/library: para una playlist propia,
+    borrarla)."""
+    from spotify_soulseek_download import Spotify
+
+    Spotify(os.environ.get("SPOTIFY_CLIENT_ID", "")).remove_from_library([f"spotify:playlist:{playlist['id']}"])
+
+
+def forget_session_playlist(session_dir: Path) -> None:
+    """La playlist de la tanda ya no hace falta (grabada o abandonada): se borra. Si no se puede, queda anotado y
+    se reintenta al terminar; nunca corta la descarga."""
+    session = read_session(session_dir)
+    playlist = session.get("playlist") or {}
+    if not playlist.get("id") or session.get("playlist_deleted"):
+        return
+    try:
+        delete_spotify_playlist(playlist)
+    except Exception as exc:  # noqa: BLE001 (red, permisos: la playlist queda, nada más)
+        session["playlist_delete_error"] = f"{type(exc).__name__}: {exc}"
+        print(f"No se pudo borrar de tu Spotify la playlist temporal «{playlist.get('name')}» ({exc}).", flush=True)
+    else:
+        session["playlist_deleted"] = True
+        session.pop("playlist_delete_error", None)
+        print(f"Playlist temporal borrada de tu Spotify: «{playlist.get('name')}».", flush=True)
+    write_summary(session_dir / SESSION_FILE, session)
+
+
+def stop_leftover_daemon(run_dir: Path) -> None:
+    """El daemon de sockseek de un descargador cortado sigue con la sesión de Soulseek abierta: se cierra."""
+    state = run_dir / "sockseek_daemon.json"
+    if not state.exists():
+        return
+    try:
+        from spotify_soulseek_download import stop_daemon_from_state
+
+        stop_daemon_from_state(state)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def pause_spotify(env: dict[str, str], device_id: str | None) -> None:
@@ -827,8 +872,11 @@ class SessionRecorder:
                         # Spotify de escritorio recién abierto tarda en aparecer: un segundo intento.
                         print(f"[grabación] {exc} Reintento.", flush=True)
                         continue
-                    # Si la playlist de la tanda ya no está en Spotify, la próxima vez se crea otra.
+                    # Si la playlist de la tanda ya no está en Spotify, la próxima vez se crea otra (y esta se borra).
+                    forget_session_playlist(session_dir)
+                    session = read_session(session_dir)
                     session["playlist"] = None
+                    session.pop("playlist_deleted", None)
                     write_summary(session_dir / SESSION_FILE, session)
                     raise
             self.device_id = (read_json_dict(player_ready) or {}).get("device_id") or self.device_id
@@ -1214,6 +1262,7 @@ def run_workflow(args: argparse.Namespace) -> int:
                 "--recording-queue", str(queue_path),
                 "--availability-report", str(availability_json),
                 "--report", str(soulseek_report),
+                "--parallel", str(args.parallel),
             ]
             # Lo ya bajado o grabado en descargas anteriores de esta playlist (cortadas antes de guardar) se
             # trae sin buscarlo.
@@ -1264,6 +1313,8 @@ def run_workflow(args: argparse.Namespace) -> int:
                     continue
                 if outcome == "deferred":
                     sessions.pause()
+                elif outcome == "completed":
+                    forget_session_playlist(session_dir)  # grabada: la playlist temporal ya no hace falta
                 continue
             # Nada para grabar ahora: Spotify no sigue sonando por su cuenta.
             sessions.pause()
@@ -1304,6 +1355,9 @@ def run_workflow(args: argparse.Namespace) -> int:
                 blocked=None if defer_file.exists() else blocked,
             )
 
+        for session_dir in session_dirs(run_dir):  # las que no se pudieron borrar al terminar su tanda
+            if session_finished(session_dir):
+                forget_session_playlist(session_dir)
         print("\n[3/3] Guardando en tu carpeta...")
         playlist_name, expected_ids = playlist_identity(run_dir, playlist_id)
         summary["status"] = "consolidating"
@@ -1368,6 +1422,7 @@ def run_workflow(args: argparse.Namespace) -> int:
     finally:
         sessions.stop_processes()
         terminate_process(downloader)
+        stop_leftover_daemon(run_dir)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1402,6 +1457,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=30.0,
         help="Segundos máximos para abrir el dispositivo loopback y empezar a reproducir",
+    )
+    parser.add_argument(
+        "--parallel",
+        type=int,
+        default=2,
+        help="Temas que se buscan y bajan a la vez, con una sola sesión de Soulseek (default 2, hasta 4)",
     )
     parser.add_argument(
         "--fresh",

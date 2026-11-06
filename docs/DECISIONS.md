@@ -25,6 +25,20 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    - «Posponer la grabación» corta la tanda en curso al instante;
    - 3 búsquedas seguidas que fallan cortan la descarga sin mandar esos temas a grabar;
    - los runs anteriores no se retoman: un run nuevo reutiliza lo que bajaron o grabaron.
+2. **Un punto medio: 2 temas a la vez, y vigilar las descargas que no avanzan** (Gabriel, el mismo
+   día). Propuso fijar 2 en paralelo o ajustarlo solo, y detectar una descarga que se pausa para
+   relanzarla o probar otra. Cómo (agente):
+   - dos procesos de sockseek con la misma cuenta se cortan, así que todo va por una sola sesión:
+     el daemon de sockseek de la descarga;
+   - 2 a la vez por defecto (`--parallel`, de 1 a 4), sin ajuste automático: el log del 2026-11-02
+     muestra que el tiempo se va en los usuarios que no mandan el archivo, no en el límite de
+     búsquedas, que con 2 temas a la vez queda lejos;
+   - una transferencia que no recibe nada en 45 s se deja y se prueba otro archivo;
+   - primero se piden los archivos de usuarios con lugar libre para subir;
+   - un tema del que no llegó ningún archivo se busca de nuevo al final antes de grabarlo.
+3. **Las playlists temporales de Spotify se borran al terminar cada tanda** (Gabriel lo pidió). Cómo
+   (agente): `DELETE /me/library`, el reemplazo de «dejar de seguir» desde febrero de 2026; un fallo
+   queda anotado y no corta la descarga.
 
 ## 2026-11-05
 
@@ -137,20 +151,6 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
      más cercano al más lejano;
    - la lista se recalcula cuando cambia el tema principal, cuando un tema pasa a tocado y cuando el
      pitch cambia el BPM redondeado o la tonalidad del tema principal (unos 50 ms).
-
-## 2026-11-04
-
-1. **La Organización en el PC de escritorio, sin copiar la música** (Gabriel): del ordenador que
-   tiene la biblioteca se traen solo los datos de la organización (`artifacts/v4/datasets/musica/`,
-   0,4 GB, por el pendrive), y los temas salen del paquete que ya está en el escritorio
-   (`C:\TRAKTOR ML`, o el pendrive), buscados por track_uid en su `_organizacion.csv`. No hacía falta
-   copiar `Música/` (37,8 GB): el paquete ya tiene los 1760 temas de `biblioteca` v11. Cómo
-   (agente): `review_app.py` usa el paquete cuando falta `Música/` y queda en solo lectura (ver y
-   escuchar). Agregar música, fusionar, ordenar y preparar para Rekordbox/Traktor se hacen en la
-   laptop, que manda, para no tener dos organizaciones que se separan. Falta que Gabriel diga si
-   quiere hacer cambios también en el escritorio.
-2. **En el escritorio, todo en el pendrive D:** (Gabriel: las descargas ya van a D:, y C: casi no tiene
-   espacio). Los datos de la organización están en `D:\TRAKTOR ML datos\musica` (la copia verificada
 9. **El orden de las sugerencias será una combinación pesada de variables, y el botón en la mezcla
    externa es D#0 + D0** (Gabriel, 2026-11-06).
    - Las variables son CLAP, BPM, tonalidad, género de Beatport y un vector TIV que Gabriel va a sumar
@@ -174,6 +174,20 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
      clasificador;
    - el botón por defecto pasa a ser D#0 + D0 también en la mezcla interna, donde D#0 es Modifier #1 y
      D0 no tiene función: el mismo gesto en las dos.
+
+## 2026-11-04
+
+1. **La Organización en el PC de escritorio, sin copiar la música** (Gabriel): del ordenador que
+   tiene la biblioteca se traen solo los datos de la organización (`artifacts/v4/datasets/musica/`,
+   0,4 GB, por el pendrive), y los temas salen del paquete que ya está en el escritorio
+   (`C:\TRAKTOR ML`, o el pendrive), buscados por track_uid en su `_organizacion.csv`. No hacía falta
+   copiar `Música/` (37,8 GB): el paquete ya tiene los 1760 temas de `biblioteca` v11. Cómo
+   (agente): `review_app.py` usa el paquete cuando falta `Música/` y queda en solo lectura (ver y
+   escuchar). Agregar música, fusionar, ordenar y preparar para Rekordbox/Traktor se hacen en la
+   laptop, que manda, para no tener dos organizaciones que se separan. Falta que Gabriel diga si
+   quiere hacer cambios también en el escritorio.
+2. **En el escritorio, todo en el pendrive D:** (Gabriel: las descargas ya van a D:, y C: casi no tiene
+   espacio). Los datos de la organización están en `D:\TRAKTOR ML datos\musica` (la copia verificada
    que trajo la laptop), y `artifacts/v4/datasets/musica` del repo es un junction a esa carpeta; la
    copia en C: se borró. La música sale de `D:\TRAKTOR ML`: la app busca el paquete primero en la
    unidad de los datos. Sin el pendrive, la pestaña Organización no abre. Temas nuevos: pueden

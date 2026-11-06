@@ -193,7 +193,8 @@ por loopback (`playlist_loopback_recorder.py`) y los reportes JSON/TXT de una pr
 (2026-11-06): el descargador busca cada tema en Soulseek y, si está, lo baja enseguida; lo que no se
 consigue entra en la cola de grabación (`recording_queue.py`, `recording_queue.jsonl` del run) y el
 orquestador lo graba de Spotify mientras sigue la búsqueda, en tandas de hasta 10 temas con su propia
-playlist privada y su carpeta `recordings/NN/`. Reúne los resultados bajo
+playlist privada (borrada al terminar la tanda) y su carpeta `recordings/NN/`. El descargador trabaja con
+2 temas a la vez por una sola sesión de Soulseek (`SockseekDaemon`: el daemon de sockseek, con `--remote`). Reúne los resultados bajo
 `download_JIJIJI/runs/` (git-ignorado). `download_JIJIJI/README.md` documenta la
 configuración inicial y el uso; `download_JIJIJI/CONFIGURAR_OTRO_ORDENADOR.md`, la instalación
 paso a paso en otra PC (claves de Spotify y Soulseek, `sockseek.exe` en `tools/sockseek/`,
