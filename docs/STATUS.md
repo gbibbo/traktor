@@ -49,10 +49,9 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    tracklists y descarga del audio se consultan antes de implementar.
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
-5. Recomendación en vivo (`docs/plans/PROMPT_ETAPA_RECOMENDACION.md`; DECISIONS 11-06 p. 7-9): tema
-   principal y 30 sugerencias con pesos (`recomendador.py`; botón D#0+D0). GABRIEL: Kontrol D2 en la
-   config externa; tocar; analizar el paquete. LOCAL: taxonomía de géneros (red de agentes; informe
-   `generos_beatport_2026-11-06`); TIV.
+5. Recomendación en vivo (`PROMPT_ETAPA_RECOMENDACION.md`; DECISIONS 11-06 p. 7-11): tema principal
+   y 30 sugerencias con pesos (`recomendador.py`; D#0+D0); géneros por taxonomía (`config/genre_taxonomy/`).
+   GABRIEL: Kontrol D2 en la config externa; tocar; analizar el paquete. LOCAL: escala de CLAP; TIV.
 
 ## RUN RECIPES
 

@@ -18,7 +18,10 @@ PURPOSE: Las sugerencias reales en vivo (DECISIONS 2026-11-06, puntos 7 y 8): lo
            clap    parecido coseno (recortado a 0-1);
            bpm     1 con el mismo BPM que suena, 0 a ±20 (lineal);
            clave   la regla armónica: 1 la misma tonalidad original, menos si hay que mover el pitch;
-           genero  1 el mismo género (Beatport; si falta, el del clasificador), 0 otro;
+           genero  la similitud entre géneros de la taxonomía propia (config/genre_taxonomy/taxonomia.json,
+                   genre_taxonomy.Taxonomy.compare): 1 el mismo género, menos según familias, relaciones y
+                   subgénero; el género es el de Beatport y, si falta, el del clasificador. Sin taxonomía,
+                   1 el mismo género y 0 otro;
            tiv     reservado para el vector TIV (todavía no existe).
          Los pesos van en "pesos" de sugerencias_vivo.json; por defecto solo CLAP (Gabriel, 11-06: por
          ahora solo parecido CLAP). Cada lista anota los componentes de sus temas para ajustar los pesos.
@@ -26,6 +29,7 @@ CHANGELOG:
   - 2026-11-06: Creación (etapa de recomendación, unidad 2: sugerencias por CLAP).
   - 2026-11-06: Puntaje como promedio pesado de componentes (clap, bpm, clave, genero, tiv) y género en
                 el índice.
+  - 2026-11-06: El componente genero sale de la taxonomía de géneros (con subgénero, índice versión 3).
 """
 from __future__ import annotations
 
@@ -48,6 +52,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.v4.common import harmonic  # noqa: E402
+from src.v4.common.genre_taxonomy import DEFAULT_PATH as DEFAULT_TAXONOMY, Taxonomy  # noqa: E402
 from src.v4.common.traktor_nml import entry_path  # noqa: E402
 from tools.traktor_live import traktor_estado as te  # noqa: E402
 from tools.traktor_live.sugerencias_itunes import Track  # noqa: E402
@@ -112,6 +117,7 @@ class Item:
     key: str                          # Camelot o "?"
     vec: Optional[List[float]]        # embedding normalizado
     genre: Optional[str] = None       # género de Beatport (o del clasificador)
+    subgenre: Optional[str] = None    # subgénero de Beatport (pocos temas lo tienen)
     bpm_src: str = "tags"
     key_src: str = "tags"
     entry: Optional[ET.Element] = None
@@ -139,7 +145,7 @@ def load_index(path: Path) -> Tuple[dict, List[Item]]:
         items.append(Item(uid=t["uid"], rel=t.get("archivo") or "", original=t.get("original") or "",
                           artist=t.get("artista") or "", title=t.get("titulo") or "",
                           bpm=float(bpm) if bpm else None, key=harmonic.to_camelot(t.get("key")), vec=vec,
-                          genre=t.get("genero") or None))
+                          genre=t.get("genero") or None, subgenre=t.get("subgenero") or None))
     return data, items
 
 
@@ -190,9 +196,10 @@ class Recommender:
     calcula la lista para un tema principal; snapshot() la entrega al botón."""
 
     def __init__(self, items: List[Item], entries: Dict[str, ET.Element], n: int = DEFAULT_N,
-                 weights: Optional[Dict[str, float]] = None):
+                 weights: Optional[Dict[str, float]] = None, taxonomy: Optional[Taxonomy] = None):
         self.n = n
         self.weights = weights_from(weights)
+        self.taxonomy = taxonomy
         by_norm = {norm(k): e for k, e in entries.items()}
         self.root = package_root(items, by_norm.keys())
         self.by_suffix: Dict[str, Item] = {}
@@ -228,6 +235,12 @@ class Recommender:
         src = Counter(it.key_src if it.key != "?" else "sin" for it in c)
         return (f"{len(c)} temas sugeribles (paquete {self.root or '?'} en la colección de Traktor); tonalidad "
                 f"de Traktor {src.get('traktor', 0)}, de tags {src.get('tags', 0)}, sin tonalidad {src.get('sin', 0)}")
+
+    def genre_score(self, a: Item, b: Item) -> Optional[float]:
+        """Componente genero: la taxonomía si está cargada; si no, 1 el mismo género y 0 otro."""
+        if self.taxonomy is not None:
+            return self.taxonomy.compare((a.genre, a.subgenre), (b.genre, b.subgenre))
+        return (1.0 if a.genre == b.genre else 0.0) if a.genre and b.genre else None
 
     def identify(self, path: str) -> Optional[Item]:
         for s in suffixes(path):
@@ -275,8 +288,7 @@ class Recommender:
                 "clap": None if sim is None else min(1.0, max(0.0, sim)),
                 "bpm": None if bpm0 is None or it.bpm is None else max(0.0, 1.0 - abs(it.bpm - bpm0) / BPM_RANGE),
                 "clave": score if key0 != "?" and it.key != "?" else None,
-                "genero": (1.0 if it.genre == main.genre else 0.0)
-                if main is not None and main.genre and it.genre else None,
+                "genero": self.genre_score(main, it) if main is not None else None,
                 "tiv": None,
             }
             final = weighted(comps, weights)
@@ -286,7 +298,8 @@ class Recommender:
         info = {"modo": "clap" if use_clap else "sin_clap",
                 "principal": {"path": principal.get("path"), "uid": main.uid if main else None,
                               "bpm": None if bpm0 is None else round(bpm0, 2), "clave": key0,
-                              "genero": main.genre if main else None},
+                              "genero": main.genre if main else None,
+                              "subgenero": main.subgenre if main else None},
                 "pesos": weights, "candidatos": len(rows), "sin_tonalidad": no_key, "excluidos": len(excluded),
                 "uids": [r[0].uid for r in top],
                 "puntaje": [round(r[4], 4) for r in top],
@@ -314,8 +327,17 @@ class Recommender:
             return list(self._tracks), dict(self._info)
 
 
+def load_taxonomy(path: Path = DEFAULT_TAXONOMY) -> Tuple[Optional[Taxonomy], str]:
+    """(Taxonomy, "") o (None, motivo) si falta o no se puede leer: el género vuelve a ser igual o distinto."""
+    try:
+        return Taxonomy.load(Path(path)), ""
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        return None, f" Sin taxonomía de géneros ({path}: {type(exc).__name__}): el género cuenta igual o distinto."
+
+
 def load_recommender(entries: Dict[str, ET.Element], index_path: Path = DEFAULT_INDEX,
-                     n: int = DEFAULT_N, weights: Optional[Dict[str, float]] = None) -> Tuple[Optional[Recommender], str]:
+                     n: int = DEFAULT_N, weights: Optional[Dict[str, float]] = None,
+                     taxonomy_path: Path = DEFAULT_TAXONOMY) -> Tuple[Optional[Recommender], str]:
     """(Recommender, texto para el aviso). None si no hay índice o no se puede leer."""
     if not Path(index_path).exists():
         return None, (f"No hay índice de recomendación ({index_path}): las sugerencias son al azar. Armarlo una "
@@ -324,7 +346,8 @@ def load_recommender(entries: Dict[str, ET.Element], index_path: Path = DEFAULT_
         data, items = load_index(Path(index_path))
     except (OSError, ValueError, KeyError) as exc:
         return None, f"No pude leer el índice {index_path}: {type(exc).__name__}: {exc}"
-    rec = Recommender(items, entries, n, weights)
+    taxonomy, tax_text = load_taxonomy(taxonomy_path)
+    rec = Recommender(items, entries, n, weights, taxonomy)
     if not rec.candidates:
         return None, (f"Ningún tema del índice está en la colección de Traktor: las sugerencias son al azar "
                       f"(¿Traktor tiene la carpeta del paquete en su colección?)")
@@ -337,4 +360,4 @@ def load_recommender(entries: Dict[str, ET.Element], index_path: Path = DEFAULT_
     except (OSError, ValueError, KeyError):
         pass
     pesos = ", ".join(f"{k} {w:g}" for k, w in rec.weights.items() if w > 0)
-    return rec, f"Recomendación por {data.get('rep', '?')}: {rec.summary()}. Pesos: {pesos}.{stale}"
+    return rec, f"Recomendación por {data.get('rep', '?')}: {rec.summary()}. Pesos: {pesos}.{tax_text}{stale}"

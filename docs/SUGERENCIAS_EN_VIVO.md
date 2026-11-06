@@ -142,8 +142,10 @@ flowchart LR
    - El cálculo tarda unos 50 ms y se hace antes de apretar: el botón solo escribe la lista y navega.
    - El orden es un promedio pesado de componentes de 0 a 1 (DECISIONS 2026-11-06, punto 9): `clap`
      (parecido), `bpm` (1 con el mismo BPM, 0 a ±20), `clave` (1 la misma tonalidad original, menos si
-     hay que mover el pitch), `genero` (1 el mismo género de Beatport, 0 otro; la similitud entre
-     géneros vendrá de una taxonomía) y `tiv` (reservado). Los pesos van en `"pesos"` de
+     hay que mover el pitch), `genero` (la similitud entre géneros de Beatport de
+     `config/genre_taxonomy/taxonomia.json`: 1 el mismo género, menos según familia y relaciones) y `tiv`
+     (reservado). Ojo al darle peso al género: CLAP varía poco entre los primeros (unos 0.05), y un peso
+     de género de 0.5 ya deja solo temas del mismo género. Los pesos van en `"pesos"` de
      `sugerencias_vivo.json`, por ejemplo `{"clap": 1, "bpm": 0.5}`; por defecto, solo CLAP. Cada
      lista queda en el registro con sus componentes, para ajustar los pesos después.
 

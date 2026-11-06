@@ -10,10 +10,16 @@ PURPOSE: Similitud entre géneros de Beatport a partir de una taxonomía propia 
            - el mismo género: 1 si el subgénero es el mismo o alguno falta; si no, mismo_genero_otro_subgenero;
            - si no, por el árbol: la misma familia, familias con el mismo padre (hermanas) o nada;
            - y el máximo con las relaciones explícitas que apliquen (de género o de subgénero).
+         compare(a, b) es lo que usa el recomendador: antes de comparar, "como_genero" lleva un subgénero a
+         un género ("DJ Edits > Hip-Hop" -> "Hip-Hop"); un género de "sin_genero" (DJ Tools / Acapellas,
+         que no es un estilo) o un género que falta da None, y el componente no cuenta.
          validate() devuelve los problemas de forma (géneros faltantes o repetidos, familias o nombres
          desconocidos, valores fuera de 0-1, regla no decreciente). Solo biblioteca estándar.
+         La taxonomía en uso es config/genre_taxonomy/taxonomia.json (DEFAULT_PATH).
 CHANGELOG:
   - 2026-11-06: Creación.
+  - 2026-11-06: compare(), "sin_genero" y "como_genero" (propuestas del editor de la red de agentes) y
+                DEFAULT_PATH.
 """
 from __future__ import annotations
 
@@ -22,6 +28,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
 Pair = Tuple[str, Optional[str]]
+DEFAULT_PATH = Path(__file__).resolve().parents[3] / "config" / "genre_taxonomy" / "taxonomia.json"
 RULE_KEYS = ("mismo_genero_otro_subgenero", "misma_familia", "familia_hermana", "sin_relacion")
 
 
@@ -44,6 +51,8 @@ class Taxonomy:
             a, b, v = split_name(r["a"]), split_name(r["b"]), float(r["similitud"])
             for key in ((a, b), (b, a)):
                 self.links[key] = max(v, self.links.get(key, 0.0))
+        self.none = set(data.get("sin_genero", []))
+        self.alias = {split_name(k): v for k, v in data.get("como_genero", {}).items()}
 
     @classmethod
     def load(cls, path: Path) -> "Taxonomy":
@@ -75,6 +84,18 @@ class Taxonomy:
                 if v is not None:
                     cands.append(v)
         return max(cands)
+
+    def canonical(self, genre: Optional[str], sub: Optional[str] = None) -> Optional[Pair]:
+        """(género, subgénero) tal como se compara; None si no hay género o no cuenta como estilo."""
+        if not genre or genre in self.none:
+            return None
+        g = self.alias.get((genre, sub))
+        return (g, None) if g else (genre, sub)
+
+    def compare(self, a: Pair, b: Pair) -> Optional[float]:
+        """similarity() de dos temas, o None si a alguno le falta el género (el componente no cuenta)."""
+        ca, cb = self.canonical(*a), self.canonical(*b)
+        return None if ca is None or cb is None else self.similarity(ca, cb)
 
     def matrix(self, genres: Iterable[str]) -> Dict[str, Dict[str, float]]:
         gs = list(genres)
@@ -114,6 +135,13 @@ def validate(data: dict, beatport: Dict[str, List[str]]) -> List[str]:
                 out.append(f"similitud fuera de 0-1: {r.get('a')} / {r.get('b')} = {v}")
         except (TypeError, ValueError):
             out.append(f"similitud no numérica: {r.get('a')} / {r.get('b')}")
+    for name in data.get("sin_genero", []):
+        if name not in beatport:
+            out.append(f"sin_genero con un nombre que no es de Beatport: {name}")
+    for src, dst in data.get("como_genero", {}).items():
+        g, sub = split_name(src)
+        if g not in beatport or sub is None or sub not in beatport[g] or dst not in beatport:
+            out.append(f"como_genero con un nombre que no es de Beatport: {src} -> {dst}")
     rule = data.get("regla", {})
     try:
         vals = [float(rule[k]) for k in RULE_KEYS]

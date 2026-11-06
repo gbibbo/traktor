@@ -15,6 +15,8 @@ CHANGELOG:
                 clasificador, con su fuente), para el componente "genero" del puntaje.
   - 2026-11-06: El clasificador solo con confianza >= 0.6 (el umbral de DECISIONS 2026-09-29, punto 5); el
                 gate de Discogs y la confianza baja quedan sin género (el componente no cuenta).
+  - 2026-11-06: Versión 3: subgénero de Beatport (features/beatport_genres.parquet, página del tema) cuando
+                su género es el del tema, para la taxonomía de géneros (config/genre_taxonomy/).
 """
 from __future__ import annotations
 
@@ -39,7 +41,7 @@ DEFAULT_REP = "clap_full"
 DEFAULT_OUT = te.DEFAULT_LOG_DIR / "indice_recomendacion.json"
 PACKAGE_NAME = "TRAKTOR ML"
 ORG_CSV = "_organizacion.csv"
-INDEX_VERSION = 2
+INDEX_VERSION = 3
 MIN_CLASSIFIER_CONF = 0.6             # DECISIONS 2026-09-29, punto 5
 
 
@@ -55,6 +57,15 @@ def genre_of(beatport_genre, final_genre, final_source, model_conf) -> Optional[
     if final_source == "classifier" and isinstance(final_genre, str) and final_genre and conf >= MIN_CLASSIFIER_CONF:
         return {"genero": final_genre, "fuente": "clasificador"}
     return None
+
+
+def add_subgenres(genres: Dict[str, Dict], rows) -> None:
+    """Anota el subgénero de Beatport (filas con track_uid, genre, sub_genre) en los temas cuyo género del
+    índice es el mismo: un subgénero solo tiene sentido dentro de su género."""
+    for r in rows:
+        g = genres.get(r.track_uid)
+        if g is not None and isinstance(r.sub_genre, str) and r.sub_genre and r.genre == g["genero"]:
+            g["subgenero"] = r.sub_genre
 
 
 def find_package(platform: Optional[str] = None) -> Optional[Path]:
@@ -77,7 +88,7 @@ def find_package(platform: Optional[str] = None) -> Optional[Path]:
 def build_index(rows: List[Dict[str, str]], uids: List[str], embeddings, tags: Dict[str, Dict], rep: str,
                 genres: Optional[Dict[str, Dict]] = None) -> dict:
     """rows: _organizacion.csv; uids/embeddings: la representación (misma fila); tags: track_uid ->
-    {"bpm", "key"}; genres: track_uid -> {"genero", "fuente"}. Devuelve el índice (dict serializable)."""
+    {"bpm", "key"}; genres: track_uid -> {"genero", "fuente", "subgenero" opcional}. Devuelve el índice."""
     genres = genres or {}
     import numpy as np
     emb = np.asarray(embeddings, dtype="float64")
@@ -101,6 +112,7 @@ def build_index(rows: List[Dict[str, str]], uids: List[str], embeddings, tags: D
             "bpm": None if bpm is None or bpm != bpm else round(float(bpm), 2),
             "key": t.get("key") or None, "emb": vec,
             "genero": (genres.get(uid) or {}).get("genero"), "genero_fuente": (genres.get(uid) or {}).get("fuente"),
+            "subgenero": (genres.get(uid) or {}).get("subgenero"),
         })
     return {"version": INDEX_VERSION, "rep": rep, "dim": int(emb.shape[1]) if emb.ndim == 2 else 0,
             "creado": dt.datetime.now().isoformat(timespec="seconds"), "temas": tracks}
@@ -144,6 +156,9 @@ def main() -> int:
             g = genre_of(r.beatport_genre, r.final_genre, r.final_source, r.model_conf)
             if g is not None:
                 genres[r.track_uid] = g
+    sub_path = data / "features" / "beatport_genres.parquet"
+    if sub_path.exists():
+        add_subgenres(genres, pd.read_parquet(sub_path).itertuples(index=False))
     index = build_index(rows, uids, emb, tags, args.rep, genres)
     index["paquete"] = str(package)
     out = Path(args.salida)
@@ -154,7 +169,8 @@ def main() -> int:
     t = index["temas"]
     print(f"[OK] {out}: {len(t)} temas del paquete {package}; con embedding {sum(1 for x in t if x['emb'])}, "
           f"con BPM {sum(1 for x in t if x['bpm'])}, con tonalidad de tags {sum(1 for x in t if x['key'])}, "
-          f"con género {sum(1 for x in t if x['genero'])} (de Beatport {sum(1 for x in t if x['genero_fuente'] == 'beatport')})")
+          f"con género {sum(1 for x in t if x['genero'])} (de Beatport {sum(1 for x in t if x['genero_fuente'] == 'beatport')}, "
+          f"con subgénero {sum(1 for x in t if x['subgenero'])})")
     return 0
 
 

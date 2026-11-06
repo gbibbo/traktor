@@ -167,8 +167,9 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
      para estimar la compatibilidad armónica. Los pesos se ajustan más adelante.
    - El mismo BPM puntúa más que uno a -20. La misma tonalidad original puntúa más que una que pide
      mover el pitch.
-   - Para el género hace falta una taxonomía de géneros de Beatport que traduzca dos etiquetas a un
-     número de similitud: queda pendiente.
+   - [REEMPLAZADO 2026-11-06 por el punto 11: la taxonomía existe y da la similitud del componente
+     `genero`] Para el género hace falta una taxonomía de géneros de Beatport que traduzca dos
+     etiquetas a un número de similitud: queda pendiente.
    - En su configuración de mezcla externa, D0 pliega o despliega la biblioteca. Gabriel la condiciona en
      Traktor a M6 = 0, y las sugerencias se abren manteniendo D#0 (M6 = 1 mientras está apretado) y
      apretando D0.
@@ -200,6 +201,25 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
     - `beatport_subgenres.py` baja categoría, género y subgénero de la página de cada tema;
     - `genre_evidence.py` mide BPM, estilos de Discogs de MAEST, vecinos CLAP y géneros mezclados entre
       versiones, y arma un borrador de similitud, que es la entrada de la red de agentes.
+11. **La taxonomía de la red de agentes da el componente `genero`** (agente, con el OK de Gabriel
+    para lanzar la red, 2026-11-06). Informe: `docs/reports/taxonomia_generos_2026-11-06.md`.
+    - La taxonomía de la tesis de Gabriel no apareció. Gabriel pidió usar otras conocidas, completas y
+      al día: se usaron Wikidata, MusicBrainz, Discogs y la evidencia de la biblioteca.
+    - La red tuvo un constructor, dos evaluadores por ronda (texto y audio) y un editor. Aprobó la
+      taxonomía en la ronda 2 sin objeciones mayores; 17 menores quedan sin aplicar.
+    - Resultado, en `config/genre_taxonomy/taxonomia.json`:
+      - 34 familias y 211 relaciones;
+      - regla: 0.75 (mismo género, otro subgénero), 0.7 (misma familia), 0.2 (familias hermanas) y 0
+        (sin relación).
+    - En `recomendador.py`, `genero` = `Taxonomy.compare`, con subgénero cuando Beatport lo da (30
+      temas, índice versión 3).
+      - «DJ Tools / Acapellas» cuenta como sin género, y «DJ Edits > X» como el género X.
+      - Sin la taxonomía, el componente vuelve a igual o distinto.
+    - El mapeo de Discogs (MAEST) a Beatport acierta el 24 % del género, contra el 38 % del
+      clasificador propio. No se usa: los temas sin Beatport siguen con el clasificador (>= 0.6).
+    - Los pesos siguen en solo CLAP. Antes de darle peso al género hay que llevar CLAP a una escala
+      comparable: entre los 30 primeros, CLAP varía unos 0.05, y con un peso de género de 0.5 las 30
+      sugerencias son del mismo género.
 
 ## 2026-11-04
 

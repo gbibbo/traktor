@@ -4,9 +4,11 @@ PURPOSE: Tests de las sugerencias reales (tools/traktor_live/recomendador.py e i
          suena, tonalidad compatible hasta 2 semitonos (la de Traktor manda sobre la de los tags; sin
          tonalidad no pasa), fuera el tema principal y lo tocado, reconocimiento por la ruta original de
          Música/, raíz del paquete, modo sin CLAP, conversión de tonalidades, el índice que arma
-         build_index y la lista que escribe Suggestions con el recomendador.
+         build_index y la lista que escribe Suggestions con el recomendador. El componente de género con
+         la taxonomía (y subgénero) o, sin ella, igual o distinto.
 CHANGELOG:
   - 2026-11-06: Creación (etapa de recomendación, unidad 2).
+  - 2026-11-06: Género por la taxonomía; subgénero en el índice.
 """
 import base64
 import json
@@ -154,7 +156,7 @@ def test_build_index_normalizes_embeddings_and_keeps_tags():
     vec.frombytes(base64.b64decode(t1["emb"]))
     assert [round(x, 4) for x in vec] == [0.6, 0.8] and t1["original"] == "Viejo\\a.mp3"
     assert t1["bpm"] == 124.0 and t1["key"] == "8A" and t2["bpm"] is None and t2["original"] == "b.mp3"
-    assert index["dim"] == 2 and index["rep"] == "clap_full" and index["version"] == 2
+    assert index["dim"] == 2 and index["rep"] == "clap_full" and index["version"] == 3
     assert (t1["genero"], t1["genero_fuente"], t2["genero"]) == ("Tech House", "beatport", None)
 
 
@@ -238,6 +240,52 @@ def test_bpm_key_and_genre_weights_change_the_order(tmp_path):
     assert order({"clap": 0, "genero": 1})[0] == ["b", "f", "a", "g"]        # Tech House como el principal
     titles, info, _ = order({"clap": 1, "genero": 1})
     assert titles[:2] == ["f", "b"] and info["puntaje"][0] > info["puntaje"][2]
+
+
+TAXONOMY = {
+    "familias": [{"id": "pista", "nombre": "", "padre": "", "descripcion": ""},
+                 {"id": "tech", "nombre": "", "padre": "pista", "descripcion": ""},
+                 {"id": "techno", "nombre": "", "padre": "pista", "descripcion": ""}],
+    "generos": [{"beatport": "Tech House", "familia": "tech", "nota": ""},
+                {"beatport": "Minimal / Deep Tech", "familia": "tech", "nota": ""},
+                {"beatport": "Techno", "familia": "techno", "nota": ""}],
+    "relaciones": [{"a": "Tech House > Latin Tech", "b": "Techno", "similitud": 0.9, "motivo": "", "fuentes": []}],
+    "regla": {"mismo_genero_otro_subgenero": 0.75, "misma_familia": 0.7, "familia_hermana": 0.2, "sin_relacion": 0},
+    "sin_genero": ["DJ Tools / Acapellas"],
+}
+
+
+def test_genre_component_uses_the_taxonomy_and_the_subgenre(tmp_path):
+    collection, index = make_library(tmp_path)
+    data = json.loads(index.read_text(encoding="utf-8"))
+    extra = {"main": ("Tech House", "Latin Tech"), "b": ("Minimal / Deep Tech", None),
+             "f": ("DJ Tools / Acapellas", "Acapellas")}
+    for t in data["temas"]:
+        if t["uid"] in extra:
+            t["genero"], t["subgenero"] = extra[t["uid"]]
+    index.write_text(json.dumps(data), encoding="utf-8")
+    tax = tmp_path / "taxonomia.json"
+    tax.write_text(json.dumps(TAXONOMY), encoding="utf-8")
+    entries = entries_by_path(collection)
+    rec, text = rc.load_recommender(entries, index, weights={"clap": 0, "genero": 1}, taxonomy_path=tax)
+    tracks, info = rec.compute(principal())
+    comps = dict(zip((t.title for t in tracks), info["componentes"]["genero"]))
+    assert comps == {"a": 0.9, "g": 0.9, "b": 0.7, "f": None}          # Latin Tech con Techno; misma familia
+    assert info["principal"]["subgenero"] == "Latin Tech" and "Sin taxonomía" not in text
+    rec, text = rc.load_recommender(entries, index, weights={"clap": 0, "genero": 1}, taxonomy_path=tmp_path / "no.json")
+    tracks, info = rec.compute(principal())
+    assert "Sin taxonomía de géneros" in text
+    assert dict(zip((t.title for t in tracks), info["componentes"]["genero"]))["b"] == 0.0
+
+
+def test_subgenres_are_kept_only_inside_their_genre():
+    from types import SimpleNamespace as R
+    genres = {"x": {"genero": "Tech House", "fuente": "beatport"}, "y": {"genero": "House", "fuente": "beatport"}}
+    ir.add_subgenres(genres, [R(track_uid="x", genre="Tech House", sub_genre="Latin Tech"),
+                              R(track_uid="y", genre="Tech House", sub_genre="Latin Tech"),
+                              R(track_uid="z", genre="House", sub_genre="Acid"),
+                              R(track_uid="y", genre="House", sub_genre=None)])
+    assert genres["x"]["subgenero"] == "Latin Tech" and "subgenero" not in genres["y"] and "z" not in genres
 
 
 def test_genre_comes_from_beatport_or_a_confident_classifier():

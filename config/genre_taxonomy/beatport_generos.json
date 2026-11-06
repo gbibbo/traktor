@@ -1,0 +1,226 @@
+{
+ "fuente": "beatport.com/genre/<slug>/<id> (__NEXT_DATA__, consulta genre-<id>)",
+ "leido": "2026-11-06 18:29",
+ "nota": "Los 47 géneros de Beatport con sus subgéneros (copia de artifacts/v4/beatport_taxonomia.json, sin ids). Es la lista fija contra la que se valida taxonomia.json.",
+ "generos": {
+  "Drum & Bass": [
+   "Deep",
+   "Halftime",
+   "Jump Up",
+   "Jungle",
+   "Liquid"
+  ],
+  "Hard Techno": [
+   "Hard Techno"
+  ],
+  "Electronica": [],
+  "House": [
+   "Acid",
+   "Latin House",
+   "Soulful"
+  ],
+  "Techno (Peak Time / Driving)": [
+   "Driving",
+   "Peak Time",
+   "Psy-Techno"
+  ],
+  "Trance (Main Floor)": [
+   "Hard Trance",
+   "Progressive Trance",
+   "Tech Trance",
+   "Uplifting Trance",
+   "Vocal Trance"
+  ],
+  "Hard Dance / Hardcore / Neo Rave": [
+   "Frenchcore",
+   "Hard House",
+   "Hardstyle",
+   "Neo Rave",
+   "Terror",
+   "UK / Happy Hardcore",
+   "Uptempo"
+  ],
+  "Breaks / Breakbeat / UK Bass": [
+   "Glitch Hop"
+  ],
+  "Tech House": [
+   "Latin Tech"
+  ],
+  "Deep House": [],
+  "Psy-Trance": [
+   "Dark & Forest",
+   "Full-On",
+   "Goa Trance",
+   "Progressive Psy",
+   "Psychedelic",
+   "Psycore & Hi-Tech"
+  ],
+  "Minimal / Deep Tech": [
+   "Bounce",
+   "Deep Tech",
+   "Minimal House"
+  ],
+  "Progressive House": [],
+  "DJ Tools / Acapellas": [
+   "Acapellas",
+   "Battle Tools",
+   "Loops"
+  ],
+  "Dubstep": [
+   "Melodic Dubstep",
+   "Midtempo"
+  ],
+  "Indie Dance": [
+   "Dark Disco",
+   "Italo"
+  ],
+  "Trap / Future Bass": [
+   "Trap"
+  ],
+  "Dance / Pop": [
+   "Afro Pop",
+   "Pop",
+   "Tropical House"
+  ],
+  "Nu Disco / Disco": [
+   "Funk / Soul",
+   "Italo"
+  ],
+  "Downtempo": [
+   "Chillout",
+   "Lofi",
+   "Melodic Downtempo",
+   "Tribal",
+   "Trip-Hop"
+  ],
+  "Funky House": [],
+  "Bass / Club": [
+   "Bass/Club",
+   "Global Club",
+   "Gqom",
+   "Jersey Club",
+   "Juke / Footwork",
+   "Reggae / Dancehall",
+   "UK Funky"
+  ],
+  "UK Garage / Bassline": [
+   "2-Step",
+   "Bassline",
+   "Speed Garage",
+   "UK Garage"
+  ],
+  "Afro House": [
+   "3Step",
+   "Afro / Latin",
+   "Afro Melodic"
+  ],
+  "Melodic House & Techno": [
+   "Melodic House",
+   "Melodic Techno"
+  ],
+  "Bass House": [],
+  "Techno (Raw / Deep / Hypnotic)": [
+   "Broken",
+   "Deep / Hypnotic",
+   "Dub",
+   "EBM",
+   "Raw"
+  ],
+  "Organic House": [],
+  "Electro (Classic / Detroit / Modern)": [],
+  "140 / Deep Dubstep / Grime": [
+   "Grime"
+  ],
+  "Mainstage": [
+   "Big Room",
+   "Electro House",
+   "Future House",
+   "Future Rave",
+   "Speed House"
+  ],
+  "Jackin House": [],
+  "Amapiano": [],
+  "Trance (Raw / Deep / Hypnotic)": [
+   "Deep Trance",
+   "Hypnotic Trance",
+   "Raw Trance"
+  ],
+  "Ambient / Experimental": [],
+  "Brazilian Funk": [
+   "BH Funk",
+   "Carioca Funk",
+   "Eletrofunk",
+   "Mandelao Funk",
+   "Melodic Funk"
+  ],
+  "African": [
+   "Afro R&B",
+   "Afrobeats",
+   "Afropop",
+   "Alte"
+  ],
+  "Caribbean": [
+   "Calypso",
+   "Dancehall",
+   "Dub",
+   "Reggae",
+   "Ska & Rocksteady",
+   "Soca"
+  ],
+  "Country": [
+   "Country Dance",
+   "Country Pop"
+  ],
+  "Hip-Hop": [
+   "East Coast",
+   "Global",
+   "Southern",
+   "West Coast"
+  ],
+  "Latin": [
+   "Bachata",
+   "Cumbia",
+   "Dembow",
+   "Latin Dance",
+   "Latin Hip-Hop",
+   "Latin Pop",
+   "Merengue",
+   "Reggaeton",
+   "Regional Mexican",
+   "Salsa"
+  ],
+  "Pop": [
+   "Holiday",
+   "J-Pop",
+   "K-Pop"
+  ],
+  "R&B": [
+   "Funk",
+   "Soul"
+  ],
+  "Rock": [
+   "Indie Rock",
+   "Metal",
+   "Punk & Pop Punk",
+   "Ska"
+  ],
+  "DJ Edits": [
+   "African",
+   "Caribbean",
+   "Country",
+   "Dance",
+   "Hip-Hop",
+   "Latin",
+   "R&B",
+   "Rock",
+   "Рор"
+  ],
+  "Latin Electronic": [
+   "Electronic Cumbia",
+   "Moombahton",
+   "Raptor House",
+   "Tribal / Guaracha"
+  ],
+  "Indie Tech": []
+ }
+}

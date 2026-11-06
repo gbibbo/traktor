@@ -1,17 +1,20 @@
 """
 PURPOSE: Tests de src/v4/common/genre_taxonomy.py: similitud por el árbol (mismo género, misma familia,
          familias hermanas, nada), relaciones explícitas de género y de subgénero, subgénero faltante,
-         matriz simétrica y validación de forma.
+         matriz simétrica y validación de forma. compare() con "sin_genero" y "como_genero", y la taxonomía
+         en uso (config/genre_taxonomy/taxonomia.json) validada contra los géneros de Beatport.
 CHANGELOG:
   - 2026-11-06: Creación.
+  - 2026-11-06: compare(), alias y la taxonomía en uso.
 """
+import json
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from src.v4.common.genre_taxonomy import Taxonomy, split_name, validate  # noqa: E402
+from src.v4.common.genre_taxonomy import DEFAULT_PATH, Taxonomy, split_name, validate  # noqa: E402
 
 BEATPORT = {"Techno (Peak Time / Driving)": ["Driving", "Peak Time", "Psy-Techno"],
             "Techno (Raw / Deep / Hypnotic)": ["Raw"], "Tech House": ["Latin Tech"], "House": ["Acid"],
@@ -72,3 +75,34 @@ def test_validate_reports_shape_problems():
     for expected in ("falta el género de Beatport: Hip-Hop", "género repetido: House", "familia desconocida nada",
                      "House > Bounce", "similitud fuera de 0-1", "la regla tiene que decrecer"):
         assert expected in text, expected
+
+
+def test_compare_skips_unknown_and_tool_genres_and_maps_aliases():
+    data = {**DATA, "sin_genero": ["Hip-Hop"], "como_genero": {"House > Acid": "Tech House"}}
+    t = Taxonomy(data)
+    assert t.compare(("House", None), ("Tech House", None)) == 0.6
+    assert t.compare(("House", "Acid"), ("Tech House", None)) == 1.0               # se compara como Tech House
+    assert t.compare(("Hip-Hop", None), ("House", None)) is None                   # no es un estilo: no cuenta
+    assert t.compare((None, None), ("House", None)) is None
+    assert t.compare(("Desconocido", None), ("House", None)) == 0.0
+    assert validate(data, BEATPORT) == []
+    bad = {**data, "sin_genero": ["Nada"], "como_genero": {"House > Bounce": "Tech House", "House > Acid": "X"}}
+    text = " | ".join(validate(bad, BEATPORT))
+    assert "sin_genero con un nombre que no es de Beatport: Nada" in text
+    assert "House > Bounce -> Tech House" in text and "House > Acid -> X" in text
+
+
+def test_the_taxonomy_in_use_is_valid_and_keeps_the_main_relations():
+    beatport = json.loads((DEFAULT_PATH.parent / "beatport_generos.json").read_text(encoding="utf-8"))["generos"]
+    data = json.loads(DEFAULT_PATH.read_text(encoding="utf-8"))
+    assert len(beatport) == 47 and validate(data, beatport) == []
+    t = Taxonomy(data)
+    th, pt, raw = ("Tech House", None), ("Techno (Peak Time / Driving)", None), ("Techno (Raw / Deep / Hypnotic)", None)
+    assert t.compare(th, th) == 1.0
+    assert t.compare(th, ("House", None)) > t.compare(th, pt) > t.compare(th, ("Psy-Trance", None))
+    assert t.compare(pt, raw) > t.compare(pt, ("Deep House", None))
+    assert t.compare(("DJ Tools / Acapellas", "Acapellas"), th) is None
+    assert t.compare(("DJ Edits", "Hip-Hop"), ("Hip-Hop", None)) == 1.0
+    gs = list(beatport)
+    m = t.matrix(gs)
+    assert all(0.0 <= m[a][b] <= 1.0 and m[a][b] == m[b][a] for a in gs for b in gs)

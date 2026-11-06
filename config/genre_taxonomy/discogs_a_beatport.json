@@ -1,0 +1,4557 @@
+{
+ "procedencia": {
+  "creado": "2026-11-06",
+  "proceso": "Red de agentes (misma corrida): un mapeador de los 400 estilos de Discogs que predice MAEST a géneros de Beatport, con pesos que suman 1, y un revisor que corrigió 40 estilos.",
+  "medido": "Sobre los 1451 temas con género de Beatport (MAEST maesthf_full_styles por el mapeo): acierta el género 23,8 % (top-3 54,0 %); el clasificador propio de genre_model.py da 38,1 % (top-3 71,6 %, validación cruzada por artista). No se usa: los temas sin género de Beatport siguen con el clasificador (confianza >= 0.6)."
+ },
+ "mapeo": [
+  {
+   "estilo": "Blues---Boogie Woogie",
+   "beatport": [],
+   "motivo": "Blues de piano: Beatport no tiene blues. Igual que genre_model.py (Blues → None)."
+  },
+  {
+   "estilo": "Blues---Chicago Blues",
+   "beatport": [],
+   "motivo": "Beatport no tiene blues."
+  },
+  {
+   "estilo": "Blues---Country Blues",
+   "beatport": [],
+   "motivo": "Beatport no tiene blues."
+  },
+  {
+   "estilo": "Blues---Delta Blues",
+   "beatport": [],
+   "motivo": "Beatport no tiene blues."
+  },
+  {
+   "estilo": "Blues---Electric Blues",
+   "beatport": [],
+   "motivo": "Beatport no tiene blues."
+  },
+  {
+   "estilo": "Blues---Harmonica Blues",
+   "beatport": [],
+   "motivo": "Beatport no tiene blues."
+  },
+  {
+   "estilo": "Blues---Jump Blues",
+   "beatport": [
+    {
+     "genero": "R&B",
+     "peso": 1
+    }
+   ],
+   "motivo": "El jump blues es el R&B temprano. beatport_taxonomia: R&B > Funk, Soul."
+  },
+  {
+   "estilo": "Blues---Louisiana Blues",
+   "beatport": [],
+   "motivo": "Beatport no tiene blues."
+  },
+  {
+   "estilo": "Blues---Modern Electric Blues",
+   "beatport": [],
+   "motivo": "Beatport no tiene blues."
+  },
+  {
+   "estilo": "Blues---Piano Blues",
+   "beatport": [],
+   "motivo": "Beatport no tiene blues."
+  },
+  {
+   "estilo": "Blues---Rhythm & Blues",
+   "beatport": [
+    {
+     "genero": "R&B",
+     "peso": 1
+    }
+   ],
+   "motivo": "Es R&B por nombre. beatport_taxonomia: R&B."
+  },
+  {
+   "estilo": "Blues---Texas Blues",
+   "beatport": [],
+   "motivo": "Beatport no tiene blues."
+  },
+  {
+   "estilo": "Brass & Military---Brass Band",
+   "beatport": [],
+   "motivo": "No tiene equivalente en Beatport."
+  },
+  {
+   "estilo": "Brass & Military---Marches",
+   "beatport": [],
+   "motivo": "No tiene equivalente en Beatport."
+  },
+  {
+   "estilo": "Brass & Military---Military",
+   "beatport": [],
+   "motivo": "No tiene equivalente en Beatport."
+  },
+  {
+   "estilo": "Children's---Educational",
+   "beatport": [],
+   "motivo": "No tiene equivalente en Beatport."
+  },
+  {
+   "estilo": "Children's---Nursery Rhymes",
+   "beatport": [],
+   "motivo": "No tiene equivalente en Beatport."
+  },
+  {
+   "estilo": "Children's---Story",
+   "beatport": [],
+   "motivo": "No tiene equivalente en Beatport."
+  },
+  {
+   "estilo": "Classical---Baroque",
+   "beatport": [],
+   "motivo": "Beatport no tiene música clásica."
+  },
+  {
+   "estilo": "Classical---Choral",
+   "beatport": [],
+   "motivo": "Beatport no tiene música clásica."
+  },
+  {
+   "estilo": "Classical---Classical",
+   "beatport": [],
+   "motivo": "Beatport no tiene música clásica."
+  },
+  {
+   "estilo": "Classical---Contemporary",
+   "beatport": [],
+   "motivo": "Beatport no tiene música clásica."
+  },
+  {
+   "estilo": "Classical---Impressionist",
+   "beatport": [],
+   "motivo": "Beatport no tiene música clásica."
+  },
+  {
+   "estilo": "Classical---Medieval",
+   "beatport": [],
+   "motivo": "Beatport no tiene música clásica."
+  },
+  {
+   "estilo": "Classical---Modern",
+   "beatport": [],
+   "motivo": "Beatport no tiene música clásica."
+  },
+  {
+   "estilo": "Classical---Neo-Classical",
+   "beatport": [
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.5
+    },
+    {
+     "genero": "Electronica",
+     "peso": 0.3
+    },
+    {
+     "genero": "Downtempo",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "Es el piano neoclásico con cuerdas que abre los sets de melodic house. Beatport no tiene clásica, y lo más cercano es Ambient / Experimental (mismo criterio que Electronic---Modern Classical). evidencia (lift MAEST en la biblioteca): Downtempo 11.3, Electronica 2.4, Deep House 2.3. La actividad es baja (media 0.001), así que el reparto se apoya sobre todo en el texto."
+  },
+  {
+   "estilo": "Classical---Neo-Romantic",
+   "beatport": [],
+   "motivo": "Beatport no tiene música clásica."
+  },
+  {
+   "estilo": "Classical---Opera",
+   "beatport": [],
+   "motivo": "Beatport no tiene música clásica."
+  },
+  {
+   "estilo": "Classical---Post-Modern",
+   "beatport": [],
+   "motivo": "Beatport no tiene música clásica."
+  },
+  {
+   "estilo": "Classical---Renaissance",
+   "beatport": [],
+   "motivo": "Beatport no tiene música clásica."
+  },
+  {
+   "estilo": "Classical---Romantic",
+   "beatport": [],
+   "motivo": "Beatport no tiene música clásica."
+  },
+  {
+   "estilo": "Electronic---Abstract",
+   "beatport": [
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.4
+    },
+    {
+     "genero": "Electronica",
+     "peso": 0.3
+    },
+    {
+     "genero": "Techno (Raw / Deep / Hypnotic)",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "Electrónica abstracta e instrumental. No figura en Wikidata ni en MusicBrainz, así que la evidencia fija el reparto. evidencia (lift MAEST en la biblioteca, 12 temas > 0.1): Techno (Raw / Deep / Hypnotic) 4.1 y Electronica 2.7; no se mide Downtempo (3 temas)."
+  },
+  {
+   "estilo": "Electronic---Acid",
+   "beatport": [
+    {
+     "genero": "Techno (Raw / Deep / Hypnotic)",
+     "peso": 0.5
+    },
+    {
+     "genero": "Techno (Peak Time / Driving)",
+     "peso": 0.3
+    },
+    {
+     "genero": "House",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "La línea de 303 del acid techno y del acid house. wikidata: acid techno subclass of techno y de acid; acid house subclass of acid y de house music. beatport_taxonomia: House > Acid. evidencia: Discogs Acid 0.20 en Techno (Raw / Deep / Hypnotic) y 0.38 en el tema de Electro. Lift MAEST en la biblioteca: Raw 4.4, Techno PT 2.2, House 0.8."
+  },
+  {
+   "estilo": "Electronic---Acid House",
+   "beatport": [
+    {
+     "genero": "House",
+     "peso": 0.8
+    },
+    {
+     "genero": "Techno (Raw / Deep / Hypnotic)",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "wikidata: acid house subclass of house music. musicbrainz: acid house subgenre of house, influenced genres acid techno. beatport_taxonomia: House > Acid."
+  },
+  {
+   "estilo": "Electronic---Acid Jazz",
+   "beatport": [
+    {
+     "genero": "Nu Disco / Disco",
+     "peso": 0.5
+    },
+    {
+     "genero": "R&B",
+     "peso": 0.3
+    },
+    {
+     "genero": "Downtempo",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "Jazz-funk para bailar. En Beatport cae en Nu Disco / Disco > Funk / Soul, R&B > Funk o Downtempo. No figura en las taxonomías de electrónica."
+  },
+  {
+   "estilo": "Electronic---Ambient",
+   "beatport": [
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.8
+    },
+    {
+     "genero": "Downtempo",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "beatport_taxonomia: Ambient / Experimental; Downtempo > Chillout. musicbrainz: downtempo influenced by ambient. evidencia: Discogs Ambient 0.16 en Downtempo y 0.15 en Techno (Raw / Deep / Hypnotic), como estilo secundario. La taxonomía ya da 0.35 entre Ambient / Experimental y Raw."
+  },
+  {
+   "estilo": "Electronic---Bassline",
+   "beatport": [
+    {
+     "genero": "Bass House",
+     "peso": 0.5
+    },
+    {
+     "genero": "UK Garage / Bassline",
+     "peso": 0.5
+    }
+   ],
+   "motivo": "beatport_taxonomia: UK Garage / Bassline > Bassline. wikidata: bassline subclass of UK garage y de bass music (EDM). Discogs no tiene Bass House. evidencia: el tema de Bass House da Discogs Bassline 0.64."
+  },
+  {
+   "estilo": "Electronic---Beatdown",
+   "beatport": [
+    {
+     "genero": "Deep House",
+     "peso": 0.6
+    },
+    {
+     "genero": "House",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "House lento y profundo de Detroit. wikidata: beatdown subclass of electronic music. Ninguna fuente le da padre, así que se ubica por estilo: deep house y house."
+  },
+  {
+   "estilo": "Electronic---Berlin-School",
+   "beatport": [
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.7
+    },
+    {
+     "genero": "Electronica",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "Secuencias analógicas sin pista. musicbrainz: berlin school subgenre of progressive electronic, influenced by krautrock."
+  },
+  {
+   "estilo": "Electronic---Big Beat",
+   "beatport": [
+    {
+     "genero": "Breaks / Breakbeat / UK Bass",
+     "peso": 0.8
+    },
+    {
+     "genero": "Electronica",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "wikidata: big beat subclass of breakbeat. musicbrainz: big beat subgenre of breakbeat."
+  },
+  {
+   "estilo": "Electronic---Bleep",
+   "beatport": [
+    {
+     "genero": "Techno (Raw / Deep / Hypnotic)",
+     "peso": 0.6
+    },
+    {
+     "genero": "Electro (Classic / Detroit / Modern)",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "wikidata: bleep techno subclass of techno. musicbrainz: bleep techno subgenre of techno. Es techno británico de subgraves con timbres de electro; la taxonomía da 0.55 entre Electro y Raw."
+  },
+  {
+   "estilo": "Electronic---Breakbeat",
+   "beatport": [
+    {
+     "genero": "Breaks / Breakbeat / UK Bass",
+     "peso": 1
+    }
+   ],
+   "motivo": "wikidata: breakbeat subclass of EDM. beatport_taxonomia: Breaks / Breakbeat / UK Bass. evidencia (lift MAEST en la biblioteca): Breaks 9.3."
+  },
+  {
+   "estilo": "Electronic---Breakcore",
+   "beatport": [
+    {
+     "genero": "Drum & Bass",
+     "peso": 0.5
+    },
+    {
+     "genero": "Hard Dance / Hardcore / Neo Rave",
+     "peso": 0.3
+    },
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "musicbrainz: breakcore influenced by drum and bass, hardcore techno, jungle. wikidata: breakcore subclass of hardcore."
+  },
+  {
+   "estilo": "Electronic---Breaks",
+   "beatport": [
+    {
+     "genero": "Breaks / Breakbeat / UK Bass",
+     "peso": 1
+    }
+   ],
+   "motivo": "wikidata: breaks subclass of EDM. beatport_taxonomia: Breaks / Breakbeat / UK Bass. evidencia (lift MAEST en la biblioteca): Breaks 3.8."
+  },
+  {
+   "estilo": "Electronic---Broken Beat",
+   "beatport": [
+    {
+     "genero": "Breaks / Breakbeat / UK Bass",
+     "peso": 0.4
+    },
+    {
+     "genero": "Electronica",
+     "peso": 0.4
+    },
+    {
+     "genero": "Deep House",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "Es el broken beat de West London (bruk): nu jazz, soul y house con ritmo quebrado. wikidata: broken beat subclass of electronica y de EDM. musicbrainz: broken beat subgenre of edm, influenced genres 3-step. El subgénero Broken de Techno (Raw / Deep / Hypnotic) es el techno roto, otra escena: solo coincide el nombre. evidencia (lift MAEST en la biblioteca, 8 temas > 0.1): Electronica 1.9, Deep House 1.5, House 1.5."
+  },
+  {
+   "estilo": "Electronic---Chillwave",
+   "beatport": [
+    {
+     "genero": "Electronica",
+     "peso": 0.5
+    },
+    {
+     "genero": "Downtempo",
+     "peso": 0.3
+    },
+    {
+     "genero": "Indie Dance",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "musicbrainz: chillwave subgenre of indietronica. wikidata: indietronica subclass of electronica. evidencia (lift MAEST en la biblioteca): Downtempo 4.0, Electronica 3.8."
+  },
+  {
+   "estilo": "Electronic---Chiptune",
+   "beatport": [
+    {
+     "genero": "Electronica",
+     "peso": 0.7
+    },
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "wikidata y musicbrainz: chiptune subclass of bit music. Es electrónica para escuchar."
+  },
+  {
+   "estilo": "Electronic---Dance-pop",
+   "beatport": [
+    {
+     "genero": "Dance / Pop",
+     "peso": 0.6
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "evidencia: Discogs Dance-pop 0.22 es el estilo más alto de los 3 temas de Pop. beatport_taxonomia: Dance / Pop > Pop. La taxonomía da 0.5 entre Dance / Pop y Pop."
+  },
+  {
+   "estilo": "Electronic---Dark Ambient",
+   "beatport": [
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.8
+    },
+    {
+     "genero": "Techno (Raw / Deep / Hypnotic)",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "beatport_taxonomia: Ambient / Experimental. wikidata: ambient techno subclass of deep techno. evidencia (lift MAEST en la biblioteca, 5 temas > 0.1): Techno (Raw / Deep / Hypnotic) 5.6. Son las intros y los pasajes oscuros del techno hipnótico."
+  },
+  {
+   "estilo": "Electronic---Darkwave",
+   "beatport": [
+    {
+     "genero": "Indie Dance",
+     "peso": 0.6
+    },
+    {
+     "genero": "Electronica",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "Synth oscuro de raíz post-punk, la raíz del dark disco. musicbrainz: dark disco influenced by ebm, new beat. beatport_taxonomia: Indie Dance > Dark Disco. evidencia (lift MAEST en la biblioteca): Indie Dance 2.9, Electronica 2.5."
+  },
+  {
+   "estilo": "Electronic---Deep House",
+   "beatport": [
+    {
+     "genero": "Deep House",
+     "peso": 0.6
+    },
+    {
+     "genero": "Afro House",
+     "peso": 0.2
+    },
+    {
+     "genero": "Organic House",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "wikidata: deep house subclass of house music. musicbrainz: deep house influenced genres afro house, organic house. evidencia: Discogs Deep House es el estilo n.º 1 de Deep House (0.45), de Organic House (0.45) y de Afro House (0.38), que no tienen estilo propio en Discogs."
+  },
+  {
+   "estilo": "Electronic---Deep Techno",
+   "beatport": [
+    {
+     "genero": "Techno (Raw / Deep / Hypnotic)",
+     "peso": 0.8
+    },
+    {
+     "genero": "Techno (Peak Time / Driving)",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "wikidata: deep techno subclass of techno. beatport_taxonomia: Techno (Raw / Deep / Hypnotic) > Deep / Hypnotic. evidencia: Discogs Deep Techno 0.22 en Raw y 0.16 en Peak Time."
+  },
+  {
+   "estilo": "Electronic---Disco",
+   "beatport": [
+    {
+     "genero": "Nu Disco / Disco",
+     "peso": 0.8
+    },
+    {
+     "genero": "Indie Dance",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "beatport_taxonomia: Nu Disco / Disco; Italo es subgénero de Indie Dance y de Nu Disco / Disco. evidencia: Discogs Disco 0.42 en Nu Disco / Disco; lift MAEST en la biblioteca Nu Disco / Disco 13.5, Indie Dance 2.7."
+  },
+  {
+   "estilo": "Electronic---Disco Polo",
+   "beatport": [
+    {
+     "genero": "Pop",
+     "peso": 0.6
+    },
+    {
+     "genero": "Dance / Pop",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "Pop bailable polaco. No tiene un equivalente electrónico propio en Beatport."
+  },
+  {
+   "estilo": "Electronic---Donk",
+   "beatport": [
+    {
+     "genero": "Hard Dance / Hardcore / Neo Rave",
+     "peso": 1
+    }
+   ],
+   "motivo": "musicbrainz: donk subgenre of hard house. beatport_taxonomia: Hard Dance / Hardcore / Neo Rave > Hard House."
+  },
+  {
+   "estilo": "Electronic---Downtempo",
+   "beatport": [
+    {
+     "genero": "Downtempo",
+     "peso": 0.8
+    },
+    {
+     "genero": "Electronica",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "wikidata: downtempo subclass of chill-out music. evidencia: Discogs Downtempo 0.26 en Downtempo y 0.14 en Electronica."
+  },
+  {
+   "estilo": "Electronic---Drone",
+   "beatport": [
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.8
+    },
+    {
+     "genero": "Techno (Raw / Deep / Hypnotic)",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "Sin pista. beatport_taxonomia: Ambient / Experimental. wikidata: ambient techno subclass of deep techno. evidencia (lift MAEST en la biblioteca, 6 temas > 0.1): Techno (Raw / Deep / Hypnotic) 6.9."
+  },
+  {
+   "estilo": "Electronic---Drum n Bass",
+   "beatport": [
+    {
+     "genero": "Drum & Bass",
+     "peso": 1
+    }
+   ],
+   "motivo": "wikidata y musicbrainz: drum and bass subclass of EDM. beatport_taxonomia: Drum & Bass."
+  },
+  {
+   "estilo": "Electronic---Dub",
+   "beatport": [
+    {
+     "genero": "Downtempo",
+     "peso": 0.4
+    },
+    {
+     "genero": "Caribbean",
+     "peso": 0.3
+    },
+    {
+     "genero": "Electronica",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "Dub electrónico (dubtronica). beatport_taxonomia: Caribbean > Dub. wikidata: ambient dub y psydub subclass of dubtronica y de chill-out music. El dub techno tiene su propio estilo (Dub Techno). evidencia (lift MAEST en la biblioteca): Electronica 4.3, Downtempo 3.2, Techno (Raw / Deep / Hypnotic) 0.7."
+  },
+  {
+   "estilo": "Electronic---Dub Techno",
+   "beatport": [
+    {
+     "genero": "Techno (Raw / Deep / Hypnotic)",
+     "peso": 0.8
+    },
+    {
+     "genero": "Minimal / Deep Tech",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "wikidata: dub techno subclass of deep techno. musicbrainz: dub techno subgenre of minimal techno. beatport_taxonomia: Techno (Raw / Deep / Hypnotic) > Dub. evidencia (lift MAEST en la biblioteca): Raw 2.8, Minimal / Deep Tech 1.9."
+  },
+  {
+   "estilo": "Electronic---Dubstep",
+   "beatport": [
+    {
+     "genero": "Dubstep",
+     "peso": 0.5
+    },
+    {
+     "genero": "140 / Deep Dubstep / Grime",
+     "peso": 0.5
+    }
+   ],
+   "motivo": "wikidata: dubstep subclass of bass music (EDM). Discogs no separa el dubstep de festival (Dubstep) del profundo de 140 (140 / Deep Dubstep / Grime). La taxonomía da 0.7 entre los dos."
+  },
+  {
+   "estilo": "Electronic---Dungeon Synth",
+   "beatport": [
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 1
+    }
+   ],
+   "motivo": "musicbrainz: dungeon synth influenced by ambient, black metal."
+  },
+  {
+   "estilo": "Electronic---EBM",
+   "beatport": [
+    {
+     "genero": "Techno (Raw / Deep / Hypnotic)",
+     "peso": 0.6
+    },
+    {
+     "genero": "Indie Dance",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "beatport_taxonomia: Techno (Raw / Deep / Hypnotic) > EBM. musicbrainz: dark disco influenced by ebm (Indie Dance > Dark Disco). evidencia (lift MAEST en la biblioteca): Indie Dance 3.0, Raw 2.5."
+  },
+  {
+   "estilo": "Electronic---Electro",
+   "beatport": [
+    {
+     "genero": "Electro (Classic / Detroit / Modern)",
+     "peso": 0.6
+    },
+    {
+     "genero": "Mainstage",
+     "peso": 0.2
+    },
+    {
+     "genero": "Indie Dance",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "wikidata: electro subclass of EDM y de EBM. evidencia: el tema de Electro da Discogs Electro 0.86; Mainstage da Electro 0.25 junto a Electro House 0.24, porque MAEST mezcla el electro con el electro house. En la biblioteca el estilo es frecuente (287 temas > 0.1) y sube en Mainstage (lift 3.7) e Indie Dance (2.1); la taxonomía no une Electro con Indie Dance."
+  },
+  {
+   "estilo": "Electronic---Electro House",
+   "beatport": [
+    {
+     "genero": "Mainstage",
+     "peso": 0.6
+    },
+    {
+     "genero": "Bass House",
+     "peso": 0.2
+    },
+    {
+     "genero": "House",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "beatport_taxonomia: Mainstage > Electro House. wikidata: electro house subclass of house music. evidencia: Discogs Electro House 0.35 en Bass House, 0.24 en Mainstage y 0.22 en Funky House; lift MAEST en la biblioteca Mainstage 6.0."
+  },
+  {
+   "estilo": "Electronic---Electroclash",
+   "beatport": [
+    {
+     "genero": "Indie Dance",
+     "peso": 0.7
+    },
+    {
+     "genero": "Electro (Classic / Detroit / Modern)",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "wikidata: electroclash subclass of EDM. musicbrainz: electroclash influenced genres french electro. El indie dance de Beatport sale de esa escena."
+  },
+  {
+   "estilo": "Electronic---Euro House",
+   "beatport": [
+    {
+     "genero": "Dance / Pop",
+     "peso": 0.5
+    },
+    {
+     "genero": "House",
+     "peso": 0.5
+    }
+   ],
+   "motivo": "musicbrainz: euro house subgenre of house. Es el house de radio de los 90."
+  },
+  {
+   "estilo": "Electronic---Euro-Disco",
+   "beatport": [
+    {
+     "genero": "Nu Disco / Disco",
+     "peso": 0.7
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "Disco europea de canción. beatport_taxonomia: Nu Disco / Disco (Italo)."
+  },
+  {
+   "estilo": "Electronic---Eurobeat",
+   "beatport": [
+    {
+     "genero": "Dance / Pop",
+     "peso": 0.6
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "wikidata: Eurobeat subclass of EDM. Es pop bailable."
+  },
+  {
+   "estilo": "Electronic---Eurodance",
+   "beatport": [
+    {
+     "genero": "Dance / Pop",
+     "peso": 0.6
+    },
+    {
+     "genero": "Mainstage",
+     "peso": 0.2
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "wikidata: Eurodance subclass of EDM. musicbrainz: euro-trance y hands up influenced by eurodance."
+  },
+  {
+   "estilo": "Electronic---Experimental",
+   "beatport": [
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.6
+    },
+    {
+     "genero": "Electronica",
+     "peso": 0.2
+    },
+    {
+     "genero": "Techno (Raw / Deep / Hypnotic)",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "wikidata: experimental electronic music subclass of electronic music. beatport_taxonomia: Ambient / Experimental. evidencia (lift MAEST en la biblioteca, 73 temas > 0.1): Techno (Raw / Deep / Hypnotic) 3.0, Electronica 2.6."
+  },
+  {
+   "estilo": "Electronic---Freestyle",
+   "beatport": [
+    {
+     "genero": "Dance / Pop",
+     "peso": 0.5
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.3
+    },
+    {
+     "genero": "Electro (Classic / Detroit / Modern)",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "musicbrainz: freestyle subgenre of edm, influenced by dance-pop, disco, electro, hip hop."
+  },
+  {
+   "estilo": "Electronic---Future Jazz",
+   "beatport": [
+    {
+     "genero": "Electronica",
+     "peso": 0.4
+    },
+    {
+     "genero": "Downtempo",
+     "peso": 0.3
+    },
+    {
+     "genero": "Deep House",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "Es el nu jazz. wikidata: nu jazz subclass of electronica. musicbrainz: nu jazz influenced by jazz. La taxonomía da 0.65 entre Electronica y Deep House. evidencia (lift MAEST en la biblioteca): Electronica 2.6, Deep House 1.6."
+  },
+  {
+   "estilo": "Electronic---Gabber",
+   "beatport": [
+    {
+     "genero": "Hard Dance / Hardcore / Neo Rave",
+     "peso": 1
+    }
+   ],
+   "motivo": "musicbrainz: gabber subgenre of hardcore techno. wikidata: gabber subclass of hardcore."
+  },
+  {
+   "estilo": "Electronic---Garage House",
+   "beatport": [
+    {
+     "genero": "House",
+     "peso": 0.7
+    },
+    {
+     "genero": "UK Garage / Bassline",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "wikidata: garage house subclass of house music. musicbrainz: garage house influenced genres uk garage, speed garage. evidencia: Discogs Garage House 0.22 en el tema de UK Garage / Bassline; lift MAEST en la biblioteca House 5.0."
+  },
+  {
+   "estilo": "Electronic---Ghetto",
+   "beatport": [
+    {
+     "genero": "Bass / Club",
+     "peso": 0.6
+    },
+    {
+     "genero": "Electro (Classic / Detroit / Modern)",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "Es el ghettotech de Detroit. wikidata: ghettotech subclass of ghetto house. musicbrainz: ghettotech influenced by detroit techno, electro, ghetto house, miami bass."
+  },
+  {
+   "estilo": "Electronic---Ghetto House",
+   "beatport": [
+    {
+     "genero": "House",
+     "peso": 0.4
+    },
+    {
+     "genero": "Jackin House",
+     "peso": 0.3
+    },
+    {
+     "genero": "Tech House",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "wikidata: ghetto house subclass of house music. musicbrainz: ghetto house subgenre of house, subgenres juke (el juke tiene estilo propio, que va a Bass / Club). evidencia: Discogs Ghetto House 0.19 en Bass House; lift MAEST en la biblioteca House 3.0, Tech House 1.9 (36 temas > 0.1)."
+  },
+  {
+   "estilo": "Electronic---Glitch",
+   "beatport": [
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.6
+    },
+    {
+     "genero": "Electronica",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "wikidata: glitch subclass of experimental electronic music. musicbrainz: glitch subgenre of electronic."
+  },
+  {
+   "estilo": "Electronic---Goa Trance",
+   "beatport": [
+    {
+     "genero": "Psy-Trance",
+     "peso": 1
+    }
+   ],
+   "motivo": "wikidata: Goa trance subclass of psychedelic trance. beatport_taxonomia: Psy-Trance > Goa Trance. evidencia: Discogs Goa Trance 0.12 en Psy-Trance."
+  },
+  {
+   "estilo": "Electronic---Grime",
+   "beatport": [
+    {
+     "genero": "140 / Deep Dubstep / Grime",
+     "peso": 0.8
+    },
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "beatport_taxonomia: 140 / Deep Dubstep / Grime > Grime. musicbrainz: grime influenced by 2-step, hip hop."
+  },
+  {
+   "estilo": "Electronic---Halftime",
+   "beatport": [
+    {
+     "genero": "Drum & Bass",
+     "peso": 0.7
+    },
+    {
+     "genero": "Dubstep",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "wikidata: halftime subclass of drum and bass. musicbrainz: halftime influenced by dubstep. beatport_taxonomia: Drum & Bass > Halftime."
+  },
+  {
+   "estilo": "Electronic---Hands Up",
+   "beatport": [
+    {
+     "genero": "Trance (Main Floor)",
+     "peso": 0.4
+    },
+    {
+     "genero": "Hard Dance / Hardcore / Neo Rave",
+     "peso": 0.4
+    },
+    {
+     "genero": "Dance / Pop",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "wikidata: hands up subclass of hard dance y de Eurotrance. musicbrainz: hands up influenced by euro-trance, eurodance."
+  },
+  {
+   "estilo": "Electronic---Happy Hardcore",
+   "beatport": [
+    {
+     "genero": "Hard Dance / Hardcore / Neo Rave",
+     "peso": 1
+    }
+   ],
+   "motivo": "musicbrainz: happy hardcore subgenre of hardcore techno. beatport_taxonomia: Hard Dance / Hardcore / Neo Rave > UK / Happy Hardcore."
+  },
+  {
+   "estilo": "Electronic---Hard House",
+   "beatport": [
+    {
+     "genero": "Hard Dance / Hardcore / Neo Rave",
+     "peso": 0.7
+    },
+    {
+     "genero": "Hard Techno",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "wikidata: hard house subclass of house music y de hard dance. beatport_taxonomia: Hard Dance / Hardcore / Neo Rave > Hard House. La parte que va a Hard Techno es por escena: el hard house de 140-150 BPM se toca en sets de hard techno (Hard Techno: mediana de 147 BPM en el cache de Beatport)."
+  },
+  {
+   "estilo": "Electronic---Hard Techno",
+   "beatport": [
+    {
+     "genero": "Hard Techno",
+     "peso": 0.8
+    },
+    {
+     "genero": "Techno (Peak Time / Driving)",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "wikidata: hard techno subclass of techno. beatport_taxonomia: Hard Techno. La taxonomía da 0.65 entre Hard Techno y Techno PT. evidencia (lift MAEST en la biblioteca): Techno PT 4.2, Raw 3.5."
+  },
+  {
+   "estilo": "Electronic---Hard Trance",
+   "beatport": [
+    {
+     "genero": "Trance (Main Floor)",
+     "peso": 0.6
+    },
+    {
+     "genero": "Hard Dance / Hardcore / Neo Rave",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "wikidata: hard trance subclass of trance y de hard dance. beatport_taxonomia: Trance (Main Floor) > Hard Trance."
+  },
+  {
+   "estilo": "Electronic---Hardcore",
+   "beatport": [
+    {
+     "genero": "Hard Dance / Hardcore / Neo Rave",
+     "peso": 1
+    }
+   ],
+   "motivo": "Es el hardcore techno. musicbrainz: hardcore techno subgenres frenchcore, gabber, happy hardcore, uptempo hardcore. wikidata: hardcore subclass of EDM."
+  },
+  {
+   "estilo": "Electronic---Hardstyle",
+   "beatport": [
+    {
+     "genero": "Hard Dance / Hardcore / Neo Rave",
+     "peso": 1
+    }
+   ],
+   "motivo": "wikidata: hardstyle subclass of hard dance. beatport_taxonomia: Hard Dance / Hardcore / Neo Rave > Hardstyle."
+  },
+  {
+   "estilo": "Electronic---Hi NRG",
+   "beatport": [
+    {
+     "genero": "Nu Disco / Disco",
+     "peso": 0.6
+    },
+    {
+     "genero": "Indie Dance",
+     "peso": 0.2
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "wikidata: Hi-NRG subclass of electro-disco. Es la disco electrónica de los 80."
+  },
+  {
+   "estilo": "Electronic---Hip Hop",
+   "beatport": [
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.6
+    },
+    {
+     "genero": "Trap / Future Bass",
+     "peso": 0.2
+    },
+    {
+     "genero": "Downtempo",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "Hip-hop de producción electrónica. beatport_taxonomia: Hip-Hop; Trap / Future Bass > Trap; Downtempo > Lofi, Trip-Hop."
+  },
+  {
+   "estilo": "Electronic---Hip-House",
+   "beatport": [
+    {
+     "genero": "House",
+     "peso": 0.6
+    },
+    {
+     "genero": "Jackin House",
+     "peso": 0.2
+    },
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "wikidata: hip house subclass of house music. musicbrainz: hip house subgenre of house, influenced by hip hop."
+  },
+  {
+   "estilo": "Electronic---House",
+   "beatport": [
+    {
+     "genero": "House",
+     "peso": 0.7
+    },
+    {
+     "genero": "Dance / Pop",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "beatport_taxonomia: House. evidencia: Discogs House es el estilo n.º 1 de House (0.56) y de Dance / Pop (0.40), y Dance / Pop no tiene estilo propio en Discogs. La taxonomía da 0.65 entre House y Dance / Pop."
+  },
+  {
+   "estilo": "Electronic---IDM",
+   "beatport": [
+    {
+     "genero": "Electronica",
+     "peso": 0.6
+    },
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.2
+    },
+    {
+     "genero": "Techno (Raw / Deep / Hypnotic)",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "musicbrainz: idm subgenre of electronic. evidencia: Discogs IDM 0.18 en el tema de Electro; lift MAEST en la biblioteca Techno (Raw / Deep / Hypnotic) 3.2, Electronica 2.2 (21 temas > 0.1)."
+  },
+  {
+   "estilo": "Electronic---Illbient",
+   "beatport": [
+    {
+     "genero": "Downtempo",
+     "peso": 0.5
+    },
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.5
+    }
+   ],
+   "motivo": "wikidata: illbient subclass of electronic music. musicbrainz: illbient influenced by ambient, dub, hip hop."
+  },
+  {
+   "estilo": "Electronic---Industrial",
+   "beatport": [
+    {
+     "genero": "Techno (Raw / Deep / Hypnotic)",
+     "peso": 0.5
+    },
+    {
+     "genero": "Techno (Peak Time / Driving)",
+     "peso": 0.3
+    },
+    {
+     "genero": "Hard Techno",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "wikidata: industrial techno subclass of techno. musicbrainz: industrial techno influenced by industrial. evidencia (lift MAEST en la biblioteca, 20 temas > 0.1): Techno (Raw / Deep / Hypnotic) 5.2, Techno PT 2.3."
+  },
+  {
+   "estilo": "Electronic---Italo House",
+   "beatport": [
+    {
+     "genero": "House",
+     "peso": 0.7
+    },
+    {
+     "genero": "Nu Disco / Disco",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "wikidata: Italo house subclass of house music. musicbrainz: italo house influenced by italo-disco."
+  },
+  {
+   "estilo": "Electronic---Italo-Disco",
+   "beatport": [
+    {
+     "genero": "Nu Disco / Disco",
+     "peso": 0.5
+    },
+    {
+     "genero": "Indie Dance",
+     "peso": 0.5
+    }
+   ],
+   "motivo": "beatport_taxonomia: Italo es subgénero de Indie Dance y de Nu Disco / Disco. wikidata: Italo disco subclass of electro-disco. evidencia (lift MAEST en la biblioteca): Nu Disco / Disco 16.7, Indie Dance 6.2."
+  },
+  {
+   "estilo": "Electronic---Italodance",
+   "beatport": [
+    {
+     "genero": "Dance / Pop",
+     "peso": 0.7
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "wikidata: Italo dance subclass of Eurodance."
+  },
+  {
+   "estilo": "Electronic---Jazzdance",
+   "beatport": [
+    {
+     "genero": "Electronica",
+     "peso": 0.5
+    },
+    {
+     "genero": "Nu Disco / Disco",
+     "peso": 0.5
+    }
+   ],
+   "motivo": "wikidata: jazzdance subclass of nu jazz; nu jazz subclass of electronica. El lado bailable va a Nu Disco / Disco > Funk / Soul."
+  },
+  {
+   "estilo": "Electronic---Juke",
+   "beatport": [
+    {
+     "genero": "Bass / Club",
+     "peso": 1
+    }
+   ],
+   "motivo": "wikidata: juke subclass of ghetto house. musicbrainz: juke influenced genres footwork. beatport_taxonomia: Bass / Club > Juke / Footwork."
+  },
+  {
+   "estilo": "Electronic---Jumpstyle",
+   "beatport": [
+    {
+     "genero": "Hard Dance / Hardcore / Neo Rave",
+     "peso": 1
+    }
+   ],
+   "motivo": "wikidata: jumpstyle subclass of hard dance."
+  },
+  {
+   "estilo": "Electronic---Jungle",
+   "beatport": [
+    {
+     "genero": "Drum & Bass",
+     "peso": 1
+    }
+   ],
+   "motivo": "wikidata: jungle subclass of drum and bass. musicbrainz: jungle subgenre of drum and bass. beatport_taxonomia: Drum & Bass > Jungle."
+  },
+  {
+   "estilo": "Electronic---Latin",
+   "beatport": [
+    {
+     "genero": "Latin Electronic",
+     "peso": 0.6
+    },
+    {
+     "genero": "House",
+     "peso": 0.2
+    },
+    {
+     "genero": "Tech House",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "Es la electrónica latina (latin house, latin tech), no la música latina de canción. wikidata: Latin electronic music subclass of electronic music; Latin house subclass of house music; Latin tech subclass of Latin electronic music y de tech house. beatport_taxonomia: House > Latin House; Tech House > Latin Tech. evidencia: Tech House > Latin Tech en 8 de 255 temas; lift MAEST en la biblioteca House 3.6, Afro House 2.5, Tech House 1.8 (63 temas > 0.1). Latin queda a 0.7 de Latin Electronic por la familia."
+  },
+  {
+   "estilo": "Electronic---Leftfield",
+   "beatport": [
+    {
+     "genero": "Electronica",
+     "peso": 0.6
+    },
+    {
+     "genero": "Indie Dance",
+     "peso": 0.2
+    },
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "musicbrainz: leftfield subgenre of electronic. Es electrónica fuera de la norma de pista. evidencia (lift MAEST en la biblioteca): Electronica 2.4, Indie Dance 2.1."
+  },
+  {
+   "estilo": "Electronic---Makina",
+   "beatport": [
+    {
+     "genero": "Hard Dance / Hardcore / Neo Rave",
+     "peso": 0.7
+    },
+    {
+     "genero": "Hard Techno",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "musicbrainz: makina subgenre of techno, influenced by ebm, new beat. Va a 160-180 BPM, el tempo del hardcore."
+  },
+  {
+   "estilo": "Electronic---Minimal",
+   "beatport": [
+    {
+     "genero": "Minimal / Deep Tech",
+     "peso": 0.7
+    },
+    {
+     "genero": "Tech House",
+     "peso": 0.2
+    },
+    {
+     "genero": "Techno (Raw / Deep / Hypnotic)",
+     "peso": 0.1
+    }
+   ],
+   "motivo": "evidencia: Discogs Minimal 0.34 en Minimal / Deep Tech (su 2.º estilo) y 0.17 en Tech House; lift MAEST en la biblioteca Minimal / Deep Tech 2.7, Tech House 1.4. wikidata: minimal house y minimal techno subclass of minimal EDM."
+  },
+  {
+   "estilo": "Electronic---Minimal Techno",
+   "beatport": [
+    {
+     "genero": "Minimal / Deep Tech",
+     "peso": 0.6
+    },
+    {
+     "genero": "Techno (Raw / Deep / Hypnotic)",
+     "peso": 0.2
+    },
+    {
+     "genero": "Techno (Peak Time / Driving)",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "wikidata: minimal techno subclass of techno y de minimal EDM. musicbrainz: minimal techno subgenre of techno, subgenres dub techno. evidencia (lift MAEST en la biblioteca, 354 temas > 0.1): Minimal / Deep Tech 3.0, Techno PT 1.2, Raw 1.1."
+  },
+  {
+   "estilo": "Electronic---Modern Classical",
+   "beatport": [
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.7
+    },
+    {
+     "genero": "Electronica",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "Piano y cuerdas con electrónica, sin pista. beatport_taxonomia: Ambient / Experimental."
+  },
+  {
+   "estilo": "Electronic---Musique Concrète",
+   "beatport": [
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 1
+    }
+   ],
+   "motivo": "wikidata: musique concrète subclass of electroacoustic music."
+  },
+  {
+   "estilo": "Electronic---Neofolk",
+   "beatport": [
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 1
+    }
+   ],
+   "motivo": "Folk oscuro y atmosférico sin equivalente de pista: dentro de Electronic, lo más cercano es Ambient / Experimental. Vínculo débil."
+  },
+  {
+   "estilo": "Electronic---New Age",
+   "beatport": [
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.6
+    },
+    {
+     "genero": "Downtempo",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "Sin pista. beatport_taxonomia: Ambient / Experimental; Downtempo > Chillout."
+  },
+  {
+   "estilo": "Electronic---New Beat",
+   "beatport": [
+    {
+     "genero": "Indie Dance",
+     "peso": 0.5
+    },
+    {
+     "genero": "Techno (Raw / Deep / Hypnotic)",
+     "peso": 0.5
+    }
+   ],
+   "motivo": "wikidata: new beat subclass of electronic body music. musicbrainz: dark disco influenced by new beat. beatport_taxonomia: Techno (Raw / Deep / Hypnotic) > EBM; Indie Dance > Dark Disco."
+  },
+  {
+   "estilo": "Electronic---New Wave",
+   "beatport": [
+    {
+     "genero": "Indie Dance",
+     "peso": 0.5
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.3
+    },
+    {
+     "genero": "Electronica",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "La new wave de sintetizadores (la de guitarras es Rock---New Wave). musicbrainz: edm influenced genres dance-punk revival. evidencia (lift MAEST en la biblioteca): Indie Dance 3.7, Electronica 2.4, Pop 1.3, Rock 0.3."
+  },
+  {
+   "estilo": "Electronic---Noise",
+   "beatport": [
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Ambient / Experimental."
+  },
+  {
+   "estilo": "Electronic---Nu-Disco",
+   "beatport": [
+    {
+     "genero": "Nu Disco / Disco",
+     "peso": 0.8
+    },
+    {
+     "genero": "Indie Dance",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "evidencia: Discogs Nu-Disco 0.49 en Nu Disco / Disco y 0.19 en Indie Dance; lift MAEST en la biblioteca Nu Disco / Disco 9.1, Indie Dance 3.5. musicbrainz: nu disco influenced by disco."
+  },
+  {
+   "estilo": "Electronic---Power Electronics",
+   "beatport": [
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 1
+    }
+   ],
+   "motivo": "Es una rama del noise. beatport_taxonomia: Ambient / Experimental."
+  },
+  {
+   "estilo": "Electronic---Progressive Breaks",
+   "beatport": [
+    {
+     "genero": "Progressive House",
+     "peso": 0.5
+    },
+    {
+     "genero": "Breaks / Breakbeat / UK Bass",
+     "peso": 0.3
+    },
+    {
+     "genero": "Melodic House & Techno",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "wikidata: progressive breaks subclass of breakbeat y de progressive EDM. musicbrainz: progressive breaks influenced by progressive house. evidencia: en la biblioteca MAEST lo dispara en el progressive y el melódico, no en los breaks: lift Progressive House 3.2, MH&T 2.0, Breaks 0.1 (66 temas > 0.1)."
+  },
+  {
+   "estilo": "Electronic---Progressive House",
+   "beatport": [
+    {
+     "genero": "Progressive House",
+     "peso": 0.6
+    },
+    {
+     "genero": "Melodic House & Techno",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "evidencia: Discogs Progressive House 0.45 en Progressive House y 0.31 en MH&T, que no tiene estilo propio en Discogs; lift MAEST en la biblioteca Progressive House 2.6, MH&T 1.8. musicbrainz: melodic house influenced by progressive house. La taxonomía da 0.85 entre los dos géneros."
+  },
+  {
+   "estilo": "Electronic---Progressive Trance",
+   "beatport": [
+    {
+     "genero": "Psy-Trance",
+     "peso": 0.6
+    },
+    {
+     "genero": "Trance (Main Floor)",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "evidencia: Discogs Progressive Trance 0.75 en Psy-Trance (su 2.º estilo: es progressive psy) y 0.21 en Trance (Main Floor); lift MAEST en la biblioteca Psy-Trance 19.8, Trance (Main Floor) 5.5. wikidata: progressive trance subclass of trance. beatport_taxonomia: Trance (Main Floor) > Progressive Trance; Psy-Trance > Progressive Psy."
+  },
+  {
+   "estilo": "Electronic---Psy-Trance",
+   "beatport": [
+    {
+     "genero": "Psy-Trance",
+     "peso": 1
+    }
+   ],
+   "motivo": "evidencia: Discogs Psy-Trance 0.91 en Psy-Trance. wikidata: psychedelic trance subclass of trance."
+  },
+  {
+   "estilo": "Electronic---Rhythmic Noise",
+   "beatport": [
+    {
+     "genero": "Techno (Raw / Deep / Hypnotic)",
+     "peso": 0.4
+    },
+    {
+     "genero": "Hard Techno",
+     "peso": 0.3
+    },
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "Noise rítmico, pariente del techno industrial. wikidata: industrial techno subclass of techno."
+  },
+  {
+   "estilo": "Electronic---Schranz",
+   "beatport": [
+    {
+     "genero": "Hard Techno",
+     "peso": 1
+    }
+   ],
+   "motivo": "wikidata: schranz subclass of hard techno. musicbrainz: schranz subgenre of techno."
+  },
+  {
+   "estilo": "Electronic---Sound Collage",
+   "beatport": [
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Ambient / Experimental."
+  },
+  {
+   "estilo": "Electronic---Speed Garage",
+   "beatport": [
+    {
+     "genero": "UK Garage / Bassline",
+     "peso": 0.7
+    },
+    {
+     "genero": "Bass House",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "wikidata: speed garage subclass of house music y de UK garage. beatport_taxonomia: UK Garage / Bassline > Speed Garage. La taxonomía da 0.55 entre Speed Garage y Bass House."
+  },
+  {
+   "estilo": "Electronic---Speedcore",
+   "beatport": [
+    {
+     "genero": "Hard Dance / Hardcore / Neo Rave",
+     "peso": 1
+    }
+   ],
+   "motivo": "musicbrainz: speedcore subgenre of hardcore techno. wikidata: speedcore subclass of hardcore."
+  },
+  {
+   "estilo": "Electronic---Synth-pop",
+   "beatport": [
+    {
+     "genero": "Pop",
+     "peso": 0.5
+    },
+    {
+     "genero": "Indie Dance",
+     "peso": 0.3
+    },
+    {
+     "genero": "Dance / Pop",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "wikidata: synth-pop subclass of electronic pop. Es canción pop; sus remixes de pista van a Indie Dance. evidencia (lift MAEST en la biblioteca): Pop 5.3, Dance / Pop 2.7, Indie Dance 2.5."
+  },
+  {
+   "estilo": "Electronic---Synthwave",
+   "beatport": [
+    {
+     "genero": "Indie Dance",
+     "peso": 0.5
+    },
+    {
+     "genero": "Electronica",
+     "peso": 0.3
+    },
+    {
+     "genero": "Nu Disco / Disco",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "musicbrainz: synthwave influenced by electro-disco, italo-disco, synth-pop, house."
+  },
+  {
+   "estilo": "Electronic---Tech House",
+   "beatport": [
+    {
+     "genero": "Tech House",
+     "peso": 0.7
+    },
+    {
+     "genero": "Minimal / Deep Tech",
+     "peso": 0.2
+    },
+    {
+     "genero": "Indie Tech",
+     "peso": 0.1
+    }
+   ],
+   "motivo": "evidencia: Discogs Tech House 0.54 en Tech House, 0.53 en Minimal / Deep Tech y 0.43 en Indie Tech (su estilo n.º 1). wikidata: deep tech subclass of tech house. La taxonomía da 0.8 de Tech House con los otros dos."
+  },
+  {
+   "estilo": "Electronic---Tech Trance",
+   "beatport": [
+    {
+     "genero": "Trance (Main Floor)",
+     "peso": 0.6
+    },
+    {
+     "genero": "Techno (Peak Time / Driving)",
+     "peso": 0.2
+    },
+    {
+     "genero": "Trance (Raw / Deep / Hypnotic)",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "beatport_taxonomia: Trance (Main Floor) > Tech Trance. musicbrainz: tech trance subgenre of trance, influenced by techno."
+  },
+  {
+   "estilo": "Electronic---Techno",
+   "beatport": [
+    {
+     "genero": "Techno (Peak Time / Driving)",
+     "peso": 0.6
+    },
+    {
+     "genero": "Techno (Raw / Deep / Hypnotic)",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "evidencia: Discogs Techno 0.59 en Techno (Peak Time / Driving), 254 temas, y 0.79 en Techno (Raw / Deep / Hypnotic), 25 temas. La taxonomía da 0.85 entre los dos."
+  },
+  {
+   "estilo": "Electronic---Trance",
+   "beatport": [
+    {
+     "genero": "Trance (Main Floor)",
+     "peso": 0.7
+    },
+    {
+     "genero": "Trance (Raw / Deep / Hypnotic)",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "wikidata: raw trance, hypnotic trance y deep trance subclass of trance. evidencia: Discogs Trance 0.31 en Trance (Main Floor); lift MAEST en la biblioteca Trance (Main Floor) 13.2."
+  },
+  {
+   "estilo": "Electronic---Tribal",
+   "beatport": [
+    {
+     "genero": "Afro House",
+     "peso": 0.5
+    },
+    {
+     "genero": "House",
+     "peso": 0.3
+    },
+    {
+     "genero": "Tech House",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "House y techno de percusión. wikidata: tribal house subclass of tribal music y de house music. evidencia (lift MAEST en la biblioteca, 48 temas > 0.1): Afro House 3.4, House 1.6, Tech House 1.0, Techno PT 0.7: MAEST lo dispara en el house de percusión, no en el techno."
+  },
+  {
+   "estilo": "Electronic---Tribal House",
+   "beatport": [
+    {
+     "genero": "Afro House",
+     "peso": 0.4
+    },
+    {
+     "genero": "Tech House",
+     "peso": 0.3
+    },
+    {
+     "genero": "House",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "wikidata: tribal house subclass of house music. musicbrainz: tribal house subgenre of house, subgenres guaracha edm. evidencia (lift MAEST en la biblioteca, 117 temas > 0.1): Afro House 3.2, House 2.1, Tech House 1.5. La guaracha (Latin Electronic > Tribal / Guaracha) queda unida por la taxonomía: Latin Electronic vale 0.4 con Tech House y 0.35 con House."
+  },
+  {
+   "estilo": "Electronic---Trip Hop",
+   "beatport": [
+    {
+     "genero": "Downtempo",
+     "peso": 0.6
+    },
+    {
+     "genero": "Electronica",
+     "peso": 0.2
+    },
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "wikidata: trip hop subclass of downtempo. musicbrainz: trip hop influenced by hip hop. beatport_taxonomia: Downtempo > Trip-Hop. evidencia (lift MAEST en la biblioteca): Electronica 3.9, Downtempo 2.9."
+  },
+  {
+   "estilo": "Electronic---Tropical House",
+   "beatport": [
+    {
+     "genero": "Dance / Pop",
+     "peso": 0.8
+    },
+    {
+     "genero": "Deep House",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "beatport_taxonomia: Dance / Pop > Tropical House. musicbrainz: tropical house influenced by deep house."
+  },
+  {
+   "estilo": "Electronic---UK Garage",
+   "beatport": [
+    {
+     "genero": "UK Garage / Bassline",
+     "peso": 1
+    }
+   ],
+   "motivo": "wikidata: UK garage subclass of EDM. beatport_taxonomia: UK Garage / Bassline > UK Garage. evidencia: Discogs UK Garage 0.18 en el tema de UK Garage / Bassline."
+  },
+  {
+   "estilo": "Electronic---Vaporwave",
+   "beatport": [
+    {
+     "genero": "Electronica",
+     "peso": 0.5
+    },
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.5
+    }
+   ],
+   "motivo": "musicbrainz: vaporwave subgenre of electronic."
+  },
+  {
+   "estilo": "Folk, World, & Country---African",
+   "beatport": [
+    {
+     "genero": "African",
+     "peso": 0.5
+    },
+    {
+     "genero": "Afro House",
+     "peso": 0.5
+    }
+   ],
+   "motivo": "beatport_taxonomia: African (Afrobeats, Afropop, Afro R&B, Alte). evidencia: en la biblioteca MAEST lo dispara sobre todo en afro house (lift Afro House 4.8, House 2.6; 11 temas > 0.1), y el único tema donde gana la puerta (Thornato, El Oro de la Tolita) es House en Beatport. La taxonomía no une African con Afro House, así que el reparto lleva las dos lecturas."
+  },
+  {
+   "estilo": "Folk, World, & Country---Bluegrass",
+   "beatport": [
+    {
+     "genero": "Country",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Country."
+  },
+  {
+   "estilo": "Folk, World, & Country---Cajun",
+   "beatport": [
+    {
+     "genero": "Country",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Country."
+  },
+  {
+   "estilo": "Folk, World, & Country---Canzone Napoletana",
+   "beatport": [],
+   "motivo": "Canción tradicional sin equivalente en Beatport."
+  },
+  {
+   "estilo": "Folk, World, & Country---Catalan Music",
+   "beatport": [],
+   "motivo": "Música tradicional sin equivalente en Beatport."
+  },
+  {
+   "estilo": "Folk, World, & Country---Celtic",
+   "beatport": [],
+   "motivo": "Música tradicional sin equivalente en Beatport."
+  },
+  {
+   "estilo": "Folk, World, & Country---Country",
+   "beatport": [
+    {
+     "genero": "Country",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Country (Country Dance, Country Pop)."
+  },
+  {
+   "estilo": "Folk, World, & Country---Fado",
+   "beatport": [],
+   "motivo": "Música tradicional sin equivalente en Beatport."
+  },
+  {
+   "estilo": "Folk, World, & Country---Flamenco",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "El flamenco y la rumba flamenca se venden como música latina. beatport_taxonomia: Latin > Latin Pop. Vínculo débil."
+  },
+  {
+   "estilo": "Folk, World, & Country---Folk",
+   "beatport": [],
+   "motivo": "Beatport no tiene folk."
+  },
+  {
+   "estilo": "Folk, World, & Country---Gospel",
+   "beatport": [
+    {
+     "genero": "R&B",
+     "peso": 1
+    }
+   ],
+   "motivo": "Gospel de iglesia. beatport_taxonomia: R&B > Soul. El gospel house va por Funk / Soul---Gospel."
+  },
+  {
+   "estilo": "Folk, World, & Country---Highlife",
+   "beatport": [
+    {
+     "genero": "African",
+     "peso": 1
+    }
+   ],
+   "motivo": "Pop de África occidental, raíz del afrobeats. beatport_taxonomia: African."
+  },
+  {
+   "estilo": "Folk, World, & Country---Hillbilly",
+   "beatport": [
+    {
+     "genero": "Country",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Country."
+  },
+  {
+   "estilo": "Folk, World, & Country---Hindustani",
+   "beatport": [],
+   "motivo": "Música tradicional sin equivalente en Beatport."
+  },
+  {
+   "estilo": "Folk, World, & Country---Honky Tonk",
+   "beatport": [
+    {
+     "genero": "Country",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Country."
+  },
+  {
+   "estilo": "Folk, World, & Country---Indian Classical",
+   "beatport": [],
+   "motivo": "Música clásica sin equivalente en Beatport."
+  },
+  {
+   "estilo": "Folk, World, & Country---Laïkó",
+   "beatport": [],
+   "motivo": "Canción popular griega sin equivalente en Beatport."
+  },
+  {
+   "estilo": "Folk, World, & Country---Nordic",
+   "beatport": [],
+   "motivo": "Música tradicional sin equivalente en Beatport."
+  },
+  {
+   "estilo": "Folk, World, & Country---Pacific",
+   "beatport": [],
+   "motivo": "Música tradicional sin equivalente en Beatport."
+  },
+  {
+   "estilo": "Folk, World, & Country---Polka",
+   "beatport": [],
+   "motivo": "Música tradicional sin equivalente en Beatport."
+  },
+  {
+   "estilo": "Folk, World, & Country---Raï",
+   "beatport": [
+    {
+     "genero": "African",
+     "peso": 1
+    }
+   ],
+   "motivo": "Pop del norte de África. beatport_taxonomia: African."
+  },
+  {
+   "estilo": "Folk, World, & Country---Romani",
+   "beatport": [],
+   "motivo": "Música tradicional sin equivalente en Beatport."
+  },
+  {
+   "estilo": "Folk, World, & Country---Soukous",
+   "beatport": [
+    {
+     "genero": "African",
+     "peso": 1
+    }
+   ],
+   "motivo": "Pop bailable congoleño. beatport_taxonomia: African."
+  },
+  {
+   "estilo": "Folk, World, & Country---Séga",
+   "beatport": [
+    {
+     "genero": "African",
+     "peso": 0.5
+    },
+    {
+     "genero": "Caribbean",
+     "peso": 0.5
+    }
+   ],
+   "motivo": "Música bailable del océano Índico (Mauricio, Reunión), entre lo africano y lo criollo."
+  },
+  {
+   "estilo": "Folk, World, & Country---Volksmusik",
+   "beatport": [],
+   "motivo": "Música tradicional sin equivalente en Beatport."
+  },
+  {
+   "estilo": "Folk, World, & Country---Zouk",
+   "beatport": [
+    {
+     "genero": "Caribbean",
+     "peso": 1
+    }
+   ],
+   "motivo": "Música bailable de las Antillas francesas. beatport_taxonomia: Caribbean."
+  },
+  {
+   "estilo": "Folk, World, & Country---Éntekhno",
+   "beatport": [],
+   "motivo": "Canción griega sin equivalente en Beatport."
+  },
+  {
+   "estilo": "Funk / Soul---Afrobeat",
+   "beatport": [
+    {
+     "genero": "African",
+     "peso": 0.5
+    },
+    {
+     "genero": "Afro House",
+     "peso": 0.3
+    },
+    {
+     "genero": "R&B",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "El afrobeat (Fela) es funk africano. beatport_taxonomia: African > Afrobeats; R&B > Funk. evidencia: en la biblioteca MAEST lo dispara en el afro house (lift Afro House 5.2, House 2.8; 5 temas > 0.1)."
+  },
+  {
+   "estilo": "Funk / Soul---Boogie",
+   "beatport": [
+    {
+     "genero": "Nu Disco / Disco",
+     "peso": 0.6
+    },
+    {
+     "genero": "R&B",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "Funk postdisco. beatport_taxonomia: Nu Disco / Disco > Funk / Soul; R&B > Funk."
+  },
+  {
+   "estilo": "Funk / Soul---Contemporary R&B",
+   "beatport": [
+    {
+     "genero": "R&B",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: R&B."
+  },
+  {
+   "estilo": "Funk / Soul---Disco",
+   "beatport": [
+    {
+     "genero": "Nu Disco / Disco",
+     "peso": 0.7
+    },
+    {
+     "genero": "Dance / Pop",
+     "peso": 0.2
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Nu Disco / Disco. evidencia: Funk / Soul---Disco 0.16 en Nu Disco / Disco y 0.17 en Pop; lift MAEST en la biblioteca Pop 30.8, Nu Disco / Disco 28.5, Dance / Pop 4.7 (10 temas > 0.1). R&B no aparece."
+  },
+  {
+   "estilo": "Funk / Soul---Free Funk",
+   "beatport": [
+    {
+     "genero": "R&B",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: R&B > Funk."
+  },
+  {
+   "estilo": "Funk / Soul---Funk",
+   "beatport": [
+    {
+     "genero": "R&B",
+     "peso": 0.6
+    },
+    {
+     "genero": "Nu Disco / Disco",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "beatport_taxonomia: R&B > Funk y Nu Disco / Disco > Funk / Soul. La taxonomía da 0.75 entre esos subgéneros. evidencia (lift MAEST en la biblioteca): Nu Disco / Disco 9.8."
+  },
+  {
+   "estilo": "Funk / Soul---Gospel",
+   "beatport": [
+    {
+     "genero": "R&B",
+     "peso": 0.6
+    },
+    {
+     "genero": "House",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "beatport_taxonomia: R&B > Soul; House > Soulful. musicbrainz: garage house subgenres gospel house. evidencia: el 68% de la masa del estilo en la biblioteca cae en House (lift 9.3), y el único tema donde gana la puerta (Earth Song, Club Mix con GeO Gospel Choir) es House en Beatport."
+  },
+  {
+   "estilo": "Funk / Soul---Neo Soul",
+   "beatport": [
+    {
+     "genero": "R&B",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: R&B > Soul."
+  },
+  {
+   "estilo": "Funk / Soul---New Jack Swing",
+   "beatport": [
+    {
+     "genero": "R&B",
+     "peso": 0.8
+    },
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "R&B con base de hip-hop. beatport_taxonomia: R&B."
+  },
+  {
+   "estilo": "Funk / Soul---P.Funk",
+   "beatport": [
+    {
+     "genero": "R&B",
+     "peso": 0.7
+    },
+    {
+     "genero": "Nu Disco / Disco",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "beatport_taxonomia: R&B > Funk; Nu Disco / Disco > Funk / Soul."
+  },
+  {
+   "estilo": "Funk / Soul---Psychedelic",
+   "beatport": [
+    {
+     "genero": "R&B",
+     "peso": 0.7
+    },
+    {
+     "genero": "Rock",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "Soul psicodélico. beatport_taxonomia: R&B > Soul."
+  },
+  {
+   "estilo": "Funk / Soul---Rhythm & Blues",
+   "beatport": [
+    {
+     "genero": "R&B",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: R&B."
+  },
+  {
+   "estilo": "Funk / Soul---Soul",
+   "beatport": [
+    {
+     "genero": "R&B",
+     "peso": 0.8
+    },
+    {
+     "genero": "Nu Disco / Disco",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "beatport_taxonomia: R&B > Soul; Nu Disco / Disco > Funk / Soul."
+  },
+  {
+   "estilo": "Funk / Soul---Swingbeat",
+   "beatport": [
+    {
+     "genero": "R&B",
+     "peso": 0.8
+    },
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "Es el new jack swing británico. beatport_taxonomia: R&B."
+  },
+  {
+   "estilo": "Funk / Soul---UK Street Soul",
+   "beatport": [
+    {
+     "genero": "R&B",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: R&B > Soul."
+  },
+  {
+   "estilo": "Hip Hop---Bass Music",
+   "beatport": [
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.5
+    },
+    {
+     "genero": "Bass / Club",
+     "peso": 0.3
+    },
+    {
+     "genero": "Trap / Future Bass",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "Rap sobre bajos de club. wikidata: footwork subclass of bass music (EDM). beatport_taxonomia: Bass / Club; Trap / Future Bass."
+  },
+  {
+   "estilo": "Hip Hop---Boom Bap",
+   "beatport": [
+    {
+     "genero": "Hip-Hop",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Hip-Hop > East Coast."
+  },
+  {
+   "estilo": "Hip Hop---Bounce",
+   "beatport": [
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.6
+    },
+    {
+     "genero": "Bass / Club",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "El bounce de Nueva Orleans es rap de club. beatport_taxonomia: Hip-Hop > Southern; Bass / Club > Global Club."
+  },
+  {
+   "estilo": "Hip Hop---Britcore",
+   "beatport": [
+    {
+     "genero": "Hip-Hop",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Hip-Hop > Global."
+  },
+  {
+   "estilo": "Hip Hop---Cloud Rap",
+   "beatport": [
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.5
+    },
+    {
+     "genero": "Trap / Future Bass",
+     "peso": 0.5
+    }
+   ],
+   "motivo": "evidencia: el tema de Trap / Future Bass da Discogs Cloud Rap 0.35 (su estilo n.º 1), y es el tema donde gana la puerta (Lil Yachty, Martinez Brothers Re-Edit). musicbrainz: chillwave influenced genres cloud rap."
+  },
+  {
+   "estilo": "Hip Hop---Conscious",
+   "beatport": [
+    {
+     "genero": "Hip-Hop",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Hip-Hop."
+  },
+  {
+   "estilo": "Hip Hop---Crunk",
+   "beatport": [
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.8
+    },
+    {
+     "genero": "Trap / Future Bass",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "beatport_taxonomia: Hip-Hop > Southern; el crunk es antecesor del trap."
+  },
+  {
+   "estilo": "Hip Hop---Cut-up/DJ",
+   "beatport": [
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.6
+    },
+    {
+     "genero": "DJ Tools / Acapellas",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "Material de turntablism. beatport_taxonomia: DJ Tools / Acapellas > Battle Tools. La taxonomía da 0.5 entre Battle Tools y Hip-Hop."
+  },
+  {
+   "estilo": "Hip Hop---DJ Battle Tool",
+   "beatport": [
+    {
+     "genero": "DJ Tools / Acapellas",
+     "peso": 0.8
+    },
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "beatport_taxonomia: DJ Tools / Acapellas > Battle Tools."
+  },
+  {
+   "estilo": "Hip Hop---Electro",
+   "beatport": [
+    {
+     "genero": "Electro (Classic / Detroit / Modern)",
+     "peso": 0.6
+    },
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "El electro rap de los 80. wikidata: electro subclass of EDM. musicbrainz: freestyle influenced by electro, hip hop."
+  },
+  {
+   "estilo": "Hip Hop---G-Funk",
+   "beatport": [
+    {
+     "genero": "Hip-Hop",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Hip-Hop > West Coast."
+  },
+  {
+   "estilo": "Hip Hop---Gangsta",
+   "beatport": [
+    {
+     "genero": "Hip-Hop",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Hip-Hop."
+  },
+  {
+   "estilo": "Hip Hop---Grime",
+   "beatport": [
+    {
+     "genero": "140 / Deep Dubstep / Grime",
+     "peso": 0.7
+    },
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "beatport_taxonomia: 140 / Deep Dubstep / Grime > Grime. musicbrainz: grime influenced by hip hop. La taxonomía da 0.5 entre Grime y Hip-Hop."
+  },
+  {
+   "estilo": "Hip Hop---Hardcore Hip-Hop",
+   "beatport": [
+    {
+     "genero": "Hip-Hop",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Hip-Hop."
+  },
+  {
+   "estilo": "Hip Hop---Horrorcore",
+   "beatport": [
+    {
+     "genero": "Hip-Hop",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Hip-Hop."
+  },
+  {
+   "estilo": "Hip Hop---Instrumental",
+   "beatport": [
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.5
+    },
+    {
+     "genero": "Downtempo",
+     "peso": 0.3
+    },
+    {
+     "genero": "Electronica",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "Beats instrumentales. beatport_taxonomia: Downtempo > Lofi. wikidata: lofi hip-hop subclass of chill-out music. evidencia (lift MAEST en la biblioteca): Electronica 5.0, Indie Dance 3.5 (3 temas > 0.1)."
+  },
+  {
+   "estilo": "Hip Hop---Jazzy Hip-Hop",
+   "beatport": [
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.6
+    },
+    {
+     "genero": "Downtempo",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "beatport_taxonomia: Downtempo > Lofi. musicbrainz: downtempo influenced genres lo-fi hip hop."
+  },
+  {
+   "estilo": "Hip Hop---Miami Bass",
+   "beatport": [
+    {
+     "genero": "Bass / Club",
+     "peso": 0.4
+    },
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.3
+    },
+    {
+     "genero": "Brazilian Funk",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "musicbrainz: ghettotech y baltimore club influenced by miami bass. El funk carioca nace del Miami bass (historia del género, no está en las entradas). beatport_taxonomia: Brazilian Funk > Carioca Funk."
+  },
+  {
+   "estilo": "Hip Hop---Pop Rap",
+   "beatport": [
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.6
+    },
+    {
+     "genero": "Dance / Pop",
+     "peso": 0.2
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "beatport_taxonomia: Hip-Hop. evidencia: Discogs Pop Rap 0.16 en el tema de Trap / Future Bass; lift MAEST en la biblioteca Dance / Pop 12.3, y el tema donde gana la puerta (Todrick Hall, Dem Beats) es Dance / Pop en Beatport."
+  },
+  {
+   "estilo": "Hip Hop---Ragga HipHop",
+   "beatport": [
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.6
+    },
+    {
+     "genero": "Caribbean",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "Rap con flow de dancehall. beatport_taxonomia: Caribbean > Dancehall."
+  },
+  {
+   "estilo": "Hip Hop---RnB/Swing",
+   "beatport": [
+    {
+     "genero": "R&B",
+     "peso": 0.7
+    },
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "beatport_taxonomia: R&B."
+  },
+  {
+   "estilo": "Hip Hop---Screw",
+   "beatport": [
+    {
+     "genero": "Hip-Hop",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Hip-Hop > Southern."
+  },
+  {
+   "estilo": "Hip Hop---Thug Rap",
+   "beatport": [
+    {
+     "genero": "Hip-Hop",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Hip-Hop."
+  },
+  {
+   "estilo": "Hip Hop---Trap",
+   "beatport": [
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.5
+    },
+    {
+     "genero": "Trap / Future Bass",
+     "peso": 0.5
+    }
+   ],
+   "motivo": "musicbrainz: trap edm influenced by trap. beatport_taxonomia: Trap / Future Bass > Trap. evidencia: Discogs Trap 0.25 en el tema de Trap / Future Bass. La taxonomía da 0.6 entre Trap y Hip-Hop."
+  },
+  {
+   "estilo": "Hip Hop---Trip Hop",
+   "beatport": [
+    {
+     "genero": "Downtempo",
+     "peso": 0.8
+    },
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "wikidata: trip hop subclass of downtempo. beatport_taxonomia: Downtempo > Trip-Hop."
+  },
+  {
+   "estilo": "Hip Hop---Turntablism",
+   "beatport": [
+    {
+     "genero": "Hip-Hop",
+     "peso": 0.6
+    },
+    {
+     "genero": "DJ Tools / Acapellas",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "beatport_taxonomia: DJ Tools / Acapellas > Battle Tools. La taxonomía da 0.5 entre Battle Tools y Hip-Hop."
+  },
+  {
+   "estilo": "Jazz---Afro-Cuban Jazz",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "Jazz con ritmos cubanos. beatport_taxonomia: Latin > Salsa, Latin Dance."
+  },
+  {
+   "estilo": "Jazz---Afrobeat",
+   "beatport": [
+    {
+     "genero": "African",
+     "peso": 0.6
+    },
+    {
+     "genero": "Afro House",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "beatport_taxonomia: African > Afrobeats. evidencia: lift MAEST en la biblioteca Afro House 6.7 (actividad baja, igual que Funk / Soul---Afrobeat, que también cae en afro house)."
+  },
+  {
+   "estilo": "Jazz---Avant-garde Jazz",
+   "beatport": [],
+   "motivo": "Beatport no tiene jazz. Igual que genre_model.py (Jazz → None)."
+  },
+  {
+   "estilo": "Jazz---Big Band",
+   "beatport": [],
+   "motivo": "Beatport no tiene jazz."
+  },
+  {
+   "estilo": "Jazz---Bop",
+   "beatport": [],
+   "motivo": "Beatport no tiene jazz."
+  },
+  {
+   "estilo": "Jazz---Bossa Nova",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 0.7
+    },
+    {
+     "genero": "Downtempo",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "Música brasileña de escucha. beatport_taxonomia: Latin; Downtempo > Chillout."
+  },
+  {
+   "estilo": "Jazz---Contemporary Jazz",
+   "beatport": [],
+   "motivo": "Beatport no tiene jazz."
+  },
+  {
+   "estilo": "Jazz---Cool Jazz",
+   "beatport": [],
+   "motivo": "Beatport no tiene jazz."
+  },
+  {
+   "estilo": "Jazz---Dixieland",
+   "beatport": [],
+   "motivo": "Beatport no tiene jazz."
+  },
+  {
+   "estilo": "Jazz---Easy Listening",
+   "beatport": [
+    {
+     "genero": "Downtempo",
+     "peso": 0.6
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "Música de fondo y lounge. beatport_taxonomia: Downtempo > Chillout."
+  },
+  {
+   "estilo": "Jazz---Free Improvisation",
+   "beatport": [],
+   "motivo": "Beatport no tiene jazz."
+  },
+  {
+   "estilo": "Jazz---Free Jazz",
+   "beatport": [],
+   "motivo": "Beatport no tiene jazz."
+  },
+  {
+   "estilo": "Jazz---Fusion",
+   "beatport": [],
+   "motivo": "Beatport no tiene jazz. El jazz-funk bailable va por Jazz---Jazz-Funk."
+  },
+  {
+   "estilo": "Jazz---Gypsy Jazz",
+   "beatport": [],
+   "motivo": "Beatport no tiene jazz."
+  },
+  {
+   "estilo": "Jazz---Hard Bop",
+   "beatport": [],
+   "motivo": "Beatport no tiene jazz."
+  },
+  {
+   "estilo": "Jazz---Jazz-Funk",
+   "beatport": [
+    {
+     "genero": "R&B",
+     "peso": 0.6
+    },
+    {
+     "genero": "Nu Disco / Disco",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "Jazz con groove de funk. beatport_taxonomia: R&B > Funk; Nu Disco / Disco > Funk / Soul."
+  },
+  {
+   "estilo": "Jazz---Jazz-Rock",
+   "beatport": [],
+   "motivo": "Beatport no tiene jazz."
+  },
+  {
+   "estilo": "Jazz---Latin Jazz",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin."
+  },
+  {
+   "estilo": "Jazz---Modal",
+   "beatport": [],
+   "motivo": "Beatport no tiene jazz."
+  },
+  {
+   "estilo": "Jazz---Post Bop",
+   "beatport": [],
+   "motivo": "Beatport no tiene jazz."
+  },
+  {
+   "estilo": "Jazz---Ragtime",
+   "beatport": [],
+   "motivo": "Beatport no tiene jazz."
+  },
+  {
+   "estilo": "Jazz---Smooth Jazz",
+   "beatport": [
+    {
+     "genero": "R&B",
+     "peso": 0.6
+    },
+    {
+     "genero": "Downtempo",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "Jazz de radio, cerca del R&B y del chillout. beatport_taxonomia: R&B; Downtempo > Chillout."
+  },
+  {
+   "estilo": "Jazz---Soul-Jazz",
+   "beatport": [
+    {
+     "genero": "R&B",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: R&B > Soul, Funk."
+  },
+  {
+   "estilo": "Jazz---Space-Age",
+   "beatport": [
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.5
+    },
+    {
+     "genero": "Downtempo",
+     "peso": 0.5
+    }
+   ],
+   "motivo": "Pop espacial y exótica de los 50-60, para escuchar."
+  },
+  {
+   "estilo": "Jazz---Swing",
+   "beatport": [
+    {
+     "genero": "Nu Disco / Disco",
+     "peso": 0.5
+    },
+    {
+     "genero": "Electronica",
+     "peso": 0.5
+    }
+   ],
+   "motivo": "En una biblioteca de DJ de house, el swing llega como electro swing. evidencia: el único tema donde gana Jazz---Swing es electro swing ('Swing House Music, Electro Swing, NuJazz'), con Electronic---Jazzdance como estilo electrónico n.º 1; se mapea igual que Jazzdance. Beatport no tiene jazz ni electro swing."
+  },
+  {
+   "estilo": "Latin---Afro-Cuban",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 0.7
+    },
+    {
+     "genero": "Afro House",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin; Afro House > Afro / Latin. evidencia (lift MAEST en la biblioteca): Afro House 3.6, House 2.9 (2 temas > 0.1)."
+  },
+  {
+   "estilo": "Latin---Baião",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin."
+  },
+  {
+   "estilo": "Latin---Batucada",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin."
+  },
+  {
+   "estilo": "Latin---Beguine",
+   "beatport": [
+    {
+     "genero": "Caribbean",
+     "peso": 0.6
+    },
+    {
+     "genero": "Latin",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "La beguine es de las Antillas francesas. beatport_taxonomia: Caribbean."
+  },
+  {
+   "estilo": "Latin---Bolero",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin."
+  },
+  {
+   "estilo": "Latin---Boogaloo",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 0.7
+    },
+    {
+     "genero": "R&B",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "Fusión de son con soul. beatport_taxonomia: Latin; R&B > Soul."
+  },
+  {
+   "estilo": "Latin---Bossanova",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 0.7
+    },
+    {
+     "genero": "Downtempo",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin; Downtempo > Chillout."
+  },
+  {
+   "estilo": "Latin---Cha-Cha",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin > Latin Dance."
+  },
+  {
+   "estilo": "Latin---Charanga",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin."
+  },
+  {
+   "estilo": "Latin---Compas",
+   "beatport": [
+    {
+     "genero": "Caribbean",
+     "peso": 0.7
+    },
+    {
+     "genero": "Latin",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "El compas es haitiano. beatport_taxonomia: Caribbean."
+  },
+  {
+   "estilo": "Latin---Cubano",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin."
+  },
+  {
+   "estilo": "Latin---Cumbia",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 0.7
+    },
+    {
+     "genero": "Latin Electronic",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin > Cumbia; Latin Electronic > Electronic Cumbia. wikidata: digital cumbia subclass of Latin electronic music. evidencia: el tema donde gana la puerta (Erick Morillo, Cartagena) es House en Beatport; lift MAEST en la biblioteca House 6.1."
+  },
+  {
+   "estilo": "Latin---Descarga",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin."
+  },
+  {
+   "estilo": "Latin---Forró",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin."
+  },
+  {
+   "estilo": "Latin---Guaguancó",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin."
+  },
+  {
+   "estilo": "Latin---Guajira",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin."
+  },
+  {
+   "estilo": "Latin---Guaracha",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 0.6
+    },
+    {
+     "genero": "Latin Electronic",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "La guaracha cubana es Latin; la guaracha electrónica actual es Latin Electronic > Tribal / Guaracha. musicbrainz: guaracha edm subgenre of tribal house, influenced by cumbia."
+  },
+  {
+   "estilo": "Latin---MPB",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin."
+  },
+  {
+   "estilo": "Latin---Mambo",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin."
+  },
+  {
+   "estilo": "Latin---Mariachi",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin > Regional Mexican."
+  },
+  {
+   "estilo": "Latin---Merengue",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin > Merengue."
+  },
+  {
+   "estilo": "Latin---Norteño",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin > Regional Mexican."
+  },
+  {
+   "estilo": "Latin---Nueva Cancion",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin."
+  },
+  {
+   "estilo": "Latin---Pachanga",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin."
+  },
+  {
+   "estilo": "Latin---Porro",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin."
+  },
+  {
+   "estilo": "Latin---Ranchera",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin > Regional Mexican."
+  },
+  {
+   "estilo": "Latin---Reggaeton",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 0.6
+    },
+    {
+     "genero": "Latin Electronic",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin > Reggaeton, Dembow. musicbrainz: moombahton influenced by reggaeton (Latin Electronic > Moombahton). evidencia: Discogs Reggaeton 0.16 en el tema de Trap / Future Bass; en la biblioteca lo dispara el house latino (lift Funky House 38, Indie Tech 14, Dance / Pop 5.2; 11 temas > 0.1), y de los 3 temas donde gana la puerta, 2 son Funky House e Indie Tech en Beatport."
+  },
+  {
+   "estilo": "Latin---Rumba",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin."
+  },
+  {
+   "estilo": "Latin---Salsa",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin > Salsa."
+  },
+  {
+   "estilo": "Latin---Samba",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin."
+  },
+  {
+   "estilo": "Latin---Son",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin."
+  },
+  {
+   "estilo": "Latin---Son Montuno",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin."
+  },
+  {
+   "estilo": "Latin---Tango",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin."
+  },
+  {
+   "estilo": "Latin---Tejano",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin > Regional Mexican."
+  },
+  {
+   "estilo": "Latin---Vallenato",
+   "beatport": [
+    {
+     "genero": "Latin",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Latin."
+  },
+  {
+   "estilo": "Non-Music---Audiobook",
+   "beatport": [
+    {
+     "genero": "DJ Tools / Acapellas",
+     "peso": 1
+    }
+   ],
+   "motivo": "Voz sin música: en una biblioteca de DJ es material para superponer, como Spoken Word. beatport_taxonomia: DJ Tools / Acapellas > Acapellas."
+  },
+  {
+   "estilo": "Non-Music---Comedy",
+   "beatport": [
+    {
+     "genero": "DJ Tools / Acapellas",
+     "peso": 1
+    }
+   ],
+   "motivo": "Voz sin música. evidencia: el único tema donde gana Comedy es un discurso usado como sample (Pepe Mujica, La vida). beatport_taxonomia: DJ Tools / Acapellas > Acapellas."
+  },
+  {
+   "estilo": "Non-Music---Dialogue",
+   "beatport": [
+    {
+     "genero": "DJ Tools / Acapellas",
+     "peso": 1
+    }
+   ],
+   "motivo": "En una biblioteca de DJ, una voz sin música suele ser una acapella o una herramienta. beatport_taxonomia: DJ Tools / Acapellas > Acapellas."
+  },
+  {
+   "estilo": "Non-Music---Education",
+   "beatport": [
+    {
+     "genero": "DJ Tools / Acapellas",
+     "peso": 1
+    }
+   ],
+   "motivo": "Voz sin música: en una biblioteca de DJ es material para superponer, como Spoken Word. beatport_taxonomia: DJ Tools / Acapellas > Acapellas."
+  },
+  {
+   "estilo": "Non-Music---Field Recording",
+   "beatport": [
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 1
+    }
+   ],
+   "motivo": "Grabaciones de campo usadas como textura. beatport_taxonomia: Ambient / Experimental."
+  },
+  {
+   "estilo": "Non-Music---Interview",
+   "beatport": [
+    {
+     "genero": "DJ Tools / Acapellas",
+     "peso": 1
+    }
+   ],
+   "motivo": "Voz sin música: en una biblioteca de DJ es material para superponer, como Spoken Word. beatport_taxonomia: DJ Tools / Acapellas > Acapellas."
+  },
+  {
+   "estilo": "Non-Music---Monolog",
+   "beatport": [
+    {
+     "genero": "DJ Tools / Acapellas",
+     "peso": 1
+    }
+   ],
+   "motivo": "Voz sin música: en una biblioteca de DJ, una acapella o una herramienta. beatport_taxonomia: DJ Tools / Acapellas > Acapellas."
+  },
+  {
+   "estilo": "Non-Music---Poetry",
+   "beatport": [
+    {
+     "genero": "DJ Tools / Acapellas",
+     "peso": 1
+    }
+   ],
+   "motivo": "Voz sin música: en una biblioteca de DJ, una acapella o una herramienta. beatport_taxonomia: DJ Tools / Acapellas > Acapellas."
+  },
+  {
+   "estilo": "Non-Music---Political",
+   "beatport": [
+    {
+     "genero": "DJ Tools / Acapellas",
+     "peso": 1
+    }
+   ],
+   "motivo": "Discursos. evidencia: en la biblioteca hay discursos como samples (Allende, Alan Watts en SPEACHS, Mujica), y MAEST los llama Spoken Word o Comedy. beatport_taxonomia: DJ Tools / Acapellas > Acapellas."
+  },
+  {
+   "estilo": "Non-Music---Promotional",
+   "beatport": [
+    {
+     "genero": "DJ Tools / Acapellas",
+     "peso": 1
+    }
+   ],
+   "motivo": "Voz sin música (spots y cortinas): en una biblioteca de DJ es material para superponer. beatport_taxonomia: DJ Tools / Acapellas."
+  },
+  {
+   "estilo": "Non-Music---Radioplay",
+   "beatport": [
+    {
+     "genero": "DJ Tools / Acapellas",
+     "peso": 1
+    }
+   ],
+   "motivo": "Voz y efectos sin música: en una biblioteca de DJ es material para superponer. beatport_taxonomia: DJ Tools / Acapellas."
+  },
+  {
+   "estilo": "Non-Music---Religious",
+   "beatport": [
+    {
+     "genero": "DJ Tools / Acapellas",
+     "peso": 1
+    }
+   ],
+   "motivo": "Prédicas y oraciones habladas: en una biblioteca de DJ son material para superponer. beatport_taxonomia: DJ Tools / Acapellas > Acapellas."
+  },
+  {
+   "estilo": "Non-Music---Spoken Word",
+   "beatport": [
+    {
+     "genero": "DJ Tools / Acapellas",
+     "peso": 1
+    }
+   ],
+   "motivo": "Voz hablada: en una biblioteca de DJ, una acapella o una herramienta. beatport_taxonomia: DJ Tools / Acapellas > Acapellas. evidencia: los 3 temas donde gana Spoken Word son voces sueltas (Allende, Alan Watts en SPEACHS y un audio en SONIDOS); lift MAEST en la biblioteca DJ Tools / Acapellas 26."
+  },
+  {
+   "estilo": "Pop---Ballad",
+   "beatport": [
+    {
+     "genero": "Pop",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Pop."
+  },
+  {
+   "estilo": "Pop---Bollywood",
+   "beatport": [
+    {
+     "genero": "Pop",
+     "peso": 1
+    }
+   ],
+   "motivo": "Pop de canción. beatport_taxonomia: Pop."
+  },
+  {
+   "estilo": "Pop---Bubblegum",
+   "beatport": [
+    {
+     "genero": "Pop",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Pop."
+  },
+  {
+   "estilo": "Pop---Chanson",
+   "beatport": [
+    {
+     "genero": "Pop",
+     "peso": 1
+    }
+   ],
+   "motivo": "Canción francesa. beatport_taxonomia: Pop."
+  },
+  {
+   "estilo": "Pop---City Pop",
+   "beatport": [
+    {
+     "genero": "Pop",
+     "peso": 0.7
+    },
+    {
+     "genero": "Nu Disco / Disco",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "Pop japonés con groove de disco y funk, muy usado en edits de nu disco. beatport_taxonomia: Pop > J-Pop; Nu Disco / Disco > Funk / Soul."
+  },
+  {
+   "estilo": "Pop---Europop",
+   "beatport": [
+    {
+     "genero": "Pop",
+     "peso": 0.6
+    },
+    {
+     "genero": "Dance / Pop",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "beatport_taxonomia: Pop; Dance / Pop > Pop. evidencia: lift MAEST en la biblioteca Pop 18.7, Dance / Pop 5.2; el tema donde gana la puerta es Madonna, Don't Tell Me."
+  },
+  {
+   "estilo": "Pop---Indie Pop",
+   "beatport": [
+    {
+     "genero": "Pop",
+     "peso": 0.6
+    },
+    {
+     "genero": "Rock",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "beatport_taxonomia: Pop; Rock > Indie Rock. musicbrainz: indietronica influenced by indie pop. evidencia (lift MAEST en la biblioteca): Pop 6.3, Rock 4.7."
+  },
+  {
+   "estilo": "Pop---J-pop",
+   "beatport": [
+    {
+     "genero": "Pop",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Pop > J-Pop."
+  },
+  {
+   "estilo": "Pop---K-pop",
+   "beatport": [
+    {
+     "genero": "Pop",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Pop > K-Pop."
+  },
+  {
+   "estilo": "Pop---Kayōkyoku",
+   "beatport": [
+    {
+     "genero": "Pop",
+     "peso": 1
+    }
+   ],
+   "motivo": "Pop japonés clásico. beatport_taxonomia: Pop > J-Pop."
+  },
+  {
+   "estilo": "Pop---Light Music",
+   "beatport": [],
+   "motivo": "Música orquestal ligera sin equivalente en Beatport."
+  },
+  {
+   "estilo": "Pop---Music Hall",
+   "beatport": [],
+   "motivo": "Sin equivalente en Beatport."
+  },
+  {
+   "estilo": "Pop---Novelty",
+   "beatport": [
+    {
+     "genero": "Pop",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Pop."
+  },
+  {
+   "estilo": "Pop---Parody",
+   "beatport": [
+    {
+     "genero": "Pop",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Pop."
+  },
+  {
+   "estilo": "Pop---Schlager",
+   "beatport": [
+    {
+     "genero": "Pop",
+     "peso": 0.7
+    },
+    {
+     "genero": "Dance / Pop",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "beatport_taxonomia: Pop; Dance / Pop > Pop. musicbrainz: edm influenced genres partyschlager."
+  },
+  {
+   "estilo": "Pop---Vocal",
+   "beatport": [
+    {
+     "genero": "Pop",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Pop."
+  },
+  {
+   "estilo": "Reggae---Calypso",
+   "beatport": [
+    {
+     "genero": "Caribbean",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Caribbean > Calypso."
+  },
+  {
+   "estilo": "Reggae---Dancehall",
+   "beatport": [
+    {
+     "genero": "Caribbean",
+     "peso": 0.7
+    },
+    {
+     "genero": "Bass / Club",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "beatport_taxonomia: Caribbean > Dancehall; Bass / Club > Reggae / Dancehall. La taxonomía da 0.85 entre esos subgéneros."
+  },
+  {
+   "estilo": "Reggae---Dub",
+   "beatport": [
+    {
+     "genero": "Caribbean",
+     "peso": 0.7
+    },
+    {
+     "genero": "Downtempo",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "beatport_taxonomia: Caribbean > Dub. La taxonomía da 0.45 entre Caribbean > Dub y Downtempo."
+  },
+  {
+   "estilo": "Reggae---Lovers Rock",
+   "beatport": [
+    {
+     "genero": "Caribbean",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Caribbean > Reggae."
+  },
+  {
+   "estilo": "Reggae---Ragga",
+   "beatport": [
+    {
+     "genero": "Caribbean",
+     "peso": 0.7
+    },
+    {
+     "genero": "Bass / Club",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "beatport_taxonomia: Caribbean > Dancehall; Bass / Club > Reggae / Dancehall."
+  },
+  {
+   "estilo": "Reggae---Reggae",
+   "beatport": [
+    {
+     "genero": "Caribbean",
+     "peso": 0.8
+    },
+    {
+     "genero": "Bass / Club",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "beatport_taxonomia: Caribbean > Reggae; Bass / Club > Reggae / Dancehall. Igual que genre_model.py (Reggae → Caribbean)."
+  },
+  {
+   "estilo": "Reggae---Reggae-Pop",
+   "beatport": [
+    {
+     "genero": "Caribbean",
+     "peso": 0.6
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "beatport_taxonomia: Caribbean > Reggae; Pop."
+  },
+  {
+   "estilo": "Reggae---Rocksteady",
+   "beatport": [
+    {
+     "genero": "Caribbean",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Caribbean > Ska & Rocksteady."
+  },
+  {
+   "estilo": "Reggae---Roots Reggae",
+   "beatport": [
+    {
+     "genero": "Caribbean",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Caribbean > Reggae."
+  },
+  {
+   "estilo": "Reggae---Ska",
+   "beatport": [
+    {
+     "genero": "Caribbean",
+     "peso": 0.7
+    },
+    {
+     "genero": "Rock",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "beatport_taxonomia: Caribbean > Ska & Rocksteady; Rock > Ska. La taxonomía da 0.85 entre esos subgéneros."
+  },
+  {
+   "estilo": "Reggae---Soca",
+   "beatport": [
+    {
+     "genero": "Caribbean",
+     "peso": 0.8
+    },
+    {
+     "genero": "Bass / Club",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "beatport_taxonomia: Caribbean > Soca. musicbrainz: uk funky influenced by soca (Bass / Club > UK Funky)."
+  },
+  {
+   "estilo": "Rock---AOR",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.7
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "Rock de radio. beatport_taxonomia: Rock."
+  },
+  {
+   "estilo": "Rock---Acid Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock."
+  },
+  {
+   "estilo": "Rock---Acoustic",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.6
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock; Pop."
+  },
+  {
+   "estilo": "Rock---Alternative Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Indie Rock."
+  },
+  {
+   "estilo": "Rock---Arena Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock."
+  },
+  {
+   "estilo": "Rock---Art Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock."
+  },
+  {
+   "estilo": "Rock---Atmospheric Black Metal",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Avantgarde",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.5
+    },
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.5
+    }
+   ],
+   "motivo": "Rock experimental. beatport_taxonomia: Rock; Ambient / Experimental."
+  },
+  {
+   "estilo": "Rock---Beat",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock."
+  },
+  {
+   "estilo": "Rock---Black Metal",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Blues Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock."
+  },
+  {
+   "estilo": "Rock---Brit Pop",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.8
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Indie Rock."
+  },
+  {
+   "estilo": "Rock---Classic Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock."
+  },
+  {
+   "estilo": "Rock---Coldwave",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.5
+    },
+    {
+     "genero": "Indie Dance",
+     "peso": 0.5
+    }
+   ],
+   "motivo": "Post-punk frío de sintetizadores, que hoy se mezcla en sets de dark disco. musicbrainz: dark disco influenced by ebm, new beat. beatport_taxonomia: Indie Dance > Dark Disco."
+  },
+  {
+   "estilo": "Rock---Country Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.6
+    },
+    {
+     "genero": "Country",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock; Country."
+  },
+  {
+   "estilo": "Rock---Crust",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Punk & Pop Punk."
+  },
+  {
+   "estilo": "Rock---Death Metal",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Deathcore",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Deathrock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Punk & Pop Punk."
+  },
+  {
+   "estilo": "Rock---Depressive Black Metal",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Doo Wop",
+   "beatport": [
+    {
+     "genero": "R&B",
+     "peso": 0.6
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "Discogs lo pone en Rock, pero es R&B vocal de los 50. beatport_taxonomia: R&B > Soul."
+  },
+  {
+   "estilo": "Rock---Doom Metal",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Dream Pop",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.6
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Indie Rock; Pop."
+  },
+  {
+   "estilo": "Rock---Emo",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Punk & Pop Punk."
+  },
+  {
+   "estilo": "Rock---Ethereal",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.5
+    },
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.5
+    }
+   ],
+   "motivo": "Rock atmosférico. beatport_taxonomia: Rock; Ambient / Experimental."
+  },
+  {
+   "estilo": "Rock---Experimental",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.6
+    },
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock; Ambient / Experimental."
+  },
+  {
+   "estilo": "Rock---Folk Metal",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Folk Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock."
+  },
+  {
+   "estilo": "Rock---Funeral Doom Metal",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Funk Metal",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Garage Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Indie Rock."
+  },
+  {
+   "estilo": "Rock---Glam",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock."
+  },
+  {
+   "estilo": "Rock---Goregrind",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Goth Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.8
+    },
+    {
+     "genero": "Indie Dance",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock. El goth rock bailable entra en sets de dark disco (Indie Dance > Dark Disco)."
+  },
+  {
+   "estilo": "Rock---Gothic Metal",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Grindcore",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Grunge",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Indie Rock."
+  },
+  {
+   "estilo": "Rock---Hard Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock."
+  },
+  {
+   "estilo": "Rock---Hardcore",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "Hardcore punk, no el hardcore techno (ese es Electronic---Hardcore). beatport_taxonomia: Rock > Punk & Pop Punk."
+  },
+  {
+   "estilo": "Rock---Heavy Metal",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Indie Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.8
+    },
+    {
+     "genero": "Indie Dance",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Indie Rock. La taxonomía da 0.5 entre Rock > Indie Rock e Indie Dance."
+  },
+  {
+   "estilo": "Rock---Industrial",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.6
+    },
+    {
+     "genero": "Techno (Raw / Deep / Hypnotic)",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "Rock industrial, pariente del EBM. beatport_taxonomia: Techno (Raw / Deep / Hypnotic) > EBM. musicbrainz: industrial techno influenced by industrial."
+  },
+  {
+   "estilo": "Rock---Krautrock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.6
+    },
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "musicbrainz: berlin school influenced by krautrock. beatport_taxonomia: Rock; Ambient / Experimental."
+  },
+  {
+   "estilo": "Rock---Lo-Fi",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "Rock indie de grabación casera. beatport_taxonomia: Rock > Indie Rock."
+  },
+  {
+   "estilo": "Rock---Lounge",
+   "beatport": [
+    {
+     "genero": "Downtempo",
+     "peso": 0.7
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "Música de fondo. beatport_taxonomia: Downtempo > Chillout."
+  },
+  {
+   "estilo": "Rock---Math Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Indie Rock."
+  },
+  {
+   "estilo": "Rock---Melodic Death Metal",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Melodic Hardcore",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Punk & Pop Punk."
+  },
+  {
+   "estilo": "Rock---Metalcore",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Mod",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock."
+  },
+  {
+   "estilo": "Rock---Neofolk",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.5
+    },
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.5
+    }
+   ],
+   "motivo": "Folk oscuro sin equivalente directo. beatport_taxonomia: Rock; Ambient / Experimental."
+  },
+  {
+   "estilo": "Rock---New Wave",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.5
+    },
+    {
+     "genero": "Indie Dance",
+     "peso": 0.3
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock. La taxonomía da 0.4 entre Indie Dance y Rock. musicbrainz: edm influenced genres dance-punk revival."
+  },
+  {
+   "estilo": "Rock---No Wave",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.5
+    },
+    {
+     "genero": "Indie Dance",
+     "peso": 0.5
+    }
+   ],
+   "motivo": "La no wave bailable (mutant disco, dance-punk) es la raíz del indie dance. musicbrainz: edm influenced genres dance-punk revival."
+  },
+  {
+   "estilo": "Rock---Noise",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.5
+    },
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.5
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock; Ambient / Experimental."
+  },
+  {
+   "estilo": "Rock---Noisecore",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Punk & Pop Punk."
+  },
+  {
+   "estilo": "Rock---Nu Metal",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Oi",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Punk & Pop Punk."
+  },
+  {
+   "estilo": "Rock---Parody",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock."
+  },
+  {
+   "estilo": "Rock---Pop Punk",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Punk & Pop Punk."
+  },
+  {
+   "estilo": "Rock---Pop Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.5
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.5
+    }
+   ],
+   "motivo": "evidencia: Discogs Rock---Pop Rock 0.15 en los 3 temas de Pop, y el tema donde gana la puerta (Scissor Sisters, Lights) es Pop en Beatport. beatport_taxonomia: Rock; Pop."
+  },
+  {
+   "estilo": "Rock---Pornogrind",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Post Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.6
+    },
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "Rock instrumental y atmosférico. beatport_taxonomia: Rock; Ambient / Experimental."
+  },
+  {
+   "estilo": "Rock---Post-Hardcore",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Punk & Pop Punk."
+  },
+  {
+   "estilo": "Rock---Post-Metal",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Post-Punk",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.6
+    },
+    {
+     "genero": "Indie Dance",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "El post-punk bailable es la raíz del dance-punk y del dark disco. musicbrainz: edm influenced genres dance-punk revival; dark disco influenced by ebm, new beat."
+  },
+  {
+   "estilo": "Rock---Power Metal",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Power Pop",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.7
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock; Pop."
+  },
+  {
+   "estilo": "Rock---Power Violence",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Punk & Pop Punk."
+  },
+  {
+   "estilo": "Rock---Prog Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock."
+  },
+  {
+   "estilo": "Rock---Progressive Metal",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Psychedelic Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock."
+  },
+  {
+   "estilo": "Rock---Psychobilly",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Punk & Pop Punk."
+  },
+  {
+   "estilo": "Rock---Pub Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock."
+  },
+  {
+   "estilo": "Rock---Punk",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Punk & Pop Punk."
+  },
+  {
+   "estilo": "Rock---Rock & Roll",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock."
+  },
+  {
+   "estilo": "Rock---Rockabilly",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock."
+  },
+  {
+   "estilo": "Rock---Shoegaze",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.7
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Indie Rock."
+  },
+  {
+   "estilo": "Rock---Ska",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.6
+    },
+    {
+     "genero": "Caribbean",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Ska; Caribbean > Ska & Rocksteady. La taxonomía da 0.85 entre esos subgéneros."
+  },
+  {
+   "estilo": "Rock---Sludge Metal",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Soft Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.6
+    },
+    {
+     "genero": "Pop",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock; Pop."
+  },
+  {
+   "estilo": "Rock---Southern Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 0.8
+    },
+    {
+     "genero": "Country",
+     "peso": 0.2
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock; Country."
+  },
+  {
+   "estilo": "Rock---Space Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock."
+  },
+  {
+   "estilo": "Rock---Speed Metal",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Stoner Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock."
+  },
+  {
+   "estilo": "Rock---Surf",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock."
+  },
+  {
+   "estilo": "Rock---Symphonic Rock",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock."
+  },
+  {
+   "estilo": "Rock---Technical Death Metal",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Thrash",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Twist",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock."
+  },
+  {
+   "estilo": "Rock---Viking Metal",
+   "beatport": [
+    {
+     "genero": "Rock",
+     "peso": 1
+    }
+   ],
+   "motivo": "beatport_taxonomia: Rock > Metal."
+  },
+  {
+   "estilo": "Rock---Yé-Yé",
+   "beatport": [
+    {
+     "genero": "Pop",
+     "peso": 0.6
+    },
+    {
+     "genero": "Rock",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "Pop francés de los 60. beatport_taxonomia: Pop; Rock."
+  },
+  {
+   "estilo": "Stage & Screen---Musical",
+   "beatport": [],
+   "motivo": "Sin equivalente en Beatport."
+  },
+  {
+   "estilo": "Stage & Screen---Score",
+   "beatport": [
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.7
+    },
+    {
+     "genero": "Electronica",
+     "peso": 0.3
+    }
+   ],
+   "motivo": "Música de cine instrumental y atmosférica. beatport_taxonomia: Ambient / Experimental. evidencia (lift MAEST en la biblioteca): Electronica 2.3, MH&T 1.6. Son las bandas sonoras electrónicas y las intros cinematográficas."
+  },
+  {
+   "estilo": "Stage & Screen---Soundtrack",
+   "beatport": [
+    {
+     "genero": "Ambient / Experimental",
+     "peso": 0.6
+    },
+    {
+     "genero": "Electronica",
+     "peso": 0.4
+    }
+   ],
+   "motivo": "Música de cine instrumental y atmosférica. beatport_taxonomia: Ambient / Experimental. evidencia (lift MAEST en la biblioteca): Electronica 2.5, MH&T 1.6."
+  },
+  {
+   "estilo": "Stage & Screen---Theme",
+   "beatport": [],
+   "motivo": "Sintonías de TV o cine: sin equivalente en Beatport."
+  }
+ ],
+ "notas": "REVISIÓN DEL MAPEO DE LOS 400 ESTILOS DE DISCOGS (MAEST) A GÉNEROS DE BEATPORT. No escribí, creé ni modifiqué ningún archivo. Las consultas fueron de solo lectura, con Python pasado por stdin.\n\nQUÉ VERIFIQUÉ\n- discogs_estilos.json: 400 estilos (106 'Electronic---'), todos en el mapeo, sin duplicados.\n- Los 40 estilos cambiados: nombres exactos de los 47 géneros (beatport_taxonomia.json), de 1 a 3 géneros por estilo, pesos que suman 1. Los 360 restantes se copiaron sin cambios en los géneros.\n- Las citas de Wikidata y MusicBrainz de los motivos, contra wikidata_electronica.json y musicbrainz_electronica.json. Todas existen salvo las que el propio motivo marca como externas (Miami bass → funk carioca).\n\nEVIDENCIA NUEVA. evidencia/generos.csv solo da los 5 estilos de cada género, así que medí el lift de cada estilo. Lift = la parte de la masa de probabilidad MAEST del estilo que cae en un género, dividida por la parte de temas de ese género. Usé los 1451 temas con género de Beatport, con artifacts/v4/datasets/musica/representations/maesthf_full_styles; el orden de columnas se comprobó con Psy-Trance (0.91 frente a 0.01). También revisé los 21 temas donde hoy dispara la puerta de genre_model.py (estilo no electrónico por encima del electrónico): 10 tienen género de Beatport, y casi todos son house.\n\nCORRECCIONES (40 estilos)\n1. Estilos electrónicos donde la evidencia contradice un género asignado:\n- Tribal: Techno PT pasaba de 0.5 a nada (lift 0.7). Queda Afro House 0.5, House 0.3, Tech House 0.2 (lift Afro 3.4; 48 temas > 0.1).\n- Tribal House: Afro 0.4, Tech House 0.3, House 0.3 (lift Afro 3.2, House 2.1; 117 temas). Sale Latin Electronic, que la taxonomía ya une a Tech House (0.4) y House (0.35).\n- Progressive Breaks: Progressive House 0.5, Breaks 0.3, MH&T 0.2. MAEST no lo dispara en los breaks (lift 0.1) sino en el progressive (3.2; 66 temas).\n- Electronic---Latin: Latin pasa a House 0.2 (lift 3.6). Es electrónica, y Latin ya queda a 0.7 por la familia.\n- Acid: Techno PT 0.3 y House 0.2 (lift PT 2.2, House 0.8).\n- Minimal Techno: Minimal 0.6, Raw 0.2, PT 0.2 (lift Raw 1.1, PT 1.2).\n- Dub: Raw pasa a Electronica (lift Raw 0.7, Electronica 4.3).\n- Industrial: Ambient pasa a Techno PT (lift PT 2.3, Raw 5.2).\n- Ghetto House: House 0.4, Jackin 0.3, Tech House 0.3. Bass / Club sin evidencia; el juke tiene estilo propio.\n- New Wave: Rock pasa a Electronica (lift Rock 0.3).\n- Broken Beat: Raw pasa a Deep House. El bruk de West London no es el techno roto (Techno Raw > Broken): coinciden solo en el nombre.\n2. Estilos con un vecino fuerte que la taxonomía no une:\n- Electro, más Indie Dance 0.2 (lift 2.1; 287 temas).\n- Abstract, Experimental, IDM, Dark Ambient y Drone: suman Raw (lifts 3-7) y, en algunos casos, Electronica.\n- Trip Hop: suma Electronica (lift 3.9).\n3. Estilos no electrónicos que en la biblioteca caen en house:\n- Folk World African: African 0.5, Afro House 0.5 (lift Afro 4.8; el tema de la puerta es House).\n- Funk / Soul y Jazz Afrobeat: suman Afro House.\n- Reggaeton: Latin 0.6, Latin Electronic 0.4 (2 de los 3 temas de la puerta son house).\n- Cumbia: Latin 0.7, Latin Electronic 0.3.\n- Afro-Cuban: suma Afro House 0.3.\n- Gospel (Funk / Soul): R&B 0.6, House 0.4 (68 % de la masa en House).\n- Pop Rap: suma Dance / Pop (lift 12.3).\n- Funk / Soul---Disco: R&B pasa a Dance / Pop 0.2 y Pop 0.1.\n- Hip Hop Instrumental: suma Electronica.\n- Soundtrack y Score: suman Electronica.\n4. Estilos completados (antes vacíos):\n- Jazz---Swing: el tema de la puerta es electro swing. Se mapea como Jazzdance (Nu Disco / Disco 0.5, Electronica 0.5).\n- Classical---Neo-Classical: Ambient / Experimental 0.5, Electronica 0.3, Downtempo 0.2. Es piano para intros, con evidencia débil.\n- Non-Music: Audiobook, Comedy, Education, Interview, Political, Promotional, Radioplay y Religious pasan a DJ Tools / Acapellas, igual que Spoken Word. Los 4 temas Non-Music de la puerta son discursos usados como samples (Allende, Alan Watts, Mujica, este último como Comedy).\n\nCOBERTURA. 339 estilos con género y 61 sin ninguno:\n- todo Children's y Brass & Military;\n- Classical salvo Neo-Classical;\n- el blues y el jazz 'puros';\n- la música tradicional;\n- Light Music, Music Hall, Musical y Theme.\n\nGÉNEROS SIN ESTILO PROPIO, alcanzados por pesos compartidos:\n- MH&T: Progressive House 0.4 y Progressive Breaks 0.2.\n- Organic House: Deep House 0.2.\n- Afro House: Tribal, Tribal House, Deep House, African, Afrobeat y Afro-Cuban.\n- Indie Tech: Tech House 0.1.\n- Dance / Pop: House, Dance-pop, Tropical, Euro House, Pop Rap y Disco (F/S).\n- Jackin House, Bass House, Mainstage, Latin Electronic y Brazilian Funk, como antes.\nFunky House, Amapiano y DJ Edits siguen sin peso.\n\nSIN CAMBIOS, CON EVIDENCIA A FAVOR: House, Tech House, Deep House, Techno, Progressive House, Progressive Trance (Psy 19.8), Trance, Synth-pop, Indie Pop (Pop 6.3, Rock 4.7), Europop, Nu-Disco, Italo-Disco y Electro House.\n\nLÍMITES\n- El lift sale de una biblioteca de Techno y Tech House. Sirve para géneros con muchos temas, pero Pop, Rock, Nu Disco, Downtempo, Bass House y UK Garage tienen de 1 a 4 temas, y Latin Electronic, Ambient / Experimental y Hard Dance no tienen ninguno: ahí manda el texto.\n- Varios estilos no electrónicos tienen actividad muy baja (media < 0.002). Su evidencia vale sobre todo para la puerta.\n- Separar 'Electronic---X' en dos géneros que la taxonomía no une (Electro con Indie Dance, African con Afro House) baja la similitud del propio estilo. Se aceptó porque los dos sentidos son reales.\n- Pendiente: validar con los 335 temas sin Beatport de genre_pred.parquet (comparar el mapeo con el clasificador) y revisarlo con Gabriel. Decidir si DJ Tools / Acapellas cuenta como 'sin género' en el recomendador."
+}

@@ -1,0 +1,2627 @@
+{
+ "procedencia": {
+  "creada": "2026-11-06",
+  "proceso": "Red de agentes (Workflow taxonomia-generos-beatport, corrida wf_8d4fd8ed-513): un constructor; por ronda, dos evaluadores (texto y genealogía; audio de la biblioteca) y un editor. Aprobada en la ronda 2 por los dos evaluadores, sin objeciones mayores; 17 objeciones menores quedaron sin aplicar (docs/reports/taxonomia_generos_2026-11-06.md).",
+  "entradas": "artifacts/v4/genre_taxonomy/inputs (LEEME.md): Beatport (47 géneros, 136 subgéneros), Wikidata, MusicBrainz, estilos de Discogs y evidencia medida en la biblioteca (src/v4/evaluation/genre_evidence.py).",
+  "uso": "src/v4/common/genre_taxonomy.py (Taxonomy.compare); componente genero de tools/traktor_live/recomendador.py.",
+  "notas": "El campo notas es la última nota del editor (ronda 1), la versión que se aprobó en la ronda 2."
+ },
+ "regla": {
+  "mismo_genero_otro_subgenero": 0.75,
+  "misma_familia": 0.7,
+  "familia_hermana": 0.2,
+  "sin_relacion": 0
+ },
+ "sin_genero": [
+  "DJ Tools / Acapellas"
+ ],
+ "como_genero": {
+  "DJ Edits > African": "African",
+  "DJ Edits > Caribbean": "Caribbean",
+  "DJ Edits > Country": "Country",
+  "DJ Edits > Dance": "Dance / Pop",
+  "DJ Edits > Hip-Hop": "Hip-Hop",
+  "DJ Edits > Latin": "Latin",
+  "DJ Edits > R&B": "R&B",
+  "DJ Edits > Rock": "Rock",
+  "DJ Edits > Рор": "Pop"
+ },
+ "familias": [
+  {
+   "id": "baile",
+   "nombre": "Electrónica de baile",
+   "padre": "",
+   "descripcion": "Raíz organizativa de todo lo que está hecho para la pista. No suma similitud por sí misma: el cálculo solo compara la familia de cada género y el padre directo de esa familia."
+  },
+  {
+   "id": "pista",
+   "nombre": "Pista 4/4 (115-135 BPM)",
+   "padre": "baile",
+   "descripcion": "House, techno y sus vecinos: bombo en negras a 115-135 BPM, el mundo de Gabriel. Sus familias son hermanas entre sí (0.2): el mismo club con otra estética. Los vínculos reales entre ellas van por relaciones explícitas."
+  },
+  {
+   "id": "rave",
+   "nombre": "4/4 rápido y de alta energía (130-200 BPM)",
+   "padre": "baile",
+   "descripcion": "Trance, psytrance, hard techno y hard dance: más rápidos que la pista y con otra energía. Son hermanas entre sí (0.2); con la pista solo se conectan por relaciones explícitas."
+  },
+  {
+   "id": "bass",
+   "nombre": "Ritmos rotos y música bass",
+   "padre": "baile",
+   "descripcion": "Breaks, electro, garage, dubstep, drum & bass y trap: el bombo no va en negras, o va a medio tiempo. Wikidata pone casi todos bajo 'bass music (EDM)' o 'breakbeat'."
+  },
+  {
+   "id": "escucha",
+   "nombre": "Electrónica para escuchar",
+   "padre": "",
+   "descripcion": "Electronica, downtempo y ambient: para abrir, cerrar o escuchar. Tempo variable y poco de pista."
+  },
+  {
+   "id": "abierto",
+   "nombre": "Open Format",
+   "padre": "",
+   "descripcion": "La sección 'Open Format' de Beatport (septiembre de 2025): géneros de canción no electrónicos y sus ediciones para DJ. Son hermanas entre sí (0.2) porque un DJ de formato abierto los mezcla en el mismo set."
+  },
+  {
+   "id": "utilitario",
+   "nombre": "Herramientas de DJ",
+   "padre": "",
+   "descripcion": "Material utilitario que no es un estilo: loops, acapellas y herramientas de batalla. No tiene familia hermana, así que la similitud por género no lo favorece."
+  },
+  {
+   "id": "house",
+   "nombre": "House de groove",
+   "padre": "pista",
+   "descripcion": "House clásico, funky y jackin: el house con raíz disco o de Chicago y groove de 124-128 BPM."
+  },
+  {
+   "id": "tech",
+   "nombre": "Tech house y minimal",
+   "padre": "pista",
+   "descripcion": "Tech House y Minimal / Deep Tech: el tech house y su lado sobrio (deep tech, minimal house). Wikidata: deep tech subclass of tech house."
+  },
+  {
+   "id": "indie_tech",
+   "nombre": "Indie Tech",
+   "padre": "pista",
+   "descripcion": "Indie Tech: el lado vocal o crossover del tech house ('Indie (Dance)' + 'Tech (House)'). No figura en las taxonomías publicadas; en la biblioteca suena a tech house y a Dance / Pop. Sus vínculos van por relaciones."
+  },
+  {
+   "id": "bass_house",
+   "nombre": "Bass House",
+   "padre": "pista",
+   "descripcion": "Bass House: house con bajo de bassline. Wikidata lo pone bajo house music y bass music (EDM). Se une a House, Jackin House, Tech House, Mainstage y UK Garage / Bassline por relaciones, no a Funky House."
+  },
+  {
+   "id": "deep",
+   "nombre": "Deep y orgánico",
+   "padre": "pista",
+   "descripcion": "Deep house y organic house: 118-123 BPM, cálidos y melódicos."
+  },
+  {
+   "id": "afro",
+   "nombre": "Afro",
+   "padre": "pista",
+   "descripcion": "Afro house y amapiano: house sudafricano y lo que salió de él."
+  },
+  {
+   "id": "melodico",
+   "nombre": "Melódico y progresivo",
+   "padre": "pista",
+   "descripcion": "Melodic House & Techno y Progressive House: en la biblioteca, el par más parecido después de deep y organic."
+  },
+  {
+   "id": "indie_disco",
+   "nombre": "Indie dance y disco",
+   "padre": "pista",
+   "descripcion": "Indie Dance (dark disco, italo) y Nu Disco / Disco: comparten el subgénero Italo en Beatport y la raíz disco."
+  },
+  {
+   "id": "techno",
+   "nombre": "Techno",
+   "padre": "pista",
+   "descripcion": "Techno (Peak Time / Driving) y Techno (Raw / Deep / Hypnotic): las dos mitades en que Beatport separó el techno de 125-135 BPM."
+  },
+  {
+   "id": "comercial",
+   "nombre": "Comercial y festival",
+   "padre": "pista",
+   "descripcion": "Dance / Pop y Mainstage: house de radio y de festival, con voces y drops."
+  },
+  {
+   "id": "trance",
+   "nombre": "Trance",
+   "padre": "rave",
+   "descripcion": "Trance (Main Floor) y Trance (Raw / Deep / Hypnotic): 130-140 BPM."
+  },
+  {
+   "id": "psy",
+   "nombre": "Psytrance",
+   "padre": "rave",
+   "descripcion": "Psy-Trance: 135-145 BPM, una escena propia. En la biblioteca la mediana es 136 BPM."
+  },
+  {
+   "id": "hard_techno",
+   "nombre": "Hard Techno",
+   "padre": "rave",
+   "descripcion": "Hard Techno: techno de 135-155 BPM (mediana 147 en el cache de Beatport). Para Wikidata y MusicBrainz es techno; va en 'rave' por tempo y escena, en familia propia para no quedar a 0.7 de todo el hard dance. Se une a los dos techno (0.65) y a Hard Dance / Hardcore / Neo Rave (0.5) por relaciones."
+  },
+  {
+   "id": "duro",
+   "nombre": "Hard dance y hardcore",
+   "padre": "rave",
+   "descripcion": "Hard Dance / Hardcore / Neo Rave: hard house, hardstyle, neo rave, UK / happy hardcore, frenchcore, terror y uptempo, de 140 a más de 200 BPM."
+  },
+  {
+   "id": "breaks_electro",
+   "nombre": "Breaks y electro",
+   "padre": "bass",
+   "descripcion": "Breakbeat, UK bass y electro: ritmos rotos de caja de ritmos a 125-135 BPM. Dentro de este grupo son los más cercanos al techno."
+  },
+  {
+   "id": "uk_garage",
+   "nombre": "Garage y club",
+   "padre": "bass",
+   "descripcion": "UK Garage / Bassline, 140 / Deep Dubstep / Grime y Bass / Club: el continuo británico y los clubes globales."
+  },
+  {
+   "id": "festival_bass",
+   "nombre": "Bass de festival",
+   "padre": "bass",
+   "descripcion": "Dubstep (con melodic dubstep y midtempo) y Trap / Future Bass."
+  },
+  {
+   "id": "dnb",
+   "nombre": "Drum & bass",
+   "padre": "bass",
+   "descripcion": "Drum & Bass (165-175 BPM), con jungle, liquid y halftime."
+  },
+  {
+   "id": "electronica",
+   "nombre": "Electronica",
+   "padre": "escucha",
+   "descripcion": "Electronica: electrónica melódica o experimental para escuchar. En la biblioteca suena cerca del deep house."
+  },
+  {
+   "id": "chill",
+   "nombre": "Downtempo y ambient",
+   "padre": "escucha",
+   "descripcion": "Downtempo y Ambient / Experimental: sin pista o a medio tiempo."
+  },
+  {
+   "id": "urbano",
+   "nombre": "Hip-hop y R&B",
+   "padre": "abierto",
+   "descripcion": "Hip-Hop y R&B."
+  },
+  {
+   "id": "latino",
+   "nombre": "Latino",
+   "padre": "abierto",
+   "descripcion": "Latin, Latin Electronic y Brazilian Funk: música latina de baile y su versión electrónica."
+  },
+  {
+   "id": "afro_caribe",
+   "nombre": "Africano y caribeño",
+   "padre": "abierto",
+   "descripcion": "African (afrobeats, afropop) y Caribbean (dancehall, reggae, soca)."
+  },
+  {
+   "id": "pop",
+   "nombre": "Pop",
+   "padre": "abierto",
+   "descripcion": "Pop de canción, con K-Pop, J-Pop y Holiday."
+  },
+  {
+   "id": "rock",
+   "nombre": "Rock",
+   "padre": "abierto",
+   "descripcion": "Rock: indie rock, metal, punk y ska."
+  },
+  {
+   "id": "country",
+   "nombre": "Country",
+   "padre": "abierto",
+   "descripcion": "Country: country dance y country pop."
+  },
+  {
+   "id": "edits",
+   "nombre": "Ediciones para DJ",
+   "padre": "abierto",
+   "descripcion": "DJ Edits: versiones para DJ de canciones de Open Format. El estilo lo da el subgénero."
+  }
+ ],
+ "generos": [
+  {
+   "beatport": "House",
+   "familia": "house",
+   "nota": "Wikidata y MusicBrainz lo ponen como raíz de todos los house. En la biblioteca es el más cercano a Tech House (versiones 35, borrador 0.973)."
+  },
+  {
+   "beatport": "Funky House",
+   "familia": "house",
+   "nota": "MusicBrainz: funky house subgenre of house, influenced by funk. En la biblioteca hay 5 temas: Discogs House 0.40, BPM 124."
+  },
+  {
+   "beatport": "Jackin House",
+   "familia": "house",
+   "nota": "MusicBrainz: jackin house subgenre of house, influenced by funky house; uk jackin influenced by bassline. No hay temas en la biblioteca. Se une a Bass House por relación (0.6)."
+  },
+  {
+   "beatport": "Bass House",
+   "familia": "bass_house",
+   "nota": "Wikidata: bass house subclass of house music y de bass music (EDM). MusicBrainz: subgenre of house, influenced genres speed house. Familia propia: 0.6 con House, Jackin House y UK Garage / Bassline, 0.55 con Tech House y Mainstage, 0.75 con Bassline y Speed House; con Funky House queda en el piso de 0.2. Hay 1 tema: Discogs Bassline 0.64, Tech House 0.47."
+  },
+  {
+   "beatport": "Tech House",
+   "familia": "tech",
+   "nota": "Wikidata: tech house subclass of house music. MusicBrainz: influenced by techno. Es el género central de Gabriel (255 temas, BPM 124)."
+  },
+  {
+   "beatport": "Minimal / Deep Tech",
+   "familia": "tech",
+   "nota": "Wikidata: deep tech subclass of tech house. MusicBrainz: tech house subgenres deep tech, rominimal. En la biblioteca: Discogs Tech House 0.53 y Minimal 0.34; 9 versiones compartidas con Tech House."
+  },
+  {
+   "beatport": "Indie Tech",
+   "familia": "indie_tech",
+   "nota": "Género nuevo de Beatport, sin subgéneros y sin entrada en las taxonomías publicadas. En la biblioteca suena a tech house vocal: borrador 0.934 con Tech House y 0.845 con Dance / Pop, lift CLAP 1.94, Discogs Tech House 0.43 y House 0.42, BPM 125. Familia propia porque con Minimal / Deep Tech la evidencia da 0.46 (relación de 0.4)."
+  },
+  {
+   "beatport": "Deep House",
+   "familia": "deep",
+   "nota": "Wikidata: deep house subclass of house music. En la biblioteca es el más cercano a Organic House (borrador 0.978). Beatport lo alterna mucho con MH&T (25 versiones) y con Tech House (26)."
+  },
+  {
+   "beatport": "Organic House",
+   "familia": "deep",
+   "nota": "MusicBrainz: organic house influenced by deep house, afro house, downtempo, progressive house. En la biblioteca: Discogs Deep House 0.45, Tech House 0.40, BPM 121."
+  },
+  {
+   "beatport": "Afro House",
+   "familia": "afro",
+   "nota": "Wikidata: afro house subclass of house music. MusicBrainz: influenced by deep house, kwaito. En la biblioteca es el más cercano a House (borrador 0.859, lift 1.75) y después a Dance / Pop (0.769)."
+  },
+  {
+   "beatport": "Amapiano",
+   "familia": "afro",
+   "nota": "Wikidata: subclass of house music. MusicBrainz: influenced by deep house, gqom, kwaito. El subgénero 3Step de Afro House viene del amapiano. No hay temas en la biblioteca."
+  },
+  {
+   "beatport": "Melodic House & Techno",
+   "familia": "melodico",
+   "nota": "MusicBrainz: melodic techno subgenre of techno; melodic house influenced by deep house, progressive house, melodic techno. En la biblioteca es el más cercano a Progressive House (0.948)."
+  },
+  {
+   "beatport": "Progressive House",
+   "familia": "melodico",
+   "nota": "Wikidata: subclass of house music y de progressive EDM. MusicBrainz: influenced by trance. En la biblioteca: Discogs Progressive House 0.45. Queda más cerca de MH&T y de los dos techno que de House."
+  },
+  {
+   "beatport": "Indie Dance",
+   "familia": "indie_disco",
+   "nota": "Wikidata: indie dance subclass of EDM. Comparte el subgénero Italo con Nu Disco / Disco y tiene Dark Disco (MusicBrainz: influenced by disco, EBM, new beat). En la biblioteca está muy cerca de MH&T (0.892), y por eso hay una relación explícita de 0.7."
+  },
+  {
+   "beatport": "Nu Disco / Disco",
+   "familia": "indie_disco",
+   "nota": "MusicBrainz: nu disco influenced by disco. Hay 4 temas: Discogs Nu-Disco 0.49, House 0.47, Disco 0.42."
+  },
+  {
+   "beatport": "Techno (Peak Time / Driving)",
+   "familia": "techno",
+   "nota": "Wikidata: peak time techno subclass of techno. Es el género central de Gabriel (254 temas, BPM 126). Sus subgéneros Peak Time y Driving valen 0.9 entre sí; Psy-Techno se une con Psy-Trance por relación."
+  },
+  {
+   "beatport": "Techno (Raw / Deep / Hypnotic)",
+   "familia": "techno",
+   "nota": "Wikidata: raw techno y deep techno subclass of techno. En la biblioteca: Discogs Techno 0.79, Deep Techno 0.22, Acid 0.20; BPM 129. Su vecino más cercano es Techno PT (0.89), y después Progressive House (0.576)."
+  },
+  {
+   "beatport": "Dance / Pop",
+   "familia": "comercial",
+   "nota": "House de radio (Afro Pop, Pop, Tropical House). En la biblioteca está cerca de House (0.931), Tech House (0.897), Indie Tech (0.845) y Mainstage."
+  },
+  {
+   "beatport": "Mainstage",
+   "familia": "comercial",
+   "nota": "Big Room, Electro House, Future House, Future Rave y Speed House. Wikidata y MusicBrainz los ponen bajo house, pero es el house de festival. En la biblioteca hay solo 10 temas y CLAP no lo distingue (lift de la diagonal 0)."
+  },
+  {
+   "beatport": "Trance (Main Floor)",
+   "familia": "trance",
+   "nota": "Wikidata y MusicBrainz: trance y sus subgéneros (uplifting, vocal, progressive, tech, hard). Hay 3 temas, BPM 131."
+  },
+  {
+   "beatport": "Trance (Raw / Deep / Hypnotic)",
+   "familia": "trance",
+   "nota": "Wikidata: raw trance, hypnotic trance y deep trance subclass of trance. Es el trance cercano al techno, y por eso tiene relaciones con los dos techno."
+  },
+  {
+   "beatport": "Psy-Trance",
+   "familia": "psy",
+   "nota": "Wikidata: psychedelic trance subclass of trance. MusicBrainz: psytrance subgenre of trance. En la biblioteca: Discogs Psy-Trance 0.91 y Progressive Trance 0.75, BPM 136. CLAP lo aísla (lift de la diagonal 45.5); su vecino más claro es Techno PT (0.45 a nivel de género)."
+  },
+  {
+   "beatport": "Hard Techno",
+   "familia": "hard_techno",
+   "nota": "Wikidata: hard techno subclass of techno; schranz subclass of hard techno. MusicBrainz: subgenre of techno, influenced genres neo rave, hardtekk. Va a 147 BPM de mediana (cache de Beatport). Familia propia en 'rave': 0.65 con los dos techno, 0.5 con Hard Dance / Hardcore / Neo Rave, 0.85 con su subgénero Neo Rave y 0.7 con Raw."
+  },
+  {
+   "beatport": "Hard Dance / Hardcore / Neo Rave",
+   "familia": "duro",
+   "nota": "Wikidata pone hardstyle, neo rave, hard house, hardtek y uptempo hardcore bajo hard dance. MusicBrainz: frenchcore, gabber, happy hardcore y uptempo bajo hardcore techno. Sus subgéneros son muy dispares: de hard house a 140 BPM a frenchcore a 200 (cache de Beatport: p25 120, p75 155)."
+  },
+  {
+   "beatport": "Breaks / Breakbeat / UK Bass",
+   "familia": "breaks_electro",
+   "nota": "Wikidata: breakbeat subclass of EDM. MusicBrainz: breakbeat influenced genres jersey club, baltimore club. En la biblioteca hay 7 temas con Discogs Techno 0.52 y BPM 128: son breaks techneros."
+  },
+  {
+   "beatport": "Electro (Classic / Detroit / Modern)",
+   "familia": "breaks_electro",
+   "nota": "Wikidata: electro subclass of EDM y de EBM; first wave of Detroit techno subclass of electro; electro-techno subclass of techno y de electro. Hay 1 tema: Discogs Electro 0.86, Techno 0.47."
+  },
+  {
+   "beatport": "UK Garage / Bassline",
+   "familia": "uk_garage",
+   "nota": "Wikidata: UK garage subclass of EDM; bassline subclass of UK garage y de bass music. MusicBrainz: uk garage influenced genres deep tech. Hay 1 tema: Discogs House 0.60, BPM 129. Se une a House (0.45) y a Tech House y Minimal / Deep Tech (0.4) por relaciones."
+  },
+  {
+   "beatport": "140 / Deep Dubstep / Grime",
+   "familia": "uk_garage",
+   "nota": "MusicBrainz: grime influenced by 2-step, drum and bass, jungle, hip hop; dubstep influenced by dark garage. Es el dubstep profundo británico a 140 BPM: va al lado del garage y vale 0.7 con Dubstep."
+  },
+  {
+   "beatport": "Bass / Club",
+   "familia": "uk_garage",
+   "nota": "Clubes globales: UK Funky (MusicBrainz: influenced by uk garage, dancehall, soca), Gqom, Jersey Club, Juke / Footwork y Reggae / Dancehall."
+  },
+  {
+   "beatport": "Dubstep",
+   "familia": "festival_bass",
+   "nota": "Wikidata: dubstep subclass of bass music (EDM). En Beatport es el dubstep de festival (Melodic Dubstep, Midtempo); el profundo es 140 / Deep Dubstep / Grime, con el que vale 0.7."
+  },
+  {
+   "beatport": "Trap / Future Bass",
+   "familia": "festival_bass",
+   "nota": "Wikidata: future bass y EDM trap subclass of bass music. MusicBrainz: trap edm influenced by dubstep, grime, trap. Hay 1 tema: Discogs Cloud Rap 0.35, Trap 0.25."
+  },
+  {
+   "beatport": "Drum & Bass",
+   "familia": "dnb",
+   "nota": "Wikidata y MusicBrainz: drum and bass subclass of EDM, con jungle, liquid, jump up y halftime. Va a 165-175 BPM."
+  },
+  {
+   "beatport": "Electronica",
+   "familia": "electronica",
+   "nota": "Wikidata: electronica subclass of electronic music, no de EDM. MusicBrainz: subgenre of electronic. Cache de Beatport: BPM p25 100. En la biblioteca suena a deep house (borrador 0.892, versiones 16), así que tiene relaciones con Deep, Organic y MH&T."
+  },
+  {
+   "beatport": "Downtempo",
+   "familia": "chill",
+   "nota": "Wikidata: downtempo subclass of chill-out music; trip hop subclass of downtempo. MusicBrainz: influenced by ambient. Hay 3 temas, BPM 115."
+  },
+  {
+   "beatport": "Ambient / Experimental",
+   "familia": "chill",
+   "nota": "MusicBrainz: experimental electronic subgenre of electronic; downtempo influenced by ambient. Sin pista."
+  },
+  {
+   "beatport": "Hip-Hop",
+   "familia": "urbano",
+   "nota": "Open Format. Discogs separa Trap, Grime, Trip Hop y DJ Battle Tool dentro de Hip Hop: son los puentes con Trap / Future Bass, 140, Downtempo y DJ Tools."
+  },
+  {
+   "beatport": "R&B",
+   "familia": "urbano",
+   "nota": "Open Format (Funk, Soul). Hace de puente con Nu Disco / Disco > Funk / Soul y con African > Afro R&B."
+  },
+  {
+   "beatport": "Latin",
+   "familia": "latino",
+   "nota": "Open Format: reggaeton, cumbia, salsa, dembow y otros."
+  },
+  {
+   "beatport": "Latin Electronic",
+   "familia": "latino",
+   "nota": "Electronic Cumbia, Moombahton, Raptor House y Tribal / Guaracha. Wikidata: digital cumbia y tribal guarachero subclass of Latin electronic music; Latin tech subclass of Latin electronic music y de tech house. Va con Latin por cultura, público y tempo (cache de Beatport: mediana 111 BPM, p75 128). Como el subgénero casi nunca está cargado, se une al house también a nivel de género: Tech House 0.4; House, Afro House y Mainstage 0.35."
+  },
+  {
+   "beatport": "Brazilian Funk",
+   "familia": "latino",
+   "nota": "Funk carioca, mandelão, BH y eletrofunk. Wikidata: eletrofunk subclass of house music. MusicBrainz: electro house influenced genres eletrofunk; house influenced genres funk automotivo. Cache de Beatport: mediana 130 BPM. Vale 0.3 con House a nivel de género."
+  },
+  {
+   "beatport": "African",
+   "familia": "afro_caribe",
+   "nota": "Open Format (Afrobeats, Afropop, Afro R&B, Alte). Wikidata: Afropiano subclass of Amapiano."
+  },
+  {
+   "beatport": "Caribbean",
+   "familia": "afro_caribe",
+   "nota": "Open Format: Dancehall, Reggae, Soca, Dub, Calypso y Ska & Rocksteady."
+  },
+  {
+   "beatport": "Pop",
+   "familia": "pop",
+   "nota": "Open Format. En la biblioteca hay 3 temas: Discogs Dance-pop 0.22, House 0.22, BPM 120."
+  },
+  {
+   "beatport": "Rock",
+   "familia": "rock",
+   "nota": "Open Format. Los 3 temas de la biblioteca suenan a house (Discogs House 0.62, BPM 125), y por eso hay un puente con Indie Dance."
+  },
+  {
+   "beatport": "Country",
+   "familia": "country",
+   "nota": "Open Format (Country Dance, Country Pop)."
+  },
+  {
+   "beatport": "DJ Edits",
+   "familia": "edits",
+   "nota": "Es un formato, no un estilo. Sus subgéneros son los géneros de Open Format: African, Caribbean, Country, Dance, Hip-Hop, Latin, R&B, Rock y 'Рор' (Pop escrito con letras cirílicas en Beatport). Va en Open Format, hermano de esos géneros (0.2), y cada subgénero se une a su género con 0.9. Dos subgéneros distintos valen 0.75 por la regla: el recomendador debería tratar 'DJ Edits > X' como el género X antes de comparar."
+  },
+  {
+   "beatport": "DJ Tools / Acapellas",
+   "familia": "utilitario",
+   "nota": "Acapellas, Battle Tools y Loops: material para superponer, no un tema para mezclar a continuación, y sin estilo propio (3 temas: BPM 96-130, Discogs Techno 0.29, Punk 0.11). No tiene familia hermana; solo Battle Tools se une a Hip-Hop."
+  }
+ ],
+ "relaciones": [
+  {
+   "a": "Tech House",
+   "b": "House",
+   "similitud": 0.85,
+   "motivo": "Tech house es house con pulso de techno. En la biblioteca es el par más parecido y el que Beatport más alterna entre versiones.",
+   "fuentes": [
+    "wikidata: tech house subclass of house music",
+    "musicbrainz: tech house subgenre of house",
+    "evidencia: versiones House/Tech House 35 (el par más frecuente)",
+    "evidencia: borrador 0.973, lift CLAP 1.54"
+   ]
+  },
+  {
+   "a": "Tech House",
+   "b": "Minimal / Deep Tech",
+   "similitud": 0.8,
+   "motivo": "Deep tech y minimal house son ramas del tech house, con el mismo tempo (124-125) y el mismo groove.",
+   "fuentes": [
+    "wikidata: deep tech subclass of tech house",
+    "wikidata: rominimal subclass of tech house y minimal house",
+    "musicbrainz: tech house subgenres deep tech, rominimal",
+    "evidencia: versiones Minimal / Deep Tech/Tech House 9, borrador 0.878, lift 1.31",
+    "evidencia: Minimal / Deep Tech da Discogs Tech House 0.53"
+   ]
+  },
+  {
+   "a": "Tech House",
+   "b": "Indie Tech",
+   "similitud": 0.8,
+   "motivo": "En la biblioteca, Indie Tech suena a tech house: mismo BPM y mismos estilos de Discogs.",
+   "fuentes": [
+    "evidencia: borrador 0.934, lift CLAP 1.94, versiones Indie Tech/Tech House 4",
+    "evidencia: Indie Tech BPM mediana 125, Discogs Tech House 0.43 y House 0.42"
+   ]
+  },
+  {
+   "a": "Tech House",
+   "b": "Techno (Peak Time / Driving)",
+   "similitud": 0.6,
+   "motivo": "Es el paso clásico de un set de Gabriel: el tech house nace del techno y sube al techno. Beatport alterna mucho los dos, aunque CLAP los separa más.",
+   "fuentes": [
+    "musicbrainz: tech house influenced by techno",
+    "musicbrainz: hardgroove techno influenced by tech house",
+    "evidencia: versiones Tech House/Techno (Peak Time / Driving) 23",
+    "evidencia: borrador 0.678 (lift 0.79)",
+    "evidencia: Discogs Tech House 0.32 en Techno PT y Techno 0.25 en Tech House"
+   ]
+  },
+  {
+   "a": "Tech House",
+   "b": "Jackin House",
+   "similitud": 0.6,
+   "motivo": "El jackin house es house de groove con la misma energía de pista que el tech house.",
+   "fuentes": [
+    "musicbrainz: jackin house subgenre of house, influenced by funky house",
+    "wikidata: tech house subclass of house music"
+   ]
+  },
+  {
+   "a": "Tech House",
+   "b": "Deep House",
+   "similitud": 0.55,
+   "motivo": "Beatport los alterna mucho y el BPM es cercano, pero el deep es más suave.",
+   "fuentes": [
+    "wikidata: deep house y tech house subclass of house music",
+    "evidencia: versiones Deep House/Tech House 26, borrador 0.737, lift 0.87",
+    "evidencia: Discogs Tech House 0.40 en Deep House"
+   ]
+  },
+  {
+   "a": "Tech House",
+   "b": "Dance / Pop",
+   "similitud": 0.7,
+   "motivo": "En la biblioteca, Dance / Pop es house vocal muy cercano al tech house: a la par de Minimal / Deep Tech en el borrador y 2.º en centroide CLAP.",
+   "fuentes": [
+    "evidencia: versiones Dance / Pop/Tech House 7, borrador 0.897, lift 1.27",
+    "evidencia: centroide CLAP 0.9816 (2.º de la fila de Tech House, detrás de House)",
+    "evidencia: Discogs Tech House 0.22 y House 0.40 en Dance / Pop, BPM 124.5"
+   ]
+  },
+  {
+   "a": "Tech House",
+   "b": "Bass House",
+   "similitud": 0.55,
+   "motivo": "El bass house es house de 126-128 BPM con bajo de bassline, y se mezcla con el tech house más duro.",
+   "fuentes": [
+    "musicbrainz: bass house subgenre of house",
+    "evidencia: el tema de Bass House da Discogs Tech House 0.47, BPM 128"
+   ]
+  },
+  {
+   "a": "Tech House",
+   "b": "Afro House",
+   "similitud": 0.5,
+   "motivo": "Mismo rango de tempo y de percusión; Beatport los alterna a veces.",
+   "fuentes": [
+    "wikidata: afro house y tech house subclass of house music",
+    "evidencia: versiones Afro House/Tech House 3, borrador 0.662",
+    "evidencia: Discogs Tech House 0.36 en Afro House"
+   ]
+  },
+  {
+   "a": "Tech House",
+   "b": "Funky House",
+   "similitud": 0.5,
+   "motivo": "Los dos son house de groove a 124 BPM; el funky house es más disco.",
+   "fuentes": [
+    "musicbrainz: jackin house influenced by funky house",
+    "evidencia: Funky House (5 temas) Discogs House 0.40, Tech House 0.20, BPM 124"
+   ]
+  },
+  {
+   "a": "Tech House",
+   "b": "Mainstage",
+   "similitud": 0.45,
+   "motivo": "El tech house de festival cruza con el mainstage (future rave, bounce).",
+   "fuentes": [
+    "musicbrainz: tech house influenced genres future rave, melbourne bounce",
+    "wikidata: big room house, electro house, future house subclass of house music",
+    "evidencia: borrador 0.742, versiones 1"
+   ]
+  },
+  {
+   "a": "Tech House",
+   "b": "Melodic House & Techno",
+   "similitud": 0.4,
+   "motivo": "Beatport los alterna, pero el melódico tiene otra estética y CLAP los separa.",
+   "fuentes": [
+    "evidencia: versiones Melodic House & Techno/Tech House 7, borrador 0.403, lift 0.57",
+    "evidencia: Discogs Tech House 0.35 en MH&T"
+   ]
+  },
+  {
+   "a": "Tech House",
+   "b": "Indie Dance",
+   "similitud": 0.4,
+   "motivo": "Son vecinos en la pista, pero el audio coincide poco.",
+   "fuentes": [
+    "evidencia: versiones Indie Dance/Tech House 3, borrador 0.56"
+   ]
+  },
+  {
+   "a": "Tech House",
+   "b": "Techno (Raw / Deep / Hypnotic)",
+   "similitud": 0.35,
+   "motivo": "El techno crudo queda más lejos del tech house que el peak time, pero más cerca que el resto de la pista.",
+   "fuentes": [
+    "musicbrainz: tech house influenced by techno",
+    "evidencia: versiones Tech House/Techno (Raw / Deep / Hypnotic) 1, borrador 0.455"
+   ]
+  },
+  {
+   "a": "Minimal / Deep Tech",
+   "b": "Techno (Peak Time / Driving)",
+   "similitud": 0.55,
+   "motivo": "El minimal viene del techno, y el deep tech hace de puente hacia el techno.",
+   "fuentes": [
+    "wikidata: minimal techno subclass of techno y minimal EDM",
+    "musicbrainz: minimal techno subgenre of techno",
+    "evidencia: versiones 4, borrador 0.678",
+    "evidencia: Discogs Techno 0.29 en Minimal / Deep Tech"
+   ]
+  },
+  {
+   "a": "Minimal / Deep Tech",
+   "b": "Deep House",
+   "similitud": 0.55,
+   "motivo": "El deep tech es el lado profundo del tech house, cerca del deep house.",
+   "fuentes": [
+    "wikidata: deep tech subclass of tech house",
+    "evidencia: versiones Deep House/Minimal / Deep Tech 5, borrador 0.745, lift 1.10",
+    "evidencia: Discogs Deep House 0.28 en Minimal / Deep Tech"
+   ]
+  },
+  {
+   "a": "Minimal / Deep Tech",
+   "b": "House",
+   "similitud": 0.45,
+   "motivo": "El minimal house y el microhouse son house.",
+   "fuentes": [
+    "wikidata: minimal house subclass of house music y minimal EDM",
+    "wikidata: microhouse subclass of house music",
+    "evidencia: versiones House/Minimal / Deep Tech 2, borrador 0.515"
+   ]
+  },
+  {
+   "a": "Minimal / Deep Tech > Minimal House",
+   "b": "House",
+   "similitud": 0.6,
+   "motivo": "El subgénero Minimal House es house por definición.",
+   "fuentes": [
+    "wikidata: minimal house subclass of house music",
+    "musicbrainz: microhouse subgenre of house, influenced by minimal techno"
+   ]
+  },
+  {
+   "a": "Minimal / Deep Tech",
+   "b": "Techno (Raw / Deep / Hypnotic)",
+   "similitud": 0.4,
+   "motivo": "El minimal techno y el dub techno comparten la línea del techno profundo.",
+   "fuentes": [
+    "wikidata: minimal techno subclass of techno",
+    "musicbrainz: dub techno subgenre of minimal techno",
+    "evidencia: borrador 0.356"
+   ]
+  },
+  {
+   "a": "Minimal / Deep Tech",
+   "b": "Techno (Raw / Deep / Hypnotic) > Dub",
+   "similitud": 0.5,
+   "motivo": "Para MusicBrainz, el dub techno es un subgénero del minimal techno.",
+   "fuentes": [
+    "musicbrainz: dub techno subgenre of minimal techno, influenced by dub",
+    "wikidata: dub techno subclass of deep techno"
+   ]
+  },
+  {
+   "a": "Minimal / Deep Tech > Deep Tech",
+   "b": "UK Garage / Bassline",
+   "similitud": 0.5,
+   "motivo": "El deep tech viene del UK garage y del speed garage.",
+   "fuentes": [
+    "musicbrainz: deep tech influenced by speed garage, uk garage",
+    "musicbrainz: uk garage influenced genres deep tech"
+   ]
+  },
+  {
+   "a": "Indie Tech",
+   "b": "House",
+   "similitud": 0.6,
+   "motivo": "En la biblioteca, Indie Tech se comporta como house o tech house.",
+   "fuentes": [
+    "evidencia: borrador 0.64, lift CLAP 1.43",
+    "evidencia: Discogs House 0.42 en Indie Tech"
+   ]
+  },
+  {
+   "a": "Indie Tech",
+   "b": "Dance / Pop",
+   "similitud": 0.65,
+   "motivo": "Los dos son house vocal de 124-126 BPM; en la biblioteca Dance / Pop es el vecino de Indie Tech que sigue a Tech House.",
+   "fuentes": [
+    "evidencia: versiones Dance / Pop/Indie Tech 2, borrador 0.845 (2.º de la fila de Indie Tech), lift 1.39",
+    "evidencia: centroide CLAP 0.9756 (2.º de la fila de Indie Tech)"
+   ]
+  },
+  {
+   "a": "Indie Tech",
+   "b": "Mainstage",
+   "similitud": 0.45,
+   "motivo": "El audio se parece al house de festival, aunque hay pocos temas.",
+   "fuentes": [
+    "evidencia: borrador 0.656, lift 3.15 (Mainstage tiene solo 10 temas)"
+   ]
+  },
+  {
+   "a": "Indie Tech",
+   "b": "Indie Dance",
+   "similitud": 0.4,
+   "motivo": "Comparten el 'indie' del nombre; la evidencia de audio es débil.",
+   "fuentes": [
+    "beatport_taxonomia: Indie Tech (id 112) e Indie Dance (id 37)",
+    "evidencia: versiones Indie Dance/Indie Tech 1, borrador 0.487"
+   ]
+  },
+  {
+   "a": "House",
+   "b": "Deep House",
+   "similitud": 0.6,
+   "motivo": "El deep house es house: mismo origen, y Beatport los alterna.",
+   "fuentes": [
+    "wikidata: deep house subclass of house music",
+    "musicbrainz: deep house subgenre of house",
+    "evidencia: versiones Deep House/House 14, borrador 0.709"
+   ]
+  },
+  {
+   "a": "House",
+   "b": "Afro House",
+   "similitud": 0.65,
+   "motivo": "El afro house es house, y en la biblioteca su vecino más cercano es House.",
+   "fuentes": [
+    "wikidata: afro house subclass of house music",
+    "musicbrainz: afro house subgenre of house",
+    "evidencia: versiones Afro House/House 6, borrador 0.859, lift 1.75"
+   ]
+  },
+  {
+   "a": "House",
+   "b": "Dance / Pop",
+   "similitud": 0.65,
+   "motivo": "Dance / Pop es house vocal de radio; en la biblioteca casi no se distingue de House.",
+   "fuentes": [
+    "wikidata: tropical house subclass of house music",
+    "evidencia: versiones Dance / Pop/House 6, borrador 0.931, lift 1.52",
+    "evidencia: Discogs House 0.40 en Dance / Pop"
+   ]
+  },
+  {
+   "a": "House",
+   "b": "Mainstage",
+   "similitud": 0.5,
+   "motivo": "Big room, electro house y future house son house; Mainstage es su versión de festival.",
+   "fuentes": [
+    "wikidata: big room house, electro house, future house subclass of house music",
+    "musicbrainz: big room house, electro house, future house subgenre of house",
+    "evidencia: versiones House/Mainstage 1, borrador 0.795",
+    "evidencia: Discogs House 0.41 en Mainstage"
+   ]
+  },
+  {
+   "a": "House",
+   "b": "Nu Disco / Disco",
+   "similitud": 0.6,
+   "motivo": "El house viene de la disco, y el nu disco se mezcla con house sin esfuerzo.",
+   "fuentes": [
+    "musicbrainz: house influenced by disco",
+    "musicbrainz: nu disco influenced by disco",
+    "musicbrainz: french house influenced by disco, funk",
+    "evidencia: versiones House/Nu Disco / Disco 2",
+    "evidencia: Discogs House 0.47 en Nu Disco / Disco"
+   ]
+  },
+  {
+   "a": "House",
+   "b": "Indie Dance",
+   "similitud": 0.45,
+   "motivo": "Son vecinos de pista con raíz disco.",
+   "fuentes": [
+    "evidencia: versiones House/Indie Dance 3, borrador 0.558"
+   ]
+  },
+  {
+   "a": "House",
+   "b": "Techno (Peak Time / Driving)",
+   "similitud": 0.4,
+   "motivo": "Beatport los alterna a veces, pero el audio coincide poco.",
+   "fuentes": [
+    "evidencia: versiones House/Techno (Peak Time / Driving) 7, borrador 0.506"
+   ]
+  },
+  {
+   "a": "House",
+   "b": "Melodic House & Techno",
+   "similitud": 0.4,
+   "motivo": "El melodic house es house, pero con otra estética.",
+   "fuentes": [
+    "musicbrainz: melodic house subgenre of house",
+    "evidencia: versiones House/Melodic House & Techno 6, borrador 0.431"
+   ]
+  },
+  {
+   "a": "House > Acid",
+   "b": "Techno (Peak Time / Driving)",
+   "similitud": 0.5,
+   "motivo": "El acid house dio origen al acid techno, que influyó en el peak time techno.",
+   "fuentes": [
+    "musicbrainz: acid house influenced genres acid techno, trance",
+    "musicbrainz: acid techno influenced genres peak time techno, hard techno",
+    "wikidata: acid techno subclass of techno y acid"
+   ]
+  },
+  {
+   "a": "House > Acid",
+   "b": "Techno (Raw / Deep / Hypnotic)",
+   "similitud": 0.55,
+   "motivo": "La línea acid llega al techno crudo: MAEST oye acid en Techno (Raw / Deep / Hypnotic).",
+   "fuentes": [
+    "musicbrainz: acid house influenced genres acid techno",
+    "evidencia: Discogs Acid 0.20 en Techno (Raw / Deep / Hypnotic)"
+   ]
+  },
+  {
+   "a": "House > Soulful",
+   "b": "R&B > Soul",
+   "similitud": 0.45,
+   "motivo": "El soulful house es house con voces y armonía de soul.",
+   "fuentes": [
+    "beatport_taxonomia: House > Soulful y R&B > Soul",
+    "musicbrainz: garage house subgenres gospel house, influenced by disco"
+   ]
+  },
+  {
+   "a": "Funky House",
+   "b": "Nu Disco / Disco",
+   "similitud": 0.6,
+   "motivo": "El funky house es house con samples de funk y disco, como el nu disco.",
+   "fuentes": [
+    "musicbrainz: funky house influenced by funk",
+    "beatport_taxonomia: Nu Disco / Disco > Funk / Soul",
+    "musicbrainz: french house influenced by disco, funk"
+   ]
+  },
+  {
+   "a": "Bass House",
+   "b": "Mainstage",
+   "similitud": 0.55,
+   "motivo": "Bass house y mainstage comparten festival y drops, y el speed house sale del bass house.",
+   "fuentes": [
+    "wikidata: speed house subclass of bass house y hard dance",
+    "musicbrainz: speed house influenced by bass house, hard house",
+    "evidencia: Discogs Electro House 0.35 en Bass House"
+   ]
+  },
+  {
+   "a": "Mainstage > Speed House",
+   "b": "Bass House",
+   "similitud": 0.75,
+   "motivo": "El speed house es bass house acelerado.",
+   "fuentes": [
+    "wikidata: speed house subclass of bass house",
+    "musicbrainz: speed house subgenre of house, influenced by bass house"
+   ]
+  },
+  {
+   "a": "Deep House",
+   "b": "Organic House",
+   "similitud": 0.85,
+   "motivo": "El organic house sale del deep house; en la biblioteca es el par más parecido de todos.",
+   "fuentes": [
+    "musicbrainz: organic house influenced by deep house",
+    "musicbrainz: deep house influenced genres organic house",
+    "evidencia: versiones Deep House/Organic House 10, borrador 0.978, lift 1.97"
+   ]
+  },
+  {
+   "a": "Deep House",
+   "b": "Melodic House & Techno",
+   "similitud": 0.65,
+   "motivo": "El melodic house viene del deep house, y Beatport los alterna mucho.",
+   "fuentes": [
+    "musicbrainz: melodic house influenced by deep house, progressive house, melodic techno",
+    "evidencia: versiones Deep House/Melodic House & Techno 25, borrador 0.867, lift 1.29"
+   ]
+  },
+  {
+   "a": "Melodic House & Techno > Melodic House",
+   "b": "Deep House",
+   "similitud": 0.7,
+   "motivo": "El subgénero Melodic House es el lado deep del género.",
+   "fuentes": [
+    "musicbrainz: melodic house subgenre of house, influenced by deep house",
+    "wikidata: melodic house subclass of house music"
+   ]
+  },
+  {
+   "a": "Deep House",
+   "b": "Afro House",
+   "similitud": 0.6,
+   "motivo": "El afro house viene del deep house, con el mismo tempo (120-123).",
+   "fuentes": [
+    "musicbrainz: afro house influenced by deep house, kwaito",
+    "evidencia: versiones Afro House/Deep House 8, borrador 0.703"
+   ]
+  },
+  {
+   "a": "Deep House",
+   "b": "Indie Dance",
+   "similitud": 0.5,
+   "motivo": "Mismo tempo (122) y clima nocturno.",
+   "fuentes": [
+    "evidencia: versiones Deep House/Indie Dance 4, borrador 0.748, lift 1.06"
+   ]
+  },
+  {
+   "a": "Deep House",
+   "b": "Progressive House",
+   "similitud": 0.5,
+   "motivo": "Son dos ramas del house que alimentan al melodic y al organic house.",
+   "fuentes": [
+    "musicbrainz: deep house y progressive house subgenre of house",
+    "musicbrainz: melodic house influenced by deep house, progressive house",
+    "evidencia: versiones 1, borrador 0.683, lift 1.12"
+   ]
+  },
+  {
+   "a": "Deep House",
+   "b": "Dance / Pop",
+   "similitud": 0.45,
+   "motivo": "Beatport los alterna; el deep es más sobrio.",
+   "fuentes": [
+    "evidencia: versiones Dance / Pop/Deep House 7, borrador 0.558"
+   ]
+  },
+  {
+   "a": "Deep House",
+   "b": "Techno (Peak Time / Driving)",
+   "similitud": 0.4,
+   "motivo": "Beatport los alterna más de lo que se esperaría, pero el audio los separa.",
+   "fuentes": [
+    "evidencia: versiones Deep House/Techno (Peak Time / Driving) 9, borrador 0.531, lift 0.56"
+   ]
+  },
+  {
+   "a": "Dance / Pop > Tropical House",
+   "b": "Deep House",
+   "similitud": 0.5,
+   "motivo": "El tropical house viene del deep house.",
+   "fuentes": [
+    "musicbrainz: tropical house subgenre of house, influenced by deep house",
+    "wikidata: tropical house subclass of house music"
+   ]
+  },
+  {
+   "a": "Amapiano",
+   "b": "Deep House",
+   "similitud": 0.45,
+   "motivo": "El amapiano viene del deep house y del kwaito, pero es más lento (110-115).",
+   "fuentes": [
+    "musicbrainz: amapiano influenced by deep house, gqom, kwaito"
+   ]
+  },
+  {
+   "a": "Organic House",
+   "b": "Melodic House & Techno",
+   "similitud": 0.6,
+   "motivo": "Organic y melodic house comparten una raíz progresiva y profunda.",
+   "fuentes": [
+    "musicbrainz: organic house influenced by progressive house, deep house",
+    "musicbrainz: melodic house influenced by deep house, progressive house",
+    "evidencia: versiones Melodic House & Techno/Organic House 3, borrador 0.783, lift 1.25"
+   ]
+  },
+  {
+   "a": "Organic House",
+   "b": "Progressive House",
+   "similitud": 0.55,
+   "motivo": "El organic house viene en parte del progressive house.",
+   "fuentes": [
+    "musicbrainz: organic house influenced by progressive house",
+    "musicbrainz: progressive house influenced genres organic house",
+    "evidencia: versiones 1, borrador 0.669, lift 1.27"
+   ]
+  },
+  {
+   "a": "Organic House",
+   "b": "Afro House",
+   "similitud": 0.55,
+   "motivo": "El organic house toma la percusión del afro house.",
+   "fuentes": [
+    "musicbrainz: organic house influenced by afro house",
+    "musicbrainz: afro house influenced genres organic house",
+    "evidencia: versiones 1, borrador 0.613, lift 1.18"
+   ]
+  },
+  {
+   "a": "Organic House",
+   "b": "Indie Dance",
+   "similitud": 0.45,
+   "motivo": "Mismo tempo y mismo clima, pero menos coincidencia de estilo.",
+   "fuentes": [
+    "evidencia: versiones Indie Dance/Organic House 1, borrador 0.699"
+   ]
+  },
+  {
+   "a": "Melodic House & Techno",
+   "b": "Progressive House",
+   "similitud": 0.85,
+   "motivo": "En la biblioteca, Melodic House & Techno y Progressive House son casi intercambiables.",
+   "fuentes": [
+    "musicbrainz: melodic house influenced by progressive house",
+    "wikidata: progressive house subclass of progressive electronic dance music",
+    "evidencia: versiones Melodic House & Techno/Progressive House 9, borrador 0.948, lift 1.59",
+    "evidencia: Discogs Progressive House 0.31 en MH&T"
+   ]
+  },
+  {
+   "a": "Melodic House & Techno",
+   "b": "Indie Dance",
+   "similitud": 0.7,
+   "motivo": "El indie dance oscuro (dark disco) y el melodic techno comparten sellos, clima y BPM (122-123).",
+   "fuentes": [
+    "evidencia: versiones Indie Dance/Melodic House & Techno 10, borrador 0.892, lift 1.35"
+   ]
+  },
+  {
+   "a": "Melodic House & Techno",
+   "b": "Techno (Peak Time / Driving)",
+   "similitud": 0.6,
+   "motivo": "El melodic techno es techno, y Beatport los alterna mucho.",
+   "fuentes": [
+    "wikidata: melodic techno subclass of techno",
+    "musicbrainz: melodic techno subgenre of techno",
+    "evidencia: versiones Melodic House & Techno/Techno (Peak Time / Driving) 21, borrador 0.731",
+    "evidencia: Discogs Techno 0.31 en MH&T"
+   ]
+  },
+  {
+   "a": "Melodic House & Techno > Melodic Techno",
+   "b": "Techno (Peak Time / Driving)",
+   "similitud": 0.7,
+   "motivo": "El subgénero Melodic Techno es el lado techno del género.",
+   "fuentes": [
+    "wikidata: melodic techno subclass of techno",
+    "musicbrainz: melodic techno subgenre of techno"
+   ]
+  },
+  {
+   "a": "Melodic House & Techno",
+   "b": "Techno (Raw / Deep / Hypnotic)",
+   "similitud": 0.35,
+   "motivo": "Los dos son techno, pero con otra estética.",
+   "fuentes": [
+    "wikidata: melodic techno subclass of techno",
+    "evidencia: borrador 0.445"
+   ]
+  },
+  {
+   "a": "Melodic House & Techno",
+   "b": "Afro House",
+   "similitud": 0.5,
+   "motivo": "El afro melódico cruza los dos, y Beatport los alterna.",
+   "fuentes": [
+    "evidencia: versiones Afro House/Melodic House & Techno 10, borrador 0.634"
+   ]
+  },
+  {
+   "a": "Afro House > Afro Melodic",
+   "b": "Melodic House & Techno",
+   "similitud": 0.7,
+   "motivo": "Afro Melodic es afro house con la estética del melodic house.",
+   "fuentes": [
+    "beatport_taxonomia: Afro House > Afro Melodic",
+    "evidencia: versiones Afro House/Melodic House & Techno 10"
+   ]
+  },
+  {
+   "a": "Melodic House & Techno",
+   "b": "Dance / Pop",
+   "similitud": 0.4,
+   "motivo": "Beatport los alterna, pero el estilo coincide poco.",
+   "fuentes": [
+    "evidencia: versiones Dance / Pop/Melodic House & Techno 8, borrador 0.578"
+   ]
+  },
+  {
+   "a": "Progressive House",
+   "b": "Techno (Peak Time / Driving)",
+   "similitud": 0.6,
+   "motivo": "El progressive house actual de Beatport es oscuro y lleva bien al techno; en la biblioteca es el 2.º vecino de Techno PT.",
+   "fuentes": [
+    "evidencia: versiones 2, borrador 0.758 (2.º de la fila de Techno PT), lift 1.21, centroide CLAP 0.977",
+    "evidencia: Discogs Progressive House 0.16 en Techno PT"
+   ]
+  },
+  {
+   "a": "Progressive House",
+   "b": "Techno (Raw / Deep / Hypnotic)",
+   "similitud": 0.5,
+   "motivo": "Los dos tienen un lado hipnótico; en la biblioteca es el 2.º vecino de Raw.",
+   "fuentes": [
+    "evidencia: borrador 0.576 (2.º de la fila de Raw), lift 1.17, centroide CLAP 0.9664"
+   ]
+  },
+  {
+   "a": "Progressive House",
+   "b": "Indie Dance",
+   "similitud": 0.45,
+   "motivo": "Los dos son vecinos del melodic house.",
+   "fuentes": [
+    "evidencia: borrador 0.617"
+   ]
+  },
+  {
+   "a": "Indie Dance",
+   "b": "Techno (Peak Time / Driving)",
+   "similitud": 0.5,
+   "motivo": "El indie dance oscuro sube al techno.",
+   "fuentes": [
+    "evidencia: versiones Indie Dance/Techno (Peak Time / Driving) 2, borrador 0.692",
+    "evidencia: Discogs Techno 0.28 en Indie Dance"
+   ]
+  },
+  {
+   "a": "Indie Dance",
+   "b": "Techno (Raw / Deep / Hypnotic)",
+   "similitud": 0.4,
+   "motivo": "El dark disco toca el EBM del techno crudo; en la biblioteca, Indie Dance es el 2.º centroide de la fila de Raw.",
+   "fuentes": [
+    "musicbrainz: dark disco influenced by ebm, new beat",
+    "evidencia: borrador 0.481, centroide CLAP 0.9681 (2.º de la fila de Raw)"
+   ]
+  },
+  {
+   "a": "Indie Dance",
+   "b": "Dance / Pop",
+   "similitud": 0.4,
+   "motivo": "Beatport los alterna a veces.",
+   "fuentes": [
+    "evidencia: versiones Dance / Pop/Indie Dance 3, borrador 0.585"
+   ]
+  },
+  {
+   "a": "Indie Dance > Italo",
+   "b": "Nu Disco / Disco > Italo",
+   "similitud": 0.9,
+   "motivo": "Es el mismo subgénero (Italo) en los dos géneros.",
+   "fuentes": [
+    "beatport_taxonomia: Italo es subgénero de Indie Dance y de Nu Disco / Disco",
+    "wikidata: Italo disco subclass of electro-disco"
+   ]
+  },
+  {
+   "a": "Indie Dance > Dark Disco",
+   "b": "Techno (Raw / Deep / Hypnotic) > EBM",
+   "similitud": 0.65,
+   "motivo": "El dark disco viene del EBM y del new beat.",
+   "fuentes": [
+    "musicbrainz: dark disco influenced by disco, ebm, new beat",
+    "evidencia: Dark Disco en 3 temas de Indie Dance"
+   ]
+  },
+  {
+   "a": "Techno (Peak Time / Driving)",
+   "b": "Techno (Raw / Deep / Hypnotic)",
+   "similitud": 0.85,
+   "motivo": "Son las dos mitades del techno de Beatport, y en la biblioteca cada uno es el vecino más cercano del otro.",
+   "fuentes": [
+    "wikidata: peak time techno, raw techno, deep techno subclass of techno",
+    "musicbrainz: peak time techno y deep techno subgenre of techno",
+    "evidencia: versiones 3, borrador 0.89, lift 1.41"
+   ]
+  },
+  {
+   "a": "Afro House",
+   "b": "Dance / Pop",
+   "similitud": 0.6,
+   "motivo": "El house vocal y el afro comparten público; en la biblioteca Dance / Pop es el 2.º vecino de Afro House en las tres señales.",
+   "fuentes": [
+    "evidencia: versiones Afro House/Dance / Pop 3, borrador 0.769, lift 1.35",
+    "evidencia: centroide CLAP 0.9667 (2.º de la fila de Afro House)",
+    "beatport_taxonomia: Dance / Pop > Afro Pop"
+   ]
+  },
+  {
+   "a": "Dance / Pop > Afro Pop",
+   "b": "Afro House",
+   "similitud": 0.6,
+   "motivo": "El Afro Pop de Dance / Pop es pop con base de afro house.",
+   "fuentes": [
+    "beatport_taxonomia: Dance / Pop > Afro Pop",
+    "evidencia: borrador Afro House/Dance / Pop 0.769"
+   ]
+  },
+  {
+   "a": "Afro House > 3Step",
+   "b": "Amapiano",
+   "similitud": 0.85,
+   "motivo": "El 3-step es afro house influido por el amapiano.",
+   "fuentes": [
+    "musicbrainz: 3-step subgenre of afro house, influenced by amapiano, deep house",
+    "wikidata: 3-step subclass of Afro house"
+   ]
+  },
+  {
+   "a": "Afro House > Afro / Latin",
+   "b": "House > Latin House",
+   "similitud": 0.7,
+   "motivo": "Los dos ponen percusión latina sobre house.",
+   "fuentes": [
+    "beatport_taxonomia: Afro House > Afro / Latin y House > Latin House",
+    "wikidata: Latin house subclass of house music"
+   ]
+  },
+  {
+   "a": "Afro House > Afro / Latin",
+   "b": "Tech House > Latin Tech",
+   "similitud": 0.65,
+   "motivo": "Percusión latina en tech house y en afro house.",
+   "fuentes": [
+    "wikidata: Latin tech subclass of tech house y Latin electronic music",
+    "beatport_taxonomia: Afro House > Afro / Latin"
+   ]
+  },
+  {
+   "a": "Mainstage > Future Rave",
+   "b": "Techno (Peak Time / Driving)",
+   "similitud": 0.55,
+   "motivo": "El future rave mezcla peak time techno con el drop de festival.",
+   "fuentes": [
+    "musicbrainz: future rave influenced by melodic techno, peak time techno, tech house",
+    "musicbrainz: peak time techno influenced genres future rave"
+   ]
+  },
+  {
+   "a": "Mainstage > Future Rave",
+   "b": "Melodic House & Techno",
+   "similitud": 0.55,
+   "motivo": "El future rave toma los arpegios del melodic techno.",
+   "fuentes": [
+    "musicbrainz: melodic techno influenced genres future rave"
+   ]
+  },
+  {
+   "a": "Techno (Peak Time / Driving) > Psy-Techno",
+   "b": "Psy-Trance",
+   "similitud": 0.75,
+   "motivo": "Psy-Techno es techno con leads de psytrance: el puente que Beatport creó entre los dos.",
+   "fuentes": [
+    "wikidata: psytech subclass of techno y psychedelic trance",
+    "beatport_taxonomia: Psy-Techno es subgénero de Techno (Peak Time / Driving)",
+    "evidencia: el 21% de los vecinos CLAP de Psy-Trance son Techno PT, lift 2.25 (el mayor sin contar Indie Tech, 3.93, que se tomó como ruido)"
+   ]
+  },
+  {
+   "a": "Techno (Peak Time / Driving) > Psy-Techno",
+   "b": "Psy-Trance > Progressive Psy",
+   "similitud": 0.8,
+   "motivo": "El progressive psy es el psytrance más cercano al techno en tempo y en groove.",
+   "fuentes": [
+    "wikidata: progressive psytrance subclass of psychedelic trance y progressive EDM",
+    "musicbrainz: progressive psytrance influenced by minimal techno, tech house"
+   ]
+  },
+  {
+   "a": "Techno (Peak Time / Driving)",
+   "b": "Psy-Trance",
+   "similitud": 0.45,
+   "motivo": "El psy de la biblioteca es progressive psy de 136 BPM, la rama que viene del minimal techno y del tech house, y Techno PT es su vecino más claro. Como el subgénero casi nunca está cargado, pesa el valor de género; queda por debajo de 0.5 por los unos 10 BPM de diferencia.",
+   "fuentes": [
+    "wikidata: psytech subclass of techno y psychedelic trance",
+    "musicbrainz: progressive psytrance influenced by minimal techno, tech house",
+    "evidencia: clap_vecinos Psy-Trance → Techno PT 0.2105, lift 2.245, centroide 0.9499 y borrador 0.565 (los más altos de la fila de Psy-Trance)",
+    "evidencia: Psy-Trance Discogs Progressive Trance 0.75, BPM mediana 136; Techno PT BPM mediana 126"
+   ]
+  },
+  {
+   "a": "Psy-Trance",
+   "b": "Progressive House",
+   "similitud": 0.3,
+   "motivo": "El progressive psy viene en parte del progressive house; a nivel de género, el vínculo es débil.",
+   "fuentes": [
+    "musicbrainz: progressive house influenced genres progressive psytrance",
+    "evidencia: borrador 0.39"
+   ]
+  },
+  {
+   "a": "Psy-Trance",
+   "b": "Techno (Raw / Deep / Hypnotic)",
+   "similitud": 0.3,
+   "motivo": "Los dos tienen un lado hipnótico y un tempo cercano (129 y 136).",
+   "fuentes": [
+    "evidencia: lift CLAP 1.19, borrador 0.398",
+    "evidencia: BPM mediana 129 Techno (Raw / Deep / Hypnotic) y 136 Psy-Trance"
+   ]
+  },
+  {
+   "a": "Psy-Trance > Progressive Psy",
+   "b": "Techno (Peak Time / Driving)",
+   "similitud": 0.5,
+   "motivo": "El progressive psy toma el groove del techno y del tech house.",
+   "fuentes": [
+    "musicbrainz: progressive psytrance influenced by minimal techno, tech house, progressive house, deep house"
+   ]
+  },
+  {
+   "a": "Psy-Trance > Progressive Psy",
+   "b": "Progressive House",
+   "similitud": 0.5,
+   "motivo": "El progressive psy viene en parte del progressive house.",
+   "fuentes": [
+    "musicbrainz: progressive psytrance influenced by progressive house",
+    "musicbrainz: progressive house influenced genres progressive psytrance",
+    "wikidata: progressive psytrance subclass of progressive EDM"
+   ]
+  },
+  {
+   "a": "Psy-Trance > Progressive Psy",
+   "b": "Tech House",
+   "similitud": 0.4,
+   "motivo": "El tech house influyó en el progressive psy.",
+   "fuentes": [
+    "musicbrainz: progressive psytrance influenced by tech house",
+    "musicbrainz: tech house influenced genres progressive psytrance"
+   ]
+  },
+  {
+   "a": "Psy-Trance",
+   "b": "Trance (Main Floor)",
+   "similitud": 0.4,
+   "motivo": "El psytrance es una rama del trance, con otra escena.",
+   "fuentes": [
+    "wikidata: psychedelic trance subclass of trance",
+    "musicbrainz: psytrance subgenre of trance",
+    "evidencia: Discogs Progressive Trance 0.75 en Psy-Trance"
+   ]
+  },
+  {
+   "a": "Trance (Main Floor) > Progressive Trance",
+   "b": "Psy-Trance > Progressive Psy",
+   "similitud": 0.6,
+   "motivo": "Son las dos ramas progresivas del trance.",
+   "fuentes": [
+    "wikidata: progressive trance y progressive psytrance subclass of progressive EDM",
+    "evidencia: Discogs Progressive Trance 0.75 en Psy-Trance"
+   ]
+  },
+  {
+   "a": "Trance (Main Floor) > Progressive Trance",
+   "b": "Progressive House",
+   "similitud": 0.6,
+   "motivo": "El progressive trance y el progressive house se influyeron mutuamente.",
+   "fuentes": [
+    "musicbrainz: progressive trance influenced by progressive house",
+    "musicbrainz: progressive house influenced by trance",
+    "wikidata: progressive trance y progressive house subclass of progressive EDM"
+   ]
+  },
+  {
+   "a": "Trance (Main Floor)",
+   "b": "Progressive House",
+   "similitud": 0.45,
+   "motivo": "El trance de main floor más lento cruza con el progressive house.",
+   "fuentes": [
+    "musicbrainz: progressive house influenced by trance",
+    "evidencia: versiones Progressive House/Trance (Main Floor) 3",
+    "evidencia: Discogs Progressive House 0.37 en Trance (Main Floor)"
+   ]
+  },
+  {
+   "a": "Trance (Main Floor) > Tech Trance",
+   "b": "Techno (Peak Time / Driving)",
+   "similitud": 0.55,
+   "motivo": "El tech trance es trance con base de techno.",
+   "fuentes": [
+    "musicbrainz: tech trance influenced by techno",
+    "musicbrainz: techno influenced genres tech trance"
+   ]
+  },
+  {
+   "a": "Trance (Main Floor)",
+   "b": "Melodic House & Techno",
+   "similitud": 0.4,
+   "motivo": "El melodic techno toma arpegios y crescendos del trance.",
+   "fuentes": [
+    "musicbrainz: melodic techno influenced by trance",
+    "musicbrainz: trance influenced genres melodic techno"
+   ]
+  },
+  {
+   "a": "Trance (Main Floor)",
+   "b": "Techno (Peak Time / Driving)",
+   "similitud": 0.35,
+   "motivo": "Se influyeron mutuamente, pero tienen otro tempo y otra estética.",
+   "fuentes": [
+    "musicbrainz: peak time techno influenced by trance",
+    "evidencia: Discogs Techno 0.20 en Trance (Main Floor)",
+    "evidencia: versiones Tech House/Trance (Main Floor) 1"
+   ]
+  },
+  {
+   "a": "Trance (Raw / Deep / Hypnotic)",
+   "b": "Techno (Raw / Deep / Hypnotic)",
+   "similitud": 0.55,
+   "motivo": "El trance crudo e hipnótico es el trance más cercano al techno hipnótico, y el nombre lo calca.",
+   "fuentes": [
+    "wikidata: raw trance, hypnotic trance, deep trance subclass of trance",
+    "wikidata: neo trance subclass of trance y minimal EDM",
+    "musicbrainz: neo-trance subgenre of minimal techno, influenced by tech house, trance"
+   ]
+  },
+  {
+   "a": "Trance (Raw / Deep / Hypnotic)",
+   "b": "Techno (Peak Time / Driving)",
+   "similitud": 0.5,
+   "motivo": "Es trance a tempo de techno, y Beatport los alterna.",
+   "fuentes": [
+    "evidencia: versiones Techno (Peak Time / Driving)/Trance (Raw / Deep / Hypnotic) 1",
+    "musicbrainz: peak time techno influenced by trance"
+   ]
+  },
+  {
+   "a": "Trance (Raw / Deep / Hypnotic)",
+   "b": "Melodic House & Techno",
+   "similitud": 0.4,
+   "motivo": "El melodic techno y el trance hipnótico comparten arpegios.",
+   "fuentes": [
+    "musicbrainz: melodic techno influenced by trance"
+   ]
+  },
+  {
+   "a": "Mainstage > Big Room",
+   "b": "Trance (Main Floor)",
+   "similitud": 0.5,
+   "motivo": "El big room trance nace del big room house.",
+   "fuentes": [
+    "musicbrainz: big room trance influenced by big room house, electro house, tech trance",
+    "wikidata: big room trance subclass of trance"
+   ]
+  },
+  {
+   "a": "Hard Techno",
+   "b": "Techno (Peak Time / Driving)",
+   "similitud": 0.65,
+   "motivo": "El hard techno es techno más rápido y más duro: sube desde el peak time. Las taxonomías lo ponen bajo techno; la diferencia de tempo la mide el componente de BPM del recomendador.",
+   "fuentes": [
+    "wikidata: hard techno subclass of techno",
+    "musicbrainz: hard techno subgenre of techno, influenced by acid techno",
+    "musicbrainz: acid techno influenced genres hard techno, peak time techno",
+    "beatport_cache: BPM mediana Hard Techno 147 (p25 135.5), Techno (Peak Time / Driving) 127",
+    "docs/DECISIONS.md 2026-11-06 punto 9: el BPM es un componente aparte del recomendador"
+   ]
+  },
+  {
+   "a": "Hard Techno",
+   "b": "Techno (Raw / Deep / Hypnotic)",
+   "similitud": 0.65,
+   "motivo": "El hard techno comparte la crudeza industrial del raw techno, y los tempos se tocan (p75 de Raw 138, p25 de Hard Techno 135.5).",
+   "fuentes": [
+    "wikidata: hard techno, raw techno, industrial techno subclass of techno",
+    "wikidata: schranz subclass of hard techno",
+    "beatport_cache: BPM Techno (Raw / Deep / Hypnotic) mediana 132, p75 138; Hard Techno p25 135.5"
+   ]
+  },
+  {
+   "a": "Techno (Raw / Deep / Hypnotic) > Raw",
+   "b": "Hard Techno",
+   "similitud": 0.7,
+   "motivo": "El subgénero Raw es el techno crudo más cercano al hard techno.",
+   "fuentes": [
+    "wikidata: raw techno subclass of techno",
+    "musicbrainz: hard techno subgenre of techno"
+   ]
+  },
+  {
+   "a": "Hard Dance / Hardcore / Neo Rave > Neo Rave",
+   "b": "Hard Techno",
+   "similitud": 0.85,
+   "motivo": "El neo rave nace del hard techno y del hardstyle.",
+   "fuentes": [
+    "musicbrainz: neo rave influenced by hard techno, hardstyle",
+    "musicbrainz: hard techno influenced genres neo rave",
+    "wikidata: neo rave subclass of hard dance"
+   ]
+  },
+  {
+   "a": "Hard Dance / Hardcore / Neo Rave > Hard House",
+   "b": "Mainstage > Speed House",
+   "similitud": 0.55,
+   "motivo": "El speed house toma del hard house.",
+   "fuentes": [
+    "wikidata: speed house subclass of hard dance y bass house",
+    "musicbrainz: speed house influenced by hard house"
+   ]
+  },
+  {
+   "a": "Hard Dance / Hardcore / Neo Rave > Hard House",
+   "b": "House",
+   "similitud": 0.4,
+   "motivo": "El hard house es house acelerado.",
+   "fuentes": [
+    "wikidata: hard house subclass of house music y hard dance",
+    "musicbrainz: hard house subgenre of house, influenced by acid house"
+   ]
+  },
+  {
+   "a": "Trance (Main Floor) > Hard Trance",
+   "b": "Hard Dance / Hardcore / Neo Rave",
+   "similitud": 0.6,
+   "motivo": "El hard trance es trance y hard dance a la vez.",
+   "fuentes": [
+    "wikidata: hard trance subclass of trance y hard dance",
+    "musicbrainz: hard trance influenced genres hardstyle"
+   ]
+  },
+  {
+   "a": "Trance (Main Floor) > Hard Trance",
+   "b": "Hard Dance / Hardcore / Neo Rave > Hardstyle",
+   "similitud": 0.7,
+   "motivo": "El hardstyle viene del hard trance.",
+   "fuentes": [
+    "musicbrainz: hardstyle influenced by hard trance, gabber, hardcore techno",
+    "musicbrainz: hard trance influenced genres hardstyle, early hardstyle"
+   ]
+  },
+  {
+   "a": "Bass House",
+   "b": "UK Garage / Bassline",
+   "similitud": 0.6,
+   "motivo": "El bass house y el bassline comparten el bajo; Wikidata pone a los dos bajo bass music.",
+   "fuentes": [
+    "wikidata: bass house subclass of house music y bass music (EDM)",
+    "wikidata: bassline subclass of UK garage y bass music (EDM)",
+    "evidencia: el tema de Bass House da Discogs Bassline 0.64"
+   ]
+  },
+  {
+   "a": "UK Garage / Bassline > Bassline",
+   "b": "Bass House",
+   "similitud": 0.75,
+   "motivo": "El bassline es el antecesor directo del bass house.",
+   "fuentes": [
+    "musicbrainz: bassline subgenre of uk garage, influenced by house",
+    "wikidata: bassline subclass of bass music (EDM)"
+   ]
+  },
+  {
+   "a": "UK Garage / Bassline > Bassline",
+   "b": "Jackin House",
+   "similitud": 0.5,
+   "motivo": "El UK jackin sale del bassline.",
+   "fuentes": [
+    "musicbrainz: uk jackin subgenre of house, influenced by bassline",
+    "musicbrainz: bassline influenced genres uk jackin"
+   ]
+  },
+  {
+   "a": "UK Garage / Bassline > Speed Garage",
+   "b": "House",
+   "similitud": 0.55,
+   "motivo": "El speed garage es house y UK garage a la vez.",
+   "fuentes": [
+    "wikidata: speed garage subclass of house music y UK garage",
+    "musicbrainz: speed garage influenced by garage house"
+   ]
+  },
+  {
+   "a": "UK Garage / Bassline > Speed Garage",
+   "b": "Bass House",
+   "similitud": 0.55,
+   "motivo": "Speed garage y bass house: los dos son house con bajo pesado.",
+   "fuentes": [
+    "wikidata: speed garage subclass of house music y UK garage",
+    "wikidata: bass house subclass of house music"
+   ]
+  },
+  {
+   "a": "UK Garage / Bassline",
+   "b": "House",
+   "similitud": 0.45,
+   "motivo": "El UK garage nace del garage house.",
+   "fuentes": [
+    "musicbrainz: uk garage influenced by garage house",
+    "musicbrainz: garage house influenced genres uk garage",
+    "evidencia: el tema de UK Garage da Discogs House 0.60, BPM 129"
+   ]
+  },
+  {
+   "a": "Mainstage > Future House",
+   "b": "UK Garage / Bassline",
+   "similitud": 0.45,
+   "motivo": "El future house toma el bajo del UK garage.",
+   "fuentes": [
+    "musicbrainz: future house influenced by electro house, garage house, uk garage",
+    "musicbrainz: uk garage influenced genres future house"
+   ]
+  },
+  {
+   "a": "Breaks / Breakbeat / UK Bass",
+   "b": "Techno (Raw / Deep / Hypnotic)",
+   "similitud": 0.5,
+   "motivo": "Los breaks de la biblioteca son breaks techneros (UK bass).",
+   "fuentes": [
+    "evidencia: Breaks (7 temas) Discogs Techno 0.52, Deep Techno 0.21, Dub Techno 0.11, BPM 128",
+    "musicbrainz: techno influenced genres nu skool breaks, west coast breaks"
+   ]
+  },
+  {
+   "a": "Breaks / Breakbeat / UK Bass",
+   "b": "Techno (Peak Time / Driving)",
+   "similitud": 0.45,
+   "motivo": "Breaks a tempo de techno.",
+   "fuentes": [
+    "evidencia: versiones Breaks / Breakbeat / UK Bass/Techno (Peak Time / Driving) 1",
+    "musicbrainz: nu skool breaks influenced by techno",
+    "evidencia: Discogs Techno 0.52 en Breaks"
+   ]
+  },
+  {
+   "a": "Techno (Raw / Deep / Hypnotic) > Broken",
+   "b": "Breaks / Breakbeat / UK Bass",
+   "similitud": 0.7,
+   "motivo": "El broken techno es techno con ritmo roto.",
+   "fuentes": [
+    "beatport_taxonomia: Techno (Raw / Deep / Hypnotic) > Broken",
+    "wikidata: broken beat subclass of electronica y EDM"
+   ]
+  },
+  {
+   "a": "Techno (Raw / Deep / Hypnotic) > Broken",
+   "b": "Electro (Classic / Detroit / Modern)",
+   "similitud": 0.65,
+   "motivo": "El techno roto y el electro comparten la caja de ritmos quebrada.",
+   "fuentes": [
+    "wikidata: electro-techno subclass of techno y electro",
+    "musicbrainz: wonky techno influenced by electro"
+   ]
+  },
+  {
+   "a": "Electro (Classic / Detroit / Modern)",
+   "b": "Techno (Raw / Deep / Hypnotic)",
+   "similitud": 0.55,
+   "motivo": "El electro de Detroit y el techno nacieron juntos, y los DJs de techno lo intercalan.",
+   "fuentes": [
+    "wikidata: first wave of Detroit techno subclass of electro",
+    "wikidata: electro-techno subclass of techno y electro",
+    "evidencia: el tema de Electro da Discogs Electro 0.86, Techno 0.47, Acid 0.38, BPM 131"
+   ]
+  },
+  {
+   "a": "Electro (Classic / Detroit / Modern)",
+   "b": "Techno (Peak Time / Driving)",
+   "similitud": 0.45,
+   "motivo": "Mismo origen, otro ritmo.",
+   "fuentes": [
+    "wikidata: first wave of Detroit techno subclass of electro",
+    "wikidata: techno bass subclass of electro"
+   ]
+  },
+  {
+   "a": "Techno (Raw / Deep / Hypnotic) > EBM",
+   "b": "Electro (Classic / Detroit / Modern)",
+   "similitud": 0.6,
+   "motivo": "Electro y EBM son parientes directos.",
+   "fuentes": [
+    "wikidata: electro subclass of electronic body music",
+    "wikidata: dark electro subclass of electronic body music",
+    "wikidata: techno body music subclass of techno y electronic body music"
+   ]
+  },
+  {
+   "a": "Mainstage > Electro House",
+   "b": "Electro (Classic / Detroit / Modern)",
+   "similitud": 0.4,
+   "motivo": "Comparten nombre, y Discogs usa 'Electro' también para el electro house. Pero el electro es roto y el electro house va en 4/4, así que la relación es moderada.",
+   "fuentes": [
+    "evidencia: Mainstage (6 de 10 con Electro House) da Discogs Electro 0.25 y Electro House 0.24",
+    "wikidata: French electro subclass of electro house"
+   ]
+  },
+  {
+   "a": "Breaks / Breakbeat / UK Bass",
+   "b": "UK Garage / Bassline",
+   "similitud": 0.5,
+   "motivo": "UK bass y garage: el continuo británico.",
+   "fuentes": [
+    "musicbrainz: nu skool breaks influenced by uk garage",
+    "wikidata: breakstep subclass of UK garage",
+    "beatport_taxonomia: 'UK Bass' en el nombre de Breaks / Breakbeat / UK Bass"
+   ]
+  },
+  {
+   "a": "Breaks / Breakbeat / UK Bass > Glitch Hop",
+   "b": "Dubstep > Midtempo",
+   "similitud": 0.6,
+   "motivo": "Glitch hop y midtempo: bass lento con raíz de electro house.",
+   "fuentes": [
+    "musicbrainz: glitch hop edm influenced by brostep, electro house",
+    "musicbrainz: midtempo bass influenced by electro house, tech house",
+    "wikidata: midtempo bass subclass of bass music (EDM)"
+   ]
+  },
+  {
+   "a": "Bass / Club > Jersey Club",
+   "b": "Breaks / Breakbeat / UK Bass",
+   "similitud": 0.5,
+   "motivo": "El jersey club es breakbeat de club.",
+   "fuentes": [
+    "musicbrainz: jersey club influenced by baltimore club, breakbeat",
+    "musicbrainz: breakbeat influenced genres jersey club, baltimore club"
+   ]
+  },
+  {
+   "a": "Bass / Club > Gqom",
+   "b": "Afro House",
+   "similitud": 0.55,
+   "motivo": "El gqom es house sudafricano, primo del afro house.",
+   "fuentes": [
+    "wikidata: gqom subclass of house music",
+    "musicbrainz: gqom subgenre of house, influenced by kwaito",
+    "musicbrainz: afro house influenced by kwaito"
+   ]
+  },
+  {
+   "a": "Bass / Club > Gqom",
+   "b": "Amapiano",
+   "similitud": 0.6,
+   "motivo": "El amapiano viene en parte del gqom.",
+   "fuentes": [
+    "musicbrainz: amapiano influenced by gqom",
+    "musicbrainz: gqom influenced genres amapiano"
+   ]
+  },
+  {
+   "a": "Bass / Club > UK Funky",
+   "b": "UK Garage / Bassline",
+   "similitud": 0.8,
+   "motivo": "El UK funky sale del UK garage.",
+   "fuentes": [
+    "musicbrainz: uk funky influenced by uk garage, tribal house, soca, dancehall",
+    "musicbrainz: uk garage influenced genres uk funky"
+   ]
+  },
+  {
+   "a": "Bass / Club > UK Funky",
+   "b": "Caribbean",
+   "similitud": 0.5,
+   "motivo": "El UK funky toma ritmos del soca y del dancehall.",
+   "fuentes": [
+    "musicbrainz: uk funky influenced by dancehall, soca"
+   ]
+  },
+  {
+   "a": "Bass / Club > Reggae / Dancehall",
+   "b": "Caribbean > Dancehall",
+   "similitud": 0.85,
+   "motivo": "Es el mismo estilo en dos géneros.",
+   "fuentes": [
+    "beatport_taxonomia: Bass / Club > Reggae / Dancehall y Caribbean > Dancehall"
+   ]
+  },
+  {
+   "a": "Bass / Club > Reggae / Dancehall",
+   "b": "Caribbean > Reggae",
+   "similitud": 0.8,
+   "motivo": "Es el mismo estilo en dos géneros.",
+   "fuentes": [
+    "beatport_taxonomia: Bass / Club > Reggae / Dancehall y Caribbean > Reggae"
+   ]
+  },
+  {
+   "a": "Bass / Club > Reggae / Dancehall",
+   "b": "Caribbean",
+   "similitud": 0.65,
+   "motivo": "El reggae y el dancehall son caribeños.",
+   "fuentes": [
+    "beatport_taxonomia: Bass / Club > Reggae / Dancehall; Caribbean > Dancehall, Reggae"
+   ]
+  },
+  {
+   "a": "Dubstep",
+   "b": "140 / Deep Dubstep / Grime",
+   "similitud": 0.7,
+   "motivo": "Beatport separa el dubstep de festival del profundo de 140, pero el nombre lo dice: los dos son dubstep. Queda igual que UK garage/140, sin quedar por debajo.",
+   "fuentes": [
+    "beatport_taxonomia: 140 / Deep Dubstep / Grime (id 95) y Dubstep (id 18) > Melodic Dubstep, Midtempo",
+    "wikidata: dubstep subclass of bass music (EDM)",
+    "musicbrainz: dubstep influenced by dark garage",
+    "musicbrainz: dark garage influenced genres dubstep",
+    "beatport_cache: BPM mediana 140 / Deep Dubstep / Grime 140, Dubstep p75 144"
+   ]
+  },
+  {
+   "a": "Dubstep > Melodic Dubstep",
+   "b": "Trap / Future Bass",
+   "similitud": 0.75,
+   "motivo": "El melodic dubstep y el future bass comparten la escena melódica de festival.",
+   "fuentes": [
+    "musicbrainz: melodic dubstep influenced genres melodic bass, colour bass, future riddim, heaven trap",
+    "musicbrainz: future bass influenced genres melodic bass, colour bass"
+   ]
+  },
+  {
+   "a": "UK Garage / Bassline > 2-Step",
+   "b": "140 / Deep Dubstep / Grime > Grime",
+   "similitud": 0.75,
+   "motivo": "El grime sale del 2-step.",
+   "fuentes": [
+    "musicbrainz: grime influenced by 2-step",
+    "musicbrainz: 2-step influenced genres grime"
+   ]
+  },
+  {
+   "a": "Drum & Bass > Halftime",
+   "b": "Dubstep",
+   "similitud": 0.55,
+   "motivo": "El halftime es drum & bass a medio tiempo influido por el dubstep.",
+   "fuentes": [
+    "musicbrainz: halftime subgenre of drum and bass, influenced by dubstep",
+    "musicbrainz: dubstep influenced genres halftime"
+   ]
+  },
+  {
+   "a": "Drum & Bass > Jungle",
+   "b": "Breaks / Breakbeat / UK Bass",
+   "similitud": 0.5,
+   "motivo": "El jungle sale del breakbeat hardcore.",
+   "fuentes": [
+    "musicbrainz: jungle influenced by jungle techno",
+    "wikidata: jungle techno subclass of breakbeat hardcore",
+    "wikidata: breakbeat hardcore subclass of breakbeat"
+   ]
+  },
+  {
+   "a": "Drum & Bass",
+   "b": "140 / Deep Dubstep / Grime",
+   "similitud": 0.4,
+   "motivo": "El grime toma del drum & bass y del jungle.",
+   "fuentes": [
+    "musicbrainz: grime influenced by drum and bass, jungle",
+    "musicbrainz: drum and bass influenced genres grime"
+   ]
+  },
+  {
+   "a": "140 / Deep Dubstep / Grime > Grime",
+   "b": "Hip-Hop",
+   "similitud": 0.5,
+   "motivo": "El grime es rap británico sobre base electrónica.",
+   "fuentes": [
+    "musicbrainz: grime influenced by hip hop",
+    "discogs: Hip Hop---Grime"
+   ]
+  },
+  {
+   "a": "Trap / Future Bass",
+   "b": "Hip-Hop",
+   "similitud": 0.45,
+   "motivo": "El trap electrónico viene del trap del hip-hop.",
+   "fuentes": [
+    "musicbrainz: trap edm influenced by trap, dubstep, grime",
+    "discogs: Hip Hop---Trap",
+    "evidencia: el tema de Trap / Future Bass da Discogs Cloud Rap 0.35, Trap 0.25, Pop Rap 0.16"
+   ]
+  },
+  {
+   "a": "Trap / Future Bass > Trap",
+   "b": "Hip-Hop",
+   "similitud": 0.6,
+   "motivo": "El subgénero Trap es el más cercano al hip-hop.",
+   "fuentes": [
+    "musicbrainz: trap edm influenced by trap",
+    "discogs: Hip Hop---Trap"
+   ]
+  },
+  {
+   "a": "Electronica",
+   "b": "Downtempo",
+   "similitud": 0.55,
+   "motivo": "Los dos son electrónica para escuchar, y Beatport los alterna.",
+   "fuentes": [
+    "wikidata: downtempo subclass of chill-out music",
+    "wikidata: electronica subclass of electronic music",
+    "evidencia: versiones Downtempo/Electronica 2"
+   ]
+  },
+  {
+   "a": "Electronica",
+   "b": "Ambient / Experimental",
+   "similitud": 0.5,
+   "motivo": "Son las dos ramas de la electrónica para escuchar.",
+   "fuentes": [
+    "musicbrainz: electronica y experimental electronic subgenre of electronic",
+    "evidencia: versiones Ambient / Experimental/Electronica 1"
+   ]
+  },
+  {
+   "a": "Electronica",
+   "b": "Deep House",
+   "similitud": 0.65,
+   "motivo": "En la biblioteca, Electronica suena a deep house, y Beatport los alterna mucho.",
+   "fuentes": [
+    "evidencia: versiones Deep House/Electronica 16, borrador 0.892, lift 1.12",
+    "evidencia: Discogs Deep House 0.24 en Electronica, BPM mediana 121"
+   ]
+  },
+  {
+   "a": "Electronica",
+   "b": "Organic House",
+   "similitud": 0.6,
+   "motivo": "Electronica y organic house son melódicos y orgánicos.",
+   "fuentes": [
+    "musicbrainz: organic house influenced by downtempo",
+    "evidencia: versiones Electronica/Organic House 3, borrador 0.86, lift 1.45"
+   ]
+  },
+  {
+   "a": "Electronica",
+   "b": "Melodic House & Techno",
+   "similitud": 0.55,
+   "motivo": "La electrónica melódica queda cerca del melodic house.",
+   "fuentes": [
+    "evidencia: versiones Electronica/Melodic House & Techno 7, borrador 0.773"
+   ]
+  },
+  {
+   "a": "Electronica",
+   "b": "House",
+   "similitud": 0.5,
+   "motivo": "Beatport los alterna a menudo.",
+   "fuentes": [
+    "evidencia: versiones Electronica/House 12, borrador 0.74"
+   ]
+  },
+  {
+   "a": "Electronica",
+   "b": "Indie Dance",
+   "similitud": 0.45,
+   "motivo": "Tienen un clima parecido.",
+   "fuentes": [
+    "evidencia: versiones Electronica/Indie Dance 5, borrador 0.673"
+   ]
+  },
+  {
+   "a": "Electronica",
+   "b": "Afro House",
+   "similitud": 0.45,
+   "motivo": "El audio se parece.",
+   "fuentes": [
+    "evidencia: versiones Afro House/Electronica 2, borrador 0.687, lift 1.34"
+   ]
+  },
+  {
+   "a": "Electronica",
+   "b": "Dance / Pop",
+   "similitud": 0.45,
+   "motivo": "Beatport los alterna.",
+   "fuentes": [
+    "evidencia: versiones Dance / Pop/Electronica 8, borrador 0.712"
+   ]
+  },
+  {
+   "a": "Electronica",
+   "b": "Tech House",
+   "similitud": 0.35,
+   "motivo": "Beatport los alterna a veces, pero el audio coincide poco.",
+   "fuentes": [
+    "evidencia: versiones Electronica/Tech House 6, borrador 0.565, lift 0.56"
+   ]
+  },
+  {
+   "a": "Electronica",
+   "b": "Progressive House",
+   "similitud": 0.35,
+   "motivo": "La Electronica de club queda a un paso del progressive; sin esta relación quedaría en 0 por estar en otra rama.",
+   "fuentes": [
+    "evidencia: borrador 0.351, lift 0.48"
+   ]
+  },
+  {
+   "a": "Electronica",
+   "b": "Minimal / Deep Tech",
+   "similitud": 0.35,
+   "motivo": "Contraste posible a tempo de pista; sin esta relación quedaría en 0 por estar en otra rama.",
+   "fuentes": [
+    "evidencia: versiones Electronica/Minimal / Deep Tech 1, borrador 0.397"
+   ]
+  },
+  {
+   "a": "Electronica",
+   "b": "Techno (Peak Time / Driving)",
+   "similitud": 0.3,
+   "motivo": "Contraste débil pero posible; sin esta relación quedaría en 0 por estar en otra rama.",
+   "fuentes": [
+    "evidencia: versiones Electronica/Techno (Peak Time / Driving) 1, borrador 0.355"
+   ]
+  },
+  {
+   "a": "Downtempo",
+   "b": "Organic House",
+   "similitud": 0.55,
+   "motivo": "El organic house viene en parte del downtempo.",
+   "fuentes": [
+    "musicbrainz: organic house influenced by downtempo",
+    "musicbrainz: downtempo influenced genres organic house",
+    "evidencia: versiones Downtempo/Organic House 1"
+   ]
+  },
+  {
+   "a": "Downtempo > Melodic Downtempo",
+   "b": "Organic House",
+   "similitud": 0.65,
+   "motivo": "El downtempo melódico es organic house más lento.",
+   "fuentes": [
+    "musicbrainz: organic house influenced by downtempo",
+    "beatport_taxonomia: Downtempo > Melodic Downtempo"
+   ]
+  },
+  {
+   "a": "Downtempo",
+   "b": "Deep House",
+   "similitud": 0.45,
+   "motivo": "Los downtempo de la biblioteca suenan a deep house lento.",
+   "fuentes": [
+    "evidencia: versiones Deep House/Downtempo 2",
+    "evidencia: Downtempo (3 temas) Discogs Deep House 0.46, BPM 115"
+   ]
+  },
+  {
+   "a": "Downtempo > Trip-Hop",
+   "b": "Hip-Hop",
+   "similitud": 0.5,
+   "motivo": "El trip hop es downtempo con base de hip-hop.",
+   "fuentes": [
+    "wikidata: trip hop subclass of downtempo",
+    "musicbrainz: trip hop influenced by hip hop",
+    "discogs: Hip Hop---Trip Hop"
+   ]
+  },
+  {
+   "a": "Downtempo > Lofi",
+   "b": "Hip-Hop",
+   "similitud": 0.5,
+   "motivo": "El lofi es hip-hop instrumental para escuchar.",
+   "fuentes": [
+    "wikidata: lofi hip-hop subclass of chill-out music",
+    "musicbrainz: downtempo influenced genres lo-fi hip hop"
+   ]
+  },
+  {
+   "a": "Ambient / Experimental",
+   "b": "Techno (Raw / Deep / Hypnotic)",
+   "similitud": 0.35,
+   "motivo": "El techno profundo toma texturas del ambient.",
+   "fuentes": [
+    "wikidata: ambient techno subclass of deep techno",
+    "musicbrainz: ambient techno influenced by ambient",
+    "evidencia: versiones Ambient / Experimental/Techno (Raw / Deep / Hypnotic) 1",
+    "evidencia: Discogs Ambient 0.15 en Techno (Raw / Deep / Hypnotic)"
+   ]
+  },
+  {
+   "a": "Techno (Raw / Deep / Hypnotic) > Deep / Hypnotic",
+   "b": "Ambient / Experimental",
+   "similitud": 0.45,
+   "motivo": "El techno hipnótico es el más cercano al ambient.",
+   "fuentes": [
+    "wikidata: ambient techno subclass of deep techno",
+    "wikidata: dub techno subclass of deep techno"
+   ]
+  },
+  {
+   "a": "Caribbean > Dub",
+   "b": "Techno (Raw / Deep / Hypnotic) > Dub",
+   "similitud": 0.45,
+   "motivo": "El dub techno viene del dub jamaicano.",
+   "fuentes": [
+    "musicbrainz: dub techno influenced by dub",
+    "wikidata: dub techno subclass of dubtronica"
+   ]
+  },
+  {
+   "a": "Caribbean > Dub",
+   "b": "Downtempo",
+   "similitud": 0.45,
+   "motivo": "El ambient dub y el psydub son downtempo.",
+   "fuentes": [
+    "wikidata: ambient dub subclass of dubtronica y chill-out music",
+    "wikidata: psydub subclass of dubtronica y chill-out music",
+    "musicbrainz: illbient influenced by ambient, dub"
+   ]
+  },
+  {
+   "a": "Dance / Pop",
+   "b": "Pop",
+   "similitud": 0.5,
+   "motivo": "Dance / Pop es pop hecho para la pista.",
+   "fuentes": [
+    "evidencia: versiones Dance / Pop/Pop 1",
+    "evidencia: Pop (3 temas) Discogs Dance-pop 0.22, House 0.22, BPM 120"
+   ]
+  },
+  {
+   "a": "Dance / Pop > Pop",
+   "b": "Pop",
+   "similitud": 0.75,
+   "motivo": "Es el subgénero Pop de Dance / Pop.",
+   "fuentes": [
+    "beatport_taxonomia: Dance / Pop > Pop"
+   ]
+  },
+  {
+   "a": "Dance / Pop > Afro Pop",
+   "b": "African > Afropop",
+   "similitud": 0.85,
+   "motivo": "Es el mismo estilo en dos géneros.",
+   "fuentes": [
+    "beatport_taxonomia: Dance / Pop > Afro Pop y African > Afropop"
+   ]
+  },
+  {
+   "a": "Dance / Pop > Afro Pop",
+   "b": "African",
+   "similitud": 0.65,
+   "motivo": "Afro pop de pista frente a música africana de canción.",
+   "fuentes": [
+    "beatport_taxonomia: Dance / Pop > Afro Pop; African > Afropop, Afrobeats"
+   ]
+  },
+  {
+   "a": "Amapiano",
+   "b": "African",
+   "similitud": 0.5,
+   "motivo": "El afropiano une amapiano y afrobeats.",
+   "fuentes": [
+    "wikidata: Afropiano subclass of Amapiano",
+    "musicbrainz: amapiano influenced genres afropiano"
+   ]
+  },
+  {
+   "a": "African > Afrobeats",
+   "b": "Amapiano",
+   "similitud": 0.55,
+   "motivo": "El afrobeats y el amapiano comparten público y el afropiano.",
+   "fuentes": [
+    "wikidata: Afropiano subclass of Amapiano",
+    "musicbrainz: amapiano influenced genres afropiano"
+   ]
+  },
+  {
+   "a": "African > Afro R&B",
+   "b": "R&B",
+   "similitud": 0.75,
+   "motivo": "El afro R&B es R&B.",
+   "fuentes": [
+    "beatport_taxonomia: African > Afro R&B"
+   ]
+  },
+  {
+   "a": "Nu Disco / Disco > Funk / Soul",
+   "b": "R&B",
+   "similitud": 0.55,
+   "motivo": "El funk y el soul están en los dos.",
+   "fuentes": [
+    "beatport_taxonomia: Nu Disco / Disco > Funk / Soul y R&B > Funk, Soul",
+    "discogs: Funk / Soul---Disco"
+   ]
+  },
+  {
+   "a": "Nu Disco / Disco > Funk / Soul",
+   "b": "R&B > Funk",
+   "similitud": 0.75,
+   "motivo": "Es el mismo estilo en dos géneros.",
+   "fuentes": [
+    "beatport_taxonomia: Nu Disco / Disco > Funk / Soul y R&B > Funk"
+   ]
+  },
+  {
+   "a": "Nu Disco / Disco > Funk / Soul",
+   "b": "R&B > Soul",
+   "similitud": 0.7,
+   "motivo": "Es el mismo estilo en dos géneros.",
+   "fuentes": [
+    "beatport_taxonomia: Nu Disco / Disco > Funk / Soul y R&B > Soul"
+   ]
+  },
+  {
+   "a": "Indie Dance",
+   "b": "Rock",
+   "similitud": 0.4,
+   "motivo": "El indie dance viene en parte del dance-punk y de los remixes de rock, y los temas Rock de la biblioteca suenan a house.",
+   "fuentes": [
+    "musicbrainz: edm influenced genres dance-punk revival",
+    "evidencia: Rock (3 temas) Discogs House 0.62, Electro House 0.31, BPM 125"
+   ]
+  },
+  {
+   "a": "Rock > Indie Rock",
+   "b": "Indie Dance",
+   "similitud": 0.5,
+   "motivo": "El indie rock y el indie dance comparten escena.",
+   "fuentes": [
+    "wikidata: indietronica subclass of electronica",
+    "evidencia: Rock (3 temas) BPM 125, Discogs House 0.62"
+   ]
+  },
+  {
+   "a": "Rock > Ska",
+   "b": "Caribbean > Ska & Rocksteady",
+   "similitud": 0.85,
+   "motivo": "Es el mismo estilo en dos géneros.",
+   "fuentes": [
+    "beatport_taxonomia: Rock > Ska y Caribbean > Ska & Rocksteady",
+    "discogs: Reggae---Ska"
+   ]
+  },
+  {
+   "a": "Country > Country Pop",
+   "b": "Pop",
+   "similitud": 0.65,
+   "motivo": "El country pop es pop.",
+   "fuentes": [
+    "beatport_taxonomia: Country > Country Pop"
+   ]
+  },
+  {
+   "a": "Latin Electronic > Electronic Cumbia",
+   "b": "Latin > Cumbia",
+   "similitud": 0.85,
+   "motivo": "La cumbia digital es cumbia electrónica.",
+   "fuentes": [
+    "wikidata: digital cumbia subclass of Latin electronic music",
+    "musicbrainz: electronic has fusion genres digital cumbia"
+   ]
+  },
+  {
+   "a": "Latin Electronic > Moombahton",
+   "b": "Latin > Reggaeton",
+   "similitud": 0.75,
+   "motivo": "El moombahton nace del reggaeton y del dutch house.",
+   "fuentes": [
+    "musicbrainz: moombahton influenced by reggaeton, dutch house"
+   ]
+  },
+  {
+   "a": "Latin Electronic > Moombahton",
+   "b": "Mainstage > Electro House",
+   "similitud": 0.45,
+   "motivo": "El moombahton nace del dutch house (electro house) desacelerado.",
+   "fuentes": [
+    "musicbrainz: moombahton influenced by dutch house",
+    "musicbrainz: dutch house subgenre of electro house"
+   ]
+  },
+  {
+   "a": "Latin Electronic > Tribal / Guaracha",
+   "b": "Tech House > Latin Tech",
+   "similitud": 0.7,
+   "motivo": "La guaracha es el momento de euforia de los sets de latin tech.",
+   "fuentes": [
+    "wikidata: guaracha subclass of tribal house",
+    "wikidata: Latin tech subclass of Latin electronic music y tech house",
+    "musicbrainz: guaracha edm subgenre of tribal house, influenced by cumbia"
+   ]
+  },
+  {
+   "a": "Latin Electronic > Tribal / Guaracha",
+   "b": "Tech House",
+   "similitud": 0.5,
+   "motivo": "Es tribal house latino a 125-130 BPM.",
+   "fuentes": [
+    "musicbrainz: tribal guarachero influenced by cumbia mexicana, electro house, techno",
+    "wikidata: tribal house subclass of house music"
+   ]
+  },
+  {
+   "a": "Latin Electronic > Tribal / Guaracha",
+   "b": "Mainstage > Electro House",
+   "similitud": 0.5,
+   "motivo": "El tribal guarachero toma del electro house.",
+   "fuentes": [
+    "musicbrainz: tribal guarachero influenced by electro house",
+    "musicbrainz: electro house influenced genres tribal guarachero"
+   ]
+  },
+  {
+   "a": "Latin Electronic",
+   "b": "Tech House > Latin Tech",
+   "similitud": 0.6,
+   "motivo": "El latin tech es electrónica latina y tech house a la vez.",
+   "fuentes": [
+    "wikidata: Latin tech subclass of Latin electronic music y tech house"
+   ]
+  },
+  {
+   "a": "Latin Electronic",
+   "b": "House > Latin House",
+   "similitud": 0.5,
+   "motivo": "House con percusión latina.",
+   "fuentes": [
+    "wikidata: Latin house subclass of house music",
+    "wikidata: Latin electronic music subclass of electronic music"
+   ]
+  },
+  {
+   "a": "Latin Electronic",
+   "b": "Afro House > Afro / Latin",
+   "similitud": 0.5,
+   "motivo": "Percusión latina sobre house.",
+   "fuentes": [
+    "beatport_taxonomia: Afro House > Afro / Latin",
+    "wikidata: Latin tech subclass of Latin electronic music"
+   ]
+  },
+  {
+   "a": "Brazilian Funk > Eletrofunk",
+   "b": "Mainstage > Electro House",
+   "similitud": 0.5,
+   "motivo": "El eletrofunk sale del electro house.",
+   "fuentes": [
+    "musicbrainz: electro house influenced genres eletrofunk",
+    "wikidata: eletrofunk subclass of house music"
+   ]
+  },
+  {
+   "a": "Brazilian Funk > Eletrofunk",
+   "b": "House",
+   "similitud": 0.45,
+   "motivo": "Wikidata pone el eletrofunk bajo el house.",
+   "fuentes": [
+    "wikidata: eletrofunk subclass of house music"
+   ]
+  },
+  {
+   "a": "DJ Edits > African",
+   "b": "African",
+   "similitud": 0.9,
+   "motivo": "Una edición para DJ de música africana es música africana: el subgénero de DJ Edits dice el estilo.",
+   "fuentes": [
+    "beatport_taxonomia: DJ Edits > African y el género African"
+   ]
+  },
+  {
+   "a": "DJ Edits > Caribbean",
+   "b": "Caribbean",
+   "similitud": 0.9,
+   "motivo": "Una edición para DJ de música caribeña es música caribeña: el subgénero de DJ Edits dice el estilo.",
+   "fuentes": [
+    "beatport_taxonomia: DJ Edits > Caribbean y el género Caribbean"
+   ]
+  },
+  {
+   "a": "DJ Edits > Country",
+   "b": "Country",
+   "similitud": 0.9,
+   "motivo": "Una edición para DJ de country es country: el subgénero de DJ Edits dice el estilo.",
+   "fuentes": [
+    "beatport_taxonomia: DJ Edits > Country y el género Country"
+   ]
+  },
+  {
+   "a": "DJ Edits > Hip-Hop",
+   "b": "Hip-Hop",
+   "similitud": 0.9,
+   "motivo": "Una edición para DJ de hip-hop es hip-hop: el subgénero de DJ Edits dice el estilo.",
+   "fuentes": [
+    "beatport_taxonomia: DJ Edits > Hip-Hop y el género Hip-Hop"
+   ]
+  },
+  {
+   "a": "DJ Edits > Latin",
+   "b": "Latin",
+   "similitud": 0.9,
+   "motivo": "Una edición para DJ de música latina es música latina: el subgénero de DJ Edits dice el estilo.",
+   "fuentes": [
+    "beatport_taxonomia: DJ Edits > Latin y el género Latin"
+   ]
+  },
+  {
+   "a": "DJ Edits > R&B",
+   "b": "R&B",
+   "similitud": 0.9,
+   "motivo": "Una edición para DJ de R&B es R&B: el subgénero de DJ Edits dice el estilo.",
+   "fuentes": [
+    "beatport_taxonomia: DJ Edits > R&B y el género R&B"
+   ]
+  },
+  {
+   "a": "DJ Edits > Rock",
+   "b": "Rock",
+   "similitud": 0.9,
+   "motivo": "Una edición para DJ de rock es rock: el subgénero de DJ Edits dice el estilo.",
+   "fuentes": [
+    "beatport_taxonomia: DJ Edits > Rock y el género Rock"
+   ]
+  },
+  {
+   "a": "DJ Edits > Рор",
+   "b": "Pop",
+   "similitud": 0.9,
+   "motivo": "Una edición para DJ de pop es pop. En Beatport este subgénero se escribe con letras cirílicas.",
+   "fuentes": [
+    "beatport_taxonomia: DJ Edits > Рор (slug '---') y el género Pop"
+   ]
+  },
+  {
+   "a": "DJ Edits > Dance",
+   "b": "Dance / Pop",
+   "similitud": 0.8,
+   "motivo": "Las ediciones de temas dance son dance pop.",
+   "fuentes": [
+    "beatport_taxonomia: DJ Edits > Dance"
+   ]
+  },
+  {
+   "a": "DJ Tools / Acapellas > Battle Tools",
+   "b": "Hip-Hop",
+   "similitud": 0.5,
+   "motivo": "Las herramientas de batalla son material de turntablism de hip-hop.",
+   "fuentes": [
+    "discogs: Hip Hop---DJ Battle Tool, Hip Hop---Turntablism, Hip Hop---Cut-up/DJ"
+   ]
+  },
+  {
+   "a": "Minimal / Deep Tech",
+   "b": "Indie Tech",
+   "similitud": 0.4,
+   "motivo": "Comparten tempo (125) y base de tech house, pero Indie Tech es el lado vocal o crossover y Minimal / Deep Tech el sobrio. Ninguna taxonomía los vincula, y la biblioteca los pone detrás de House, Dance / Pop y Mainstage.",
+   "fuentes": [
+    "beatport_taxonomia: Indie Tech (id 112) sin subgéneros; Minimal / Deep Tech (id 14) > Bounce, Deep Tech, Minimal House",
+    "evidencia: borrador 0.462, lift 1.11, versiones 0",
+    "evidencia: centroide CLAP 0.9464 (9.º de 15 en la fila de Minimal)",
+    "evidencia: BPM mediana 125 en los dos; Discogs Tech House 0.53 en Minimal / Deep Tech y 0.43 en Indie Tech"
+   ]
+  },
+  {
+   "a": "Bass House",
+   "b": "House",
+   "similitud": 0.6,
+   "motivo": "El bass house es house; su lado bass lo separa del house de raíz disco.",
+   "fuentes": [
+    "wikidata: bass house subclass of house music y bass music (EDM)",
+    "musicbrainz: bass house subgenre of house",
+    "evidencia: el tema de Bass House da Discogs House 0.46, BPM 128"
+   ]
+  },
+  {
+   "a": "Bass House",
+   "b": "Jackin House",
+   "similitud": 0.6,
+   "motivo": "El jackin house británico (UK jackin) sale del bassline, como el bass house: comparten bajo y groove de pista.",
+   "fuentes": [
+    "musicbrainz: uk jackin subgenre of house, influenced by bassline",
+    "musicbrainz: jackin house subgenre of house",
+    "wikidata: bass house subclass of house music"
+   ]
+  },
+  {
+   "a": "Hard Techno",
+   "b": "Hard Dance / Hardcore / Neo Rave",
+   "similitud": 0.5,
+   "motivo": "Comparten tempo y escena por el neo rave y el hardtek, pero el resto del género (hardstyle, frenchcore, terror, uptempo) viene de otra línea. El vínculo fuerte va por el subgénero Neo Rave (0.85).",
+   "fuentes": [
+    "musicbrainz: hard techno influenced genres neo rave, hardtekk",
+    "wikidata: hardtek y neo rave subclass of hard dance",
+    "wikidata: hijos de hard dance: hard trance, hard NRG, hard house, uptempo hardcore, hardstyle, jumpstyle, UK hardcore, speed house, neo rave (no hard techno)",
+    "musicbrainz: frenchcore subgenre of hardcore techno",
+    "beatport_cache: BPM mediana 147 en Hard Techno (p25 135.5) y en Hard Dance / Hardcore / Neo Rave (p25 120, p75 155)"
+   ]
+  },
+  {
+   "a": "Latin Electronic",
+   "b": "Tech House",
+   "similitud": 0.4,
+   "motivo": "El latin tech y la guaracha son el puente, pero el subgénero casi nunca está cargado. Queda por debajo de los puentes de subgénero porque gran parte de Latin Electronic (moombahton, cumbia) va a 100-115 BPM.",
+   "fuentes": [
+    "wikidata: Latin tech subclass of Latin electronic music y de tech house",
+    "wikidata: guaracha subclass of tribal house; tribal house subclass of house music",
+    "beatport_taxonomia: Tech House > Latin Tech; Latin Electronic > Raptor House, Tribal / Guaracha",
+    "evidencia: Tech House con subgénero Latin Tech en 8 de 255 temas",
+    "beatport_cache: BPM Latin Electronic mediana 111, p25 99, p75 128 (49 temas)"
+   ]
+  },
+  {
+   "a": "Latin Electronic",
+   "b": "House",
+   "similitud": 0.35,
+   "motivo": "Raptor house y tribal / guaracha son house latino; el resto del género va más lento.",
+   "fuentes": [
+    "wikidata: Latin house subclass of house music",
+    "wikidata: tribal house subclass of house music",
+    "beatport_taxonomia: House > Latin House; Latin Electronic > Raptor House",
+    "beatport_cache: BPM Latin Electronic mediana 111, p75 128"
+   ]
+  },
+  {
+   "a": "Latin Electronic",
+   "b": "Afro House",
+   "similitud": 0.35,
+   "motivo": "Percusión latina sobre house: Beatport tiene el subgénero Afro / Latin, pero casi nunca está cargado.",
+   "fuentes": [
+    "beatport_taxonomia: Afro House > Afro / Latin",
+    "evidencia: Afro House con subgénero Afro / Latin en 2 de 60 temas",
+    "wikidata: Latin tech subclass of Latin electronic music"
+   ]
+  },
+  {
+   "a": "Latin Electronic",
+   "b": "Mainstage",
+   "similitud": 0.35,
+   "motivo": "El moombahton nace del dutch house y la guaracha toma del electro house: los dos vienen del house de festival.",
+   "fuentes": [
+    "musicbrainz: moombahton influenced by dutch house, reggaeton",
+    "musicbrainz: dutch house subgenre of electro house",
+    "musicbrainz: tribal guarachero influenced by electro house"
+   ]
+  },
+  {
+   "a": "Tech House",
+   "b": "UK Garage / Bassline",
+   "similitud": 0.4,
+   "motivo": "El deep tech, rama del tech house, viene del UK garage y del speed garage; el puente de subgénero casi nunca está cargado.",
+   "fuentes": [
+    "musicbrainz: deep tech subgenre of tech house, influenced by speed garage, uk garage",
+    "musicbrainz: uk garage influenced genres deep tech",
+    "wikidata: speed garage subclass of house music y UK garage",
+    "evidencia: el tema de UK Garage / Bassline da Discogs House 0.60, Tech House 0.31, BPM 129",
+    "beatport_cache: BPM UK Garage / Bassline mediana 132 (p25 126)"
+   ]
+  },
+  {
+   "a": "Minimal / Deep Tech",
+   "b": "UK Garage / Bassline",
+   "similitud": 0.4,
+   "motivo": "Deep Tech es subgénero de Minimal / Deep Tech y viene del UK garage; a nivel de género pesa menos que con el subgénero (0.5).",
+   "fuentes": [
+    "beatport_taxonomia: Minimal / Deep Tech > Deep Tech",
+    "musicbrainz: deep tech influenced by speed garage, uk garage",
+    "evidencia: Minimal / Deep Tech con subgénero Deep Tech en 2 de 53 temas"
+   ]
+  },
+  {
+   "a": "Brazilian Funk",
+   "b": "House",
+   "similitud": 0.3,
+   "motivo": "Contraste aceptable: el eletrofunk es house y el house influyó en el funk automotivo, pero el funk carioca y el mandelão no van en 4/4 de house.",
+   "fuentes": [
+    "wikidata: eletrofunk subclass of house music",
+    "musicbrainz: house influenced genres funk automotivo",
+    "musicbrainz: edm influenced genres funk mandelão",
+    "beatport_cache: BPM Brazilian Funk mediana 130, p25 120 (29 temas)"
+   ]
+  },
+  {
+   "a": "Techno (Peak Time / Driving) > Peak Time",
+   "b": "Techno (Peak Time / Driving) > Driving",
+   "similitud": 0.9,
+   "motivo": "Beatport los une en un solo género: son el mismo techno de pista con otro énfasis. Sin esta relación valdrían 0.75 por la regla.",
+   "fuentes": [
+    "beatport_taxonomia: Techno (Peak Time / Driving) > Driving, Peak Time, Psy-Techno",
+    "wikidata: peak time techno subclass of techno"
+   ]
+  },
+  {
+   "a": "Minimal / Deep Tech",
+   "b": "Organic House",
+   "similitud": 0.4,
+   "motivo": "En la biblioteca, el deep tech y el organic house se cruzan más que el minimal con el techno crudo: el mismo clima profundo a 121-125 BPM.",
+   "fuentes": [
+    "evidencia: borrador 0.506, lift 0.871, centroide CLAP 0.9654 (3.º de la fila de Minimal)",
+    "evidencia: Minimal / Deep Tech Discogs Deep House 0.28; Organic House Discogs Tech House 0.40"
+   ]
+  },
+  {
+   "a": "Techno (Peak Time / Driving)",
+   "b": "Dance / Pop",
+   "similitud": 0.3,
+   "motivo": "Contraste aceptable: Beatport los alterna en versiones y el borrador los acerca más que a Deep House o House.",
+   "fuentes": [
+    "evidencia: versiones Dance / Pop/Techno (Peak Time / Driving) 4, borrador 0.588, lift 0.705"
+   ]
+  },
+  {
+   "a": "Tech House",
+   "b": "Organic House",
+   "similitud": 0.3,
+   "motivo": "Contraste aceptable: el organic house de la biblioteca tiene base de tech house; sin esta relación quedaría en el piso de 0.2.",
+   "fuentes": [
+    "evidencia: versiones Organic House/Tech House 1, borrador 0.465",
+    "evidencia: Discogs Tech House 0.40 en Organic House"
+   ]
+  },
+  {
+   "a": "Indie Tech",
+   "b": "Techno (Peak Time / Driving)",
+   "similitud": 0.3,
+   "motivo": "Contraste aceptable: Techno PT es el 2.º género entre los vecinos CLAP de Indie Tech; sin esta relación quedaría en el piso de 0.2.",
+   "fuentes": [
+    "evidencia: borrador 0.459, lift 0.805, centroide CLAP 0.9614",
+    "evidencia: el 17% de los vecinos CLAP de Indie Tech son Techno PT",
+    "evidencia: Discogs Techno 0.22 en Indie Tech"
+   ]
+  }
+ ],
+ "notas": "RONDA 1 (editor). Sin validar todavía contra las tripletas de Gabriel. No se escribió ningún archivo.\n\nCAMBIOS DE ESTA RONDA.\n- Familias nuevas: indie_tech (Indie Tech sale de 'tech') y bass_house (Bass House sale de 'house'), las dos bajo 'pista'; hard_techno (Hard Techno sale de 'duro', que queda solo con Hard Dance / Hardcore / Neo Rave), bajo 'rave'.\n- Regla: de 0.85 / 0.7 / 0.3 / 0 a 0.75 / 0.7 / 0.2 / 0.\n- 16 relaciones nuevas y 10 valores subidos (Tech House y Afro House con Dance / Pop, Indie Tech con Dance / Pop, Progressive House e Indie Dance con los techno, Techno PT con Psy-Trance, Hard Techno con los dos techno, Dubstep con 140).\n\nCÓMO LEER EL ÁRBOL. El cálculo solo mira la familia del género y el padre directo de esa familia. Hay tres niveles: misma familia (0.7), familias con el mismo padre (0.2) y sin relación (0). Las raíces 'baile', 'escucha', 'abierto' y 'utilitario' ordenan pero no suman: dos familias de ramas distintas de 'baile' (por ejemplo tech y trance) quedan en 0 si no hay una relación explícita. Ramas:\n- pista: 4/4 a 115-135 BPM, con house, tech, indie_tech, bass_house, deep, afro, melódico, indie/disco, techno y comercial;\n- rave: trance, psy, hard_techno y duro;\n- bass: breaks/electro, garage/club, bass de festival y drum & bass;\n- escucha: electronica, y downtempo/ambient;\n- abierto: Open Format;\n- utilitario: DJ Tools.\nHay 34 familias y 211 relaciones explícitas.\n\nREGLA. 0.75 / 0.7 / 0.2 / 0.\n- mismo_genero_otro_subgenero bajó a 0.75 porque varios géneros de Beatport son paraguas (Hard Dance / Hardcore / Neo Rave une hard house con terror y frenchcore; Latin une bachata con regional mexicano; también Caribbean, Drum & Bass, Psy-Trance y DJ Edits) y una relación no puede bajar ese valor. Los pares homogéneos se suben con relaciones: Peak Time con Driving, 0.9. Consecuencia buscada: un género vecino casi intercambiable (0.8-0.85) puede valer más que dos subgéneros distintos y conocidos del mismo género, porque cuando Beatport carga dos subgéneros distintos dice que difieren. Si falta un subgénero, el mismo género vale 1.\n- familia_hermana bajó a 0.2: es el piso de 'misma rama sin vínculo propio' y queda por debajo de los contrastes declarados (0.3-0.4). Con 0.3, pares con poca evidencia (Afro House con Techno Raw, borrador 0.128) valían lo mismo que contrastes elegidos (Psy-Trance con Raw). Para no aplanar pares de pista con borrador >= 0.45 se agregaron tres relaciones de 0.3: Techno PT con Dance / Pop, Tech House con Organic House e Indie Tech con Techno PT.\n- Escala de las relaciones: 0.85-0.9, el mismo estilo con el mismo nombre o la misma familia de Beatport (Italo con Italo, DJ Edits > X con X, Peak Time con Driving); 0.8-0.85, casi intercambiables; 0.6-0.75, se mezclan bien; 0.45-0.55, posible con cuidado; 0.3-0.4, contraste aceptable; 0.2, piso de la rama.\n\nFUENTES Y CRITERIO.\n- La base es el texto: Wikidata, MusicBrainz y los nombres y subgéneros de Beatport.\n- La evidencia de la biblioteca fija el valor dentro de esa escala: versiones, borrador, lift y centroides CLAP, estilos de Discogs de MAEST y BPM. Para géneros sin temas en la biblioteca, el BPM sale del cache de búsquedas de Beatport (artifacts/v4/beatport_cache, 2306 búsquedas).\n- La evidencia también agrega relaciones sin vínculo textual cuando el borrador es >= 0.6 o hay >= 5 versiones, y algunas de 0.3-0.35 para que vecinos de pista no queden en el piso o en 0.\n- El tempo cuenta en 'se mezclan bien', pero el recomendador ya tiene un componente de BPM (docs/DECISIONS.md, 2026-11-06, punto 9). Por eso el género no repite el tempo cuando el texto dice otra cosa (Hard Techno: 0.65 con el techno).\n- En los 16 géneros con evidencia, la matriz tiene una correlación de Spearman de 0.915 y de Pearson de 0.91 con borrador_similitud.csv (antes 0.889 y 0.85). Las filas que menos coinciden son Psy-Trance (0.55: sus 0 con la pista caen en pares de poca evidencia), Indie Tech (0.74) y Mainstage (0.77: 10 temas y CLAP no lo distingue).\n\nDECISIONES DISCUTIBLES.\n1. Hard Techno tiene familia propia en 'rave'. Wikidata y MusicBrainz lo ponen bajo techno, y Wikidata no lo pone bajo hard dance: por eso vale 0.65 con los dos techno y solo 0.5 con Hard Dance / Hardcore / Neo Rave, salvo el subgénero Neo Rave (0.85). Va en 'rave' y no en 'techno' por tempo (147 BPM de mediana) y para no darle un piso con deep, organic y afro.\n2. Electronica sigue en 'escucha' por el texto (Wikidata: subclass of electronic music, no de EDM; BPM p25 100 en el cache), aunque en la biblioteca suena a deep house. Por eso tiene relaciones de 0.55-0.65 con Deep House, Organic House y MH&T.\n3. Indie Dance va con Nu Disco por el subgénero Italo compartido y la raíz disco. Su cercanía de audio con MH&T va por una relación de 0.7.\n4. Indie Tech y Bass House tienen familia propia de un solo género, porque la familia compartida les daba 0.7 con géneros que la evidencia o el texto alejan: Minimal / Deep Tech (borrador 0.462) y Funky House (raíz funk y disco). Sus vínculos van por relaciones: Indie Tech con Tech House 0.8, Dance / Pop 0.65 y House 0.6; Bass House con House, Jackin House y UK Garage / Bassline 0.6.\n5. Latin Electronic va con Latin por cultura, público y tempo (mediana 111 BPM). Como el subgénero de Beatport es opcional y casi nunca está cargado, también se une al house a nivel de género (Tech House 0.4; House, Afro House y Mainstage 0.35). Brazilian Funk, igual con House (0.3).\n6. DJ Edits es un formato de Open Format: queda como hermano de esos géneros (0.2), y cada subgénero vale 0.9 con su género. Dos subgéneros distintos de DJ Edits valen 0.75 por la regla (por ejemplo DJ Edits > Hip-Hop con DJ Edits > Country, aunque Hip-Hop con Country valga 0.2). Propuesta para el recomendador: tratar 'DJ Edits > X' como el género X antes de comparar. 'Рор' (con letras cirílicas) es el nombre exacto que usa Beatport.\n7. DJ Tools / Acapellas no es un estilo: tiene raíz propia y vale 0 con todo, salvo Battle Tools con Hip-Hop. Propuesta para el recomendador: tratarlo como 'sin género', de modo que el componente no cuente, en lugar de darle 0.\n\nLÍMITES.\n- La regla de subgénero es una sola para todos los géneros. Aun con 0.75, es alta para algunos pares de los paraguas (Hard House con Terror, Bachata con Regional Mexican), y una relación no puede bajarla.\n- Las relaciones solo suben. Separar géneros exige cambiar familias.\n- Evidencia que no se usó como relación: Mainstage tiene solo 10 temas y CLAP no lo distingue, así que Indie Dance con Mainstage (borrador 0.609) y Techno PT con Mainstage (0.523) quedan en el piso de 0.2. Los lifts de Indie Tech y Dance / Pop con Psy-Trance (3.93 y 1.86, en géneros de 18-34 temas) se tomaron como ruido. Las versiones miden la ambigüedad de Beatport, no el audio.\n\nPENDIENTE.\n- Mapear los 106 estilos electrónicos de Discogs (MAEST) a géneros de Beatport, para los temas que no están en Beatport. No entra en este formato.\n- Revisar con las tripletas de Gabriel.\n- Decidir si otros pares homogéneos de subgéneros merecen subir por encima de 0.75 (por ejemplo los tres de Trance (Raw / Deep / Hypnotic), o Uplifting y Vocal Trance)."
+}
