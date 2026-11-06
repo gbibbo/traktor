@@ -170,7 +170,8 @@ def run_musica(args) -> dict:
                                      hard_key_of=tag_of)
         s3 = ev.selfsup_intro_outro({i: feats[i]["first"] for i in dev}, {i: feats[i]["last"] for i in dev}, fn,
                                     key_of=tag_of if want_k else None)
-        pairs = [(a, b) for a, b in zip(trans.a_uid, trans.b_uid) if a in pos and b in pos and a != b]
+        pairs = [] if args.no_history else [(a, b) for a, b in zip(trans.a_uid, trans.b_uid)
+                                            if a in pos and b in pos and a != b]
         bpm_of = {i: float(bpm.get(i, np.nan)) for i in ids}
         pools = {}
 
@@ -223,6 +224,8 @@ def main() -> int:
     ap.add_argument("--bpm", type=Path)
     ap.add_argument("--out", type=Path)
     ap.add_argument("--only", nargs="*", help="solo estas variantes (por su etiqueta)")
+    ap.add_argument("--no-history", action="store_true",
+                    help="sin transiciones reales (necesitan la biblioteca entera como candidatos)")
     args = ap.parse_args()
     res = run_thesis48(args) if args.set == "thesis48" else run_musica(args)
     out = args.out or args.eval_dir / f"proxies_{args.set}{'_' + args.split if args.set == 'musica' else ''}.json"

@@ -181,3 +181,10 @@ fddb3b1. IC bootstrap pareados sobre los temas objetivo (aproximados: las column
 | El blanqueo espectral es el paso que más pesa (sin él, Spearman −0,25 y −0,23, IC lejos de 0) | EVIDENCIA OBSERVADA | bootstrap pareado |
 | Agregar el bajo al croma, el NNLS, ponderar bloques por igual o por claridad tonal, y la distancia sola empeoran o no cambian | EVIDENCIA OBSERVADA (n chico) | bootstrap pareado |
 | En Techno, 30 % o 50 % central mejora a todo el tema (+0,05 y +0,04 de Spearman) y la pérdida de coherencia mejora a TIV.lib (+0,04); en PH no cambian | EXPLORATORIO | IC excluyen 0 pero n = 24 y los IC son optimistas |
+| S1 (autosupervisado) casi no distingue variantes que representan claramente peor la armonía: FEM#10 0,821; sin blanqueo 0,829; solo bajo 0,816 (en Spearman contra la teoría: 0,91; 0,66; 0,31). Solo hunde a la disonancia de la mezcla (0,254), que no mide parecido | EVIDENCIA OBSERVADA | `proxies_thesis48.json` (2026-11-06, 48 temas, ~190 consultas con 100 negativos) |
+| S1 premia la identidad del tema (cualquier contenido de alturas estable, como una línea de bajo), no la armonía; S2 tampoco separa (sin blanqueo 0,96, solo bajo 0,92, FEM#10 0,91) | INFERENCIA | filas de arriba |
+| Pares de versiones de la misma canción (original y remix) como positivos sin etiquetas y sin fuga de identidad: hay 77 pares en 60 grupos, y solo el 40 % de los que tienen tonalidad MIK la comparten | EVIDENCIA OBSERVADA | catálogo de `musica`, agrupado por título base |
+
+**Pendiente de Gabriel:** con esta evidencia, S1 solo no sirve como criterio de selección. Propuesta: S1 y
+A1 como guardarraíles (cada uno detecta fallas distintas: S1 las de parecido, A1 las tonales), y elegir por
+S1-hard y A4b (transiciones reales dentro de la clase Camelot), que no usan la tonalidad como objetivo.
