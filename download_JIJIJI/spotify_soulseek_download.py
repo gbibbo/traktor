@@ -6,6 +6,15 @@ spotify_soulseek_download.py
 PURPOSE: Reconcile a Spotify playlist against Soulseek and download matches.
 
 CHANGELOG:
+- 2026-11-06: Track by track, as when searching by hand: each track is searched on its own (one sockseek
+              process) and, if it is there, downloaded right away. The batch preflight opened 20 searches
+              at once, spent the 34 allowed in under 2 minutes and then sat idle ~2 minutes, over and over
+              (what looked like Soulseek being stuck). What cannot be had goes to --recording-queue as soon as
+              it is known, so the orchestrator records it while the search goes on. The 34 searches / 220 s
+              limit is kept across processes and runs (--search-log); a failed search is retried once, and
+              after 3 tracks in a row the run stops without sending them to recording. A resumed run keeps
+              what was searched, downloaded or queued. Removed: the batch preflight, --download-gate,
+              --failed-json, --preflight-status and --preflight-timeout.
 - 2026-11-02: --have-dir (the playlist's music folder, read-only) and --reuse-dir tracks are neither
               searched nor downloaded: a new run only searches what is missing.
 - 2026-11-02: Preflight without --strict-title: each file's title and version are judged with the
@@ -40,12 +49,11 @@ CHANGELOG:
 - 2026-09-27: Expose the canonical Spotify metadata/cover writer for recordings.
 - 2026-09-27: Add an optional pre-download gate for external orchestration.
 
-Primero verifica en Soulseek la disponibilidad de TODA una playlist de Spotify
-en un único batch Sockseek,
-genera una lista y una playlist Spotify privada con los faltantes, y sólo entonces
-descarga los disponibles. Prefiere versiones Extended cuando existen y verifica de forma conservadora
-la identidad del tema, escribe metadata de Spotify + cover oficial y deja
-todo en MP3 320 kbps.
+Recorre una playlist de Spotify tema a tema: busca cada uno en Soulseek y, si está,
+lo baja en el momento; lo que no se consigue va a la cola de grabación (o, sin cola, a
+una lista y una playlist Spotify privada con los faltantes). Prefiere versiones Extended
+cuando existen y verifica de forma conservadora la identidad del tema, escribe metadata
+de Spotify + cover oficial y deja todo en MP3 320 kbps.
 
 Requisitos:
   - Python 3.10+
@@ -129,6 +137,10 @@ except ImportError:
     print("Instala requests: pip install requests", file=sys.stderr)
     sys.exit(1)
 
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+from recording_queue import END_FINISHED, END_SEARCH_FAILED, append_track, close_queue, read_queue  # noqa: E402
+
 
 # ---------------------------------------------------------------------------
 # Spotify
@@ -144,18 +156,16 @@ REQUIRED_SCOPES = set(SCOPES.split())
 DEFAULT_MISSING_PLAYLIST_BATCH_SIZE = 10
 DURATION_TOLERANCE_S = 8          # misma versión que Spotify (no Extended)
 MAX_CANDIDATE_TRANSFERS = 4       # archivos que se llegan a bajar por tema hasta que uno pase la verificación
-# Sockseek limita las búsquedas a 34 cada 220 s (Soulseek banea 30 min si se pasa): una playlist de
-# 152 temas necesita al menos 4 esperas de 220 s. El preflight no puede tener un tope fijo.
+# Soulseek banea la cuenta 30 min si se pasan 34 búsquedas cada 220 s (el límite de sockseek). Con un
+# proceso de sockseek por búsqueda, la cuenta la lleva SearchLimiter, en un archivo del ordenador.
 SOULSEEK_SEARCHES_PER_WINDOW = 34
 SOULSEEK_SEARCH_WINDOW_S = 220
-MIN_PREFLIGHT_TIMEOUT_S = 600.0
-
-
-def preflight_timeout_for(track_count: int) -> float:
-    """Tope del preflight: esperas del limitador de búsquedas + ~6 s por búsqueda + 5 min de margen."""
-    waits = max(0, math.ceil(track_count / SOULSEEK_SEARCHES_PER_WINDOW) - 1)
-    estimate = 300.0 + waits * SOULSEEK_SEARCH_WINDOW_S + track_count * 6.0
-    return max(MIN_PREFLIGHT_TIMEOUT_S, estimate)
+SEARCH_LOG_NAME = "traktor_soulseek_searches.json"
+DEFAULT_SEARCH_TIMEOUT_S = 90.0      # conectar (hasta 20 s) + 5 s de búsqueda de sockseek, con margen
+SEARCH_ATTEMPTS = 2                  # una búsqueda que falla se reintenta una vez
+SEARCH_RETRY_PAUSE_S = 15.0
+MAX_CONSECUTIVE_SEARCH_ERRORS = 3    # tantos temas seguidos sin búsqueda: el problema es la búsqueda
+EXIT_SEARCH_FAILED = 4
 DOWNLOADED_STATUSES = {"finalized", "already_finalized"}
 ALLOWED_AUDIO_FORMATS = {"mp3", "flac", "wav"}
 SIZE_MARGIN = 0.15
@@ -724,7 +734,7 @@ class Spotify:
                 "name": playlist_name,
                 "public": False,
                 "description": (
-                    "Temas no encontrados en el preflight de Soulseek. "
+                    "Temas para grabar de Spotify: no se consiguieron en Soulseek. "
                     f"Fuente: {source_playlist_name}."
                 ),
             },
@@ -1683,18 +1693,7 @@ def write_missing_json(
     playlist_batch_size: int = DEFAULT_MISSING_PLAYLIST_BATCH_SIZE,
 ) -> None:
     """Write missing tracks in original playlist order with full Spotify metadata."""
-    tracks = []
-    for position, track in missing:
-        metadata = _track_report(track)
-        tracks.append(
-            {
-                "playlist_position": position,
-                "duration_ms": track.duration_ms,
-                "duration_seconds": round(track.duration_s, 3),
-                "duration_hms": _duration_hms(track.duration_ms),
-                "spotify": metadata,
-            }
-        )
+    tracks = [recording_entry(position, track) for position, track in missing]
 
     playlists = generated_playlists
     if playlists is None and generated_playlist is not None:
@@ -1974,21 +1973,6 @@ def _existing_spotify_track_id(path: Path) -> str | None:
     return None
 
 
-def checks_skipping_known(
-    tracks: list[Track],
-    known: set[str],
-    search: Callable[[list[Track]], list[AvailabilityCheck]],
-) -> list[AvailabilityCheck]:
-    """Availability in playlist order: tracks already known (in the music folder or downloaded by an
-    earlier run) count as available without a search; only the rest go to Soulseek, in one batch."""
-    pending = [t for t in tracks if t.spotify_id not in known]
-    found = iter(search(pending) if pending else [])
-    return [
-        AvailabilityCheck(status="available", result_count=0, candidates=[]) if t.spotify_id in known else next(found)
-        for t in tracks
-    ]
-
-
 def reusable_downloads(dirs: list[Path]) -> dict[str, Path]:
     """Finished MP3s from earlier runs of this playlist, by Spotify Track ID (the first one found wins)."""
     found: dict[str, Path] = {}
@@ -2068,9 +2052,8 @@ def _unique_destination(
     if overwrite:
         return base, False
 
-    alt = out_dir / (
-        f"{safe_name(track.primary_artist)} - {title} [{track.spotify_id}].mp3"
-    )
+    # Otro tema con el mismo nombre de archivo (antes era un NameError: `title` no existía).
+    alt = out_dir / f"{base.stem} [{track.spotify_id}].mp3"
     if alt.exists():
         alt_id = _existing_spotify_track_id(alt)
         if alt_id == track.spotify_id:
@@ -2294,31 +2277,22 @@ def finalize(
 # Reporte
 # ---------------------------------------------------------------------------
 
-def fallback_tracks(
-    available_tracks: list[tuple[int, Track, AvailabilityCheck]],
-    rows: list[dict[str, Any]],
-    preflight_errors: list[tuple[int, Track, str]],
-    *,
-    total_tracks: int | None = None,
-) -> list[tuple[int, Track]]:
-    """Temas sin MP3 al terminar: disponibles que no se pudieron bajar y consultas con error.
-
-    Los MISSING del preflight no entran: ya están en la lista de faltantes que se graba primero.
-    Si falló la consulta de TODOS los temas, el problema es la búsqueda (tiempo agotado, sesión
-    de Soulseek) y no los temas: no se mandan a grabar.
-    """
-    finalized = {row["position"] for row in rows if row.get("status") in DOWNLOADED_STATUSES}
-    pending = [(position, track) for position, track, _ in available_tracks if position not in finalized]
-    if not (total_tracks and len(preflight_errors) >= total_tracks):
-        pending += [(position, track) for position, track, _ in preflight_errors]
-    return sorted(pending, key=lambda item: item[0])
-
-
 def _track_report(track: Track) -> dict[str, Any]:
     data = asdict(track)
     data["duration_seconds"] = round(track.duration_s, 3)
     data["duration_hms"] = _duration_hms(track.duration_ms)
     return data
+
+
+def recording_entry(position: int, track: Track) -> dict[str, Any]:
+    """Un tema en el formato que graba playlist_loopback_recorder.py (y que lista --missing-json)."""
+    return {
+        "playlist_position": position,
+        "duration_ms": track.duration_ms,
+        "duration_seconds": round(track.duration_s, 3),
+        "duration_hms": _duration_hms(track.duration_ms),
+        "spotify": _track_report(track),
+    }
 
 
 def _candidate_report(
@@ -2351,34 +2325,173 @@ def write_report(path: Path, payload: dict[str, Any]) -> None:
     )
 
 
-def _replace_report(path: Path, payload: dict[str, Any]) -> None:
+def _replace_report(path: Path, payload: dict[str, Any], *, attempts: int = 5) -> None:
     """Rewrite a report others poll without ever exposing a half-written file. On Windows the
-    replace fails while a reader has it open: retry briefly, and skip this update if it persists."""
+    replace fails while a reader has it open: retry briefly, and skip this update if it persists
+    (a later update rewrites the whole file)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-    for attempt in range(5):
+    for attempt in range(attempts):
         try:
             os.replace(tmp, path)
             return
         except PermissionError:
-            time.sleep(0.05 * (attempt + 1))
+            time.sleep(min(0.05 * (attempt + 1), 0.5))
     tmp.unlink(missing_ok=True)
 
 
-def wait_for_download_gate(path: Path, timeout: float) -> bool:
-    """Wait until an orchestrator releases downloads by creating ``path``."""
-    print(f"\nDescarga en espera de la señal del orquestador: {path}")
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if path.is_file():
-            print("Señal recibida. Comenzando las descargas de Soulseek.")
-            return True
-        time.sleep(0.25)
-    print(
-        f"Timeout esperando la señal para iniciar descargas: {path}",
-        file=sys.stderr,
-    )
-    return False
+def _read_report(path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+# ---------------------------------------------------------------------------
+# Búsqueda tema a tema
+# ---------------------------------------------------------------------------
+
+def default_search_log() -> Path:
+    """Las búsquedas recientes de este ordenador, junto al token de Spotify (%APPDATA%)."""
+    return token_cache_path().with_name(SEARCH_LOG_NAME)
+
+
+class SearchLimiter:
+    """Soulseek bloquea la cuenta 30 minutos si se pasan las 34 búsquedas cada 220 s. El limitador de
+    sockseek vive dentro de un proceso, y ahora cada búsqueda es un proceso: la cuenta se lleva aquí, en
+    un archivo del ordenador, para que tampoco se pase una descarga que empieza justo después de otra."""
+
+    def __init__(
+        self,
+        path: Path | None,
+        *,
+        per_window: int = SOULSEEK_SEARCHES_PER_WINDOW,
+        window_s: float = SOULSEEK_SEARCH_WINDOW_S,
+        clock: Callable[[], float] = time.time,
+        sleep: Callable[[float], None] = time.sleep,
+    ):
+        self.path = path
+        self.per_window = per_window
+        self.window_s = window_s
+        self.clock = clock
+        self.sleep = sleep
+        self.stamps: list[float] = []
+        self._last: float | None = None
+
+    def _recent(self) -> list[float]:
+        now = self.clock()
+        stamps = list(self.stamps)
+        if self.path is not None:
+            stored = _read_report(self.path).get("searches")
+            if isinstance(stored, list):
+                stamps += [float(s) for s in stored if isinstance(s, (int, float)) and not isinstance(s, bool)]
+        # Una hora futura (el reloj se atrasó) no puede frenar las búsquedas para siempre.
+        return sorted({s for s in stamps if now - self.window_s < s <= now + 1})
+
+    def wait_s(self) -> float:
+        recent = self._recent()
+        if len(recent) < self.per_window:
+            return 0.0
+        return max(0.0, recent[-self.per_window] + self.window_s - self.clock())
+
+    def acquire(self, on_wait: Callable[[float], None] | None = None) -> None:
+        announced = False
+        while True:
+            wait = self.wait_s()
+            if wait <= 0:
+                break
+            if on_wait is not None and not announced:
+                on_wait(wait)
+                announced = True
+            self.sleep(min(wait, 5.0))
+        self._last = self.clock()
+        self.stamps = self._recent() + [self._last]
+        self._save()
+
+    def finish(self) -> None:
+        """La búsqueda terminó: cuenta desde ahora. Sockseek se conecta antes de buscar (hasta 20 s), así que
+        la hora de inicio subestima cuándo salió la búsqueda; la de fin, no."""
+        stamps = [s for s in self._recent() if s != self._last]
+        self._last = self.clock()
+        self.stamps = stamps + [self._last]
+        self._save()
+
+    def _save(self) -> None:
+        if self.path is None:
+            return
+        # Un temporal propio de este proceso. Una descarga a la vez (la app no lanza dos).
+        tmp = self.path.with_name(f"{self.path.name}.{os.getpid()}.tmp")
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            tmp.write_text(json.dumps({"searches": self.stamps}), encoding="utf-8")
+            for attempt in range(10):
+                try:
+                    os.replace(tmp, self.path)
+                    return
+                except PermissionError:
+                    time.sleep(0.05 * (attempt + 1))
+        except OSError:
+            pass  # sin archivo, el límite se respeta igual dentro de esta descarga
+        tmp.unlink(missing_ok=True)
+
+
+def _append_sockseek_log(source: Path | None, destination: Path | None, track: Track) -> None:
+    if source is None or destination is None or not source.is_file():
+        return
+    try:
+        text = source.read_text(encoding="utf-8", errors="replace")
+        with destination.open("a", encoding="utf-8") as handle:
+            handle.write(f"\n===== {track.primary_artist} - {track.title} =====\n{text}")
+    except OSError:
+        pass
+
+
+def search_track(
+    track: Track,
+    *,
+    limiter: SearchLimiter,
+    timeout: float = DEFAULT_SEARCH_TIMEOUT_S,
+    length_tol: int = 60,
+    log_file: Path | None = None,
+    attempts: int = SEARCH_ATTEMPTS,
+    retry_pause: float = SEARCH_RETRY_PAUSE_S,
+    on_wait: Callable[[float], None] | None = None,
+) -> AvailabilityCheck:
+    """Una búsqueda en Soulseek para un tema (un proceso de sockseek, como cuando se busca a mano). Si
+    falla (tiempo agotado, sesión), se reintenta una vez; el error que quede lo decide quien llama."""
+    check = AvailabilityCheck(status="error", result_count=0, candidates=[], error="sin búsqueda")
+    for attempt in range(max(1, attempts)):
+        if attempt:
+            print(f"    ! la búsqueda falló ({check.error}); reintento en {retry_pause:.0f} s", flush=True)
+            time.sleep(retry_pause)
+        limiter.acquire(on_wait)
+        with tempfile.TemporaryDirectory(prefix="sockseek_search_") as tmp:
+            own_log = Path(tmp) / "sockseek.log" if log_file is not None else None
+            try:
+                check = check_soulseek_availability_batch(
+                    [track], length_tol=length_tol, timeout=timeout, log_file=own_log
+                )[0]
+            finally:
+                limiter.finish()
+            _append_sockseek_log(own_log, log_file, track)
+        if check.status != "error":
+            return check
+    return check
+
+
+def wait_announcer(state: dict[str, Any], publish: Callable[[], None]) -> Callable[[float], None]:
+    def on_wait(seconds: float) -> None:
+        print(
+            f"    Soulseek permite {SOULSEEK_SEARCHES_PER_WINDOW} búsquedas cada {SOULSEEK_SEARCH_WINDOW_S} s: "
+            f"espero {seconds:.0f} s antes de buscar el siguiente.",
+            flush=True,
+        )
+        state["step"] = "wait"
+        state["until"] = time.time() + seconds
+        publish()
+    return on_wait
 
 
 # ---------------------------------------------------------------------------
@@ -2388,153 +2501,84 @@ def wait_for_download_gate(path: Path, timeout: float) -> bool:
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=(
-            "Spotify playlist → preflight Soulseek completo → lista de faltantes → "
-            "descarga de disponibles → MP3 320 con verificación, metadata + cover"
+            "Spotify playlist → tema a tema: búsqueda en Soulseek y, si está, descarga en el momento "
+            "(MP3 320 con verificación, metadata + cover); lo que no se consigue va a la cola para grabarlo"
         )
     )
     ap.add_argument("playlist", help="URL, URI o ID de la playlist de Spotify")
-    ap.add_argument(
-        "-o",
-        "--output",
-        required=True,
-        help="Carpeta de salida de los MP3 finales",
-    )
+    ap.add_argument("-o", "--output", required=True, help="Carpeta de salida de los MP3 finales")
     ap.add_argument(
         "--client-id",
         default=os.environ.get("SPOTIFY_CLIENT_ID"),
         help="Spotify Client ID (o variable SPOTIFY_CLIENT_ID)",
     )
-    ap.add_argument(
-        "--staging",
-        default=None,
-        help="Carpeta temporal de descargas Soulseek",
-    )
-    ap.add_argument(
-        "--length-tol",
-        type=int,
-        default=60,
-        help="Tolerancia de duración para sockseek (default 60s)",
-    )
-    ap.add_argument(
-        "--no-extended",
-        action="store_true",
-        help="No preferir versiones Extended",
-    )
+    ap.add_argument("--staging", default=None, help="Carpeta temporal de descargas Soulseek")
+    ap.add_argument("--length-tol", type=int, default=60, help="Tolerancia de duración para sockseek (default 60s)")
+    ap.add_argument("--no-extended", action="store_true", help="No preferir versiones Extended")
     ap.add_argument(
         "--dry-run",
         action="store_true",
-        help=(
-            "Ejecutar todo el preflight Soulseek y generar reportes, pero no crear "
-            "playlist en Spotify ni descargar audio"
-        ),
+        help="Buscar todos los temas y generar los reportes, sin crear playlist en Spotify ni descargar audio",
     )
     ap.add_argument(
         "--preflight-only",
         action="store_true",
-        help=(
-            "Ejecutar el preflight completo, crear la playlist Spotify de faltantes "
-            "e imprimir su URL, pero no descargar audio"
-        ),
+        help="Buscar todos los temas y crear la playlist Spotify de los que faltan, sin descargar audio",
     )
-    ap.add_argument(
-        "--max",
-        type=int,
-        default=None,
-        help="Limitar número de tracks (pruebas)",
-    )
-    ap.add_argument(
-        "--report",
-        default=None,
-        help="Ruta del JSON de auditoría final",
-    )
+    ap.add_argument("--max", type=int, default=None, help="Limitar número de tracks (pruebas)")
+    ap.add_argument("--report", default=None, help="Ruta del JSON de auditoría de las descargas")
     ap.add_argument(
         "--availability-report",
         default=None,
-        help="Ruta del JSON del preflight (default: output/soulseek_availability.json)",
+        help="Ruta del JSON de la búsqueda, tema a tema (default: output/soulseek_availability.json)",
+    )
+    ap.add_argument(
+        "--recording-queue",
+        default=None,
+        help=(
+            "Cola de grabación (JSON por línea, ver recording_queue.py): cada tema que haya que grabar de "
+            "Spotify se agrega apenas se sabe, para que el orquestador lo grabe mientras sigue la búsqueda. "
+            "Con una cola existente (descarga retomada), lo que ya está en ella no se vuelve a buscar"
+        ),
+    )
+    ap.add_argument(
+        "--search-log",
+        default=None,
+        help="Archivo con las búsquedas recientes, para el límite de Soulseek (default: %%APPDATA%%)",
+    )
+    ap.add_argument(
+        "--search-timeout",
+        type=float,
+        default=DEFAULT_SEARCH_TIMEOUT_S,
+        help=f"Segundos máximos de una búsqueda (default {DEFAULT_SEARCH_TIMEOUT_S:.0f})",
     )
     ap.add_argument(
         "--missing-list",
         default=None,
-        help="Ruta TXT de no disponibles (default: output/soulseek_missing.txt)",
+        help="Sin cola de grabación: TXT de lo que hay que grabar (default: output/soulseek_missing.txt)",
     )
     ap.add_argument(
         "--missing-json",
         default=None,
         help=(
-            "Ruta JSON de no disponibles con metadata Spotify completa y orden de "
+            "Sin cola de grabación: JSON de lo que hay que grabar, con metadata Spotify completa y orden de "
             "playlist (default: output/soulseek_missing.json)"
-        ),
-    )
-    ap.add_argument(
-        "--failed-json",
-        default=None,
-        help=(
-            "Al terminar, escribir aquí (mismo formato que --missing-json) los temas que no se "
-            "pudieron bajar o cuya consulta falló, con sus playlists privadas de Spotify para "
-            "grabarlos. Se escribe siempre, aunque esté vacío: indica que la descarga terminó."
         ),
     )
     ap.add_argument(
         "--no-missing-playlist",
         action="store_true",
-        help="No crear playlist privada de Spotify con los temas faltantes",
+        help="Sin cola de grabación: no crear playlist privada de Spotify con lo que hay que grabar",
     )
-    ap.add_argument(
-        "--missing-playlist-name",
-        default=None,
-        help="Nombre personalizado para la playlist Spotify de faltantes",
-    )
+    ap.add_argument("--missing-playlist-name", default=None, help="Nombre de la playlist Spotify de faltantes")
     ap.add_argument(
         "--missing-playlist-batch-size",
         type=int,
         default=DEFAULT_MISSING_PLAYLIST_BATCH_SIZE,
-        help=(
-            "Cantidad maxima de temas por playlist Spotify de faltantes "
-            f"(default {DEFAULT_MISSING_PLAYLIST_BATCH_SIZE})"
-        ),
+        help=f"Cantidad maxima de temas por playlist Spotify de faltantes (default {DEFAULT_MISSING_PLAYLIST_BATCH_SIZE})",
     )
-    ap.add_argument(
-        "--preflight-timeout",
-        type=float,
-        default=None,
-        help=(
-            "Timeout total para el batch único de preflight Soulseek "
-            "(default: según la cantidad de temas, por el límite de 34 búsquedas cada 220 s; "
-            "mínimo 600 s)"
-        ),
-    )
-    ap.add_argument(
-        "--preflight-status",
-        default=None,
-        help=(
-            "Escribir aquí, al lanzar el preflight, cuántos temas busca y su tope de tiempo "
-            "(el orquestador espera ese tiempo)"
-        ),
-    )
-    ap.add_argument(
-        "--overwrite",
-        action="store_true",
-        help="Permitir reemplazar un output existente con el mismo nombre",
-    )
-    ap.add_argument(
-        "--allow-missing-cover",
-        action="store_true",
-        help="No fallar si Spotify no entrega/descarga el cover",
-    )
-    ap.add_argument(
-        "--download-gate",
-        default=None,
-        help=(
-            "Esperar a que exista este archivo después del preflight y antes "
-            "de comenzar las descargas"
-        ),
-    )
-    ap.add_argument(
-        "--download-gate-timeout",
-        type=float,
-        default=900.0,
-        help="Timeout de --download-gate en segundos (default 900)",
-    )
+    ap.add_argument("--overwrite", action="store_true", help="Permitir reemplazar un output existente con el mismo nombre")
+    ap.add_argument("--allow-missing-cover", action="store_true", help="No fallar si Spotify no entrega/descarga el cover")
     ap.add_argument(
         "--reuse-dir",
         action="append",
@@ -2556,43 +2600,30 @@ def main() -> int:
     args = ap.parse_args()
 
     if args.dry_run and args.preflight_only:
-        print(
-            "Usa sólo uno de --dry-run o --preflight-only.",
-            file=sys.stderr,
-        )
+        print("Usa sólo uno de --dry-run o --preflight-only.", file=sys.stderr)
         return 2
     if args.missing_playlist_batch_size <= 0:
         ap.error("--missing-playlist-batch-size debe ser mayor que cero")
-
     if not args.client_id:
-        print(
-            "Falta Client ID. Usa --client-id o exporta SPOTIFY_CLIENT_ID",
-            file=sys.stderr,
-        )
+        print("Falta Client ID. Usa --client-id o exporta SPOTIFY_CLIENT_ID", file=sys.stderr)
         return 2
 
     out = Path(args.output).expanduser().resolve()
     out.mkdir(parents=True, exist_ok=True)
-    report_path = (
-        Path(args.report).expanduser().resolve()
-        if args.report
-        else out / "spotify_reconcile_report.json"
-    )
+    report_path = Path(args.report).expanduser().resolve() if args.report else out / "spotify_reconcile_report.json"
     availability_report_path = (
         Path(args.availability_report).expanduser().resolve()
         if args.availability_report
         else out / "soulseek_availability.json"
     )
+    queue_path = Path(args.recording_queue).expanduser().resolve() if args.recording_queue else None
     missing_list_path = (
-        Path(args.missing_list).expanduser().resolve()
-        if args.missing_list
-        else out / "soulseek_missing.txt"
+        Path(args.missing_list).expanduser().resolve() if args.missing_list else out / "soulseek_missing.txt"
     )
     missing_json_path = (
-        Path(args.missing_json).expanduser().resolve()
-        if args.missing_json
-        else out / "soulseek_missing.json"
+        Path(args.missing_json).expanduser().resolve() if args.missing_json else out / "soulseek_missing.json"
     )
+    downloads_enabled = not (args.dry_run or args.preflight_only)
 
     print("Conectando a Spotify…")
     try:
@@ -2611,282 +2642,208 @@ def main() -> int:
     except RuntimeError as exc:
         print(exc, file=sys.stderr)
         return 2
-
-    # ------------------------------------------------------------------
-    # FASE 1: PRE-FLIGHT COMPLETO. No se descarga ningún archivo aquí.
-    # ------------------------------------------------------------------
-    print("\n=== PRE-FLIGHT SOULSEEK: verificando toda la playlist ===")
-    availability_rows: list[dict[str, Any]] = []
-    available_tracks: list[tuple[int, Track, AvailabilityCheck]] = []
-    missing_tracks: list[tuple[int, Track]] = []
-    preflight_errors: list[tuple[int, Track, str]] = []
-    # Lo que ya está no se busca ni se baja: en la carpeta de la música (--have-dir, no se toca) o bajado
-    # en una descarga anterior que se cortó antes de guardar (--reuse-dir, se trae a esta descarga).
-    saved = reusable_downloads([Path(d).expanduser().resolve() for d in args.have_dir])
-    reusable = reusable_downloads([Path(d).expanduser().resolve() for d in args.reuse_dir])
-    skipped = {t.spotify_id for t in tracks if t.spotify_id in saved or t.spotify_id in reusable}
-    to_search = [t for t in tracks if t.spotify_id not in skipped]
-    if skipped:
-        in_folder = sum(1 for t in tracks if t.spotify_id in saved)
-        print(f"Ya están {len(skipped)} temas ({in_folder} en tu carpeta, {len(skipped) - in_folder} bajados en "
-              "descargas anteriores): no se buscan ni se bajan de nuevo.")
-    preflight_timeout = (
-        args.preflight_timeout
-        if args.preflight_timeout is not None
-        else preflight_timeout_for(len(to_search))
-    )
-    print(
-        f"Lanzando {len(to_search)} consultas como un único batch de Sockseek..."
-    )
-    if len(to_search) > SOULSEEK_SEARCHES_PER_WINDOW:
-        waits = math.ceil(len(to_search) / SOULSEEK_SEARCHES_PER_WINDOW) - 1
-        print(
-            f"Soulseek permite {SOULSEEK_SEARCHES_PER_WINDOW} búsquedas cada "
-            f"{SOULSEEK_SEARCH_WINDOW_S} s: con {len(to_search)} temas la búsqueda tarda al menos "
-            f"{waits * SOULSEEK_SEARCH_WINDOW_S // 60} min (tope {preflight_timeout / 60:.0f} min)."
-        )
-    status_path = Path(args.preflight_status).expanduser().resolve() if args.preflight_status else None
-    status = {"tracks": len(to_search), "skipped": len(tracks) - len(to_search), "timeout_s": preflight_timeout,
-              "started_at": time.time()}
-    if status_path is not None:
-        write_report(status_path, status)
-    printed = 0
-
-    def on_progress(searched: int, found: int) -> None:
-        nonlocal printed
-        if status_path is not None:
-            _replace_report(status_path, {**status, "searched": searched, "found": found})
-        if searched - printed >= 10 or searched == len(to_search):
-            printed = searched
-            print(f"Soulseek: {searched}/{len(to_search)} temas buscados, {found} encontrados", flush=True)
-
-    batch_checks = checks_skipping_known(tracks, skipped, lambda pending: check_soulseek_availability_batch(
-        pending,
-        length_tol=args.length_tol,
-        timeout=preflight_timeout,
-        on_progress=on_progress,
-        # Junto al estado, en la carpeta de la descarga: qué hizo sockseek en cada búsqueda.
-        log_file=status_path.with_name("sockseek_preflight.log") if status_path is not None else None,
-    ))
-
-    for i, (track, check) in enumerate(zip(tracks, batch_checks), 1):
-        print(f"[{i}/{len(tracks)}] {track.primary_artist} - {track.title}")
-
-        if track.spotify_id in skipped:
-            print("    ya en tu carpeta" if track.spotify_id in saved else "    ya bajado en una descarga anterior")
-
-        if check.status == "available":
-            marker = "✓ AVAILABLE"
-            available_tracks.append((i, track, check))
-        elif check.status == "available_quality_unknown":
-            marker = "? AVAILABLE (bitrate no anunciado)"
-            available_tracks.append((i, track, check))
-        elif check.status == "missing":
-            marker = "✗ MISSING"
-            missing_tracks.append((i, track))
-        else:
-            marker = "! ERROR"
-            preflight_errors.append((i, track, check.error or "error desconocido"))
-
-        print(f"    {marker} | resultados utilizables: {check.result_count}")
-        if check.error:
-            print(f"    {check.error}")
-
-        availability_rows.append(
-            {
-                "position": i,
-                "spotify": _track_report(track),
-                "status": check.status,
-                "result_count": check.result_count,
-                "quality_unknown": check.quality_unknown,
-                "top_candidates": check.candidates,
-                "error": check.error,
-            }
-        )
-
-    # Escribir el reporte una sola vez porque el batch es atómico: no existe ya
-    # un preflight parcial por tema dentro de procesos separados.
-    write_report(
-        availability_report_path,
-        {
-            "playlist": {"name": pl_name, "source": args.playlist},
-            "total_tracks": len(tracks),
-            "checked": len(availability_rows),
-            "available": len(available_tracks),
-            "missing": len(missing_tracks),
-            "errors": len(preflight_errors),
-            "preflight_mode": "single_sockseek_batch",
-            "tracks": availability_rows,
-        },
-    )
-
-    write_missing_list(missing_list_path, missing_tracks)
-    write_missing_json(
-        missing_json_path,
-        source_playlist_name=pl_name,
-        source_playlist=args.playlist,
-        missing=missing_tracks,
-        generated_playlist=None,
-        playlist_batch_size=args.missing_playlist_batch_size,
-    )
-
-    preflight_summary = {
-        "playlist": {"name": pl_name, "source": args.playlist},
-        "total_tracks": len(tracks),
-        "checked": len(availability_rows),
-        "available": len(available_tracks),
-        "missing": len(missing_tracks),
-        "errors": len(preflight_errors),
-        "missing_list": str(missing_list_path),
-        "missing_json": str(missing_json_path),
-        "preflight_mode": "single_sockseek_batch",
-        "tracks": availability_rows,
-    }
-    write_report(availability_report_path, preflight_summary)
-
-    print("\n=== RESULTADO PRE-FLIGHT ===")
-    print(f"Disponibles:     {len(available_tracks)}/{len(tracks)}")
-    print(f"No disponibles:  {len(missing_tracks)}/{len(tracks)}")
-    print(f"Errores consulta: {len(preflight_errors)}/{len(tracks)}")
-    print(f"Lista faltantes: {missing_list_path}")
-    print(f"JSON faltantes:  {missing_json_path}")
-    print(f"Reporte:         {availability_report_path}")
-
-    missing_playlists: list[dict[str, Any]] | None = None
-    if missing_tracks and not args.dry_run and not args.no_missing_playlist:
-        print("\nCreando playlists privadas de Spotify con los temas no disponibles…")
-        try:
-            missing_playlists = sp.create_missing_playlists(
-                pl_name,
-                [track for _, track in missing_tracks],
-                name=args.missing_playlist_name,
-                batch_size=args.missing_playlist_batch_size,
-            )
-            print("\n=== PLAYLISTS SPOTIFY DE FALTANTES ===")
-            for batch in missing_playlists:
-                print(
-                    f"[{batch['batch_number']}/{batch['batch_count']}] "
-                    f"{batch['track_count']} tema(s): {batch['url']}"
-                )
-            print("========================================")
-        except Exception as exc:
-            # No impedir la descarga de los disponibles porque Spotify no haya podido
-            # crear la playlist auxiliar. El fallo queda auditado.
-            print(f"No se pudieron crear las playlists de faltantes: {exc}", file=sys.stderr)
-            missing_playlists = [
-                {"id": "", "name": "", "url": "", "error": str(exc)}
-            ]
-
-    # Reescribir el JSON de faltantes para incluir la playlist auxiliar creada
-    # (o el error de creación), manteniendo el mismo orden de la playlist fuente.
-    write_missing_json(
-        missing_json_path,
-        source_playlist_name=pl_name,
-        source_playlist=args.playlist,
-        missing=missing_tracks,
-        generated_playlists=missing_playlists,
-        playlist_batch_size=args.missing_playlist_batch_size,
-    )
-
-    if args.dry_run:
-        if missing_tracks:
-            print(
-                "\nPlaylist Spotify de faltantes: NO CREADA porque --dry-run "
-                "no modifica tu cuenta de Spotify."
-            )
-            print(
-                "Usa --preflight-only para crearla, imprimir su URL y terminar "
-                "antes de descargar audio."
-            )
-        print("\nDry-run: preflight terminado. No se descargó audio.")
-        return 0 if not preflight_errors else 4
-
-    if args.preflight_only:
-        print("\nPreflight-only: preflight terminado. No se descargó audio.")
-        if missing_playlists and all(batch.get("url") for batch in missing_playlists):
-            for batch in missing_playlists:
-                print(f"Playlist Spotify de faltantes: {batch['url']}")
-        elif missing_tracks and args.no_missing_playlist:
-            print("Playlist Spotify de faltantes: deshabilitada por --no-missing-playlist")
-        elif missing_tracks:
-            print("Playlist Spotify de faltantes: no pudo crearse")
-        else:
-            print("Playlist Spotify de faltantes: no necesaria; no hubo temas faltantes")
-        return 0 if not preflight_errors else 4
-
-    if preflight_errors:
-        print(
-            "\nHay consultas de disponibilidad con ERROR. No las trato como MISSING. "
-            "La descarga continuará sólo con los temas confirmados como disponibles."
-        )
-
-    if args.download_gate:
-        download_gate = Path(args.download_gate).expanduser().resolve()
-        if not wait_for_download_gate(download_gate, args.download_gate_timeout):
-            return 5
-
-    if not shutil.which("ffmpeg"):
+    if downloads_enabled and not shutil.which("ffmpeg"):
         print("ffmpeg no está en el PATH", file=sys.stderr)
         return 2
 
-    staging_is_temporary = args.staging is None
-    staging = Path(
-        args.staging or tempfile.mkdtemp(prefix="soulseek_staging_")
-    ).expanduser().resolve()
-    print(f"\nStaging Soulseek: {staging}")
-    print(f"Salida final:     {out}\n")
+    # Lo que ya está no se busca ni se baja: en la carpeta de la música (--have-dir, no se toca) o bajado
+    # en una descarga anterior que se cortó antes de guardar (--reuse-dir, se trae a esta descarga).
+    saved = reusable_downloads([Path(d).expanduser().resolve() for d in args.have_dir])
+    # Con cola (descarga retomada), también lo ya terminado en la propia carpeta: el reporte pudo no alcanzar
+    # a registrar el último tema antes del corte.
+    reusable = reusable_downloads(([out] if args.recording_queue else [])
+                                  + [Path(d).expanduser().resolve() for d in args.reuse_dir])
+    # Una descarga retomada (con cola): lo ya buscado, bajado o puesto en la cola sigue como estaba.
+    queued_ids: set[str] = set(read_queue(queue_path).ids()) if queue_path is not None else set()
+    previous_rows: dict[str, dict[str, Any]] = {}
+    previous_downloads: dict[str, dict[str, Any]] = {}
+    if queue_path is not None:
+        for row in _read_report(availability_report_path).get("tracks") or []:
+            if isinstance(row, dict) and row.get("status") != "pending":
+                previous_rows.setdefault(str((row.get("spotify") or {}).get("spotify_id")), row)
+        for row in _read_report(report_path).get("tracks") or []:
+            if isinstance(row, dict):
+                previous_downloads[str((row.get("spotify") or {}).get("spotify_id"))] = row
 
-    # ------------------------------------------------------------------
-    # FASE 2: DESCARGA. Sólo comienza una vez finalizó TODO el preflight.
-    # ------------------------------------------------------------------
-    print("=== DESCARGA DE TEMAS CONFIRMADOS COMO DISPONIBLES ===")
     rows: list[dict[str, Any]] = []
-    ok = 0
-    failed = 0
+    for position, track in enumerate(tracks, 1):
+        row = {"position": position, "spotify": _track_report(track), "status": "pending", "result_count": 0,
+               "quality_unknown": False, "top_candidates": [], "error": None}
+        earlier = previous_rows.get(track.spotify_id)
+        if track.spotify_id in saved:
+            row.update(status="available", note="ya en tu carpeta")
+        elif earlier is not None:
+            row.update({k: earlier.get(k) for k in ("status", "result_count", "quality_unknown", "top_candidates",
+                                                    "error", "note") if k in earlier})
+        rows.append(row)
+    downloads: dict[int, dict[str, Any]] = {}
+    current: dict[str, Any] = {}
+    counts = {"searched": 0, "found": 0}
+    missing_playlists: list[dict[str, Any]] | None = None
+    staging = Path(args.staging or tempfile.mkdtemp(prefix="soulseek_staging_")).expanduser().resolve()
+    staging_is_temporary = args.staging is None
+    log_file = availability_report_path.with_name("sockseek_preflight.log") if queue_path is not None else None
 
-    for download_index, (source_position, track, availability) in enumerate(
-        available_tracks,
-        1,
-    ):
-        print(
-            f"[{download_index}/{len(available_tracks)} | Spotify #{source_position}] "
-            f"{track.primary_artist} - {track.title}"
-        )
-        row: dict[str, Any] = {
-            "position": source_position,
-            "spotify": _track_report(track),
-            "preflight": {
-                "status": availability.status,
-                "result_count": availability.result_count,
-                "quality_unknown": availability.quality_unknown,
-            },
-            "status": "pending",
-            "candidates": [],
+    def summary(final: bool = False) -> dict[str, Any]:
+        statuses = [row["status"] for row in rows]
+        return {
+            "playlist": {"name": pl_name, "source": args.playlist},
+            "total_tracks": len(tracks),
+            "checked": sum(s != "pending" for s in statuses),
+            "available": sum(s in {"available", "available_quality_unknown"} for s in statuses),
+            "missing": statuses.count("missing"),
+            "errors": statuses.count("error"),
+            "preflight_mode": "track_by_track",
+            "current": None if final else (dict(current) if current else None),
+            "tracks": rows,
         }
 
-        in_folder = saved.get(track.spotify_id)
+    def publish(final: bool = False) -> None:
+        _replace_report(availability_report_path, summary(final), attempts=60 if final else 5)
+
+    def publish_downloads(final: bool = False) -> None:
+        ordered = [downloads[p] for p in sorted(downloads)]
+        failed_now = sum(row["status"] not in DOWNLOADED_STATUSES for row in ordered)
+        _replace_report(report_path, {
+            "playlist": {"name": pl_name, "source": args.playlist},
+            "availability_report": str(availability_report_path),
+            "recording_queue": str(queue_path) if queue_path else None,
+            "output": str(out),
+            "staging": str(staging),
+            "staging_is_temporary": staging_is_temporary,
+            "prefer_extended": not args.no_extended,
+            "completed": len(ordered) - failed_now,
+            "failed": failed_now,
+            "tracks": ordered,
+        }, attempts=60 if final else 5)
+
+    to_record: list[tuple[int, Track]] = []
+    handled: set[str] = set()  # un tema repetido en la playlist se resuelve una sola vez
+
+    def queue_for_recording(position: int, track: Track, origin: str, reason: str) -> None:
+        if track.spotify_id in queued_ids:
+            return
+        if queue_path is not None:
+            append_track(queue_path, recording_entry(position, track), origin=origin, reason=reason)
+        queued_ids.add(track.spotify_id)
+        to_record.append((position, track))
+        print(f"    ↻ se grabará de Spotify: {reason}", flush=True)
+
+    def download_row(position: int, track: Track, availability: AvailabilityCheck | None) -> dict[str, Any]:
+        row: dict[str, Any] = {"position": position, "spotify": _track_report(track), "status": "pending",
+                               "candidates": []}
+        if availability is not None:
+            row["preflight"] = {"status": availability.status, "result_count": availability.result_count,
+                                "quality_unknown": availability.quality_unknown}
+        return row
+
+    print("\n=== TEMA A TEMA: se busca cada uno en Soulseek y, si está, se baja enseguida ===")
+    if queue_path is not None:
+        print("Lo que no se consiga se graba de Spotify mientras sigue la búsqueda.")
+    limiter = SearchLimiter(Path(args.search_log).expanduser().resolve() if args.search_log else default_search_log())
+    on_wait = wait_announcer(current, publish)
+    held_errors: list[tuple[int, Track, str]] = []  # se mandan a grabar solo si después otra búsqueda funciona
+    consecutive_errors = 0
+    last_ok: Track | None = None  # el último tema que se pudo buscar en esta descarga
+    aborted: str | None = None
+    publish()
+
+    for position, track in enumerate(tracks, 1):
+        row = rows[position - 1]
+        tid = track.spotify_id
+        if position > 1 and (position - 1) % 10 == 0:
+            print(f"Soulseek: {position - 1}/{len(tracks)} temas vistos, {counts['found']} encontrados, "
+                  f"{len(queued_ids)} para grabar", flush=True)
+        print(f"[{position}/{len(tracks)} | Spotify #{position}] {track.primary_artist} - {track.title}", flush=True)
+
+        in_folder = saved.get(tid)
         if in_folder is not None:
             print(f"    → ya está en tu carpeta: {in_folder.name}")
-            row.update({"status": "already_finalized", "output": str(in_folder),
-                        "selected": {"path": str(in_folder), "reasons": ["ya estaba en tu carpeta de música"]}})
-            rows.append(row)
-            ok += 1
+            downloads[position] = {**download_row(position, track, None), "status": "already_finalized",
+                                   "output": str(in_folder),
+                                   "selected": {"path": str(in_folder), "reasons": ["ya estaba en tu carpeta de música"]}}
+            handled.add(tid)
+            continue
+        earlier = previous_downloads.get(tid)
+        if (earlier and earlier.get("status") in DOWNLOADED_STATUSES and earlier.get("output")
+                and Path(str(earlier["output"])).is_file()):
+            print(f"    → ya bajado: {Path(str(earlier['output'])).name}")
+            downloads[position] = {**earlier, "position": position}
+            handled.add(tid)
+            continue
+        if tid in handled:
+            print("    = repetido en la playlist: ya se resolvió más arriba")
+            first_row = next(r for r in rows[: position - 1] if r["spotify"].get("spotify_id") == tid)
+            row.update({k: first_row.get(k) for k in ("status", "result_count", "quality_unknown", "top_candidates",
+                                                      "error")}, note="repetido en la playlist")
+            first = next((d for d in downloads.values() if d["spotify"].get("spotify_id") == tid), None)
+            if first is not None:
+                downloads[position] = {**first, "position": position}
             continue
 
-        previous = reusable.get(track.spotify_id)
-        if previous is not None:
+        if tid in queued_ids:
+            print("    ↻ ya está en la cola para grabar de Spotify")
+            if earlier is not None:
+                downloads[position] = {**earlier, "position": position}
+            handled.add(tid)
+            continue
+        previous = reusable.get(tid)
+        if previous is not None and downloads_enabled:
             try:
-                dest = reuse_download(previous, out, track.spotify_id, require_cover=not args.allow_missing_cover)
+                dest = reuse_download(previous, out, tid, require_cover=not args.allow_missing_cover)
             except (RuntimeError, OSError) as exc:
-                print(f"    ! no se pudo reutilizar {previous.name}: {exc}; se baja de nuevo")
+                print(f"    ! no se pudo reutilizar {previous.name}: {exc}; lo busco")
             else:
                 print(f"    → reutilizado de una descarga anterior: {dest.name}")
-                row.update({"status": "already_finalized", "output": str(dest),
-                            "selected": {"path": str(previous), "reasons": ["reutilizado de una descarga anterior"]}})
-                rows.append(row)
-                ok += 1
+                row.update(status="available", note="bajado en una descarga anterior")
+                downloads[position] = {**download_row(position, track, None), "status": "already_finalized",
+                                       "output": str(dest),
+                                       "selected": {"path": str(previous), "reasons": ["reutilizado de una descarga anterior"]}}
+                handled.add(tid)
+                publish()
+                publish_downloads()
                 continue
 
+        current.clear()
+        current.update(position=position, step="search")
+        publish()
+        check = search_track(track, limiter=limiter, timeout=args.search_timeout, length_tol=args.length_tol,
+                             log_file=log_file, on_wait=on_wait)
+        current.pop("until", None)
+        row.update(status=check.status, result_count=check.result_count, quality_unknown=check.quality_unknown,
+                   top_candidates=check.candidates, error=check.error)
+        handled.add(tid)
+        if check.status == "error":
+            consecutive_errors += 1
+            held_errors.append((position, track, check.error or "error desconocido"))
+            print(f"    ! la búsqueda en Soulseek falló: {check.error}", flush=True)
+            publish()
+            if consecutive_errors >= MAX_CONSECUTIVE_SEARCH_ERRORS:
+                aborted = check.error or "error desconocido"
+                break
+            continue
+        consecutive_errors = 0
+        last_ok = track
+        counts["searched"] += 1
+        for held_position, held_track, error in held_errors:  # la búsqueda funciona: el error era de ese tema
+            queue_for_recording(held_position, held_track, "search_error", f"La búsqueda en Soulseek falló ({error})")
+        held_errors.clear()
+
+        if check.status == "missing":
+            print("    ✗ no está en Soulseek")
+            queue_for_recording(position, track, "missing", "No está en Soulseek")
+            publish()
+            continue
+        counts["found"] += 1
+        print(f"    ✓ en Soulseek: {check.result_count} archivo(s) utilizable(s)"
+              + (" (bitrate no anunciado)" if check.quality_unknown else ""))
+        if not downloads_enabled:
+            publish()
+            continue
+
+        current.update(step="download")
+        publish()
+        drow = download_row(position, track, check)
         best: LocalFile | None = None
         best_score = -1.0
         best_ext = False
@@ -2897,198 +2854,117 @@ def main() -> int:
             nonlocal best, best_score, best_ext, best_reasons
             local = inspect(path)
             if not local:
-                row["candidates"].append({"path": str(path), "accepted": False,
-                                          "reasons": ["no se pudo leer el audio"]})
+                drow["candidates"].append({"path": str(path), "accepted": False, "reasons": ["no se pudo leer el audio"]})
                 return False
-            accepted, score, extended, reasons = score_candidate(
-                track,
-                local,
-                prefer_extended=not args.no_extended,
-            )
-            row["candidates"].append(
-                _candidate_report(local, accepted, score, extended, reasons)
-            )
+            accepted, score, extended, reasons = score_candidate(track, local, prefer_extended=not args.no_extended)
+            drow["candidates"].append(_candidate_report(local, accepted, score, extended, reasons))
             if accepted:
                 best, best_score, best_ext, best_reasons = local, score, extended, reasons
             return accepted
 
         try:
-            files = download_with_sockseek(
-                track,
-                staging,
-                length_tol=args.length_tol,
-                availability=availability,
-                verify=verify,
-                prefer_extended=not args.no_extended,
-            )
+            files = download_with_sockseek(track, staging, length_tol=args.length_tol, availability=check,
+                                           verify=verify, prefer_extended=not args.no_extended)
         except Exception as exc:
             print(f"    ✗ error descarga: {exc}")
-            row["status"] = "download_error"
-            row["error"] = str(exc)
-            rows.append(row)
-            failed += 1
-            continue
-
-        if not files or best is None:
-            if row["candidates"]:
-                print(f"    ✗ ninguno de los {len(row['candidates'])} archivos bajados pasó la verificación")
-                row["status"] = "verification_failed"
+            drow.update(status="download_error", error=str(exc))
+            files = []
+        if drow["status"] == "pending" and (not files or best is None):
+            if drow["candidates"]:
+                print(f"    ✗ ninguno de los {len(drow['candidates'])} archivos bajados pasó la verificación")
+                drow["status"] = "verification_failed"
             else:
-                print("    ✗ preflight tenía resultados, pero la descarga no produjo archivo")
-                row["status"] = "availability_changed_or_download_failed"
-            rows.append(row)
-            failed += 1
-            continue
+                print("    ✗ Soulseek tenía resultados, pero la descarga no produjo archivo")
+                drow["status"] = "availability_changed_or_download_failed"
+        if drow["status"] == "pending":
+            assert best is not None
+            print(f"    ✓ elegido: {best.path.name}" + ("  [Extended]" if best_ext else ""))
+            drow["selected"] = {"path": str(best.path), "score": best_score, "extended": best_ext, "reasons": best_reasons}
+            try:
+                dest, already_exists = finalize(best.path, out, track, best, best_ext, overwrite=args.overwrite,
+                                                require_cover=not args.allow_missing_cover)
+                print(f"    → {'ya existía: ' if already_exists else ''}{dest.name}")
+                drow.update(status="already_finalized" if already_exists else "finalized", output=str(dest))
+            except Exception as exc:
+                print(f"    ✗ finalize: {exc}")
+                drow.update(status="finalize_error", error=str(exc))
+        downloads[position] = drow
+        if drow["status"] not in DOWNLOADED_STATUSES:
+            queue_for_recording(position, track, "failed", _download_failure_reason(drow))
+        publish()
+        publish_downloads()
 
-        print(
-            f"    ✓ elegido: {best.path.name}"
-            + ("  [Extended]" if best_ext else "")
-        )
-        row["selected"] = {
-            "path": str(best.path),
-            "score": best_score,
-            "extended": best_ext,
-            "reasons": best_reasons,
-        }
+    if aborted is None and held_errors:
+        # Los últimos temas fallaron y no hay otro después que pruebe que la búsqueda funciona: se prueba
+        # con uno que sí se encontró. Si tampoco funciona, el problema es la búsqueda y no se graban.
+        probe = None
+        if last_ok is not None:
+            print(f"Compruebo que la búsqueda en Soulseek funciona con «{last_ok.title}»…", flush=True)
+            probe = search_track(last_ok, limiter=limiter, timeout=args.search_timeout, length_tol=args.length_tol,
+                                 log_file=log_file, on_wait=on_wait)
+        if probe is not None and probe.status != "error":
+            for held_position, held_track, error in held_errors:
+                queue_for_recording(held_position, held_track, "search_error", f"La búsqueda en Soulseek falló ({error})")
+        else:
+            aborted = held_errors[-1][2]
+    current.clear()
+    publish(final=True)
+    publish_downloads(final=True)
 
-        try:
-            dest, already_exists = finalize(
-                best.path,
-                out,
-                track,
-                best,
-                best_ext,
-                overwrite=args.overwrite,
-                require_cover=not args.allow_missing_cover,
-            )
-            if already_exists:
-                print(f"    → ya existía: {dest.name}")
-                row["status"] = "already_finalized"
-            else:
-                print(f"    → {dest.name}")
-                row["status"] = "finalized"
-            row["output"] = str(dest)
-            ok += 1
-        except Exception as exc:
-            print(f"    ✗ finalize: {exc}")
-            row["status"] = "finalize_error"
-            row["error"] = str(exc)
-            failed += 1
-
-        rows.append(row)
-
-        write_report(
-            report_path,
-            {
-                "playlist": {"name": pl_name, "source": args.playlist},
-                "preflight": {
-                    "available": len(available_tracks),
-                    "missing": len(missing_tracks),
-                    "errors": len(preflight_errors),
-                    "availability_report": str(availability_report_path),
-                    "missing_list": str(missing_list_path),
-                    "missing_json": str(missing_json_path),
-                    "missing_playlist": (
-                        missing_playlists[0]
-                        if missing_playlists and len(missing_playlists) == 1
-                        else None
-                    ),
-                    "missing_playlists": missing_playlists,
-                },
-                "output": str(out),
-                "staging": str(staging),
-                "staging_is_temporary": staging_is_temporary,
-                "prefer_extended": not args.no_extended,
-                "download_total": len(available_tracks),
-                "completed": ok,
-                "failed": failed,
-                "tracks": rows,
-            },
-        )
-
-    staging_cleaned = False
     staging_cleanup_error: str | None = None
     if staging_is_temporary:
         try:
-            shutil.rmtree(staging)
-            staging_cleaned = True
+            if staging.exists():
+                shutil.rmtree(staging)
         except OSError as exc:
             staging_cleanup_error = str(exc)
 
-    final_report = {
-        "playlist": {"name": pl_name, "source": args.playlist},
-        "preflight": {
-            "available": len(available_tracks),
-            "missing": len(missing_tracks),
-            "errors": len(preflight_errors),
-            "availability_report": str(availability_report_path),
-            "missing_list": str(missing_list_path),
-            "missing_json": str(missing_json_path),
-            "missing_playlist": (
-                missing_playlists[0]
-                if missing_playlists and len(missing_playlists) == 1
-                else None
-            ),
-            "missing_playlists": missing_playlists,
-        },
-        "output": str(out),
-        "staging": str(staging),
-        "staging_is_temporary": staging_is_temporary,
-        "staging_cleaned": staging_cleaned,
-        "staging_cleanup_error": staging_cleanup_error,
-        "prefer_extended": not args.no_extended,
-        "download_total": len(available_tracks),
-        "completed": ok,
-        "failed": failed,
-        "tracks": rows,
-    }
-    write_report(report_path, final_report)
-
-    print(f"\nListo. {ok}/{len(available_tracks)} disponibles finalizados en {out}")
-    print(f"No disponibles según preflight: {len(missing_tracks)}")
-    print(f"JSON de faltantes: {missing_json_path}")
-    if missing_playlists:
-        for batch in missing_playlists:
-            if batch.get("url"):
-                print(f"Playlist Spotify de faltantes: {batch['url']}")
-    print(f"Reporte final: {report_path}")
-
-    if args.failed_json:
-        fallback = fallback_tracks(available_tracks, rows, preflight_errors, total_tracks=len(tracks))
-        fallback_playlists: list[dict[str, Any]] | None = None
-        if fallback:
-            print(f"\nCreando playlists privadas de Spotify con {len(fallback)} tema(s) para grabar…")
-            try:
-                fallback_playlists = sp.create_missing_playlists(
-                    pl_name,
-                    [track for _, track in fallback],
-                    name=f"No se pudieron bajar - {pl_name} - " + time.strftime("%Y-%m-%d %H%M"),
-                    batch_size=args.missing_playlist_batch_size,
-                )
-                for batch in fallback_playlists:
-                    print(f"Playlist Spotify para grabar: {batch['url']}")
-            except Exception as exc:
-                print(f"No se pudieron crear las playlists para grabar: {exc}", file=sys.stderr)
-                fallback_playlists = [{"id": "", "name": "", "url": "", "error": str(exc)}]
-        write_missing_json(
-            Path(args.failed_json).expanduser().resolve(),
-            source_playlist_name=pl_name,
-            source_playlist=args.playlist,
-            missing=fallback,
-            generated_playlists=fallback_playlists,
-            playlist_batch_size=args.missing_playlist_batch_size,
+    if aborted is not None:
+        print(
+            f"\nERROR: la búsqueda en Soulseek falló en {len(held_errors)} tema(s) seguido(s) ({aborted}). Se corta "
+            "aquí: el problema es la búsqueda, no los temas, y esos no se mandan a grabar. Revisa que la cuenta de "
+            "Soulseek no esté abierta en otra PC y vuelve a intentar.",
+            file=sys.stderr,
         )
+    if queue_path is not None:
+        close_queue(queue_path, END_SEARCH_FAILED if aborted else END_FINISHED, aborted)
+    else:
+        to_record.sort(key=lambda item: item[0])
+        write_missing_list(missing_list_path, to_record)
+        write_missing_json(missing_json_path, source_playlist_name=pl_name, source_playlist=args.playlist,
+                           missing=to_record, playlist_batch_size=args.missing_playlist_batch_size)
+        if to_record and not args.dry_run and not args.no_missing_playlist:
+            print("\nCreando playlists privadas de Spotify con lo que hay que grabar…")
+            try:
+                missing_playlists = sp.create_missing_playlists(
+                    pl_name, [track for _, track in to_record], name=args.missing_playlist_name,
+                    batch_size=args.missing_playlist_batch_size)
+                for batch in missing_playlists:
+                    print(f"[{batch['batch_number']}/{batch['batch_count']}] {batch['track_count']} tema(s): {batch['url']}")
+            except Exception as exc:
+                print(f"No se pudieron crear las playlists de faltantes: {exc}", file=sys.stderr)
+                missing_playlists = [{"id": "", "name": "", "url": "", "error": str(exc)}]
+            write_missing_json(missing_json_path, source_playlist_name=pl_name, source_playlist=args.playlist,
+                               missing=to_record, generated_playlists=missing_playlists,
+                               playlist_batch_size=args.missing_playlist_batch_size)
+        print(f"JSON de lo que hay que grabar: {missing_json_path}")
 
-    # Éxito significa: todos los que estaban disponibles fueron finalizados y no hubo
-    # errores de consulta. Los MISSING son un resultado válido del preflight; con
-    # --failed-json, los demás quedan listados para grabarlos.
-    return (
-        0
-        if ok == len(available_tracks)
-        and not preflight_errors
-        and staging_cleanup_error is None
-        else 3
-    )
+    ok = sum(row["status"] in DOWNLOADED_STATUSES for row in downloads.values())
+    failed = sum(row["status"] not in DOWNLOADED_STATUSES for row in downloads.values())
+    print(f"\nListo. {ok} tema(s) bajados o ya guardados en {out}; {len(queued_ids)} para grabar de Spotify.")
+    print(f"Reporte: {report_path}")
+    if aborted is not None:
+        return EXIT_SEARCH_FAILED
+    return 0 if failed == 0 and staging_cleanup_error is None else 3
+
+
+def _download_failure_reason(row: dict[str, Any]) -> str:
+    return {
+        "verification_failed": "Ningún archivo de Soulseek pasó la verificación",
+        "download_error": "Falló la descarga de Soulseek",
+        "availability_changed_or_download_failed": "Soulseek tenía el tema, pero no se pudo bajar",
+        "finalize_error": "No se pudo guardar el MP3",
+    }.get(str(row.get("status")), "No se pudo bajar de Soulseek")
 
 
 if __name__ == "__main__":

@@ -9,6 +9,8 @@ CHANGELOG:
                 Avance de la búsqueda; grabación pospuesta (comando, estado e interruptor).
   - 2026-11-02: Pestañas Colección (carpetas, conteos, elegir para playlists, carpetas agregadas) y
                 Organización (lanzar review_app, motivos de error, tarea en curso, cierre con la app).
+  - 2026-11-06: Runs tema a tema: búsqueda en curso, cola de grabación, tandas grabadas, grabación pospuesta
+                o detenida, y tandas archivadas en diagnostics/ al terminar.
 """
 from __future__ import annotations
 
@@ -878,3 +880,104 @@ def test_page_has_the_three_tabs_and_the_organizer_waits_for_its_tab(server):
         assert tab in page
     status, body = request(server, "/api/state")
     assert json.loads(body)["organizer"]["status"] == "off"  # se abre recién al entrar en la pestaña
+
+
+# ---------------------------------------------------------------------------
+# Descargas tema a tema (2026-11-06)
+# ---------------------------------------------------------------------------
+
+def track_by_track_run(root: Path, statuses: list[str], *, status: str = "running", current: dict | None = None) -> Path:
+    run = make_run(root, status=status)
+    report = json.loads((run / "orchestration_report.json").read_text(encoding="utf-8"))
+    write(run / "orchestration_report.json", {**report, "layout": APP.orch.LAYOUT})
+    write(run / "soulseek_availability.json", {
+        "playlist": {"name": "Mi playlist"}, "preflight_mode": "track_by_track", "current": current,
+        "tracks": [{"position": i, "spotify": spotify(i), "status": s, "error": "timeout" if s == "error" else None}
+                   for i, s in enumerate(statuses, 1)]})
+    return run
+
+
+def queue_track(run: Path, n: int, origin: str = "missing", reason: str = "No está en Soulseek") -> None:
+    from recording_queue import append_track
+    append_track(run / "recording_queue.jsonl", {"playlist_position": n, "duration_ms": 200_000, "spotify": spotify(n)},
+                 origin=origin, reason=reason)
+
+
+def test_track_by_track_states_while_searching_downloading_and_recording(tmp_path):
+    run = track_by_track_run(tmp_path, ["available", "missing", "available", "pending", "pending", "error"],
+                             current={"position": 4, "step": "search"})
+    write(run / "spotify_reconcile_report.json", {"tracks": [
+        {"position": 1, "spotify": spotify(1), "status": "finalized", "output": "C:/x/Artista 1 - Tema 1.mp3"},
+        {"position": 3, "spotify": spotify(3), "status": "verification_failed",
+         "candidates": [{"accepted": False, "reasons": ["ISRC distinto: local=A Spotify=B"]}]}]})
+    queue_track(run, 2)
+    queue_track(run, 3, "failed", "Ningún archivo de Soulseek pasó la verificación")
+    session = run / "recordings" / "01"
+    write(session / "session.json", {"tracks": [{"playlist_position": 2, "spotify": spotify(2)}]})
+    write(session / "recording_progress.json", {"completed_count": 0, "completed_track_ids": [], "tracks": []})
+    write(run / "recorder_ready.json", {"status": "ready"})
+    report = json.loads((run / "orchestration_report.json").read_text(encoding="utf-8"))
+    write(run / "orchestration_report.json", {**report, "recording_session": "01"})
+
+    state = APP.run_state(run, alive=True)
+    tracks = by_pos(state)
+    assert state["phase"] == "transfer" and state["layout"] == APP.orch.LAYOUT
+    assert [tracks[p]["state"] for p in range(1, 7)] == [
+        "downloaded", "recording", "to_record", "searching", "pending", "search_error"]
+    assert "ISRC distinto" in tracks[3]["detail"] and "mientras sigue la búsqueda" in tracks[3]["detail"]
+    assert state["recording_since"] is not None and state["missing_count"] == 2
+    assert state["counts"]["pending"] == 1 and state["counts"]["searching"] == 1
+    assert state["search"] == {"searched": 4, "found": 2, "total": 6, "skipped": 0}
+
+    mp3 = session / "Artista 2 - Tema 2.mp3"
+    mp3.write_bytes(b"audio")
+    write(session / "recording_progress.json", {"completed_count": 1, "completed_track_ids": ["id2"],
+                                                "tracks": [{"playlist_position": 2, "output": str(mp3)}]})
+    tracks = by_pos(APP.run_state(run, alive=True))
+    assert tracks[2]["state"] == "recorded" and tracks[2]["file"] == str(mp3)
+
+
+def test_track_by_track_waiting_postponed_or_stopped_recording(tmp_path):
+    run = track_by_track_run(tmp_path, ["missing", "available"], current={"position": 2, "step": "wait"})
+    queue_track(run, 1)
+    tracks = by_pos(APP.run_state(run, alive=True))
+    assert tracks[2]["state"] == "searching" and "34 búsquedas" in tracks[2]["detail"]
+    (run / APP.orch.DEFER_SIGNAL).write_text("1", encoding="utf-8")
+    assert "pospuesta" in by_pos(APP.run_state(run, alive=True))[1]["detail"]
+    (run / APP.orch.DEFER_SIGNAL).unlink()
+    report = json.loads((run / "orchestration_report.json").read_text(encoding="utf-8"))
+    write(run / "orchestration_report.json", {**report, "recording_blocked": "Spotify dejó de producir audio."})
+    state = APP.run_state(run, alive=True)
+    assert state["recording_blocked"] == "Spotify dejó de producir audio."
+    assert "al continuar" in by_pos(state)[1]["detail"]
+
+
+def test_track_by_track_run_paused_by_spotify_keeps_its_pending_count(tmp_path):
+    run = track_by_track_run(tmp_path, ["available", "missing"], status="resumable")
+    report = json.loads((run / "orchestration_report.json").read_text(encoding="utf-8"))
+    write(run / "orchestration_report.json", {**report, "pending_recordings": 1, "reason": "Spotify se detuvo."})
+    queue_track(run, 2)
+    state = APP.run_state(run)
+    assert state["status"] == "paused" and state["pending_recordings"] == 1
+    assert by_pos(state)[2]["state"] == "to_record" and by_pos(state)[1]["state"] == "queued"
+
+
+def test_finished_track_by_track_run_reads_its_sessions_from_diagnostics(tmp_path):
+    run = make_run(tmp_path, status="completed")
+    report = json.loads((run / "orchestration_report.json").read_text(encoding="utf-8"))
+    write(run / "orchestration_report.json", {**report, "layout": APP.orch.LAYOUT})
+    diag = run / "diagnostics"
+    write(diag / "soulseek_availability.json", {"playlist": {"name": "Lista"}, "tracks": [
+        {"position": 1, "spotify": spotify(1), "status": "available"},
+        {"position": 2, "spotify": spotify(2), "status": "missing"}]})
+    write(diag / "recordings" / "01" / "recording_progress.json", {
+        "completed_count": 1, "completed_track_ids": ["id2"],
+        "tracks": [{"playlist_position": 2, "output": "D:/m/Lista/b.mp3", "start_sec": 1.0, "end_sec": 201.0,
+                    "duration_difference_sec": 0.2}]})
+    write(run / "consolidation_report.json", {"tracks": [
+        {"spotify_id": "id1", "origin": "soulseek", "destination": "D:/m/Lista/a.mp3"},
+        {"spotify_id": "id2", "origin": "loopback", "destination": "D:/m/Lista/b.mp3"}]})
+    state = APP.run_state(run)
+    assert state["status"] == "done" and [t["state"] for t in state["tracks"]] == ["downloaded", "recorded"]
+    source = APP.track_source(run, 2, [])
+    assert source["origin"] == "loopback" and source["end_s"] == 201.0

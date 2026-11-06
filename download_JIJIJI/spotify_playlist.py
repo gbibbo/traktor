@@ -2,6 +2,10 @@
 PURPOSE: Open a Spotify playlist in the Windows desktop client and start playback.
 
 CHANGELOG:
+- 2026-11-06: ``--pause --device-id ID``: pause this computer's Spotify (only if it is the one playing),
+              so autoplay does not go on between recording sessions or after one is postponed. The
+              ready file says the device ("starting") before playback starts, so the orchestrator can
+              pause it if the start times out.
 - 2026-10-30: Keep the token cache at the repo root, not in the working directory.
 - 2026-09-27: Add ``--start-only`` for non-blocking orchestration.
 - 2026-09-27: Add a zero-based playlist offset for resumable recording.
@@ -183,12 +187,33 @@ def monitor_playback_health(sp, status_file: Path, grace_seconds: float) -> int:
         return 75
 
 
+def pause_device(sp, device_id: str) -> bool:
+    """Pause only if this device is the one playing: never the phone that took over playback."""
+    state = sp.current_playback() or {}
+    device = state.get("device") or {}
+    if device.get("id") != device_id or not state.get("is_playing"):
+        return False
+    sp.pause_playback(device_id=device_id)
+    return True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
         "playlist_url",
+        nargs="?",
         help="Spotify playlist URL"
+    )
+    parser.add_argument(
+        "--pause",
+        action="store_true",
+        help="Pause playback on --device-id (if it is playing) and exit",
+    )
+    parser.add_argument(
+        "--device-id",
+        default=None,
+        help="Spotify Connect device to pause with --pause",
     )
     parser.add_argument(
         "--start-only",
@@ -225,8 +250,10 @@ def main() -> int:
         parser.error("--offset-position must be >= 0")
     if args.watchdog_grace <= 0:
         parser.error("--watchdog-grace must be > 0")
-
-    playlist_uri = playlist_url_to_uri(args.playlist_url)
+    if args.pause and not args.device_id:
+        parser.error("--pause needs --device-id")
+    if not args.pause and not args.playlist_url:
+        parser.error("the playlist URL is required")
 
     sp = spotipy.Spotify(
         auth_manager=SpotifyOAuth(
@@ -237,6 +264,12 @@ def main() -> int:
             cache_path=str(TOKEN_CACHE),
         )
     )
+    if args.pause:
+        paused = pause_device(sp, args.device_id)
+        print("Spotify en pausa." if paused else "Spotify no estaba sonando en este ordenador.", flush=True)
+        return 0
+
+    playlist_uri = playlist_url_to_uri(args.playlist_url)
 
     print(f"Opening Spotify Desktop:")
     print(playlist_uri)
@@ -251,6 +284,8 @@ def main() -> int:
     )
 
     device_id = device["id"]
+    if args.ready_file is not None:  # no es «ready»: dice qué dispositivo, por si el arranque se demora
+        write_status(args.ready_file.expanduser().resolve(), {"status": "starting", "device_id": device_id})
 
     sp.transfer_playback(
         device_id=device_id,

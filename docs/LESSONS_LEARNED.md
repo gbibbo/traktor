@@ -58,8 +58,21 @@ Sockseek hace como máximo 34 búsquedas cada 220 s (Soulseek banea 30 minutos s
 `--searches-per-time`, `--searches-renew-time`). El preflight lanza una búsqueda por tema en un
 único proceso, así que 152 temas necesitan al menos 4 esperas de 220 s (880 s). Con el tope fijo
 de 600 s, los dos intentos del 2026-10-30 agotaron el tiempo, perdieron todo el lote y los 152
-temas quedaron como error. El tope ahora se calcula con `preflight_timeout_for(n)`. Un preflight
-que falla para todos los temas es un problema de la búsqueda: no se manda la playlist a grabar.
+temas quedaron como error. [REEMPLAZADO 2026-11-06 por la búsqueda tema a tema: un proceso de
+sockseek por tema (tope 90 s) y el límite de 34/220 s lo lleva `SearchLimiter`, en un archivo del
+ordenador; el límite de sockseek no sirve entre procesos.] El tope ahora se calcula con
+`preflight_timeout_for(n)`. Un preflight que falla para todos los temas es un problema de la
+búsqueda: no se manda la playlist a grabar.
+
+### Sockseek con una lista busca a ráfagas y después se queda parado
+
+Con un CSV, sockseek abre hasta `--concurrent-jobs` (20 por defecto) trabajos juntos y busca de a
+`--concurrent-searches` (2): en el log del preflight del 2026-11-02 (152 temas), 20 temas quedaron
+esperando búsqueda en el mismo segundo, las 34 búsquedas de la ventana se gastaron en menos de 2
+minutos y el log quedó mudo 104-119 s, cuatro veces. Es lo que Gabriel vio como «Soulseek se
+tranca». Buscando tema a tema y bajando cada uno enseguida, las búsquedas quedan espaciadas. Un
+proceso nuevo de sockseek empieza su limitador de cero: la cuenta de búsquedas tiene que llevarse
+fuera de sockseek (`SearchLimiter`).
 
 ### `--strict-title` de sockseek pide el título de Spotify al pie de la letra
 

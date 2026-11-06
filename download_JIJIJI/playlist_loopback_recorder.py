@@ -3,6 +3,8 @@
 PURPOSE: Record a Spotify playlist through Windows WASAPI loopback and split it.
 
 CHANGELOG:
+- 2026-11-06: The checkpoint replace retries while a reader (the app polls it) has the file open on
+              Windows; it used to stop the recorder with a PermissionError.
 - 2026-09-29: Support bounded recording batches while keeping global checkpoints.
 - 2026-09-27: Remove partial WAV captures that are not used by resume.
 - 2026-09-27: Reuse the Soulseek finalizer's Spotify tags, cover, and filenames.
@@ -33,6 +35,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import wave
 from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -457,6 +460,12 @@ def write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
         json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False),
         encoding="utf-8",
     )
+    for attempt in range(40):
+        try:
+            temporary.replace(path)
+            return
+        except PermissionError:
+            time.sleep(0.05 * min(attempt + 1, 5))
     temporary.replace(path)
 
 

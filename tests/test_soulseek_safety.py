@@ -5,6 +5,8 @@ CHANGELOG: 2026-10-05: Cover size gates, live limits, bounded conversion and ima
            2026-11-02: Preflight progress from --progress-json, kept out of the results.
            2026-11-02: Preflight title judged like the verification (no --strict-title); reuse of
                        finished MP3s from earlier runs.
+           2026-11-06: Track by track: search and download interleaved, recording queue, search limiter
+                       across processes, failed searches held until another search works, resume.
 """
 
 from __future__ import annotations
@@ -489,57 +491,6 @@ def test_finished_downloads_are_reused_instead_of_downloaded_again(tmp_path):
         D.reuse_download(dest, out, "track-9", require_cover=True)
 
 
-def test_known_tracks_are_not_searched_again():
-    tracks = [spotify_track(f"Tema {n}") for n in range(4)]
-    for n, t in enumerate(tracks):
-        t.spotify_id = f"id{n}"
-    searched = []
-
-    def search(pending):
-        searched.append([t.spotify_id for t in pending])
-        return [D.AvailabilityCheck(status="missing", result_count=0, candidates=[]) for _ in pending]
-    checks = D.checks_skipping_known(tracks, {"id0", "id2"}, search)
-    assert searched == [["id1", "id3"]]                               # solo lo que falta va a Soulseek
-    assert [c.status for c in checks] == ["available", "missing", "available", "missing"]  # en el orden de la playlist
-    assert D.checks_skipping_known(tracks, {"id0", "id1", "id2", "id3"}, search)[0].status == "available"
-    assert len(searched) == 1                                         # todo conocido: no se busca nada
-
-
-def test_downloader_searches_only_what_is_not_in_the_music_folder(tmp_path, monkeypatch, capsys):
-    tracks = [spotify_track(f"Tema {n}", ("Artista",), 300) for n in range(3)]
-    for n, t in enumerate(tracks):
-        t.spotify_id = f"id{n}"
-    folder = tmp_path / "lib" / "Lista"
-    mp3_320(folder / "Artista - Tema 0.mp3", "id0")       # ya guardado
-    mp3_320(tmp_path / "old" / "soulseek" / "Artista - Tema 1.mp3", "id1")  # bajado por una descarga cortada
-
-    class FakeSpotify:
-        def __init__(self, client_id):
-            pass
-
-        def playlist_tracks(self, playlist):
-            return "Lista", tracks
-    searched = []
-
-    def batch(pending, **kwargs):
-        searched.append([t.spotify_id for t in pending])
-        return [D.AvailabilityCheck(status="missing", result_count=0, candidates=[]) for _ in pending]
-    monkeypatch.setattr(D, "Spotify", FakeSpotify)
-    monkeypatch.setattr(D, "check_soulseek_availability_batch", batch)
-    monkeypatch.setattr(D, "find_sockseek", lambda: "sockseek")
-    monkeypatch.setattr(sys, "argv", [
-        "dl", "https://open.spotify.com/playlist/PL1", "--client-id", "x", "--dry-run",
-        "--output", str(tmp_path / "out"), "--availability-report", str(tmp_path / "availability.json"),
-        "--missing-json", str(tmp_path / "missing.json"), "--preflight-status", str(tmp_path / "status.json"),
-        "--have-dir", str(folder), "--reuse-dir", str(tmp_path / "old" / "soulseek")])
-    D.main()
-    assert searched == [["id2"]]  # solo el que no está en ningún lado
-    rows = json.loads((tmp_path / "availability.json").read_text(encoding="utf-8"))["tracks"]
-    assert [r["status"] for r in rows] == ["available", "available", "missing"]
-    assert json.loads((tmp_path / "status.json").read_text(encoding="utf-8"))["skipped"] == 2
-    assert "ya en tu carpeta" in capsys.readouterr().out
-
-
 def test_search_outcome_reads_only_finished_searches():
     assert D._search_outcome(b'{"type":"track_state","data":{"lifecycleState":"Terminal","terminalOutcome":"Succeeded"}}\n')
     assert D._search_outcome(b'{"type":"track_state","data":{"lifecycleState":"Terminal","terminalOutcome":"Failed"}}') is False
@@ -733,16 +684,6 @@ def test_transfers_per_track_are_bounded(tmp_path):
     assert not list(tmp_path.rglob("*.mp3"))
 
 
-def test_fallback_lists_undownloaded_and_errored_tracks_in_playlist_order():
-    t = {i: spotify_track(position_id=f"t{i}") for i in range(1, 6)}
-    available = [(1, t[1], None), (2, t[2], None), (3, t[3], None)]
-    rows = [{"position": 1, "status": "finalized"}, {"position": 2, "status": "verification_failed"},
-            {"position": 3, "status": "already_finalized"}]
-    errors = [(5, t[5], "timeout")]
-    assert [p for p, _ in D.fallback_tracks(available, rows, errors)] == [2, 5]
-    assert [p for p, _ in D.fallback_tracks(available, rows[:1], [])] == [2, 3]
-
-
 def test_inferred_extended_needs_the_full_artist_not_a_part():
     spotify = spotify_track("Tomara", ["Vinícius de Moraes", "Marilia Medalha", "Toquinho"], 132)
     other_version = local_file("06 Tomara.flac", ["Vinicius de Moraes, Toquinho & Maria Creuza"], 186.7, title="Tomara")
@@ -760,16 +701,220 @@ def test_title_in_the_file_name_beats_title_in_the_folder():
     assert D.rank_candidates(spotify, cands)[0]["filename"].endswith("07 - Wave.flac")
 
 
-def test_preflight_timeout_follows_the_search_limiter():
-    assert D.preflight_timeout_for(19) == D.MIN_PREFLIGHT_TIMEOUT_S
-    assert D.preflight_timeout_for(34) == D.MIN_PREFLIGHT_TIMEOUT_S
-    # 152 temas: 4 esperas de 220 s, que solas ya superaban el tope fijo de 600 s del 2026-10-30
-    assert D.preflight_timeout_for(152) == 300 + 4 * 220 + 152 * 6
-    assert D.preflight_timeout_for(152) > 4 * D.SOULSEEK_SEARCH_WINDOW_S + 152 * 5 / 2
+# ---------------------------------------------------------------------------
+# Tema a tema (2026-11-06)
+# ---------------------------------------------------------------------------
+
+def playlist(n: int) -> list:
+    tracks = [spotify_track(f"Tema {i}", ("Artista",), 300) for i in range(1, n + 1)]
+    for i, t in enumerate(tracks, 1):
+        t.spotify_id = f"id{i}"
+    return tracks
 
 
-def test_search_that_failed_for_every_track_is_not_sent_to_recording():
-    t = {i: spotify_track(position_id=f"t{i}") for i in range(1, 4)}
-    errors = [(i, t[i], "timeout del preflight Soulseek batch (600s)") for i in (1, 2, 3)]
-    assert D.fallback_tracks([], [], errors, total_tracks=3) == []
-    assert [p for p, _ in D.fallback_tracks([], [], errors[:1], total_tracks=3)] == [1]
+def run_downloader(tmp_path, monkeypatch, tracks, results, *, downloads_fail=(), extra=(), searches=None):
+    """main() con Spotify, sockseek y la descarga simulados. `results`: id -> estados que devuelve cada
+    búsqueda de ese tema (el último se repite). Devuelve (código, eventos, cola, filas de disponibilidad)."""
+    events = [] if searches is None else searches
+
+    class FakeSpotify:
+        def __init__(self, client_id):
+            pass
+
+        def playlist_tracks(self, playlist):
+            return "Lista", tracks
+
+    calls: dict[str, int] = {}
+
+    def batch(pending, **kwargs):
+        assert len(pending) == 1  # una búsqueda por tema
+        tid = pending[0].spotify_id
+        options = results[tid]
+        status = options[min(calls.get(tid, 0), len(options) - 1)]
+        calls[tid] = calls.get(tid, 0) + 1
+        events.append(("search", tid))
+        cands = [candidate()] if status == "available" else []
+        return [D.AvailabilityCheck(status=status, result_count=len(cands), candidates=cands,
+                                    error="timeout" if status == "error" else None)]
+
+    def download(track_, staging, length_tol=60, *, availability=None, verify=None, prefer_extended=True, **_):
+        events.append(("download", track_.spotify_id))
+        if track_.spotify_id in downloads_fail:
+            return []
+        path = staging / f"{track_.spotify_id}.flac"
+        path.write_bytes(b"x")
+        assert verify(path)
+        return [path]
+
+    def finalize(src, out_dir, track_, source, extended, **_):
+        out_dir.mkdir(parents=True, exist_ok=True)
+        return mp3_320(out_dir / f"Artista - {track_.title}.mp3", track_.spotify_id), False
+
+    monkeypatch.setattr(D, "Spotify", FakeSpotify)
+    monkeypatch.setattr(D, "check_soulseek_availability_batch", batch)
+    monkeypatch.setattr(D, "download_with_sockseek", download)
+    monkeypatch.setattr(D, "finalize", finalize)
+    monkeypatch.setattr(D, "inspect", lambda path: D.LocalFile(path=path, length_s=300, bitrate_kbps=None, format="flac"))
+    monkeypatch.setattr(D, "score_candidate", lambda *a, **k: (True, 1.0, False, ["ok"]))
+    monkeypatch.setattr(D, "find_sockseek", lambda: "sockseek")
+    monkeypatch.setattr(D.shutil, "which", lambda name: name)
+    monkeypatch.setattr(D.time, "sleep", lambda s: None)
+    queue = tmp_path / "run" / "recording_queue.jsonl"
+    monkeypatch.setattr(sys, "argv", [
+        "dl", "https://open.spotify.com/playlist/PL1", "--client-id", "x",
+        "--output", str(tmp_path / "run" / "soulseek"), "--recording-queue", str(queue),
+        "--availability-report", str(tmp_path / "run" / "soulseek_availability.json"),
+        "--report", str(tmp_path / "run" / "spotify_reconcile_report.json"),
+        "--search-log", str(tmp_path / "searches.json"), "--staging", str(tmp_path / "staging"), *extra])
+    (tmp_path / "staging").mkdir(exist_ok=True)
+    code = D.main()
+    rows = json.loads((tmp_path / "run" / "soulseek_availability.json").read_text(encoding="utf-8"))["tracks"]
+    return code, events, D.read_queue(queue), rows
+
+
+def test_each_track_is_searched_and_downloaded_before_the_next(tmp_path, monkeypatch):
+    code, events, queue, rows = run_downloader(
+        tmp_path, monkeypatch, playlist(4),
+        {"id1": ["available"], "id2": ["missing"], "id3": ["available"], "id4": ["available"]},
+        downloads_fail={"id3"})
+    # Como a mano: buscar un tema y bajarlo enseguida, antes de buscar el siguiente.
+    assert events == [("search", "id1"), ("download", "id1"), ("search", "id2"), ("search", "id3"),
+                      ("download", "id3"), ("search", "id4"), ("download", "id4")]
+    assert [(t["spotify"]["spotify_id"], t["origin"]) for t in queue.tracks] == [("id2", "missing"), ("id3", "failed")]
+    assert queue.tracks[0]["spotify"]["title"] == "Tema 2" and queue.tracks[0]["duration_seconds"] == 300
+    assert queue.end["status"] == "finished"
+    assert [r["status"] for r in rows] == ["available", "missing", "available", "available"]
+    assert code == 3  # un tema que estaba no se pudo bajar (va a la cola para grabarlo)
+    assert sorted(p.name for p in (tmp_path / "run" / "soulseek").glob("*.mp3")) == [
+        "Artista - Tema 1.mp3", "Artista - Tema 4.mp3"]
+
+
+def test_a_failed_search_waits_for_a_search_that_works(tmp_path, monkeypatch):
+    code, events, queue, _ = run_downloader(
+        tmp_path, monkeypatch, playlist(3), {"id1": ["error"], "id2": ["missing"], "id3": ["error", "available"]})
+    assert events[:2] == [("search", "id1"), ("search", "id1")]   # reintento
+    # El 1 va a grabarse recién cuando la búsqueda del 2 funcionó (antes, el problema podía ser la búsqueda).
+    assert queue.ids() == ["id1", "id2"] and queue.tracks[0]["origin"] == "search_error"
+    assert ("download", "id3") in events and code == 0
+
+
+def test_three_failed_searches_in_a_row_stop_without_recording_them(tmp_path, monkeypatch):
+    code, events, queue, rows = run_downloader(
+        tmp_path, monkeypatch, playlist(5), {f"id{i}": ["error"] for i in range(1, 6)})
+    assert code == D.EXIT_SEARCH_FAILED
+    assert queue.tracks == [] and queue.end["status"] == "search_failed" and "timeout" in queue.end["error"]
+    assert ("search", "id4") not in events                          # se cortó en el tercero
+    assert [r["status"] for r in rows] == ["error", "error", "error", "pending", "pending"]
+
+
+def test_failed_searches_at_the_end_are_recorded_only_if_a_search_still_works(tmp_path, monkeypatch):
+    code, events, queue, _ = run_downloader(
+        tmp_path, monkeypatch, playlist(3), {"id1": ["available"], "id2": ["missing"], "id3": ["error"]})
+    assert events[-1] == ("search", "id2")  # prueba con uno que se encontró
+    assert queue.ids() == ["id2", "id3"] and queue.end["status"] == "finished" and code == 0
+
+
+def test_failed_searches_at_the_end_with_soulseek_down_are_not_recorded(tmp_path, monkeypatch):
+    code, _, queue, _ = run_downloader(
+        tmp_path, monkeypatch, playlist(3), {"id1": ["available"], "id2": ["missing", "error"], "id3": ["error"]})
+    assert code == D.EXIT_SEARCH_FAILED
+    assert queue.ids() == ["id2"] and queue.end["status"] == "search_failed"
+
+
+def test_a_short_playlist_whose_searches_all_fail_is_not_recorded(tmp_path, monkeypatch):
+    code, _, queue, _ = run_downloader(tmp_path, monkeypatch, playlist(2), {"id1": ["error"], "id2": ["error"]})
+    assert code == D.EXIT_SEARCH_FAILED and queue.tracks == []
+
+
+def test_a_resumed_download_keeps_what_was_searched_downloaded_and_queued(tmp_path, monkeypatch):
+    tracks = playlist(4)
+    run_downloader(tmp_path, monkeypatch, tracks[:2] + tracks[3:],
+                   {"id1": ["available"], "id2": ["missing"], "id4": ["available"]})
+    # La descarga se cortó (la cola no se cerró) y se retoma con la playlist entera: el 3 no se buscó.
+    queue = tmp_path / "run" / "recording_queue.jsonl"
+    queue.write_text("".join(line + "\n" for line in queue.read_text(encoding="utf-8").splitlines()
+                             if '"type": "end"' not in line), encoding="utf-8")
+    # El 4 se bajó, pero el reporte no alcanzó a registrarlo antes del corte: el MP3 está en la carpeta.
+    report = tmp_path / "run" / "spotify_reconcile_report.json"
+    data = json.loads(report.read_text(encoding="utf-8"))
+    data["tracks"] = [row for row in data["tracks"] if row["spotify"]["spotify_id"] != "id4"]
+    report.write_text(json.dumps(data), encoding="utf-8")
+    code, events, state, rows = run_downloader(tmp_path, monkeypatch, tracks, {"id3": ["missing"]}, searches=[])
+    assert events == [("search", "id3")]                    # solo lo que no se había hecho
+    assert state.ids() == ["id2", "id3"] and state.end["status"] == "finished"
+    assert [r["status"] for r in rows] == ["available", "missing", "missing", "available"]
+    assert code == 0
+
+
+def test_tracks_already_in_the_music_folder_or_downloaded_before_are_not_searched(tmp_path, monkeypatch, capsys):
+    folder = tmp_path / "lib" / "Lista"
+    mp3_320(folder / "Artista - Tema 1.mp3", "id1")                                # ya guardado
+    mp3_320(tmp_path / "old" / "soulseek" / "Artista - Tema 2.mp3", "id2")         # bajado por una descarga cortada
+    code, events, queue, rows = run_downloader(
+        tmp_path, monkeypatch, playlist(3), {"id3": ["missing"]},
+        extra=("--have-dir", str(folder), "--reuse-dir", str(tmp_path / "old" / "soulseek")))
+    assert events == [("search", "id3")]
+    assert [r["status"] for r in rows] == ["available", "available", "missing"]
+    assert (tmp_path / "run" / "soulseek" / "Artista - Tema 2.mp3").is_file()  # traído a esta descarga
+    assert queue.ids() == ["id3"] and code == 0
+    assert "ya está en tu carpeta" in capsys.readouterr().out
+
+
+def test_a_repeated_track_is_resolved_once(tmp_path, monkeypatch):
+    tracks = playlist(2)
+    tracks.append(tracks[1])
+    _, events, queue, rows = run_downloader(tmp_path, monkeypatch, tracks, {"id1": ["available"], "id2": ["missing"]})
+    assert events.count(("search", "id2")) == 1 and queue.ids() == ["id2"]
+    assert [r["status"] for r in rows] == ["available", "missing", "missing"]
+
+
+def test_search_limit_holds_across_processes_and_runs(tmp_path):
+    now = [1000.0]
+    slept: list[float] = []
+
+    def sleep(seconds):
+        slept.append(seconds)
+        now[0] += seconds
+
+    log = tmp_path / "searches.json"
+    first = D.SearchLimiter(log, per_window=3, window_s=100, clock=lambda: now[0], sleep=sleep)
+    for _ in range(3):
+        first.acquire()
+        now[0] += 1
+    assert slept == []
+    second = D.SearchLimiter(log, per_window=3, window_s=100, clock=lambda: now[0], sleep=sleep)  # otro proceso
+    waits = []
+    second.acquire(on_wait=waits.append)
+    assert waits and round(waits[0]) == 97 and round(sum(slept)) == 97  # hasta que la primera sale de la ventana
+    # Una búsqueda cuenta desde que terminó: sockseek se conecta antes de buscar (hasta 20 s).
+    now[0] = 5000.0
+    third = D.SearchLimiter(log, per_window=3, window_s=100, clock=lambda: now[0], sleep=sleep)
+    third.acquire()
+    now[0] += 20
+    third.finish()
+    assert max(json.loads(log.read_text(encoding="utf-8"))["searches"]) == 5020.0
+    assert 5000.0 not in json.loads(log.read_text(encoding="utf-8"))["searches"]
+    log.write_text(json.dumps({"searches": [now[0] + 5000] * 5}), encoding="utf-8")  # reloj atrasado
+    assert D.SearchLimiter(log, per_window=3, window_s=100, clock=lambda: now[0]).wait_s() == 0
+
+
+def test_queue_reader_skips_a_line_still_being_written_and_duplicates(tmp_path):
+    path = tmp_path / "q.jsonl"
+    entry = {"playlist_position": 1, "spotify": {"spotify_id": "id1"}}
+    D.append_track(path, entry, origin="missing", reason="No está en Soulseek")
+    D.append_track(path, entry, origin="failed", reason="otra vez")
+    torn = '{"type": "track", "reason": "Peña", "spotify": {"spotify_id": "id2"'.encode()
+    cut = torn.index("ñ".encode()) + 1
+    with path.open("ab") as handle:  # a medio escribir, cortado en medio de la «ñ»
+        handle.write(torn[:cut])
+    assert D.read_queue(path).ids() == ["id1"]
+    with path.open("ab") as handle:
+        handle.write(torn[cut:])
+    state = D.read_queue(path)
+    assert state.ids() == ["id1"] and state.tracks[0]["origin"] == "missing" and not state.closed
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write("}}\n")
+    D.close_queue(path, "finished")
+    state = D.read_queue(path)
+    assert state.ids() == ["id1", "id2"] and state.closed
+    assert D.read_queue(tmp_path / "no_existe.jsonl").tracks == []

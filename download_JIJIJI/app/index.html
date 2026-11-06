@@ -688,6 +688,7 @@ const IND_DL = `<span class="ind dl" title="Bajando">${icon("download")}</span>`
 const IND_REC = '<span class="ind rec" title="Grabando"></span>';
 const EQ = '<span class="eq" title="Sonando"><i></i><i></i><i></i><i></i></span>';
 const STATE = {
+  pending: ["En espera", "muted", '<span class="dot ring"></span>'],
   searching: ["Buscando…", "muted", '<span class="spin"></span>'],
   queued: ["En Soulseek", "muted", '<span class="dot ring"></span>'],
   downloading: ["Bajando…", "green", IND_DL],
@@ -811,7 +812,7 @@ function statusHtml(v, tracks) {
   const status = live ? "running" : run.status;
   const finished = status === "done" || status === "partial";
   const idx = { preflight: 0, transfer: 1, consolidating: 2 }[phase] ?? (finished ? 3 : 1);
-  const names = ["Buscar en Soulseek", "Bajar y grabar", "Guardar en tu carpeta"];
+  const names = ["Leer la playlist", "Buscar, bajar y grabar", "Guardar en tu carpeta"];
   const phases = names.map((n, i) => {
     const cls = finished || i < idx ? "done" : i === idx && live ? "on" : "";
     return `<span class="phase ${cls}"><span class="b">${cls === "done" ? "✓" : i + 1}</span>${n}</span>`;
@@ -824,6 +825,7 @@ function statusHtml(v, tracks) {
     [c.recorded, "Grabados de Spotify", "var(--purple)", "recorded"],
     [(c.recording || 0) + (c.to_record || 0), "Por grabar", "var(--blue)", "to_record"],
     [(c.queued || 0) + (c.downloading || 0), "Por bajar", "var(--muted)", "pending"],
+    [(c.pending || 0) + (c.searching || 0), "Por buscar", "var(--muted)", "search"],
     [(c.failed || 0) + (c.search_error || 0), "No se pudieron", "var(--amber)", "failed"],
   ].filter(([n]) => n > 0).map(([n, l, col, key]) => `<button class="chip ${S.filter.group === key ? "on" : ""}" data-filter="${key}" title="Mostrar solo estos">
     <i style="background:${col}"></i>${n} ${l}</button>`).join("");
@@ -839,17 +841,17 @@ function statusHtml(v, tracks) {
   const saving = S.st && S.st.saving && S.st.saving.run === (run && run.run) ? S.st.saving : null;
   if (live) {
     if (phase === "preflight") {
-      const n = (search && search.total) || total;
-      const waits = Math.max(0, Math.ceil(n / 34) - 1);
-      html += `<div class="note">${icon("info")}<div><b>${search ? `Buscando en Soulseek: ${search.searched} de ${plural(search.total, "tema", "temas")}` : `Buscando ${n ? plural(n, "tema", "temas") : "los temas"} en Soulseek`}${search && search.skipped ? ` (${search.skipped} ya están: no se buscan)` : ""}</b>
-        <p>${waits ? `Soulseek deja hacer 34 búsquedas cada 220 segundos, así que avanza a saltos y se queda quieto unos minutos entre tandas (con ${n} temas, unos ${Math.round((waits * 220) / 60)} minutos solo en esperas). ` : "Tarda unos minutos. "}Después empieza a bajar y, si falta algo, a grabar.</p></div></div>`;
-    } else if ((c.to_record || 0) + (c.recording || 0) > 0) {
-      html += `<div class="note blue">${icon("speaker")}<div><b>Grabando desde Spotify</b><p>Lo que no está en Soulseek, o no se pudo bajar bien, se graba mientras suena. No reproduzcas otra cosa ni toques Spotify hasta que termine.</p></div></div>`;
+      html += `<div class="note">${icon("info")}<div><b>Leyendo la playlist en Spotify</b>
+        <p>Después va tema a tema, como cuando buscas a mano: busca cada uno en Soulseek y, si está, lo baja enseguida. Lo que no se consiga se graba de Spotify mientras sigue con los demás.</p></div></div>`;
+    } else if (run && run.recording_blocked) {
+      html += `<div class="note amber">${icon("warn")}<div><b>La grabación se detuvo</b><p>${esc(run.recording_blocked)} Sigue bajando de Soulseek; lo que falte grabar queda para «Continuar» cuando termine.</p></div></div>`;
+    } else if ((c.to_record || 0) + (c.recording || 0) > 0 && !run.defer) {
+      html += `<div class="note blue">${icon("speaker")}<div><b>Grabando desde Spotify</b><p>Lo que no está en Soulseek, o no se pudo bajar bien, se graba mientras suena y mientras sigue la búsqueda. No reproduzcas otra cosa ni toques Spotify hasta que termine.</p></div></div>`;
     }
-    // Posponer la grabación: mientras no haya empezado a grabar (o para deshacerlo).
-    if (job && job.alive && run && (run.defer || !(c.recording || c.recorded || run.recording_since))) {
+    // Posponer la grabación: en cualquier momento antes de guardar (también para deshacerlo).
+    if (job && job.alive && run && phase !== "consolidating" && !run.recording_blocked) {
       html += `<div class="choice" style="margin-bottom:24px"><label><input type="checkbox" id="defer-toggle" ${run.defer ? "checked" : ""}>
-        <div><b>Posponer la grabación</b><span>${run.defer ? "No se graba nada: lo que se baje de Soulseek va a la carpeta y la grabación queda pendiente para «Grabar ahora»." : "Actívalo si ahora no puedes grabar: se baja lo de Soulseek y la grabación queda para cuando elijas."}</span></div></label></div>`;
+        <div><b>Posponer la grabación</b><span>${run.defer ? "No se graba nada: lo que se baje de Soulseek va a la carpeta y la grabación queda pendiente para «Grabar ahora». Desactívalo para seguir grabando." : "Actívalo si ahora no puedes grabar: si está grabando, se corta en el acto (lo ya grabado se conserva) y Spotify se pausa. Lo de Soulseek se sigue bajando."}</span></div></label></div>`;
     }
   } else if (status === "deferred") {
     const pend = run.pending_recordings || (c.to_record || 0) + (c.recording || 0);
@@ -866,7 +868,9 @@ function statusHtml(v, tracks) {
     html += `<div class="note green">${icon("check")}<div><b>¡Lista! ${plural(done, "tema guardado", "temas guardados")}</b><p><code>${esc(run.final_output || "")}</code></p>
       <div class="row"><button class="pill white small" data-open-folder="${esc(run.final_output || "")}">${icon("folder", "sm")}Abrir carpeta</button></div></div></div>`;
   } else if (status === "paused") {
-    html += `<div class="note blue">${icon("info")}<div><b>En pausa: Spotify se detuvo</b><p>Lo grabado se conservó. Pulsa «Continuar» y sigue desde el primer tema pendiente.</p>${errLine(job)}</div></div>`;
+    const pend = run.pending_recordings;
+    html += `<div class="note blue">${icon("info")}<div><b>En pausa: la grabación se detuvo${pend ? ` (${plural(pend, "tema", "temas")} por grabar)` : ""}</b><p>${run.reason ? `${esc(run.reason)} ` : ""}Lo grabado se conservó${run.final_output ? " y lo bajado de Soulseek ya está en tu carpeta" : ""}. Pulsa «Continuar» y sigue desde el primer tema pendiente.</p>
+      ${run.final_output ? `<div class="row"><button class="pill white small" data-open-folder="${esc(run.final_output)}">${icon("folder", "sm")}Abrir carpeta</button></div>` : ""}${errLine(job)}</div></div>`;
   } else if (status === "stopped") {
     const ready = (c.downloaded || 0) + (c.recorded || 0);
     const busySaving = saving && saving.status === "running";
@@ -895,24 +899,24 @@ function statusHtml(v, tracks) {
   }
   return html;
 }
-// Tiempos aproximados: la búsqueda va a tandas de 34 cada 220 s, cada tema se baja en ~35 s (lo medido el
-// 2026-11-02) y la grabación dura lo que duran los temas, porque se graban mientras suenan.
-const SEARCH_WINDOW = 34, WINDOW_S = 220, DOWNLOAD_S = 35;
-const searchSeconds = (n) => (n > 0 ? Math.max(0, Math.ceil(n / SEARCH_WINDOW) - 1) * WINDOW_S + n * 4 : 0);
+// Tiempos aproximados: cada tema se baja en ~35 s (lo medido el 2026-11-02); tema a tema, buscar uno lleva
+// unos 8 s y ~70 % se baja, así que cada tema por buscar cuenta ~30 s. La grabación va en paralelo y dura lo
+// que duran los temas, porque se graban mientras suenan.
+const DOWNLOAD_S = 35, TRACK_S = 30;
 const aboutMin = (s) => (s < 90 ? "1 min" : s < 5400 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1).replace(".", ",")} h`);
 
 function etaHtml(run, search, c, tracks) {
   const parts = [];
-  if (search) parts.push(`la búsqueda termina en unos ${aboutMin(searchSeconds(search.total - search.searched))}`);
   const pendingDl = (c.queued || 0) + (c.downloading || 0);
-  if (!search && pendingDl) parts.push(`quedan unos ${aboutMin(pendingDl * DOWNLOAD_S)} de descargas`);
+  const toSearch = (c.pending || 0) + (c.searching || 0);
+  if (toSearch || pendingDl) parts.push(`quedan unos ${aboutMin(toSearch * TRACK_S + pendingDl * DOWNLOAD_S)} de búsqueda y descargas`);
   const recordMs = tracks.filter((t) => t.state === "to_record" || t.state === "recording").reduce((a, t) => a + (t.duration_ms || 0), 0);
   if (recordMs && !(run && run.defer)) parts.push(`${aboutMin(recordMs / 1000)} de grabación en tiempo real`);
   return parts.length ? `<div class="eta">Tiempo estimado: ${parts.join(" · ")}.</div>` : "";
 }
 
 const FILTERS = { downloaded: ["downloaded"], recorded: ["recorded"], to_record: ["to_record", "recording"],
-  pending: ["queued", "downloading", "searching"], failed: ["failed", "search_error"] };
+  pending: ["queued", "downloading"], search: ["pending", "searching"], failed: ["failed", "search_error"] };
 function trackMatches(t) {
   if (S.filter.group && !(FILTERS[S.filter.group] || []).includes(t.state)) return false;
   const q = S.filter.q.trim().toLowerCase();
@@ -1037,7 +1041,8 @@ function renderPlayer() {
     } else {
       const phase = a && a.phase;
       const s = a && a.search;
-      const txt = !a || phase === "preflight" ? `Buscando en Soulseek…${s && s.total ? ` ${s.searched}/${s.total}` : ""}`
+      const txt = !a || phase === "preflight" ? "Leyendo la playlist en Spotify…"
+        : s && s.total && s.searched < s.total ? `Buscando en Soulseek… ${s.searched}/${s.total}`
         : phase === "consolidating" ? "Guardando en tu carpeta…" : "Trabajando…";
       now = `<div class="ph">${icon("music")}</div><div style="min-width:0"><div class="a">${esc((a && a.name) || "Preparando")}</div><div class="b"><span class="spin"></span>${esc(txt)}</div></div>`;
     }
@@ -1756,7 +1761,7 @@ function updateStartWarning() {
 async function refreshStartInfo() {
   // Lo ya bajado o grabado no se vuelve a buscar: la estimación cuenta solo lo que falta.
   const n = viewTracks(S.view).filter((t) => t.state !== "downloaded" && t.state !== "recorded").length;
-  $("#m-eta").textContent = n ? `Buscar ${plural(n, "tema", "temas")} en Soulseek tarda hasta unos ${aboutMin(searchSeconds(n))}. Bajar, unos ${DOWNLOAD_S} s por tema; grabar, lo que dura cada tema.` : "";
+  $("#m-eta").textContent = n ? `Va tema a tema: busca cada uno en Soulseek y, si está, lo baja enseguida (con ${plural(n, "tema", "temas")}, unos ${aboutMin(n * TRACK_S)}). Lo que falte se graba de Spotify mientras sigue la búsqueda: lo que dura cada tema.` : "";
   try { spotifyOpen = (await api("/api/spotify-open")).open; } catch { spotifyOpen = true; }
   updateStartWarning();
 }
@@ -1863,7 +1868,7 @@ function showLog(lines) {
   const box = $("#drawer-log .drawer-body");
   const atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 30;
   $("#log").innerHTML = lines.map((l) => {
-    const cls = /✓|COMPLETADO|Guardado:|→ /.test(l) ? "ok" : /✗|ERROR|falló|Traceback|\[error\]/i.test(l) ? "bad" : /PAUSADO|!|\?/.test(l.slice(0, 14)) ? "warn" : /===|\[\d\/4\]|\[grabación\]/.test(l.slice(0, 16)) ? "head" : "";
+    const cls = /✓|COMPLETADO|Guardado:|→ /.test(l) ? "ok" : /✗|ERROR|falló|Traceback|\[error\]/i.test(l) ? "bad" : /PAUSADO|!|\?/.test(l.slice(0, 14)) ? "warn" : /===|\[\d\/\d\]|\[grabación\]/.test(l.slice(0, 16)) ? "head" : "";
     return `<span class="${cls}">${esc(l)}</span>`;
   }).join("\n");
   if (atEnd) box.scrollTop = box.scrollHeight;

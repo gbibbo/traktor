@@ -52,8 +52,10 @@ En la pestaña Descargas:
 * **Descargar**, **Detener** (como un Ctrl+C: el run queda interrumpido y se cierran también
   `sockseek` y `ffmpeg`, nunca Spotify), **Continuar** o **Empezar de cero** (`--fresh`);
 * **posponer la grabación** (`--defer-recording`): con «Grabar después» al empezar, o con
-  «Posponer la grabación» mientras busca o baja (antes de que empiece a grabar), se baja lo de
-  Soulseek, va ya a la carpeta de destino y la playlist queda en «Grabación pendiente».
+  «Posponer la grabación» en cualquier momento de la descarga (si está grabando, la tanda se corta
+  en el acto, lo ya grabado se conserva y Spotify se pausa), se baja lo de Soulseek, va ya a la
+  carpeta de destino y la playlist queda en «Grabación pendiente». Desactivarlo durante la descarga
+  vuelve a grabar.
   **«Grabar ahora»** graba solo lo pendiente (sin volver a buscar ni bajar) y lo agrega a la
   misma carpeta. Desde la terminal: la misma orden sin `--defer-recording`;
 * **revisar un tema ya bajado**: clic en la fila (o ▶ para escucharlo). Muestra la verificación
@@ -76,8 +78,8 @@ En la pestaña Descargas:
   grabación pendiente o cuando Spotify pide autorización, aunque la ventana esté cerrada;
 * en la carpeta de cada playlist queda `<playlist>.m3u8` en el orden de Spotify (rutas
   absolutas, como el export del proyecto) para importarla en Rekordbox o Traktor;
-* seguir cada tema: en Soulseek, bajando, bajado, se grabará (también lo que no se pudo bajar,
-  con el motivo), grabando, grabado o «no se pudo». También se siguen los runs lanzados desde la
+* seguir cada tema: en espera, buscando, bajando, bajado, se grabará (también lo que no se pudo
+  bajar, con el motivo), grabando, grabado o «no se pudo». También se siguen los runs lanzados desde la
   terminal. Un run «Incompleta» ya guardó lo que consiguió y dice qué falta;
 * si un run terminó con error, **«Guardar los temas listos»** mueve a la carpeta de destino los
   MP3 que sí están, con la misma validación de la consolidación (audio, tamaño, antivirus,
@@ -93,8 +95,8 @@ está virtualizada en
 `app.log` anota la app (aperturas, cierres, errores con su motivo). La salida completa de cada
 descarga (orquestador, Soulseek, grabación), con hora, queda en
 `<carpeta de runs>\logs\<fecha-hora>_<playlist>.log`; la ventana muestra solo las últimas líneas.
-La búsqueda en Soulseek muestra cuántos temas lleva buscados y encontrados, y deja el registro
-propio de sockseek en `sockseek_preflight.log`, dentro de la carpeta de esa descarga.
+El registro propio de sockseek de cada búsqueda se acumula en `sockseek_preflight.log`, dentro de
+la carpeta de esa descarga.
 
 ## Línea de comandos
 
@@ -105,35 +107,54 @@ completo se ejecuta pasando únicamente la URL de una playlist:
 .venv\Scripts\python.exe download_JIJIJI\spotify_soulseek_orchestrator.py "https://open.spotify.com/playlist/ID"
 ```
 
-El orquestador:
+El orquestador va **tema a tema**, como cuando se busca a mano en Soulseek (2026-11-06):
 
-1. ejecuta el preflight de Soulseek sobre toda la playlist. Sockseek permite 34
-   búsquedas cada 220 s (más que eso le vale a la cuenta un bloqueo de 30 minutos), así
-   que una playlist de 150 temas pasa unos 15 minutos solo esperando. El tope de tiempo se
-   calcula según la cantidad de temas y el orquestador lo espera. Si la búsqueda falla
-   para todos los temas, el run se corta sin grabar nada: el problema es la búsqueda;
-2. pausa la descarga de los temas disponibles en una barrera de sincronización;
-3. divide los faltantes en playlists privadas de Spotify de hasta 10 temas;
-4. abre el grabador WASAPI loopback para el primer lote pendiente;
-5. cuando el grabador confirma que está listo, reproduce ese lote en Spotify;
-6. libera la descarga de Soulseek y procesa secuencialmente los demás lotes,
-   creando un proceso nuevo de reproducción y grabación para cada grupo de 10;
-7. cuando termina la descarga, graba de Spotify los temas que Soulseek tenía pero no
-   se pudieron bajar (ningún archivo pasó la verificación) o cuya consulta falló:
-   el descargador los deja en `soulseek_failed.json` con sus propias playlists
-   privadas y se graban en `recorded_failed/`;
-8. mueve todos los MP3 a `Playlists_DOWNLOAD/<nombre de playlist>/`, elimina
-   duplicados por Spotify Track ID y limpia los intermedios del run.
+1. el descargador busca cada tema en Soulseek por separado (un proceso de sockseek por
+   búsqueda) y, si está, lo baja enseguida, antes de buscar el siguiente. El preflight en lote
+   de antes gastaba las 34 búsquedas permitidas en menos de 2 minutos y quedaba otros 2 parado,
+   una y otra vez: eso era lo que parecía «trancado»;
+2. lo que no está en Soulseek, o está pero ningún archivo pasó la verificación, va a la **cola
+   de grabación** (`recording_queue.jsonl`) apenas se sabe;
+3. mientras la búsqueda sigue, el orquestador graba esa cola de Spotify en **tandas**: cada
+   tanda toma lo que haya en la cola (hasta 10 temas), crea una playlist privada de Spotify solo
+   con esos temas, abre el grabador WASAPI loopback y reproduce la playlist. La primera tanda
+   empieza con el primer tema que haya que grabar, sin esperar al resto de la búsqueda;
+4. si la cola queda vacía y la búsqueda sigue, espera el próximo tema (Spotify se pausa, para
+   que su reproducción automática no siga sonando); cuando entra uno, abre otra tanda. Antes de
+   abrir el grabador de cada tanda también se pausa Spotify: lo que siga sonando no puede ser lo
+   que el grabador tome como comienzo del primer tema;
+5. cuando la búsqueda terminó y no queda nada por grabar, mueve todos los MP3 a
+   `Playlists_DOWNLOAD/<nombre de playlist>/`, elimina duplicados por Spotify Track ID, escribe
+   `<playlist>.m3u8` y limpia los intermedios del run.
 
-Si aun así falta algún tema (por ejemplo, Spotify no pudo crear las playlists para
-grabar), igual se guarda en la carpeta todo lo que se consiguió: el run queda como
-`partial`, con los Spotify IDs que faltan en `orchestration_report.json`, y el
-orquestador termina con código 3. «Volver a intentar» (o el mismo comando) hace una
-descarga nueva; lo que ya está en la carpeta no se duplica.
+Soulseek bloquea la cuenta 30 minutos si se pasan 34 búsquedas cada 220 s. Como ahora cada
+búsqueda es un proceso, la cuenta la lleva el descargador en
+`%APPDATA%\traktor_soulseek_searches.json`, compartida por todas las descargas del ordenador:
+si se llega al límite, espera su turno (la app lo muestra en el tema). Tema a tema el límite casi
+no se toca, porque bajar cada tema lleva tiempo.
+
+Una búsqueda que falla (tiempo agotado, sesión) se reintenta una vez. Si sigue fallando, ese tema
+se manda a grabar recién cuando la búsqueda del siguiente funciona (el problema era del tema, no
+de la búsqueda). Con 3 temas seguidos sin búsqueda, la descarga se corta sin mandarlos a grabar:
+el problema es la búsqueda (por ejemplo, la cuenta de Soulseek abierta en otra PC). Lo que ya
+estaba en la cola se graba igual y el run termina `partial` con lo conseguido.
+
+Si Spotify se detiene durante una tanda (otro dispositivo tomó la reproducción, una pausa), o no
+arranca, o no se pudo crear la playlist de la tanda, **la grabación se detiene pero la descarga
+sigue**: al terminar, lo bajado va a la carpeta y el run queda «En pausa» (código 75) con lo que
+falta grabar; «Continuar» (o el mismo comando) graba solo eso. Si el reproductor termina sin
+llegar a reproducir (Spotify recién abierto que tarda en aparecer), tiene un segundo intento; si
+se agota su tiempo, no se reintenta (pudo empezar a sonar y correría los cortes) y Spotify se
+pausa.
+
+Si aun así falta algún tema, igual se guarda en la carpeta todo lo que se consiguió: el run queda
+como `partial`, con los Spotify IDs que faltan en `orchestration_report.json`, y el orquestador
+termina con código 3. «Volver a intentar» (o el mismo comando) hace una descarga nueva; lo que ya
+está en la carpeta no se duplica.
 
 ## Elección del archivo en Soulseek
 
-En el preflight, sockseek exige el artista en la ruta, el formato y el bitrate, pero no
+En la búsqueda, sockseek exige el artista en la ruta, el formato y el bitrate, pero no
 el título literal: el título y la versión de cada archivo los juzga el descargador con
 las mismas reglas de la verificación, leyendo el nombre del archivo como si fuera la
 etiqueta (sin número de pista, «Artista - » ni «- Artista 124» de los pools de DJ,
@@ -147,11 +168,12 @@ Una descarga nueva de una playlist trabaja solo sobre lo que falta: lo que ya es
 carpeta de música (`--have-dir`, la que usó una descarga anterior dentro del destino
 actual) no se busca, no se baja y cuenta como guardado; y los MP3 terminados de una
 descarga anterior que se cortó antes de guardar (`--reuse-dir`) se vuelven a verificar
-(320 kbps, Spotify Track ID, carátula) y se traen sin buscarlos. Por eso «Continuar
+(320 kbps, Spotify Track ID, carátula) y se traen sin buscarlos, igual que los grabados de una
+descarga anterior que no se llegaron a guardar. Por eso «Continuar
 descarga», «Volver a intentar», «Volver a buscar lo que falta» (con la grabación
 pendiente) y «Buscar temas nuevos» buscan y bajan solo el resto.
 
-De cada tema se prueban hasta 4 archivos de los que encontró el preflight, en este
+De cada tema se prueban hasta 4 archivos de los que encontró la búsqueda, en este
 orden: la Extended explícita (si Spotify no apunta ya a una), los de la duración de
 Spotify (±8 s) y después el resto. Dentro de cada grupo van primero los que llevan el
 título en el nombre del archivo, luego los de una carpeta con el nombre del álbum de
@@ -226,36 +248,39 @@ Mantener actualizados el antivirus, Sockseek, Mutagen, Pillow y ffmpeg.
 
 ## Reanudación después de una interrupción
 
-El grabador codifica y registra cada MP3 apenas termina el tema, sin esperar al
-final de toda la playlist. Además, cada proceso de captura termina al completar
-su lote de hasta 10 temas; el siguiente lote comienza con procesos nuevos. El
-estado durable global queda en
-`recorded_missing/recording_progress.json`.
+El grabador codifica y registra cada MP3 apenas termina el tema, sin esperar al final de la
+tanda. Cada tanda tiene su carpeta, `recordings/NN/`, con sus temas y su playlist
+(`session.json`) y el checkpoint del grabador (`recording_progress.json`). La cola de grabación
+y los reportes de la búsqueda y de las descargas se escriben tema a tema.
 
-Un watchdog consulta el estado real de Spotify y detecta una pausa sostenida;
-como respaldo, el loopback también detecta 10 segundos de silencio digital. En
-ese caso el tema actual se considera incompleto y el proceso termina con un
-mensaje de sesión reanudable.
-Al ejecutar nuevamente exactamente el mismo comando, el orquestador:
+Un watchdog consulta el estado real de Spotify y detecta una pausa sostenida; como respaldo, el
+loopback también detecta 10 segundos de silencio digital. En ese caso el tema actual se considera
+incompleto y la tanda queda reanudable.
 
-1. encuentra la sesión incompleta más reciente para esa playlist fuente;
-2. valida los MP3 ya terminados y no los sobrescribe;
-3. selecciona la playlist de 10 temas que contiene la primera pista pendiente;
-4. inicia Spotify desde esa pista dentro del lote y desde el segundo cero.
+Al ejecutar nuevamente exactamente el mismo comando (o «Continuar» / «Grabar ahora» en la app),
+el orquestador retoma el run más reciente de la playlist si no terminó (interrumpido, en pausa,
+con la grabación pospuesta o cortado):
 
-Si lo que se cortó fue la grabación de los temas que no se pudieron bajar (la descarga
-de Soulseek ya había terminado), no se vuelve a descargar: se sigue grabando desde el
-primero pendiente de `recorded_failed/` y después se arma la carpeta.
+1. si la búsqueda no había terminado, la sigue donde quedó: lo ya buscado, bajado o puesto en la
+   cola no se repite;
+2. retoma la tanda sin terminar desde su primer tema pendiente (Spotify arranca en ese tema y
+   desde el segundo cero) y después graba en tandas nuevas lo que quedó en la cola;
+3. si los MP3 de una tanda ya no están en el run (por ejemplo, «Guardar los temas listos» los
+   llevó a la carpeta), lo que le faltaba vuelve a la cola para otra tanda. Los MP3 se buscan por
+   nombre dentro de la carpeta de la tanda, así que un run que se movió (otra carpeta de runs)
+   conserva lo grabado.
 
-El fragmento del tema interrumpido no se reutiliza: solo se conservan temas
-completos, y por eso la captura WAV parcial se elimina. Para ignorar
-deliberadamente un checkpoint anterior y crear otra sesión puede usarse
-`--fresh`.
+Los runs anteriores al 2026-11-06 (preflight en lote) no se retoman: una descarga nueva de la
+playlist reutiliza lo que bajaron o grabaron sin guardarlo (`--reuse-dir`).
+
+El fragmento del tema interrumpido no se reutiliza: solo se conservan temas completos, y por eso
+la captura WAV parcial se elimina (y un MP3 que quedó a medio escribir no va a la carpeta). Para
+ignorar deliberadamente un run anterior y crear otro puede usarse `--fresh`.
 
 Cada ejecución queda aislada en `download_JIJIJI/runs/<fecha>_<playlist-id>/`,
-pero al completarse ya no conserva audio. En la raíz quedan el resumen, el JSON
-de faltantes y el reporte de consolidación; los detalles se agrupan bajo
-`diagnostics/`. La música terminada queda en
+pero al completarse ya no conserva audio. En la raíz quedan el resumen, la cola de
+grabación y el reporte de consolidación; los detalles se agrupan bajo `diagnostics/` (las tandas,
+en `diagnostics/recordings/NN/`). La música terminada queda en
 `download_JIJIJI/Playlists_DOWNLOAD/<nombre de playlist>/`.
 
 Puede cambiarse la raíz de runs mediante `SPOTIFY_DOWNLOAD_ROOT` y la biblioteca

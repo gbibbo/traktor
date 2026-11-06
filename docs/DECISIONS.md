@@ -6,6 +6,26 @@ anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_impl
 Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 `[REEMPLAZADO <fecha> por <decisión>: <lo que rige ahora>]` (o `[REFUTADO …]` si era un error).
 
+## 2026-11-06
+
+1. **Descargas de Soulseek tema a tema, grabando mientras sigue la búsqueda** (Gabriel). Con muchos
+   temas, el preflight en lote se trancaba: abría 20 búsquedas juntas, gastaba las 34 permitidas en
+   menos de 2 minutos y quedaba otros 2 parado, una y otra vez (log del 2026-11-02, 152 temas: 4
+   pausas de 104-119 s). A mano, Gabriel busca un tema, lo elige y lo baja, y no pasa. Grabar en
+   Spotify puede empezar con el primer tema que haya que grabar, sin esperar a buscar toda la
+   playlist. Cómo (agente):
+   - el descargador busca cada tema en un proceso de sockseek y lo baja en el momento; el límite de
+     34 búsquedas cada 220 s lo lleva un archivo del ordenador, compartido por todas las descargas;
+   - lo que no se consigue entra en `recording_queue.jsonl` apenas se sabe;
+   - el orquestador graba la cola en tandas de hasta 10 temas, cada una con su playlist privada de
+     Spotify y su carpeta `recordings/NN/` con checkpoint;
+   - con la cola vacía espera el tema siguiente y pausa Spotify (solo en este ordenador);
+   - Spotify detenido, el reproductor que no arranca o una playlist que no se pudo crear detienen la
+     grabación pero no la descarga: el run termina «En pausa» con lo bajado ya en la carpeta;
+   - «Posponer la grabación» corta la tanda en curso al instante;
+   - 3 búsquedas seguidas que fallan cortan la descarga sin mandar esos temas a grabar;
+   - los runs anteriores no se retoman: un run nuevo reutiliza lo que bajaron o grabaron.
+
 ## 2026-11-05
 
 1. **Sugerencias en vivo dentro de Traktor con un botón del K2, sin clics en la pantalla** (Gabriel).

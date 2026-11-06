@@ -188,20 +188,23 @@ Se incluye en git (sin audio; ver `AGENTS.md`). Lectura de playlists de Spotify
 por loopback (`playlist_loopback_recorder.py`) y los reportes JSON/TXT de una prueba
 (`soulseek_prueba_descarga/`).
 
-`spotify_soulseek_orchestrator.py` es el punto de entrada único: recibe una URL,
-coordina el preflight y la descarga de Soulseek, divide los faltantes en playlists
-privadas de hasta 10 temas, las reproduce y graba secuencialmente, y reúne los resultados bajo
+`spotify_soulseek_orchestrator.py` es el punto de entrada único: recibe una URL y va tema a tema
+(2026-11-06): el descargador busca cada tema en Soulseek y, si está, lo baja enseguida; lo que no se
+consigue entra en la cola de grabación (`recording_queue.py`, `recording_queue.jsonl` del run) y el
+orquestador lo graba de Spotify mientras sigue la búsqueda, en tandas de hasta 10 temas con su propia
+playlist privada y su carpeta `recordings/NN/`. Reúne los resultados bajo
 `download_JIJIJI/runs/` (git-ignorado). `download_JIJIJI/README.md` documenta la
 configuración inicial y el uso; `download_JIJIJI/CONFIGURAR_OTRO_ORDENADOR.md`, la instalación
 paso a paso en otra PC (claves de Spotify y Soulseek, `sockseek.exe` en `tools/sockseek/`,
 git-ignorado, y las dos autorizaciones de Spotify). La grabación crea checkpoints por tema en
-`recording_progress.json`; una ejecución posterior conserva los MP3 terminados y
-reanuda el lote correcto desde la primera pista pendiente. El grabador reutiliza el
+`recording_progress.json` de cada tanda; una ejecución posterior sigue la búsqueda donde quedó y
+reanuda la tanda sin terminar desde la primera pista pendiente. El grabador reutiliza el
 escritor canónico de metadata y cover de `spotify_soulseek_download.py`, por lo
 que ambos orígenes producen MP3 con el mismo criterio de nombres y etiquetas.
 De cada tema disponible se prueban hasta 4 archivos (duración y álbum de Spotify primero) y cada
-uno se verifica antes de aceptarlo; lo que aun así no se pudo bajar queda en
-`soulseek_failed.json` y se graba al final en `recorded_failed/` (reanudable por separado).
+uno se verifica antes de aceptarlo; lo que aun así no se pudo bajar va a la cola de grabación.
+[REEMPLAZADO 2026-11-06 por la búsqueda tema a tema: `soulseek_failed.json` y `recorded_failed/`
+quedan solo en los runs anteriores.]
 Al completar las ramas, el orquestador mueve todo el audio sin duplicados a
 `download_JIJIJI/Playlists_DOWNLOAD/<nombre>/`; el run conserva sólo los JSON
 principales y un subdirectorio `diagnostics/` con el detalle técnico. Si falta algún tema,

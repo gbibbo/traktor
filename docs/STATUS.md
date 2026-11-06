@@ -29,10 +29,10 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 - **Pendrive `D:\TRAKTOR ML` (copia en `C:\TRAKTOR ML`)** (DECISIONS 2026-10-30, 11-02): los 1760
   temas de `biblioteca` por playlist; `_organizacion.csv` da archivo y track_uid de cada uno
   (verificado en ambas el 11-04). Carátulas 1630/1760. Rekordbox: `Preparar Rekordbox.bat`.
-- **`download_JIJIJI/`**: playlists de Spotify por Soulseek, grabando por loopback lo que falte
-  (se puede posponer); entrada `spotify_soulseek_orchestrator.py`; otra PC:
-  `CONFIGURAR_OTRO_ORDENADOR.md`. App «Descargar playlists» (`app/`): pestañas Descargas,
-  Colección y Organización (DECISIONS 11-02); logs: `runs/logs/`.
+- **`download_JIJIJI/`**: playlists de Spotify por Soulseek tema a tema; lo que falte se graba por
+  loopback mientras busca (DECISIONS 11-06; posponible). Entrada `spotify_soulseek_orchestrator.py`;
+  otra PC: `CONFIGURAR_OTRO_ORDENADOR.md`. App «Descargar playlists» (`app/`, DECISIONS 11-02);
+  logs: `runs/logs/`.
 - **Chequeo pre-commit** en `tools/git_hooks/` (audio, arrays, pesos, credenciales, archivos > 5 MB).
 
 ## OPEN ITEMS (por prioridad; LOCAL = trabajo del agente, GABRIEL = lo hace o decide Gabriel)

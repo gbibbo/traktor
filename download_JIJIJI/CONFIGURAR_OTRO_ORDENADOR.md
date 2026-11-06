@@ -156,7 +156,7 @@ esa app, ve a **Settings** y comprueba que en **Redirect URIs** estén **los dos
 
 | Redirect URI | Quién lo usa |
 |---|---|
-| `http://127.0.0.1:48721/callback` | `spotify_soulseek_download.py`: lee la playlist y crea las playlists privadas de faltantes. Este valor está fijo en el código: ignora el `.env`. |
+| `http://127.0.0.1:48721/callback` | `spotify_soulseek_download.py`: lee la playlist; con la misma autorización, el orquestador crea la playlist privada de cada tanda que graba. Este valor está fijo en el código: ignora el `.env`. |
 | `http://127.0.0.1:8888/callback` | `spotify_playlist.py`: controla la reproducción en Spotify de escritorio. Usa `SPOTIFY_REDIRECT_URI` del `.env`. |
 
 Tienen que coincidir exactamente: `127.0.0.1` (Spotify no acepta `localhost`),
