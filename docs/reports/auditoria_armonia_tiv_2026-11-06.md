@@ -1,7 +1,33 @@
 # Auditoría: cómo elegir y validar la compatibilidad armónica por TIV antes de integrarla
 
+## Consigna para el auditor (leer primero)
+
+> Eres el auditor metodológico de este proyecto. Tienes que tomar una decisión, no dar una opinión
+> general.
+>
+> 1. **Lee el informe completo antes de escribir nada:** las secciones 1 a 7, todas las tablas y los dos
+>    anexos. El anexo A es la posición del agente que hizo el trabajo: léelo al final y atácalo; no lo
+>    tomes como evidencia.
+> 2. **Responde la pregunta de la sección 1** con este formato, y nada más:
+>    - **Decisión (a):** una de las opciones P1 a P5 de la sección 5, o una combinación. Escribe en orden
+>      qué se hace ahora y qué después.
+>    - **Decisión (b):** contra qué se compara en la escucha a ciegas (Camelot, sin criterio armónico, o
+>      los dos) y qué resultado aprueba la integración. Si cambias el criterio de aprobación vigente,
+>      escribe el nuevo con números.
+>    - **Justificación:** cada argumento apoyado en una fila concreta del informe (por ejemplo, "3.3,
+>      tabla pareada, solo bajo"). Si un argumento no se apoya en el informe, márcalo como tuyo.
+>    - **Qué te haría cambiar de decisión:** el resultado concreto y su umbral.
+>    - **Fallas del informe:** errores, huecos o conclusiones más anchas que la evidencia. Si no
+>      encuentras ninguna, dilo.
+> 3. **Si falta información, decide igual** con lo que hay y escribe qué falta y cómo cambiaría la
+>    decisión. No respondas solo con preguntas.
+> 4. Responde en español, en menos de 600 palabras.
+
+---
+
 Pedido de Gabriel Bibbó (dueño del proyecto y autor de la tesis), 2026-11-06. Preparado por el agente que
-lleva la investigación en la rama `harmonic-tiv` de github.com/gbibbo/traktor (commit de referencia al pie).
+lleva la investigación en la rama `harmonic-tiv` de github.com/gbibbo/traktor (los números salen del código
+del commit 681c3f4).
 Gabriel no opina sobre la pregunta de abajo: la decide el auditor.
 
 ## 1. La pregunta
