@@ -3,6 +3,10 @@
 PURPOSE: Record a Spotify playlist through Windows WASAPI loopback and split it.
 
 CHANGELOG:
+- 2026-11-06: An output that cannot be captured (another program holds it exclusively, like Traktor on the
+              DJM; or it was unplugged) ends with a clear message and DEVICE_UNAVAILABLE_EXIT_CODE instead
+              of a traceback. --check-device only tries to open the loopback of the default output and
+              says so in one JSON line, so the orchestrator checks before starting Spotify.
 - 2026-11-06: The checkpoint replace retries while a reader (the app polls it) has the file open on
               Windows; it used to stop the recorder with a PermissionError.
 - 2026-09-29: Support bounded recording batches while keeping global checkpoints.
@@ -88,6 +92,7 @@ STALL_THRESHOLD_DBFS = -90.0
 DEFAULT_STALL_TIMEOUT = 10.0
 DEFAULT_START_TIMEOUT = 180.0
 STALL_EXIT_CODE = 75
+DEVICE_UNAVAILABLE_EXIT_CODE = 76  # la salida predeterminada no se puede grabar (ocupada o desconectada)
 PROGRESS_FILENAME = "recording_progress.json"
 
 
@@ -106,6 +111,61 @@ class BoundaryResult:
 
 class PlaybackStalled(RuntimeError):
     """Spotify stopped producing audio before the current track completed."""
+
+
+class DeviceUnavailable(RuntimeError):
+    """The loopback of the Windows default output cannot be opened."""
+
+
+def device_problem(name: str, error: object) -> str:
+    """Lo que hay que decirle a una persona cuando la salida no se puede grabar."""
+    where = f"la salida de audio «{name}»" if name else "la salida de audio predeterminada"
+    return (
+        f"No se puede grabar {where} ({error}). Suele pasar cuando otro programa la usa en exclusiva, "
+        "por ejemplo Traktor con esa misma salida: cerrá ese programa o elegí otra salida de audio "
+        "predeterminada (en la app, abajo a la derecha)."
+    )
+
+
+def open_loopback(p: "pyaudio.PyAudio") -> tuple[dict[str, Any], Any]:
+    """El loopback de la salida predeterminada, abierto para leer; DeviceUnavailable si no se puede."""
+    try:
+        device = p.get_default_wasapi_loopback()
+    except (OSError, LookupError) as exc:
+        raise DeviceUnavailable(device_problem("", "Windows no da su loopback")) from exc
+    name = str(device.get("name") or "").replace(" [Loopback]", "")
+    if int(device.get("maxInputChannels") or 0) < CHANNELS:
+        raise DeviceUnavailable(device_problem(name, f"tiene {device.get('maxInputChannels')} canal(es), no estéreo"))
+    try:
+        stream = p.open(
+            format=FORMAT,
+            channels=CHANNELS,
+            rate=int(device["defaultSampleRate"]),
+            frames_per_buffer=CHUNK,
+            input=True,
+            input_device_index=device["index"],
+        )
+    except OSError as exc:
+        raise DeviceUnavailable(device_problem(name, exc)) from exc
+    return device, stream
+
+
+def check_device() -> dict[str, Any]:
+    """Abre y cierra el loopback de la salida predeterminada: si se puede grabar ahora."""
+    p = pyaudio.PyAudio()
+    try:
+        device, stream = open_loopback(p)
+        try:
+            stream.read(CHUNK, exception_on_overflow=False)
+        finally:
+            stream.close()
+        return {"ok": True, "device": str(device.get("name") or "").replace(" [Loopback]", "")}
+    except DeviceUnavailable as exc:
+        return {"ok": False, "error": str(exc)}
+    except OSError as exc:
+        return {"ok": False, "error": device_problem("", exc)}
+    finally:
+        p.terminate()
 
 
 class RollingAudio:
@@ -629,7 +689,13 @@ def main() -> int:
             "using JSON durations plus silence detection, then export MP3 320 kbps."
         )
     )
-    parser.add_argument("json_file", type=Path, help="Playlist JSON manifest")
+    parser.add_argument("json_file", type=Path, nargs="?", help="Playlist JSON manifest")
+    parser.add_argument(
+        "--check-device",
+        action="store_true",
+        help="Only check that the default output can be recorded; print one JSON line and exit "
+             f"0 (yes) or {DEVICE_UNAVAILABLE_EXIT_CODE} (no)",
+    )
     parser.add_argument("-o", "--output-dir", type=Path, default=Path("recorded_tracks"))
     parser.add_argument("--search-before", type=float, default=DEFAULT_SEARCH_BEFORE)
     parser.add_argument("--search-after", type=float, default=DEFAULT_SEARCH_AFTER)
@@ -690,6 +756,12 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    if args.check_device:
+        result = check_device()
+        print(json.dumps(result, ensure_ascii=False), flush=True)
+        return 0 if result["ok"] else DEVICE_UNAVAILABLE_EXIT_CODE
+    if args.json_file is None:
+        parser.error("the playlist JSON manifest is required")
     if args.search_before <= 0 or args.search_after <= 0:
         parser.error("--search-before and --search-after must be > 0")
     if args.stall_timeout <= 0 or args.start_timeout <= 0:
@@ -750,20 +822,8 @@ def main() -> int:
 
     try:
         p = pyaudio.PyAudio()
-        try:
-            device = p.get_default_wasapi_loopback()
-        except (OSError, LookupError) as exc:
-            raise RuntimeError(
-                "Could not find the WASAPI loopback for the Windows default output. "
-                "Run 'python -m pyaudiowpatch' to inspect devices."
-            ) from exc
-
+        device, stream = open_loopback(p)
         rate = int(device["defaultSampleRate"])
-        max_channels = int(device["maxInputChannels"])
-        if max_channels < CHANNELS:
-            raise RuntimeError(
-                f"Default loopback device exposes {max_channels} channel(s), but stereo is required."
-            )
 
         keep_seconds = args.search_before + args.search_after + START_HISTORY_SEC + 2.0
         rolling = RollingAudio(rate, CHANNELS, keep_seconds)
@@ -772,15 +832,6 @@ def main() -> int:
         wav_file.setnchannels(CHANNELS)
         wav_file.setsampwidth(p.get_sample_size(FORMAT))
         wav_file.setframerate(rate)
-
-        stream = p.open(
-            format=FORMAT,
-            channels=CHANNELS,
-            rate=rate,
-            frames_per_buffer=CHUNK,
-            input=True,
-            input_device_index=device["index"],
-        )
 
         print(f"Loopback : {device['name']}")
         print(f"Format   : {rate} Hz, stereo, PCM 16 bit")
@@ -950,6 +1001,9 @@ def main() -> int:
     except PlaybackStalled as exc:
         exit_code = STALL_EXIT_CODE
         stopped_reason = str(exc)
+    except DeviceUnavailable as exc:
+        exit_code = DEVICE_UNAVAILABLE_EXIT_CODE
+        stopped_reason = str(exc)
     except BaseException as exc:
         capture_error = exc
 
@@ -996,7 +1050,8 @@ def main() -> int:
         raise capture_error
 
     if exit_code:
-        progress["status"] = "stalled" if exit_code == STALL_EXIT_CODE else "interrupted"
+        progress["status"] = {STALL_EXIT_CODE: "stalled", DEVICE_UNAVAILABLE_EXIT_CODE: "device_unavailable"}.get(
+            exit_code, "interrupted")
         progress["last_error"] = stopped_reason
         if args.keep_wav:
             progress["last_partial_capture"] = str(temp_wav)
@@ -1005,6 +1060,8 @@ def main() -> int:
             progress.pop("last_partial_capture", None)
         write_json_atomic(progress_path, progress)
         print(f"\n{stopped_reason}", file=sys.stderr)
+        if exit_code == DEVICE_UNAVAILABLE_EXIT_CODE:  # no llegó a grabar nada: el orquestador lo explica
+            return exit_code
         print(
             f"Conservadas: {progress['completed_count']}/{total_tracks} pistas completas.",
             file=sys.stderr,

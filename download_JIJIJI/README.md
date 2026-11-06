@@ -167,6 +167,17 @@ llegar a reproducir (Spotify recién abierto que tarda en aparecer), tiene un se
 se agota su tiempo, no se reintenta (pudo empezar a sonar y correría los cortes) y Spotify se
 pausa.
 
+**La salida de audio que se graba** (la predeterminada de Windows) se prueba al empezar y antes de
+cada tanda, antes de crear su playlist de Spotify. Si otro programa la usa en exclusiva (Traktor
+con el DJM, 2026-11-06: el loopback da «Invalid device»), lo dice con el nombre de la salida, la
+descarga sigue y la vuelve a probar cada 30 s: graba apenas quede libre. Si sigue ocupada cuando la
+descarga termina, el run queda «En pausa» con ese motivo. Lo mismo si se ocupa durante una tanda.
+
+Cuando un usuario no manda un archivo, el registro lo dice en una línea (nos tiene bloqueados, está
+desconectado, tiene la cola llena, cortó la conexión…) y lo que dijo sockseek queda en
+`sockseek_transferencias.log` del run. A un usuario que nos bloqueó, está desconectado o no acepta
+la conexión no se le vuelve a pedir nada en esa descarga.
+
 Si aun así falta algún tema, igual se guarda en la carpeta todo lo que se consiguió: el run queda
 como `partial`, con los Spotify IDs que faltan en `orchestration_report.json`, y el orquestador
 termina con código 3. «Volver a intentar» (o el mismo comando) hace una descarga nueva; lo que ya

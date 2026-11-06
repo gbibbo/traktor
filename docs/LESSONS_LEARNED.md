@@ -97,6 +97,15 @@ la búsqueda devuelve el mismo JSON y la descarga cae en el `--output-dir` del c
 daemon los indexa al arrancar y las descargas simuladas aparecen enteras de golpe, así que no sirven
 para probar una transferencia que se traba. Verificado el 2026-11-06 con el daemon simulado.
 
+### Con Traktor abierto en el DJM, el loopback del DJM no se puede grabar
+
+Traktor usa el DJM-750MK2 en exclusiva: abrir el loopback de «Line (DJM-750MK2)» (la salida
+predeterminada de Windows en el escritorio) da `OSError [Errno -9996] Invalid device`, y Spotify
+tampoco puede sonar por ahí. El 2026-11-06 eso tiró el grabador con un traceback a mitad de una
+descarga. Ahora el grabador lo dice y sale con el código 76, y `playlist_loopback_recorder.py
+--check-device` lo prueba antes de cada tanda. Para grabar con Traktor abierto, Spotify tiene que
+sonar por otra salida.
+
 ### Probar en Soulseek mientras baja una descarga: otra cuenta y `--no-config`
 
 Una segunda sesión con la misma cuenta corta la otra, y el descargador abre una por transferencia.

@@ -657,6 +657,7 @@ class TrackByTrackFlowTests(unittest.TestCase):
         self.events: list[tuple] = []
         self.player_failures = 0  # reproductores que terminan sin empezar a sonar (Spotify que no aparece)
         self.player_timeouts = 0  # reproductores que no avisan a tiempo (pudieron empezar a sonar)
+        self.output_checks: list = []  # resultados de comprobar la salida de audio (vacío: libre)
 
     def popen(self, script, code, recorder_ops):
         calls = []
@@ -714,9 +715,13 @@ class TrackByTrackFlowTests(unittest.TestCase):
         progress = (json.loads(progress_path.read_text(encoding="utf-8")) if progress_path.exists()
                     else {"completed_count": 0, "completed_track_ids": [], "tracks": []})
         progress["total_tracks"] = len(tracks)
-        write_json(arg("--ready-file"), {"status": "ready"})
         self.events.append(("recorder", out.name, progress["completed_count"]))
         ops = list(recorder_ops.pop(out.name, None) or ["record"] * len(tracks))
+        if ops and ops[0] == "busy":  # la salida se ocupó entre la comprobación y el grabador
+            progress.update(status="device_unavailable", last_error="No se puede grabar la salida «DJM» (ocupada).")
+            write_json(progress_path, progress)
+            return FakeProcess(lambda: ORCHESTRATOR.DEVICE_UNAVAILABLE_EXIT_CODE)
+        write_json(arg("--ready-file"), {"status": "ready"})
 
         def record_one():
             t = tracks[progress["completed_count"]]
@@ -753,6 +758,12 @@ class TrackByTrackFlowTests(unittest.TestCase):
         playlists: list[list[str]] = []
         deleted: list[str] = []
 
+        def check_output(env):
+            self.events.append(("check",))
+            if self.output_checks:
+                return self.output_checks.pop(0)
+            return True, "CABLE Input"
+
         def create_playlist(source, tracks, name):
             if playlist_error:
                 raise RuntimeError(playlist_error)
@@ -771,6 +782,8 @@ class TrackByTrackFlowTests(unittest.TestCase):
                 mock.patch.object(ORCHESTRATOR, "create_spotify_playlist", side_effect=create_playlist), \
                 mock.patch.object(ORCHESTRATOR, "delete_spotify_playlist",
                                   side_effect=lambda playlist: deleted.append(playlist["id"])), \
+                mock.patch.object(ORCHESTRATOR, "check_recording_device", side_effect=check_output), \
+                mock.patch.object(ORCHESTRATOR, "DEVICE_RETRY_S", 0.0), \
                 mock.patch.object(ORCHESTRATOR, "pause_spotify",
                                   side_effect=lambda env, device: pauses.append(device) or self.events.append(("pause", device))), \
                 mock.patch.object(ORCHESTRATOR.time, "sleep"), \
@@ -925,6 +938,43 @@ class TrackByTrackFlowTests(unittest.TestCase):
             delete.assert_called_once_with({"id": "s9", "name": "Grabar - Lista"})
             stored = json.loads((session / "session.json").read_text(encoding="utf-8"))
             self.assertTrue(stored["playlist_deleted"] and "playlist_delete_error" not in stored)
+
+    def test_a_busy_output_waits_while_the_download_goes_on_and_records_when_free(self) -> None:
+        # 2026-11-06: Traktor tenía el DJM (la salida predeterminada) y el grabador cayó con «Invalid device».
+        busy = (False, "No se puede grabar la salida de audio «Line (DJM-750MK2)»: otro programa la usa.")
+        script = [[("availability", [1, 2, 3]), ("download", 1), ("queue", 2)], [], [("download", 3)],
+                  [("close", "finished")]]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self.output_checks = [busy, busy, busy]
+            code, _, _, report, spotify = self.run_flow(root, script)
+            self.assertEqual((code, report["status"]), (0, "completed"))
+            checks = [i for i, e in enumerate(self.events) if e == ("check",)]
+            recorder = next(i for i, e in enumerate(self.events) if e[0] == "recorder")
+            self.assertGreaterEqual(len([i for i in checks if i < recorder]), 4)  # esperó y volvió a probar
+            self.assertEqual(spotify["playlists"], [["id2"]])  # ninguna playlist mientras no se podía grabar
+            self.assertEqual(self.library(root), self.ALL3)
+
+    def test_an_output_busy_until_the_end_leaves_the_recording_pending_with_the_reason(self) -> None:
+        busy = (False, "No se puede grabar la salida de audio «Line (DJM-750MK2)»: otro programa la usa.")
+        script = [[("availability", [1, 2]), ("download", 1), ("queue", 2), ("close", "finished")]]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self.output_checks = [busy] * 50
+            code, calls, _, report, spotify = self.run_flow(root, script)
+            self.assertEqual((code, report["status"]), (ORCHESTRATOR.EXIT_RESUMABLE, "resumable"))
+            self.assertIn("DJM-750MK2", report["reason"])
+            self.assertEqual((spotify["playlists"], self.scripts(calls, "playlist_loopback_recorder.py")), ([], 0))
+            self.assertEqual(self.library(root), ["Artista - Tema 1.mp3"])  # lo de Soulseek, ya guardado
+
+    def test_an_output_taken_during_a_session_is_waited_for_not_given_up(self) -> None:
+        script = [[("availability", [1, 2]), ("download", 1), ("queue", 2)], [], [("close", "finished")]]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            code, _, _, report, _ = self.run_flow(root, script, recorder_ops={"01": ["busy"]})
+            self.assertEqual((code, report["status"]), (0, "completed"))
+            self.assertEqual([e for e in self.events if e[0] == "recorder"], [("recorder", "01", 0), ("recorder", "01", 0)])
+            self.assertEqual(self.library(root), ["Artista - Tema 1.mp3", "Artista - Tema 2.mp3"])
 
     def test_spotify_is_paused_before_the_next_session_starts_recording(self) -> None:
         # 12 en la cola: tanda de 10 y tanda de 2, una detrás de la otra. La reproducción automática que
@@ -1086,6 +1136,45 @@ class TrackByTrackFlowTests(unittest.TestCase):
             self.assertEqual((code, report["status"]), (0, "completed"))
             self.assertEqual(spotify["playlists"], [["id2"]])  # una tanda nueva solo con lo que faltaba
             self.assertEqual(self.library(root), ["Artista - Tema 1.mp3", "Artista - Tema 2.mp3"])
+
+
+class OutputCheckTests(unittest.TestCase):
+    class FakeAudio:
+        def __init__(self, fail_open):
+            self.fail_open = fail_open
+            self.terminated = False
+
+        def get_default_wasapi_loopback(self):
+            return {"name": "Line (DJM-750MK2) [Loopback]", "index": 23, "maxInputChannels": 2,
+                    "defaultSampleRate": 48000.0}
+
+        def open(self, **kwargs):
+            if self.fail_open:
+                raise OSError(-9996, "Invalid device")
+            return mock.Mock()
+
+        def terminate(self):
+            self.terminated = True
+
+    def test_an_output_held_by_another_program_is_explained(self) -> None:
+        audio = self.FakeAudio(fail_open=True)
+        with mock.patch.object(RECORDER.pyaudio, "PyAudio", return_value=audio):
+            result = RECORDER.check_device()
+        self.assertFalse(result["ok"])
+        self.assertIn("«Line (DJM-750MK2)»", result["error"])
+        self.assertIn("Traktor", result["error"])
+        self.assertTrue(audio.terminated)
+        with mock.patch.object(RECORDER.pyaudio, "PyAudio", return_value=self.FakeAudio(fail_open=False)):
+            self.assertEqual(RECORDER.check_device(), {"ok": True, "device": "Line (DJM-750MK2)"})
+
+    def test_check_device_answers_in_one_line_and_its_exit_code(self) -> None:
+        out = io.StringIO()
+        with mock.patch.object(RECORDER.pyaudio, "PyAudio", return_value=self.FakeAudio(fail_open=True)), \
+                mock.patch.object(sys, "argv", ["recorder", "--check-device"]), contextlib.redirect_stdout(out):
+            code = RECORDER.main()
+        self.assertEqual(code, RECORDER.DEVICE_UNAVAILABLE_EXIT_CODE)
+        self.assertEqual(code, ORCHESTRATOR.DEVICE_UNAVAILABLE_EXIT_CODE)
+        self.assertFalse(json.loads(out.getvalue().strip())["ok"])
 
 
 class EnvironmentSetupTests(unittest.TestCase):

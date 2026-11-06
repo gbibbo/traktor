@@ -843,6 +843,8 @@ function statusHtml(v, tracks) {
     if (phase === "preflight") {
       html += `<div class="note">${icon("info")}<div><b>Leyendo la playlist en Spotify</b>
         <p>Después va tema a tema, como cuando buscas a mano: busca cada uno en Soulseek y, si está, lo baja enseguida. Lo que no se consiga se graba de Spotify mientras sigue con los demás.</p></div></div>`;
+    } else if (run && run.recording_waiting && !run.defer) {
+      html += `<div class="note amber">${icon("warn")}<div><b>No se puede grabar ahora</b><p>${esc(run.recording_waiting)}</p><p>Mientras tanto sigue bajando de Soulseek, y la app vuelve a probar la salida cada 30 segundos: graba apenas quede libre.</p></div></div>`;
     } else if (run && run.recording_blocked) {
       html += `<div class="note amber">${icon("warn")}<div><b>La grabación se detuvo</b><p>${esc(run.recording_blocked)} Sigue bajando de Soulseek; lo que falte grabar queda para «Continuar» cuando termine.</p></div></div>`;
     } else if ((c.to_record || 0) + (c.recording || 0) > 0 && !run.defer) {

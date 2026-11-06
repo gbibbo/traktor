@@ -212,7 +212,7 @@ def test_config_inherits_only_login(tmp_path):
 def test_exact_download_never_searches_again_and_cleans_rejected_bytes(tmp_path):
     calls = []
 
-    def run(cmd, incoming, expected_bytes, config):
+    def run(cmd, incoming, expected_bytes, config, failure=None):
         calls.append(cmd)
         incoming = Path(next(s.split("=", 1)[1] for s in cmd if s.startswith("--output-dir=")))
         (incoming / "Artist - Track.mp3").write_bytes(b"MZbad")
@@ -242,7 +242,7 @@ def test_successful_exact_transfer_preserves_filename_after_validation(tmp_path)
     c = candidate(filename="Music/Artist - Track.wav", format="wav", length_s=1,
                   size_bytes=176444, sample_rate=44100, bit_depth=16)
 
-    def run(cmd, incoming, expected_bytes, config):
+    def run(cmd, incoming, expected_bytes, config, failure=None):
         incoming = Path(next(s.split("=", 1)[1] for s in cmd if s.startswith("--output-dir=")))
         with wave.open(str(incoming / "Artist - Track.wav"), "wb") as audio:
             audio.setnchannels(2)
@@ -521,7 +521,7 @@ def test_no_free_space_prevents_starting_transfer(tmp_path):
 
 
 def test_over_limit_transfer_cleans_rejected_payload(tmp_path):
-    def overflow(cmd, incoming, expected_bytes, config):
+    def overflow(cmd, incoming, expected_bytes, config, failure=None):
         (incoming / "song.mp3.incomplete").write_bytes(b"fixture")
         raise RuntimeError("bytes anunciados")
 
@@ -648,7 +648,7 @@ def test_explicit_extended_keeps_priority_for_dj_music():
 
 
 def _fake_transfer(names):
-    def run(cmd, incoming, expected_bytes, config):
+    def run(cmd, incoming, expected_bytes, config, failure=None):
         incoming = Path(next(s.split("=", 1)[1] for s in cmd if s.startswith("--output-dir=")))
         remote = next(s for s in cmd if s.startswith("slsk://"))
         names.append(remote)
@@ -1012,6 +1012,45 @@ def test_failed_transfers_do_not_use_up_the_verification_attempts(tmp_path):
                                          verify=lambda path: True, avoid=avoid, outcome=outcome)
     assert files == [] and transfer.call_count == D.MAX_TRANSFER_ATTEMPTS > D.MAX_CANDIDATE_TRANSFERS
     assert outcome == {"attempts": D.MAX_TRANSFER_ATTEMPTS, "arrived": 0} and len(avoid) == D.MAX_TRANSFER_ATTEMPTS
+
+
+def test_why_a_peer_did_not_send_the_file_is_readable():
+    assert D.transfer_failure_reason(" Transfer rejected: Banned") == ("nos tiene bloqueados", True)
+    assert D.transfer_failure_reason("Failed to read 12972451 bytes from 104.255.1.223:2299: Remote connection closed") \
+        == ("cortó la conexión", False)
+    assert D.transfer_failure_reason("User DjMj appears to be offline")[1] is True
+    assert D.transfer_failure_reason("Transfer rejected: Too many files")[0] == "tiene la cola llena"
+
+
+def test_a_peer_that_blocked_us_is_not_asked_again(tmp_path, capsys):
+    cands = [candidate(filename="Music/a.mp3", username="koalabeer"),
+             candidate(filename="Music/b.mp3", username="koalabeer"),
+             candidate(filename="Music/c.mp3", username="otro")]
+    asked = []
+
+    def transfer(cmd, incoming, expected, config, failure=None):
+        asked.append(next(part for part in cmd if part.startswith("slsk://")))
+        failure.update(reason="nos tiene bloqueados", whole_user=True)
+        return 1
+    avoid: set = set()
+    with mock.patch.object(D, "find_sockseek", return_value="sockseek"), mock.patch.object(
+        D, "_check_antivirus_ready"
+    ), mock.patch.object(D, "_write_sockseek_safe_config"), mock.patch.object(D, "_run_sockseek_transfer", side_effect=transfer):
+        D.download_with_sockseek(track(), tmp_path, availability=D.AvailabilityCheck("available", 3, cands),
+                                 verify=lambda path: True, avoid=avoid)
+    assert [a.split("/")[2] for a in asked] == ["koalabeer", "otro"]  # el segundo archivo de koalabeer no se pide
+    assert ("koalabeer", "*") in avoid
+    assert "koalabeer no lo mandó: nos tiene bloqueados" in capsys.readouterr().out
+
+
+def test_sockseek_lines_of_a_failed_transfer_go_to_the_run_log(tmp_path, capsys, monkeypatch):
+    log = tmp_path / "sockseek_transferencias.log"
+    monkeypatch.setattr(D, "_TRANSFER_LOG", log)
+    cmd = [sys.executable, "-c", "print('[015] SongJob: failed'); print('Error: Transfer rejected: Banned'); raise SystemExit(1)"]
+    failure: dict = {}
+    assert D._run_sockseek_transfer(cmd, tmp_path, 1024, tmp_path / "sockseek.conf", failure) == 1
+    assert failure == {"reason": "nos tiene bloqueados", "whole_user": True}
+    assert "sockseek>" not in capsys.readouterr().out and "Transfer rejected: Banned" in log.read_text(encoding="utf-8")
 
 
 def test_a_stale_daemon_is_closed_only_if_it_is_that_daemon(tmp_path, monkeypatch):

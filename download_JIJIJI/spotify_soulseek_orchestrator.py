@@ -3,6 +3,12 @@
 PURPOSE: Run the complete Spotify -> Soulseek + loopback fallback workflow.
 
 CHANGELOG:
+- 2026-11-06: The output that is recorded is checked before each session (playlist_loopback_recorder.py
+              --check-device), before any Spotify playlist is created: an output another program holds
+              (Traktor on the DJM, 2026-11-06: "Invalid device") is said so at the start, the download goes
+              on, and it is tried again every DEVICE_RETRY_S; recording starts as soon as it is free. The
+              same when the recorder ends with DEVICE_UNAVAILABLE_EXIT_CODE during a session. If it is
+              still busy when the download ends, the run is "resumable" with that reason.
 - 2026-11-06: The downloader works on --parallel tracks at once (2 by default) through one Soulseek session
               (a sockseek daemon); a daemon left by a downloader that was cut off is closed. The private
               Spotify playlist of each recording session is removed (DELETE /me/library) as soon as the
@@ -92,6 +98,8 @@ PROGRESS_FILE = "recording_progress.json"  # checkpoint del grabador (playlist_l
 SESSION_SIZE = 10                      # temas por tanda, como las playlists de grabación de antes
 PLAYLIST_CREATE_PAUSES_S = (5.0, 15.0)  # reintentos al crear la playlist de una tanda
 PLAYER_ATTEMPTS = 2                    # Spotify recién abierto puede tardar más que el tope en aparecer
+DEVICE_UNAVAILABLE_EXIT_CODE = 76      # playlist_loopback_recorder.py: la salida no se puede grabar
+DEVICE_RETRY_S = 30.0                  # con la salida ocupada, cada cuánto se vuelve a probar
 # Runs de antes del 2026-11-06 (preflight en lote): la app todavía los muestra.
 FAILED_JSON_NAME = "soulseek_failed.json"
 RECORDED_FAILED_DIR = "recorded_failed"
@@ -117,6 +125,10 @@ class IncompleteAudio(WorkflowError):
 
 class RecordingUnavailable(RuntimeError):
     """The recording cannot go on in this run (Spotify, the player, the loopback or the session playlist)."""
+
+
+class OutputBusy(RecordingUnavailable):
+    """The output that is recorded cannot be opened now (another program holds it): try again later."""
 
 
 def playlist_id_from_url(value: str) -> str:
@@ -779,6 +791,29 @@ def stop_leftover_daemon(run_dir: Path) -> None:
         pass
 
 
+def check_recording_device(env: dict[str, str]) -> tuple[bool, str]:
+    """¿Se puede grabar ahora la salida de audio predeterminada? (ok, nombre de la salida o el problema)."""
+    cmd = [sys.executable, "-u", str(SCRIPT_DIR / "playlist_loopback_recorder.py"), "--check-device"]
+    try:
+        result = subprocess.run(cmd, env=env, capture_output=True, text=True, encoding="utf-8",
+                                errors="replace", timeout=60, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return False, f"No se pudo comprobar la salida de audio ({exc})."
+    info: dict[str, Any] = {}
+    for line in reversed(result.stdout.splitlines()):
+        try:
+            parsed = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(parsed, dict):
+            info = parsed
+            break
+    if result.returncode == 0 and info.get("ok"):
+        return True, str(info.get("device") or "")
+    tail = (result.stderr or "").strip().splitlines()[-1:] or [f"código {result.returncode}"]
+    return False, str(info.get("error") or f"No se pudo comprobar la salida de audio ({tail[0]}).")
+
+
 def pause_spotify(env: dict[str, str], device_id: str | None) -> None:
     """Pausa Spotify en este ordenador (no en el teléfono), para que su reproducción automática no siga
     sonando cuando no hay nada que grabar. Si falla, solo queda sonando."""
@@ -898,6 +933,9 @@ class SessionRecorder:
                 time.sleep(0.5)
             recorder_code = int(self.recorder.returncode or 0)
         except WorkflowError as exc:
+            if self.recorder is not None and self.recorder.poll() == DEVICE_UNAVAILABLE_EXIT_CODE:
+                progress = read_json_dict(session_dir / PROGRESS_FILE) or {}
+                raise OutputBusy(str(progress.get("last_error") or "La salida de audio no se puede grabar.")) from exc
             raise RecordingUnavailable(str(exc)) from exc
         finally:
             self.stop_processes()
@@ -910,6 +948,9 @@ class SessionRecorder:
             return "completed"
         if recorder_code in {75, 130} and deferred:
             return "deferred"
+        if recorder_code == DEVICE_UNAVAILABLE_EXIT_CODE:
+            progress = read_json_dict(session_dir / PROGRESS_FILE) or {}
+            raise OutputBusy(str(progress.get("last_error") or "La salida de audio no se puede grabar."))
         if recorder_code in {75, 130}:
             progress = read_json_dict(session_dir / PROGRESS_FILE) or {}
             reason = progress.get("last_error") or "Spotify se detuvo"
@@ -1282,14 +1323,44 @@ def run_workflow(args: argparse.Namespace) -> int:
 
         blocked: str | None = None
         idle_announced = False
+        output_retry_at = 0.0  # con la salida ocupada: cuándo se vuelve a probar (time.monotonic)
+        output_problem: str | None = None
+
+        def output_busy(reason: str) -> None:
+            nonlocal output_retry_at, output_problem
+            output_retry_at = time.monotonic() + DEVICE_RETRY_S
+            if reason != output_problem:
+                print(f"\n[grabación] {reason}\nLo de Soulseek se sigue bajando; vuelvo a probar la salida cada "
+                      f"{DEVICE_RETRY_S:.0f} s y grabo apenas quede libre.", file=sys.stderr, flush=True)
+            output_problem = reason
+            summary["recording_waiting"] = reason
+            write_summary(summary_path, summary)
+
+        if not defer_file.exists():
+            ok, detail = check_recording_device(env)
+            if ok:
+                print(f"[grabación] Se graba lo que suena por «{detail}».", flush=True)
+            else:
+                output_busy(detail)
         while True:
             # Primero si el descargador terminó y después la cola: así no se pierde el último tema que agregó.
             downloader_done = downloader is None or downloader.poll() is not None
             queue = read_queue(queue_path)
             pending, unassigned = recording_plan(run_dir, queue)
-            can_record = blocked is None and not defer_file.exists()
+            can_record = blocked is None and not defer_file.exists() and time.monotonic() >= output_retry_at
             if can_record and (pending or unassigned):
                 idle_announced = False
+                ok, detail = check_recording_device(env)  # antes de crear la playlist y de poner Spotify
+                if not ok:
+                    output_busy(detail)
+                    if downloader_done:  # ya no hay nada que esperar: queda pendiente, con el motivo
+                        break
+                    continue
+                if output_problem is not None:
+                    print(f"[grabación] La salida «{detail}» quedó libre: sigo grabando.", flush=True)
+                    output_problem = None
+                    summary.pop("recording_waiting", None)
+                    write_summary(summary_path, summary)
                 session_dir = pending[0] if pending else create_session(run_dir, unassigned[:SESSION_SIZE])
                 relocate_checkpoint(session_dir)
                 if not session_checkpoint_usable(session_dir):
@@ -1301,6 +1372,12 @@ def run_workflow(args: argparse.Namespace) -> int:
                     playlist_name, _ = playlist_identity(run_dir, playlist_id)
                     url = ensure_session_playlist(session_dir, playlist_name)
                     outcome = sessions.record(session_dir, url)
+                except OutputBusy as exc:
+                    sessions.pause()
+                    output_busy(str(exc))
+                    if downloader is None or downloader.poll() is not None:  # la descarga ya terminó
+                        break
+                    continue
                 except RecordingUnavailable as exc:
                     blocked = str(exc)
                     sessions.pause()
@@ -1320,7 +1397,7 @@ def run_workflow(args: argparse.Namespace) -> int:
             sessions.pause()
             if downloader_done:
                 break
-            if can_record and not idle_announced:
+            if can_record and not idle_announced and not (pending or unassigned):
                 print("[grabación] Cola vacía: espero el próximo tema que haya que grabar.", flush=True)
                 idle_announced = True
             time.sleep(IDLE_POLL_SECONDS)
@@ -1352,7 +1429,7 @@ def run_workflow(args: argparse.Namespace) -> int:
                 summary=summary,
                 summary_path=summary_path,
                 pending=waiting,
-                blocked=None if defer_file.exists() else blocked,
+                blocked=None if defer_file.exists() else (blocked or output_problem),
             )
 
         for session_dir in session_dirs(run_dir):  # las que no se pudieron borrar al terminar su tanda
@@ -1363,6 +1440,7 @@ def run_workflow(args: argparse.Namespace) -> int:
         summary["status"] = "consolidating"
         summary["playlist_name"] = playlist_name
         summary.pop("recording_blocked", None)
+        summary.pop("recording_waiting", None)
         summary.pop("reason", None)
         summary.pop("pending_recordings", None)
         write_summary(summary_path, summary)

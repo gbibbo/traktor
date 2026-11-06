@@ -39,6 +39,8 @@ CHANGELOG:
                 con ella, después de la tarea en curso).
   - 2026-11-02: Si al Python de la app le falta el pipeline, la Organización prueba con el del PATH, y el
                 aviso dice lo que falta de verdad (la música organizada, no solo paquetes).
+  - 2026-11-06: La salida de audio que no se puede grabar (otro programa la usa, como Traktor con el DJM) se
+                muestra mientras la descarga sigue y vuelve a probarse.
   - 2026-11-06: Varios temas a la vez: «Buscando…»/«Bajando…» en cada tema en curso, y «se vuelve a buscar al
                 final» para el que no recibió ningún archivo.
   - 2026-11-06: Descargas tema a tema: el estado de cada tema sale de la búsqueda en curso, la cola de
@@ -489,6 +491,7 @@ def track_by_track_state(run_dir: Path, report: dict[str, Any], availability: di
         in_progress[current_download] = {"position": current_download, "step": "search"}
     defer = running and (run_dir / orch.DEFER_SIGNAL).exists()
     blocked = report.get("recording_blocked") if running else None
+    waiting_output = report.get("recording_waiting") if running else None
 
     recording_now = None
     recording_since = None
@@ -509,6 +512,8 @@ def track_by_track_state(run_dir: Path, report: dict[str, Any], availability: di
         later = "Se grabará de Spotify: la grabación está pospuesta"
     elif blocked:
         later = "Se grabará de Spotify al continuar: la grabación se detuvo"
+    elif waiting_output:
+        later = "Se grabará de Spotify cuando la salida de audio quede libre"
     else:
         later = "Se graba de Spotify mientras sigue la búsqueda"
 
@@ -573,7 +578,8 @@ def track_by_track_state(run_dir: Path, report: dict[str, Any], availability: di
     return state_summary(run_dir, report, availability, consolidation, tracks, status=status, raw_status=raw_status,
                          phase=phase, search=search, alive=alive, missing_count=len(queue.tracks),
                          recording_since=recording_since,
-                         extra={"layout": orch.LAYOUT, "recording_blocked": blocked})
+                         extra={"layout": orch.LAYOUT, "recording_blocked": blocked,
+                                "recording_waiting": report.get("recording_waiting") if running else None})
 
 
 def list_runs(runs_root: Path) -> list[Path]:

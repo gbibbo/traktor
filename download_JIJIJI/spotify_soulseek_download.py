@@ -6,6 +6,9 @@ spotify_soulseek_download.py
 PURPOSE: Reconcile a Spotify playlist against Soulseek and download matches.
 
 CHANGELOG:
+- 2026-11-06: A transfer a peer does not send is one readable line (who and why: blocked us, offline, queue
+              full, cut the connection...); Sockseek's own lines go to sockseek_transferencias.log in the
+              run. A peer that blocked us, is offline or cannot be reached is not asked again in the run.
 - 2026-11-06: Several tracks at once (--parallel, 2 by default) through one Soulseek session: a sockseek
               daemon started for the run takes every search and transfer (separate sockseek processes
               each log in with the same account and cut each other off). A transfer that receives
@@ -314,6 +317,7 @@ def say(*parts: Any, file: Any = None) -> None:
 
 
 # ------------------------------------------------------------------ una sola sesión de Soulseek
+_TRANSFER_LOG: Path | None = None        # lo que dijo sockseek en cada transferencia fallida (en el run)
 _SOCKSEEK_REMOTE: str | None = None      # URL del daemon de esta descarga
 _SOCKSEEK_MOCK_DIR: Path | None = None   # pruebas sin Soulseek: archivos locales (--mock-files-dir de sockseek)
 _DAEMON: "SockseekDaemon | None" = None
@@ -471,23 +475,59 @@ def use_daemon(daemon: "SockseekDaemon | None") -> None:
     _SOCKSEEK_REMOTE = daemon.url if daemon is not None else None
 
 
+def use_transfer_log(path: Path | None) -> None:
+    global _TRANSFER_LOG
+    _TRANSFER_LOG = path
+
+
+# Por qué un usuario no mandó el archivo, en palabras; True: no se le vuelve a pedir nada en esta descarga.
+_TRANSFER_FAILURES = [
+    (re.compile(r"rejected: Banned", re.I), "nos tiene bloqueados", True),
+    (re.compile(r"share files to download|share.{0,20}to download", re.I), "solo comparte con quien comparte", True),
+    (re.compile(r"appears to be offline|is offline", re.I), "está desconectado", True),
+    (re.compile(r"Failed to establish a direct or indirect", re.I), "no se pudo conectar con él", True),
+    (re.compile(r"File not shared", re.I), "ya no comparte ese archivo", False),
+    (re.compile(r"Too many (files|megabytes)|queue.{0,20}full", re.I), "tiene la cola llena", False),
+    (re.compile(r"became stale|stale after", re.I), "lo dejó de mandar (30 s sin avanzar)", False),
+    (re.compile(r"connection closed|connection reset|forcibly closed", re.I), "cortó la conexión", False),
+]
+
+
+def transfer_failure_reason(text: str) -> tuple[str, bool]:
+    for pattern, reason, whole_user in _TRANSFER_FAILURES:
+        if pattern.search(text):
+            return reason, whole_user
+    return text.strip()[:160] or "no lo mandó", False
+
+
 def use_mock_dir(path: Path | None) -> None:
     global _SOCKSEEK_MOCK_DIR
     _SOCKSEEK_MOCK_DIR = path
 
 
-def _print_failed_transfer_log(code: int, log: Any) -> None:
+def _print_failed_transfer_log(code: int, log: Any) -> tuple[str, bool]:
     """Without this the temporary log vanishes and a failed transfer leaves no trace; lines that
-    mention credentials are left out."""
+    mention credentials are left out. With a transfer log (a download run) Sockseek's lines go there and
+    the caller says why in one line; returns (why, whether to skip that peer for the rest of the run)."""
     log.seek(max(0, os.fstat(log.fileno()).st_size - 4096))
     text = _ANSI_ESCAPE.sub("", log.read().decode("utf-8", errors="replace"))
     lines = [line.strip() for line in re.split(r"[\r\n]+", text)
              if line.strip() and not _CREDENTIAL_LINE.search(line)]
-    say(f"    ! sockseek terminó con código {code}\n" + "\n".join(
-        f"      sockseek> {line}" for line in lines[-FAILED_TRANSFER_LOG_LINES:]))
+    tail = lines[-FAILED_TRANSFER_LOG_LINES:]
+    detail = next((line for line in reversed(tail) if line.startswith("Error:")), tail[-1] if tail else "")
+    if _TRANSFER_LOG is not None:
+        try:
+            with _PRINT_LOCK, _TRANSFER_LOG.open("a", encoding="utf-8") as handle:
+                handle.write(f"\n===== {time.strftime('%H:%M:%S')} código {code}\n" + "\n".join(tail) + "\n")
+        except OSError:
+            pass
+    else:
+        say(f"    ! sockseek terminó con código {code}\n" + "\n".join(f"      sockseek> {line}" for line in tail))
+    return transfer_failure_reason(detail.removeprefix("Error:") if detail else f"código {code}")
 
 
-def _run_sockseek_transfer(cmd: list[str], incoming: Path, expected_bytes: int, config: Path) -> int:
+def _run_sockseek_transfer(cmd: list[str], incoming: Path, expected_bytes: int, config: Path,
+                           failure: dict[str, Any] | None = None) -> int:
     """Watch received bytes while the CLI runs; always reap it before cleaning files. A transfer that receives
     nothing new for TRANSFER_STALL_SECONDS (the peer does not answer or keeps us queued) is dropped."""
     limit = min(expected_bytes, MAX_SOURCE_BYTES)
@@ -528,7 +568,9 @@ def _run_sockseek_transfer(cmd: list[str], incoming: Path, expected_bytes: int, 
                 code = process.poll()
                 if code is not None:
                     if code != 0:
-                        _print_failed_transfer_log(code, log)
+                        reason, whole_user = _print_failed_transfer_log(code, log)
+                        if failure is not None:
+                            failure.update(reason=reason, whole_user=whole_user)
                     return code
                 try:
                     process.wait(timeout=TRANSFER_POLL_SECONDS)
@@ -2041,7 +2083,7 @@ def download_with_sockseek(
         if not isinstance(username, str) or not username:
             continue
         remote_path = candidate["filename"].replace("\\", "/")
-        if avoid is not None and (username, remote_path) in avoid:
+        if avoid is not None and ((username, remote_path) in avoid or (username, "*") in avoid):
             continue
         link = "slsk://" + urllib.parse.quote(username, safe="") + "/" + urllib.parse.quote(remote_path, safe="/")
         attempts += 1
@@ -2064,10 +2106,15 @@ def download_with_sockseek(
                 f"--output-dir={incoming}",
             ]
             try:
-                code = _run_sockseek_transfer(cmd, incoming, int(candidate["size_bytes"]), safe_config)
+                failure: dict[str, Any] = {}
+                code = _run_sockseek_transfer(cmd, incoming, int(candidate["size_bytes"]), safe_config, failure)
                 if code != 0:
+                    reason = failure.get("reason") or f"sockseek terminó con código {code}"
+                    say(f"    ! {username} no lo mandó: {reason}; pruebo otro archivo")
                     if avoid is not None:
                         avoid.add((username, remote_path))
+                        if failure.get("whole_user"):
+                            avoid.add((username, "*"))  # no se le vuelve a pedir nada en esta descarga
                     continue
                 files = [p for p in incoming.rglob("*") if p.is_file() and p != safe_config]
                 if len(files) != 1:
@@ -3039,6 +3086,7 @@ def main() -> int:
     # Una sola sesión de Soulseek para todo (el daemon de sockseek); sin ella, de a un tema.
     mock_dir = Path(args.sockseek_mock_dir).expanduser().resolve() if args.sockseek_mock_dir else None
     use_mock_dir(mock_dir)
+    use_transfer_log(availability_report_path.with_name("sockseek_transferencias.log") if queue_path else None)
     daemon_state = availability_report_path.with_name(DAEMON_STATE_NAME)
     stop_daemon_from_state(daemon_state)  # el de una descarga cortada: su sesión cortaría la de esta
     daemon: SockseekDaemon | None = None
