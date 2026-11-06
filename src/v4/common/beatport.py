@@ -16,7 +16,11 @@ PURPOSE: Beatport como fuente de metadatos (género, sello, fecha de lanzamiento
              remixers; Remixers = nombre de la mezcla si es un remix ("Adana Twins Remix"),
              "Extended Mix" si el archivo es la Extended, si no "Original Mix"; Label, Genre y
              Released (fecha AAAA-MM-DD).
+         También lee la página de un tema (track_genre): categoría, género y subgénero de Beatport
+         (taxonomía de tres niveles; el subgénero es opcional), con caché en disco por tema.
 CHANGELOG:
+  - 2026-11-06: summarize guarda también genre_id y el subgénero (sub_genre); track_genre() y
+                parse_track_genre() leen categoría, género y subgénero de la página de un tema.
   - 2026-10-30: summarize guarda la carátula del lanzamiento (release_image) para package_tags.py.
   - 2026-09-29: Creación inicial.
 """
@@ -173,6 +177,8 @@ def summarize(raw: dict) -> dict:
         "release_image": ((raw.get("release") or {}).get("release_image_dynamic_uri")
                           or (raw.get("release") or {}).get("release_image_uri")),
         "genre": genres[0] if genres else None,
+        "genre_id": next((g.get("genre_id") for g in raw.get("genre") or [] if g.get("genre_id")), None),
+        "sub_genre": (raw.get("sub_genre") or {}).get("sub_genre_name") or None,
         "isrc": (raw.get("isrc") or "").strip().upper() or None,
         "bpm": raw.get("bpm"),
         "key": raw.get("key_name"),
@@ -181,6 +187,24 @@ def summarize(raw: dict) -> dict:
         "is_ugc_remix": bool(raw.get("is_ugc_remix")),
         "url": TRACK_URL.format(slug=(norm(title).replace(" ", "-") or "track"), track_id=raw["track_id"]),
     }
+
+
+def parse_track_genre(html: str, track_id: int) -> Optional[dict]:
+    """Categoría, género y subgénero de la página de un tema (consulta track-details-<id>)."""
+    m = _NEXT_DATA_RE.search(html)
+    if not m:
+        return None
+    data = json.loads(m.group(1))
+    for q in ((data.get("props") or {}).get("pageProps") or {}).get("dehydratedState", {}).get("queries", []):
+        if q.get("queryKey") != [f"track-details-{track_id}"]:
+            continue
+        g = ((q.get("state") or {}).get("data") or {}).get("genre") or {}
+        sub = g.get("sub_genre") or {}
+        cat = g.get("category") or {}
+        return {"track_id": int(track_id), "genre_id": g.get("id"), "genre": g.get("name"),
+                "sub_genre_id": sub.get("id"), "sub_genre": sub.get("name") or None,
+                "category_id": cat.get("id"), "category": cat.get("name")}
+    return None
 
 
 class BeatportClient:
@@ -207,13 +231,27 @@ class BeatportClient:
             return json.loads(path.read_text(encoding="utf-8"))["results"]
         if self.offline:
             return []
-        html = self._get(q)
+        html = self._get(SEARCH_URL, {"q": q})
         results = [summarize(r) for r in parse_search_html(html)[:MAX_RESULTS]]
         path.write_text(json.dumps({"query": q, "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
                                     "results": results}, ensure_ascii=False), encoding="utf-8")
         return results
 
-    def _get(self, q: str) -> str:
+    def track_genre(self, track_id: int, url: Optional[str] = None) -> Optional[dict]:
+        """Género completo de un tema (parse_track_genre), con caché en <cache>/tracks/<id>.json."""
+        path = self.cache_dir / "tracks" / f"{int(track_id)}.json"
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8")).get("genre")
+        if self.offline:
+            return None
+        html = self._get(url or TRACK_URL.format(slug="track", track_id=int(track_id)), None)
+        g = parse_track_genre(html, int(track_id))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"track_id": int(track_id), "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                                    "genre": g}, ensure_ascii=False), encoding="utf-8")
+        return g
+
+    def _get(self, url: str, params: Optional[dict]) -> str:
         import requests
         if self._session is None:
             self._session = requests.Session()
@@ -226,7 +264,7 @@ class BeatportClient:
             self._last = time.monotonic()
             self.n_requests += 1
             try:
-                r = self._session.get(SEARCH_URL, params={"q": q}, timeout=30)
+                r = self._session.get(url, params=params, timeout=30)
             except requests.RequestException:
                 time.sleep(backoff)
                 backoff *= 2
@@ -237,7 +275,7 @@ class BeatportClient:
                 continue
             r.raise_for_status()
             return r.text
-        raise BeatportBlocked(f"Beatport no respondió bien tras 5 intentos (q={q!r})")
+        raise BeatportBlocked(f"Beatport no respondió bien tras 5 intentos ({url} {params or ''})")
 
 
 # ---------------------------------------------------------------------------

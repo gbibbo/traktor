@@ -184,6 +184,22 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
      clasificador;
    - el botón por defecto pasa a ser D#0 + D0 también en la mezcla interna, donde D#0 es Modifier #1 y
      D0 no tiene función: el mismo gesto en las dos.
+10. **El género se resuelve de forma automática, y la taxonomía la construye una red de agentes**
+    (Gabriel, 2026-11-06).
+    - Revisión manual, como mucho unas 20 tripletas.
+    - Para los temas que no están en Beatport puede usarse un clasificador público, con un mapeo de sus
+      etiquetas a las de Beatport. Un tema sin género puede quedar fuera del componente de género.
+    - Beatport no publica similitudes entre géneros. La taxonomía propia de etiquetas de Beatport sale
+      de taxonomías existentes (la de su tesis sobre mezcla armónica u otras más nuevas). Un grupo de
+      agentes la modifica y otro la evalúa, en rondas, hasta que la den por terminada. La base es el
+      texto de las etiquetas; también, propiedades musicales claras medidas en temas de cada género.
+
+    Cómo (agente), informe `docs/reports/generos_beatport_2026-11-06.md`:
+    - en el índice, el género es el de Beatport (también los 107 sin confirmar). Si no hay, el del
+      clasificador con confianza >= 0.6 (173 temas). Si tampoco, ninguno (158): el componente no cuenta;
+    - `beatport_subgenres.py` baja categoría, género y subgénero de la página de cada tema;
+    - `genre_evidence.py` mide BPM, estilos de Discogs de MAEST, vecinos CLAP y géneros mezclados entre
+      versiones, y arma un borrador de similitud, que es la entrada de la red de agentes.
 
 ## 2026-11-04
 

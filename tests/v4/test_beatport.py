@@ -2,9 +2,11 @@
 PURPOSE: Tests de src/v4/common/beatport.py y de la consulta de beatport_lookup, sin red: parseo de
          títulos y mezclas, núcleo de la mezcla, niveles de match A/B/C/D con candidatos armados a
          mano (casos reales de la playlist "Cumple Seba 2206" y de la colección), convención de tags
-         (Artist sin remixers, "Original Mix") y caché del cliente.
+         (Artist sin remixers, "Original Mix"), caché del cliente y género completo (categoría, género
+         y subgénero) de la página de un tema.
 CHANGELOG:
   - 2026-09-29: Creación inicial.
+  - 2026-11-06: summarize con genre_id y subgénero; parse_track_genre y track_genre con caché.
 """
 import json
 import sys
@@ -16,8 +18,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.v4.common.beatport import (  # noqa: E402
-    BeatportClient, TrackQuery, clean_text, match, mix_core, parse_search_html, proposed_tags,
-    remixers_tag, split_title_mix,
+    BeatportClient, TrackQuery, clean_text, match, mix_core, parse_search_html, parse_track_genre, proposed_tags,
+    remixers_tag, split_title_mix, summarize,
 )
 from src.v4.pipeline.beatport_lookup import build_queries, lookup  # noqa: E402
 
@@ -132,6 +134,36 @@ def test_parse_search_html():
     html = f'<html><script id="__NEXT_DATA__" type="application/json">{json.dumps(payload)}</script></html>'
     assert [r["track_id"] for r in parse_search_html(html)] == [5]
     assert parse_search_html("<html></html>") == []
+
+
+def test_summarize_keeps_genre_id_and_sub_genre():
+    raw = {"track_id": 7, "track_name": "T", "artists": [], "genre": [{"genre_id": 96, "genre_name": "Mainstage"}],
+           "sub_genre": {"sub_genre_id": 246, "sub_genre_name": "Electro House"}}
+    s = summarize(raw)
+    assert (s["genre"], s["genre_id"], s["sub_genre"]) == ("Mainstage", 96, "Electro House")
+    assert summarize({"track_id": 8, "genre": []})["sub_genre"] is None
+
+
+def test_parse_track_genre_and_its_cache(tmp_path):
+    record = {"genre": {"id": 6, "name": "Techno (Peak Time / Driving)", "slug": "techno-peak-time-driving",
+                        "sub_genre": {"id": 260, "name": "Psy-Techno", "slug": "psy-techno"},
+                        "category": {"id": 1, "name": "Electronic"}}}
+    payload = {"props": {"pageProps": {"dehydratedState": {"queries": [
+        {"queryKey": ["track-29631862-charts"], "state": {"data": {}}},
+        {"queryKey": ["track-details-29631862"], "state": {"data": record}}]}}}}
+    html = f'<html><script id="__NEXT_DATA__" type="application/json">{json.dumps(payload)}</script></html>'
+    g = parse_track_genre(html, 29631862)
+    assert g == {"track_id": 29631862, "genre_id": 6, "genre": "Techno (Peak Time / Driving)", "sub_genre_id": 260,
+                 "sub_genre": "Psy-Techno", "category_id": 1, "category": "Electronic"}
+    assert parse_track_genre(html, 1) is None and parse_track_genre("<html></html>", 1) is None
+    payload["props"]["pageProps"]["dehydratedState"]["queries"][1]["state"]["data"]["genre"]["sub_genre"] =         {"id": None, "name": None, "slug": "-"}
+    html = f'<html><script id="__NEXT_DATA__" type="application/json">{json.dumps(payload)}</script></html>'
+    assert parse_track_genre(html, 29631862)["sub_genre"] is None          # sin subgénero
+    client = BeatportClient(tmp_path, offline=True)
+    assert client.track_genre(5) is None and client.n_requests == 0
+    (tmp_path / "tracks").mkdir()
+    (tmp_path / "tracks" / "5.json").write_text(json.dumps({"track_id": 5, "genre": g}), encoding="utf-8")
+    assert client.track_genre(5)["sub_genre"] == "Psy-Techno"
 
 
 def test_client_cache_and_offline(tmp_path):

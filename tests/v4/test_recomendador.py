@@ -238,3 +238,11 @@ def test_bpm_key_and_genre_weights_change_the_order(tmp_path):
     assert order({"clap": 0, "genero": 1})[0] == ["b", "f", "a", "g"]        # Tech House como el principal
     titles, info, _ = order({"clap": 1, "genero": 1})
     assert titles[:2] == ["f", "b"] and info["puntaje"][0] > info["puntaje"][2]
+
+
+def test_genre_comes_from_beatport_or_a_confident_classifier():
+    assert ir.genre_of("Tech House", "House", "beatport_B", None) == {"genero": "Tech House", "fuente": "beatport"}
+    assert ir.genre_of(None, "Deep House", "classifier", 0.61) == {"genero": "Deep House", "fuente": "clasificador"}
+    assert ir.genre_of(None, "Deep House", "classifier", 0.59) is None
+    assert ir.genre_of(None, "Jazz (Discogs)", "gate_discogs", 0.9) is None
+    assert ir.genre_of(float("nan"), None, "classifier", None) is None

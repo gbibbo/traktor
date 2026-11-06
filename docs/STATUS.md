@@ -51,7 +51,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    fases 3 a 5).
 5. Recomendación en vivo (`docs/plans/PROMPT_ETAPA_RECOMENDACION.md`; DECISIONS 11-06 p. 7-9): tema
    principal y 30 sugerencias con pesos (`recomendador.py`; botón D#0+D0). GABRIEL: Kontrol D2 en la
-   config externa; tocar; analizar el paquete en Traktor. LOCAL: taxonomía de géneros; TIV.
+   config externa; tocar; analizar el paquete. LOCAL: taxonomía de géneros (red de agentes; informe
+   `generos_beatport_2026-11-06`); TIV.
 
 ## RUN RECIPES
 

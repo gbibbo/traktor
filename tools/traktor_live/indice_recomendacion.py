@@ -13,6 +13,8 @@ CHANGELOG:
   - 2026-11-06: Creación (etapa de recomendación, unidad 2: sugerencias por CLAP).
   - 2026-11-06: Versión 2: género por tema (features/genre_pred.parquet: el de Beatport y, si falta, el del
                 clasificador, con su fuente), para el componente "genero" del puntaje.
+  - 2026-11-06: El clasificador solo con confianza >= 0.6 (el umbral de DECISIONS 2026-09-29, punto 5); el
+                gate de Discogs y la confianza baja quedan sin género (el componente no cuenta).
 """
 from __future__ import annotations
 
@@ -38,6 +40,21 @@ DEFAULT_OUT = te.DEFAULT_LOG_DIR / "indice_recomendacion.json"
 PACKAGE_NAME = "TRAKTOR ML"
 ORG_CSV = "_organizacion.csv"
 INDEX_VERSION = 2
+MIN_CLASSIFIER_CONF = 0.6             # DECISIONS 2026-09-29, punto 5
+
+
+def genre_of(beatport_genre, final_genre, final_source, model_conf) -> Optional[Dict[str, str]]:
+    """{"genero", "fuente"} de un tema: el de Beatport (A o B, confirmado o no); si no hay, el del
+    clasificador con confianza >= MIN_CLASSIFIER_CONF; si no, None."""
+    if isinstance(beatport_genre, str) and beatport_genre:
+        return {"genero": beatport_genre, "fuente": "beatport"}
+    try:
+        conf = float(model_conf)
+    except (TypeError, ValueError):
+        conf = 0.0
+    if final_source == "classifier" and isinstance(final_genre, str) and final_genre and conf >= MIN_CLASSIFIER_CONF:
+        return {"genero": final_genre, "fuente": "clasificador"}
+    return None
 
 
 def find_package(platform: Optional[str] = None) -> Optional[Path]:
@@ -124,10 +141,9 @@ def main() -> int:
     if gp_path.exists():
         gp = pd.read_parquet(gp_path)
         for r in gp.itertuples(index=False):
-            bp = r.beatport_genre if isinstance(r.beatport_genre, str) and r.beatport_genre else None
-            final = r.final_genre if isinstance(r.final_genre, str) and r.final_genre else None
-            if bp or final:
-                genres[r.track_uid] = {"genero": bp or final, "fuente": "beatport" if bp else str(r.final_source)}
+            g = genre_of(r.beatport_genre, r.final_genre, r.final_source, r.model_conf)
+            if g is not None:
+                genres[r.track_uid] = g
     index = build_index(rows, uids, emb, tags, args.rep, genres)
     index["paquete"] = str(package)
     out = Path(args.salida)
