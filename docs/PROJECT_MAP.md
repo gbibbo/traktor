@@ -21,6 +21,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `embedding_utils.py` | MERTEmbedder: embeddings MERT-v1-330M; load_track_embeddings (Phase 1 o representations/) |
 | `logging_utils.py` | Logger JSONL + run manifests |
 | `harmonic.py` | Compatibilidad armónica Camelot con transposición ±2 st (regla 2026-09-11) |
+| `genre_taxonomy.py` | Similitud entre géneros (y subgéneros) de Beatport a partir de una taxonomía propia en JSON: familias, género → familia, relaciones explícitas y regla por niveles; `Taxonomy.similarity/matrix` y `validate` (DECISIONS 2026-11-06, punto 10) |
 | `tags.py` | Tags con mutagen: BPM, tonalidad, género, sello, energía de Mixed In Key; hash de audio sin tags; comentario idempotente; `read_release_tags` (Remixer, ISRC, fecha, ID de Spotify) |
 | `duplicates.py` | Temas repetidos: qué copia se queda (MP3 320, si no la mejor calidad), decisiones de Gabriel (`duplicate_decisions.json`) y detección por capas (sonido, nombre, parecido, corte) |
 | `beatport.py` | Beatport sin API oficial (JSON de la búsqueda pública, caché por consulta): match por niveles A ISRC / B misma versión / C solo otras versiones / D nada, y tags propuestos con la convención de Beatport (Artist sin remixers, Remixers = mezcla u "Original Mix", Label, Genre, Released) |
@@ -102,6 +103,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_triplet_evidence.py` | Unit tests de triplet_evidence (dedup, resolución, baselines) |
 | `test_tags_catalog.py` | Unit tests de tags.py y del catálogo recursivo (hash estable al escribir tags, dedup) |
 | `test_beatport.py` | Unit tests sin red de beatport.py y de las consultas de beatport_lookup (niveles A-D, alias de artista, sellos, convención de tags, caché, subgénero y género completo de la página de un tema) |
+| `test_genre_taxonomy.py` | Similitud por el árbol de familias, relaciones de género y de subgénero, subgénero faltante, matriz simétrica y validación de forma de la taxonomía |
 | `test_genre_model.py` | Unit tests de genre_model.py (gate, etiquetas confirmadas alineadas por track_uids, validación cruzada) |
 | `test_write_beatport_tags.py` | Unit tests de write_beatport_tags.py (reglas del plan, escritura real en MP3 ID3 2.3 y FLAC, hash estable, reversión) |
 | `test_organize.py` | Unit tests de organize.py: build por alcance, add congelado, link congelado/rebuild, catálogo por alcance, ensamblado con --folder, orden a mano y quitar fusiones |
@@ -222,6 +224,12 @@ guarda lo conseguido y termina como `partial` (código 3).
 | `audio_devices.ps1` | Lista las salidas de audio y fija la predeterminada (IMMDeviceEnumerator + IPolicyConfig) |
 | `crear_acceso_directo.ps1` | Crea «Descargar playlists» en el Escritorio (`.venv\Scripts\pythonw.exe`, `icon.ico`) |
 | `icon.svg`, `icon.ico` | Icono de la ventana y del acceso directo |
+
+## Taxonomía de géneros (`tools/genre_taxonomy/`)
+
+| Archivo | Descripción |
+| :--- | :--- |
+| `tools/genre_taxonomy/referencias.py` | Baja las taxonomías de referencia a `artifacts/v4/genre_taxonomy/inputs/`: los géneros de MusicBrainz y su árbol electrónico con relaciones (leídas de las páginas: la API no las da) y la jerarquía de Wikidata bajo «electronic music» |
 
 ## Revisión de playlists (`tools/playlist_review/`)
 
