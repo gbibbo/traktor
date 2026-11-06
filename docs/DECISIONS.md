@@ -151,6 +151,29 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    quiere hacer cambios también en el escritorio.
 2. **En el escritorio, todo en el pendrive D:** (Gabriel: las descargas ya van a D:, y C: casi no tiene
    espacio). Los datos de la organización están en `D:\TRAKTOR ML datos\musica` (la copia verificada
+9. **El orden de las sugerencias será una combinación pesada de variables, y el botón en la mezcla
+   externa es D#0 + D0** (Gabriel, 2026-11-06).
+   - Las variables son CLAP, BPM, tonalidad, género de Beatport y un vector TIV que Gabriel va a sumar
+     para estimar la compatibilidad armónica. Los pesos se ajustan más adelante.
+   - El mismo BPM puntúa más que uno a -20. La misma tonalidad original puntúa más que una que pide
+     mover el pitch.
+   - Para el género hace falta una taxonomía de géneros de Beatport que traduzca dos etiquetas a un
+     número de similitud: queda pendiente.
+   - En su configuración de mezcla externa, D0 pliega o despliega la biblioteca. Gabriel la condiciona en
+     Traktor a M6 = 0, y las sugerencias se abren manteniendo D#0 (M6 = 1 mientras está apretado) y
+     apretando D0.
+
+   Cómo (agente):
+   - `recomendador.py` da a cada candidato componentes de 0 a 1 (`clap`, `bpm` lineal hasta ±20, `clave`
+     con la regla armónica, `genero` 1 igual o 0 distinto hasta que exista la taxonomía, `tiv`
+     reservado); el puntaje es su promedio pesado;
+   - los pesos van en `"pesos"` de `sugerencias_vivo.json`; por defecto solo CLAP, que mantiene el
+     orden del punto 7;
+   - cada lista queda en el registro con sus componentes, para ajustar los pesos después;
+   - el género sale de `genre_pred.parquet`: el de Beatport en 1429 temas y, si falta, el del
+     clasificador;
+   - el botón por defecto pasa a ser D#0 + D0 también en la mezcla interna, donde D#0 es Modifier #1 y
+     D0 no tiene función: el mismo gesto en las dos.
    que trajo la laptop), y `artifacts/v4/datasets/musica` del repo es un junction a esa carpeta; la
    copia en C: se borró. La música sale de `D:\TRAKTOR ML`: la app busca el paquete primero en la
    unidad de los datos. Sin el pendrive, la pestaña Organización no abre. Temas nuevos: pueden

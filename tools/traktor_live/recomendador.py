@@ -13,8 +13,19 @@ PURPOSE: Las sugerencias reales en vivo (DECISIONS 2026-11-06, puntos 7 y 8): lo
          - Si el tema principal no está en el índice o no tiene embedding, quedan los compatibles por BPM
            y tonalidad, del BPM más cercano al más lejano (modo "sin_clap").
          - Se calcula cuando cambia el tema principal o un tema pasa a tocado (Live), no al apretar.
+         Orden (DECISIONS 2026-11-06, punto 9): cada candidato que pasa los filtros recibe un puntaje de 0
+         a 1 por componente y el final es el promedio pesado de los que se conocen:
+           clap    parecido coseno (recortado a 0-1);
+           bpm     1 con el mismo BPM que suena, 0 a ±20 (lineal);
+           clave   la regla armónica: 1 la misma tonalidad original, menos si hay que mover el pitch;
+           genero  1 el mismo género (Beatport; si falta, el del clasificador), 0 otro;
+           tiv     reservado para el vector TIV (todavía no existe).
+         Los pesos van en "pesos" de sugerencias_vivo.json; por defecto solo CLAP (Gabriel, 11-06: por
+         ahora solo parecido CLAP). Cada lista anota los componentes de sus temas para ajustar los pesos.
 CHANGELOG:
   - 2026-11-06: Creación (etapa de recomendación, unidad 2: sugerencias por CLAP).
+  - 2026-11-06: Puntaje como promedio pesado de componentes (clap, bpm, clave, genero, tiv) y género en
+                el índice.
 """
 from __future__ import annotations
 
@@ -45,6 +56,8 @@ DEFAULT_INDEX = te.DEFAULT_LOG_DIR / "indice_recomendacion.json"
 DEFAULT_N = 30
 BPM_RANGE = 20.0
 KEY_MIN = 0.60                        # corte aprobado (HARMONIC_COMPATIBILITY.md)
+COMPONENTS = ("clap", "bpm", "clave", "genero", "tiv")
+DEFAULT_WEIGHTS: Dict[str, float] = {"clap": 1.0, "bpm": 0.0, "clave": 0.0, "genero": 0.0, "tiv": 0.0}
 MAJOR_CAMELOT = [8, 3, 10, 5, 12, 7, 2, 9, 4, 11, 6, 1]     # índice = semitono desde Do
 MINOR_CAMELOT = [5, 12, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10]
 _KEY_TEXT = re.compile(r"^\s*(\d{1,2})\s*([dmABab])\b")
@@ -98,6 +111,7 @@ class Item:
     bpm: Optional[float]
     key: str                          # Camelot o "?"
     vec: Optional[List[float]]        # embedding normalizado
+    genre: Optional[str] = None       # género de Beatport (o del clasificador)
     bpm_src: str = "tags"
     key_src: str = "tags"
     entry: Optional[ET.Element] = None
@@ -124,8 +138,34 @@ def load_index(path: Path) -> Tuple[dict, List[Item]]:
         bpm = t.get("bpm")
         items.append(Item(uid=t["uid"], rel=t.get("archivo") or "", original=t.get("original") or "",
                           artist=t.get("artista") or "", title=t.get("titulo") or "",
-                          bpm=float(bpm) if bpm else None, key=harmonic.to_camelot(t.get("key")), vec=vec))
+                          bpm=float(bpm) if bpm else None, key=harmonic.to_camelot(t.get("key")), vec=vec,
+                          genre=t.get("genero") or None))
     return data, items
+
+
+def weights_from(data) -> Dict[str, float]:
+    """Pesos guardados ({"clap": 1, "bpm": 0.5, ...}) sobre los de por defecto; los desconocidos o
+    negativos se ignoran."""
+    out = dict(DEFAULT_WEIGHTS)
+    if isinstance(data, dict):
+        for k, v in data.items():
+            try:
+                if k in out and float(v) >= 0:
+                    out[k] = float(v)
+            except (TypeError, ValueError):
+                pass
+    return out
+
+
+def weighted(components: Dict[str, Optional[float]], weights: Dict[str, float]) -> Optional[float]:
+    """Promedio pesado de los componentes conocidos con peso > 0 (None si no queda ninguno)."""
+    num = den = 0.0
+    for k, w in weights.items():
+        v = components.get(k)
+        if w > 0 and v is not None:
+            num += w * v
+            den += w
+    return num / den if den > 0 else None
 
 
 def package_root(items: List[Item], paths: Iterable[str]) -> Optional[str]:
@@ -149,8 +189,10 @@ class Recommender:
     """Candidatos = temas del índice cuya copia del paquete está en la colección de Traktor. update()
     calcula la lista para un tema principal; snapshot() la entrega al botón."""
 
-    def __init__(self, items: List[Item], entries: Dict[str, ET.Element], n: int = DEFAULT_N):
+    def __init__(self, items: List[Item], entries: Dict[str, ET.Element], n: int = DEFAULT_N,
+                 weights: Optional[Dict[str, float]] = None):
         self.n = n
+        self.weights = weights_from(weights)
         by_norm = {norm(k): e for k, e in entries.items()}
         self.root = package_root(items, by_norm.keys())
         self.by_suffix: Dict[str, Item] = {}
@@ -209,6 +251,9 @@ class Recommender:
         if main is not None:
             excluded.add(main.uid)
         use_clap = main is not None and main.vec is not None
+        weights = dict(self.weights)
+        if not use_clap and sum(w for k, w in weights.items() if k != "clap") == 0:
+            weights = {"bpm": 1.0}                      # sin CLAP y sin otros pesos: el BPM más cercano
         rows = []
         no_key = 0
         for it in self.candidates:
@@ -223,23 +268,30 @@ class Recommender:
                     continue
                 if score < KEY_MIN:
                     continue
-            if use_clap:
-                if it.vec is None:
-                    continue
-                sim = dot(main.vec, it.vec)
-            else:
-                sim = None
-            rows.append((it, sim, shift))
-        if use_clap:
-            rows.sort(key=lambda r: -r[1])
-        else:
-            rows.sort(key=lambda r: abs(r[0].bpm - bpm0) if bpm0 is not None and r[0].bpm else 0.0)
+            if use_clap and it.vec is None:
+                continue
+            sim = dot(main.vec, it.vec) if use_clap else None
+            comps = {
+                "clap": None if sim is None else min(1.0, max(0.0, sim)),
+                "bpm": None if bpm0 is None or it.bpm is None else max(0.0, 1.0 - abs(it.bpm - bpm0) / BPM_RANGE),
+                "clave": score if key0 != "?" and it.key != "?" else None,
+                "genero": (1.0 if it.genre == main.genre else 0.0)
+                if main is not None and main.genre and it.genre else None,
+                "tiv": None,
+            }
+            final = weighted(comps, weights)
+            rows.append((it, sim, shift, comps, -1.0 if final is None else final))
+        rows.sort(key=lambda r: -r[4])
         top = rows[: self.n]
         info = {"modo": "clap" if use_clap else "sin_clap",
                 "principal": {"path": principal.get("path"), "uid": main.uid if main else None,
-                              "bpm": None if bpm0 is None else round(bpm0, 2), "clave": key0},
-                "candidatos": len(rows), "sin_tonalidad": no_key, "excluidos": len(excluded),
+                              "bpm": None if bpm0 is None else round(bpm0, 2), "clave": key0,
+                              "genero": main.genre if main else None},
+                "pesos": weights, "candidatos": len(rows), "sin_tonalidad": no_key, "excluidos": len(excluded),
                 "uids": [r[0].uid for r in top],
+                "puntaje": [round(r[4], 4) for r in top],
+                "componentes": {k: [None if r[3][k] is None else round(r[3][k], 4) for r in top]
+                                for k in COMPONENTS if any(r[3][k] is not None for r in top)},
                 "parecido": [None if r[1] is None else round(r[1], 4) for r in top],
                 "semitonos": [r[2] for r in top],
                 "ms": round((time.perf_counter() - t0) * 1000, 1)}
@@ -263,7 +315,7 @@ class Recommender:
 
 
 def load_recommender(entries: Dict[str, ET.Element], index_path: Path = DEFAULT_INDEX,
-                     n: int = DEFAULT_N) -> Tuple[Optional[Recommender], str]:
+                     n: int = DEFAULT_N, weights: Optional[Dict[str, float]] = None) -> Tuple[Optional[Recommender], str]:
     """(Recommender, texto para el aviso). None si no hay índice o no se puede leer."""
     if not Path(index_path).exists():
         return None, (f"No hay índice de recomendación ({index_path}): las sugerencias son al azar. Armarlo una "
@@ -272,7 +324,7 @@ def load_recommender(entries: Dict[str, ET.Element], index_path: Path = DEFAULT_
         data, items = load_index(Path(index_path))
     except (OSError, ValueError, KeyError) as exc:
         return None, f"No pude leer el índice {index_path}: {type(exc).__name__}: {exc}"
-    rec = Recommender(items, entries, n)
+    rec = Recommender(items, entries, n, weights)
     if not rec.candidates:
         return None, (f"Ningún tema del índice está en la colección de Traktor: las sugerencias son al azar "
                       f"(¿Traktor tiene la carpeta del paquete en su colección?)")
@@ -284,4 +336,5 @@ def load_recommender(entries: Dict[str, ET.Element], index_path: Path = DEFAULT_
             stale = " ÍNDICE VIEJO: la biblioteca cambió después; volver a correr indice_recomendacion.py."
     except (OSError, ValueError, KeyError):
         pass
-    return rec, f"Recomendación por {data.get('rep', '?')}: {rec.summary()}.{stale}"
+    pesos = ", ".join(f"{k} {w:g}" for k, w in rec.weights.items() if w > 0)
+    return rec, f"Recomendación por {data.get('rep', '?')}: {rec.summary()}. Pesos: {pesos}.{stale}"

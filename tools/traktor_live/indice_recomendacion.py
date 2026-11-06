@@ -11,6 +11,8 @@ PURPOSE: Arma el índice de la recomendación en vivo (recomendador.py): un JSON
          artifacts/v4/traktor_live/indice_recomendacion.json (fuera de Git).
 CHANGELOG:
   - 2026-11-06: Creación (etapa de recomendación, unidad 2: sugerencias por CLAP).
+  - 2026-11-06: Versión 2: género por tema (features/genre_pred.parquet: el de Beatport y, si falta, el del
+                clasificador, con su fuente), para el componente "genero" del puntaje.
 """
 from __future__ import annotations
 
@@ -35,7 +37,7 @@ DEFAULT_REP = "clap_full"
 DEFAULT_OUT = te.DEFAULT_LOG_DIR / "indice_recomendacion.json"
 PACKAGE_NAME = "TRAKTOR ML"
 ORG_CSV = "_organizacion.csv"
-INDEX_VERSION = 1
+INDEX_VERSION = 2
 
 
 def find_package(platform: Optional[str] = None) -> Optional[Path]:
@@ -55,9 +57,11 @@ def find_package(platform: Optional[str] = None) -> Optional[Path]:
     return None
 
 
-def build_index(rows: List[Dict[str, str]], uids: List[str], embeddings, tags: Dict[str, Dict], rep: str) -> dict:
+def build_index(rows: List[Dict[str, str]], uids: List[str], embeddings, tags: Dict[str, Dict], rep: str,
+                genres: Optional[Dict[str, Dict]] = None) -> dict:
     """rows: _organizacion.csv; uids/embeddings: la representación (misma fila); tags: track_uid ->
-    {"bpm", "key"}. Devuelve el índice (dict serializable)."""
+    {"bpm", "key"}; genres: track_uid -> {"genero", "fuente"}. Devuelve el índice (dict serializable)."""
+    genres = genres or {}
     import numpy as np
     emb = np.asarray(embeddings, dtype="float64")
     norms = np.linalg.norm(emb, axis=1)
@@ -79,6 +83,7 @@ def build_index(rows: List[Dict[str, str]], uids: List[str], embeddings, tags: D
             "carpeta": r.get("carpeta", ""), "playlist": r.get("playlist", ""),
             "bpm": None if bpm is None or bpm != bpm else round(float(bpm), 2),
             "key": t.get("key") or None, "emb": vec,
+            "genero": (genres.get(uid) or {}).get("genero"), "genero_fuente": (genres.get(uid) or {}).get("fuente"),
         })
     return {"version": INDEX_VERSION, "rep": rep, "dim": int(emb.shape[1]) if emb.ndim == 2 else 0,
             "creado": dt.datetime.now().isoformat(timespec="seconds"), "temas": tracks}
@@ -114,7 +119,16 @@ def main() -> int:
         bk = pd.read_parquet(bk_path)
         for r in bk.itertuples(index=False):
             tags[r.track_uid] = {"bpm": r.bpm, "key": r.key if isinstance(r.key, str) and r.key else None}
-    index = build_index(rows, uids, emb, tags, args.rep)
+    genres: Dict[str, Dict] = {}
+    gp_path = data / "features" / "genre_pred.parquet"
+    if gp_path.exists():
+        gp = pd.read_parquet(gp_path)
+        for r in gp.itertuples(index=False):
+            bp = r.beatport_genre if isinstance(r.beatport_genre, str) and r.beatport_genre else None
+            final = r.final_genre if isinstance(r.final_genre, str) and r.final_genre else None
+            if bp or final:
+                genres[r.track_uid] = {"genero": bp or final, "fuente": "beatport" if bp else str(r.final_source)}
+    index = build_index(rows, uids, emb, tags, args.rep, genres)
     index["paquete"] = str(package)
     out = Path(args.salida)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -123,7 +137,8 @@ def main() -> int:
     tmp.replace(out)
     t = index["temas"]
     print(f"[OK] {out}: {len(t)} temas del paquete {package}; con embedding {sum(1 for x in t if x['emb'])}, "
-          f"con BPM {sum(1 for x in t if x['bpm'])}, con tonalidad de tags {sum(1 for x in t if x['key'])}")
+          f"con BPM {sum(1 for x in t if x['bpm'])}, con tonalidad de tags {sum(1 for x in t if x['key'])}, "
+          f"con género {sum(1 for x in t if x['genero'])} (de Beatport {sum(1 for x in t if x['genero_fuente'] == 'beatport')})")
     return 0
 
 

@@ -10,6 +10,7 @@ CHANGELOG:
 import json
 import os
 import sys
+import time
 import urllib.request
 from pathlib import Path
 
@@ -200,6 +201,9 @@ def test_the_receiver_passes_each_event_to_the_listener_and_survives_its_errors(
             req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", data=json.dumps(body).encode("utf-8"),
                                          headers={"Content-Type": "application/json"}, method="POST")
             urllib.request.urlopen(req, timeout=5).read()
+        end = time.monotonic() + 5                       # el receptor contesta antes de procesar el evento
+        while len(got) < 2 and time.monotonic() < end:
+            time.sleep(0.01)
     finally:
         stop.set()
         thread.join(timeout=5)

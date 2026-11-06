@@ -219,3 +219,38 @@ def test_open_servers_refuses_a_busy_port():
     finally:
         for s in first:
             s.server_close()
+
+
+def test_the_default_button_needs_d_sharp_0_held_and_a_learned_one_does_not():
+    assert sv.combo_name(sv.DEFAULT_BUTTON, sv.DEFAULT_MODIFIER) == "Ch15.Note.D#0 + Ch15.Note.D0"
+    assert sv.modifier_from_settings({}) == sv.DEFAULT_MODIFIER
+    assert sv.modifier_from_settings({"button": {"kind": "cc", "channel": 3, "number": 64}}) is None
+    assert sv.modifier_from_settings({"modificador": None}) is None
+    assert sv.modifier_from_settings({"modificador": {"kind": "note", "channel": 1, "number": 2}}) == sv.Button("note", 1, 2)
+    held = sv.Held()
+    b, m = sv.DEFAULT_BUTTON, sv.DEFAULT_MODIFIER
+    assert not sv.fires(b, m, held, "note_on", 15, 14, 127)                  # D0 solo: pliega la biblioteca
+    held.update("note_on", 15, 15, 127)                                     # mantener D#0
+    assert sv.fires(b, m, held, "note_on", 15, 14, 127)
+    held.update("note_off", 15, 15, 0)
+    assert not sv.fires(b, m, held, "note_on", 15, 14, 127)
+    assert sv.fires(b, None, held, "note_on", 15, 14, 127)                  # sin modificador, como antes
+    held.update("cc", 1, 7, 127)
+    assert held.is_held(sv.Button("cc", 1, 7))
+    held.update("cc", 1, 7, 0)
+    assert not held.is_held(sv.Button("cc", 1, 7))
+
+
+def test_learning_takes_the_held_button_as_modifier():
+    import queue
+    import threading
+
+    def learn(messages):
+        q = queue.SimpleQueue()
+        for status, d1, d2 in messages:
+            q.put((status | (d1 << 8) | (d2 << 16), 0.0))
+        return sv.learn_button(q, threading.Event())
+
+    assert learn([(0x9E, 15, 127), (0x9E, 14, 127), (0x8E, 14, 0), (0x8E, 15, 0)]) ==         (sv.Button("note", 15, 14), sv.Button("note", 15, 15))
+    assert learn([(0x9E, 14, 127), (0x9E, 14, 0)]) == (sv.Button("note", 15, 14), None)
+    assert learn([(0xB2, 20, 127), (0xB2, 20, 0)]) == (sv.Button("cc", 3, 20), None)

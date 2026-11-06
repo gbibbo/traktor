@@ -7,6 +7,8 @@ CHANGELOG:
   - 2026-11-04: Creación inicial.
   - 2026-11-05: Rutas de Windows explícitas (corren igual en macOS y Linux); lo multiplataforma, en
                 test_traktor_live_platforms.py.
+  - 2026-11-06: El test del receptor espera a que el evento se aplique (contesta antes de aplicarlo:
+                falló una vez con la máquina ocupada).
 """
 import json
 import re
@@ -152,6 +154,9 @@ def test_server_receives_non_ascii_json(tmp_path):
         req = urllib.request.Request(f"http://127.0.0.1:{server.server_address[1]}/deckLoaded/B", data=body,
                                      headers={"Content-Type": "application/json"}, method="POST")
         assert urllib.request.urlopen(req, timeout=5).status == 200
+        end = time.monotonic() + 5                   # el receptor contesta antes de aplicar el evento
+        while "B" not in st.decks and time.monotonic() < end:
+            time.sleep(0.01)
     finally:
         server.shutdown()
         server.server_close()

@@ -36,6 +36,7 @@ TRACKS = {
     "g": ((0.99, 0.05), 124, "8A", None, None, True),      # ya tocado: no
     "h": ((0.999, 0.01), 124, "8A", None, None, False),    # no está en la colección de Traktor: no
 }
+GENRES = {"main": "Tech House", "a": "Techno", "b": "Tech House", "f": "Tech House", "g": "Techno"}
 
 
 def unit_b64(v):
@@ -55,7 +56,8 @@ def make_library(tmp_path):
         f = folder / f"{uid}.mp3"
         f.write_bytes(b"")
         temas.append({"uid": uid, "archivo": f"Musica\\P1\\{uid}.mp3", "original": f"Viejo\\{uid}.mp3",
-                      "artista": "X", "titulo": uid, "bpm": bpm, "key": key, "emb": unit_b64(vec)})
+                      "artista": "X", "titulo": uid, "bpm": bpm, "key": key, "emb": unit_b64(vec),
+                      "genero": GENRES.get(uid)})
         if not in_coll:
             continue
         e = ET.SubElement(coll, "ENTRY", TITLE=uid, ARTIST="X")
@@ -145,13 +147,15 @@ def test_build_index_normalizes_embeddings_and_keeps_tags():
     rows = [{"track_uid": "u1", "archivo": "Musica\\P\\a.mp3", "carpeta_original": "Viejo", "nombre_original": "a.mp3",
              "artista": "A", "titulo": "T", "carpeta": "C", "playlist": "P"},
             {"track_uid": "u2", "archivo": "Musica\\P\\b.mp3", "carpeta_original": "", "nombre_original": "b.mp3"}]
-    index = ir.build_index(rows, ["u2", "u1"], [[0.0, 2.0], [3.0, 4.0]], {"u1": {"bpm": 124.0, "key": "8A"}}, "clap_full")
+    index = ir.build_index(rows, ["u2", "u1"], [[0.0, 2.0], [3.0, 4.0]], {"u1": {"bpm": 124.0, "key": "8A"}}, "clap_full",
+                           {"u1": {"genero": "Tech House", "fuente": "beatport"}})
     t1, t2 = index["temas"]
     vec = array("f")
     vec.frombytes(base64.b64decode(t1["emb"]))
     assert [round(x, 4) for x in vec] == [0.6, 0.8] and t1["original"] == "Viejo\\a.mp3"
     assert t1["bpm"] == 124.0 and t1["key"] == "8A" and t2["bpm"] is None and t2["original"] == "b.mp3"
-    assert index["dim"] == 2 and index["rep"] == "clap_full"
+    assert index["dim"] == 2 and index["rep"] == "clap_full" and index["version"] == 2
+    assert (t1["genero"], t1["genero_fuente"], t2["genero"]) == ("Tech House", "beatport", None)
 
 
 def test_suggestions_write_the_recommended_list_and_fall_back_to_random(tmp_path):
@@ -205,3 +209,32 @@ def test_the_session_recalculates_on_main_track_pitch_and_played(tmp_path):
                      ("refresh", ["a.mp3"])]
     kinds = [json.loads(line)["kind"] for line in log.read_text(encoding="utf-8").splitlines()]
     assert kinds.count("recomendacion") == 4 and kinds.count("principal") == 1 and kinds.count("tocado") == 1
+
+
+def test_weights_combine_the_components_and_default_to_clap_only():
+    assert rc.weights_from(None) == {"clap": 1.0, "bpm": 0.0, "clave": 0.0, "genero": 0.0, "tiv": 0.0}
+    assert rc.weights_from({"bpm": "0.5", "x": 3, "clave": -1})["bpm"] == 0.5
+    assert rc.weights_from({"clave": -1})["clave"] == 0.0
+    assert rc.weighted({"clap": 0.8, "bpm": 0.5, "tiv": None}, {"clap": 1, "bpm": 3, "tiv": 5}) == (0.8 + 1.5) / 4
+    assert rc.weighted({"clap": None}, {"clap": 1}) is None
+
+
+def test_bpm_key_and_genre_weights_change_the_order(tmp_path):
+    collection, index = make_library(tmp_path)
+    entries = entries_by_path(collection)
+
+    def order(weights):
+        rec, text = rc.load_recommender(entries, index, weights=weights)
+        tracks, info = rec.compute(principal())
+        return [t.title for t in tracks], info, text
+
+    titles, info, text = order(None)
+    assert titles == ["g", "a", "f", "b"] and "Pesos: clap 1." in text
+    assert set(info["componentes"]) == {"clap", "bpm", "clave", "genero"}         # tiv todavía no existe
+    assert [round(x, 2) for x in info["componentes"]["bpm"]] == [1.0, 0.95, 0.95, 0.8]       # suena a 123,996
+    assert info["principal"]["genero"] == "Tech House"
+    assert order({"clap": 0, "bpm": 1})[0] == ["g", "f", "a", "b"]           # 124, 123, 125, 128 BPM (suena a 123,996)
+    assert order({"clap": 0, "clave": 1})[0] == ["a", "f", "g", "b"]         # 8A antes que la vecina 9A
+    assert order({"clap": 0, "genero": 1})[0] == ["b", "f", "a", "g"]        # Tech House como el principal
+    titles, info, _ = order({"clap": 1, "genero": 1})
+    assert titles[:2] == ["f", "b"] and info["puntaje"][0] > info["puntaje"][2]

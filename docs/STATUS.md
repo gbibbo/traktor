@@ -50,9 +50,9 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    tracklists y descarga del audio se consultan antes de implementar.
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
-5. Recomendación en vivo (`docs/plans/PROMPT_ETAPA_RECOMENDACION.md`; DECISIONS 11-06 p. 7-8): hecho
-   tema principal y 30 sugerencias CLAP (`recomendador.py`). GABRIEL: probarlo tocando; analizar en
-   Traktor el paquete. LOCAL: mezcla cambiada con Traktor abierto. Base: tag `sugerencias-vivo-v3`.
+5. Recomendación en vivo (`docs/plans/PROMPT_ETAPA_RECOMENDACION.md`; DECISIONS 11-06 p. 7-9): tema
+   principal y 30 sugerencias con pesos (`recomendador.py`; botón D#0+D0). GABRIEL: tocar; analizar el
+   paquete en Traktor. LOCAL: mezcla cambiada con Traktor abierto; taxonomía de géneros; TIV.
 
 ## RUN RECIPES
 

@@ -42,6 +42,10 @@ CHANGELOG:
                 tocado se calculan los 30 más parecidos por CLAP con BPM ±20 y tonalidad compatible; el
                 botón escribe esa lista (al azar solo si todavía no hay tema principal o falta el índice).
                 El registro anota "recomendacion" y, en cada ida, el modo y los puntajes. 30 por defecto.
+  - 2026-11-06: Botón con modificador: en la mezcla externa D0 pliega la biblioteca (Traktor, con M6 = 0),
+                así que por defecto las sugerencias se abren manteniendo D#0 y apretando D0, en las dos
+                mezclas ("modificador" en los ajustes; null = sin modificador). --aprender aprende los dos.
+                Pesos del puntaje en "pesos" (recomendador.py).
 """
 from __future__ import annotations
 
@@ -113,6 +117,35 @@ class Button:
 
 
 DEFAULT_BUTTON = Button("note", 15, 14)             # Ch15.Note.D0 en el mapeo del K2 de Gabriel
+DEFAULT_MODIFIER = Button("note", 15, 15)           # Ch15.Note.D#0, mantenido (M1 o M6 en sus mapeos)
+
+
+def combo_name(button: Button, modifier: Optional[Button]) -> str:
+    return button.name() if modifier is None else f"{modifier.name()} + {button.name()}"
+
+
+class Held:
+    """Qué notas y CC del controlador están apretados ahora: el modificador se mantiene mientras se
+    aprieta el botón (en la mezcla externa D0 solo pliega la biblioteca si M6 = 0, y D#0 pone M6 = 1)."""
+
+    def __init__(self):
+        self.down = set()
+
+    def update(self, kind: str, ch: int, d1: int, d2: int) -> None:
+        if kind == "note_on" and d2 > 0:
+            self.down.add(("note", ch, d1))
+        elif kind == "note_off":
+            self.down.discard(("note", ch, d1))
+        elif kind == "cc":
+            (self.down.add if d2 >= 64 else self.down.discard)(("cc", ch, d1))
+
+    def is_held(self, b: Button) -> bool:
+        return (b.kind, b.channel, b.number) in self.down
+
+
+def fires(button: Button, modifier: Optional[Button], held: Held, kind: str, ch: int, d1: int, d2: int) -> bool:
+    """¿Este mensaje abre las sugerencias? El botón apretado y, si hay modificador, mantenido."""
+    return button.pressed(kind, ch, d1, d2) and (modifier is None or held.is_held(modifier))
 
 
 def traktor_name(channel: int, note: int) -> str:
@@ -228,18 +261,50 @@ def button_from_settings(data: dict) -> Button:
         return DEFAULT_BUTTON
 
 
-def learn_button(events: "queue.SimpleQueue", stop: threading.Event) -> Optional[Button]:
-    print("[INFO] Aprieta el botón del controlador que va a abrir las sugerencias...")
+def modifier_from_settings(data: dict) -> Optional[Button]:
+    """El botón que hay que mantener apretado: el guardado en "modificador" (null = ninguno) o, con el
+    botón por defecto (el K2 de Gabriel), D#0. Un botón aprendido sin modificador no lleva."""
+    if "modificador" in data:
+        m = data["modificador"]
+        try:
+            return None if m is None else Button(str(m["kind"]), int(m["channel"]), int(m["number"]))
+        except (TypeError, KeyError, ValueError):
+            return None
+    return DEFAULT_MODIFIER if "button" not in data else None
+
+
+LEARN_QUIET_S = 1.5                   # sin mensajes este tiempo después de apretar: se decide
+
+
+def learn_button(events: "queue.SimpleQueue", stop: threading.Event) -> Optional[Tuple[Button, Optional[Button]]]:
+    """(botón, modificador). El botón es el último que se apretó; el modificador, el que estaba mantenido
+    en ese momento. Se decide al soltar todo (o tras LEARN_QUIET_S sin mensajes)."""
+    print("[INFO] Aprieta el botón que va a abrir las sugerencias. Para usar dos juntos, mantén apretado "
+          "el modificador (p. ej. D#0) y aprieta el otro.")
+    held = Held()
+    last: Optional[Tuple[Button, set]] = None
+    quiet_since = time.monotonic()
     while not stop.is_set():
         try:
             packed, _ = events.get(timeout=0.2)
         except queue.Empty:
+            if last is not None and time.monotonic() - quiet_since > LEARN_QUIET_S:
+                break
             continue
-        b = Button.from_event(*decode(packed))
+        quiet_since = time.monotonic()
+        kind, ch, d1, d2 = decode(packed)
+        b = Button.from_event(kind, ch, d1, d2)
         if b is not None:
-            print(f"[OK] Botón: {b.name()}")
-            return b
-    return None
+            last = (b, set(held.down) - {(b.kind, b.channel, b.number)})
+        held.update(kind, ch, d1, d2)
+        if last is not None and not held.down:
+            break
+    if last is None:
+        return None
+    button, before = last
+    modifier = Button(*sorted(before)[0]) if len(before) == 1 else None
+    print(f"[OK] Botón: {combo_name(button, modifier)}")
+    return button, modifier
 
 
 class Suggestions:
@@ -286,7 +351,8 @@ def main() -> int:
     ap.add_argument("--midi", default=None,
                     help=f"Parte del nombre de la entrada MIDI del controlador (por defecto la guardada o {DEFAULT_MIDI})")
     ap.add_argument("--aprender", action="store_true",
-                    help=f"Elegir otro botón apretándolo (por defecto {DEFAULT_BUTTON.name()}); nota o CC")
+                    help=f"Elegir otro botón apretándolo (por defecto {combo_name(DEFAULT_BUTTON, DEFAULT_MODIFIER)}); "
+                         "nota o CC, solo o con un modificador mantenido")
     ap.add_argument("--n", type=int, default=None, help=f"Temas por lista (por defecto el guardado o {DEFAULT_N})")
     ap.add_argument("--dir", default=None, help="Carpeta del .nml de sugerencias (por defecto la guardada o "
                                                 f"{default_live_dir()})")
@@ -423,7 +489,7 @@ def run_session(settings_path: Path, stop: threading.Event, say: Say = console_s
         return 1
     say("info", f"Colección: {collection} ({len(sugg.tracks)} {sugg.pool} para las listas al azar)")
     index_path = Path(settings.get("indice") or rc.DEFAULT_INDEX)
-    rec, rec_text = rc.load_recommender(sugg.by_path, index_path, n)
+    rec, rec_text = rc.load_recommender(sugg.by_path, index_path, n, settings.get("pesos"))
     # sin índice es lo normal en otro ordenador (las listas salen al azar); viejo o ilegible, un aviso
     say("aviso" if "VIEJO" in rec_text or (rec is None and index_path.exists()) else "info", rec_text)
     sugg.recommender = rec
@@ -475,22 +541,25 @@ def run_session(settings_path: Path, stop: threading.Event, say: Say = console_s
             if midi.input is None:
                 say("error", "Para aprender el botón el controlador tiene que estar enchufado")
                 return 1
-            button = learn_button(midi.input.events, stop)
-            if button is None:
+            learned = learn_button(midi.input.events, stop)
+            if learned is None:
                 return 0
+            button, modifier = learned
             settings["button"] = asdict(button)
+            settings["modificador"] = asdict(modifier) if modifier is not None else None
             save_settings(settings, settings_path)
         else:
-            button = button_from_settings(settings)
+            button, modifier = button_from_settings(settings), modifier_from_settings(settings)
 
         def remember(path: List[str]) -> None:
             settings.setdefault("destinos", {})[str(sugg.nml)] = path
             save_settings(settings, settings_path)
             say("ok", f"Aprendí el camino hasta las sugerencias: {' › '.join(path[1:])}")
 
-        say("ok", f"Listo. Controlador: {midi.name or '(todavía no aparece)'}. Botón: {button.name()}. "
-                  f"Sugerencias en {sugg.nml}.")
+        say("ok", f"Listo. Controlador: {midi.name or '(todavía no aparece)'}. Botón: "
+                  f"{combo_name(button, modifier)}. Sugerencias en {sugg.nml}.")
         toggle = Toggle(target, on_learn=remember)
+        held = Held()
         last, last_poll = 0.0, time.monotonic()
         while not stop.is_set():
             if time.monotonic() - last_poll > MIDI_POLL_S:
@@ -500,7 +569,9 @@ def run_session(settings_path: Path, stop: threading.Event, say: Say = console_s
             if event is None:
                 continue
             packed, t = event
-            if not button.pressed(*decode(packed)):
+            msg = decode(packed)
+            held.update(*msg)
+            if not fires(button, modifier, held, *msg):
                 continue
             if t - last < DEBOUNCE_S:
                 continue

@@ -140,6 +140,12 @@ flowchart LR
    - El tema principal se reconoce también si suena desde la carpeta original (`Música/...`). Si no está
      en la biblioteca, quedan los compatibles por BPM y tonalidad, del BPM más cercano al más lejano.
    - El cálculo tarda unos 50 ms y se hace antes de apretar: el botón solo escribe la lista y navega.
+   - El orden es un promedio pesado de componentes de 0 a 1 (DECISIONS 2026-11-06, punto 9): `clap`
+     (parecido), `bpm` (1 con el mismo BPM, 0 a ±20), `clave` (1 la misma tonalidad original, menos si
+     hay que mover el pitch), `genero` (1 el mismo género de Beatport, 0 otro; la similitud entre
+     géneros vendrá de una taxonomía) y `tiv` (reservado). Los pesos van en `"pesos"` de
+     `sugerencias_vivo.json`, por ejemplo `{"clap": 1, "bpm": 0.5}`; por defecto, solo CLAP. Cada
+     lista queda en el registro con sus componentes, para ajustar los pesos después.
 
    Hace falta el índice de la biblioteca, una vez y otra cada vez que cambie la biblioteca, con el
    Python del pipeline (numpy y pandas):
@@ -155,9 +161,11 @@ flowchart LR
 - **Traktor Pro 4**, probado en 4.4.1. El instalador también encuentra Traktor Pro 3, pero no se probó.
 - **Un Kontrol D2 agregado en Traktor:** Preferences > Controller Manager > Add… > Traktor > Kontrol D2.
   No hace falta tenerlo.
-- **Un controlador MIDI con un botón libre** (nota o CC). Por defecto es el D0 del canal 15 del Xone K2
-  de Gabriel, la nota 14, que antes cargaba la preescucha. En el Controller Manager hay que borrarle la
-  función que tenga.
+- **Un controlador MIDI con un botón libre** (nota o CC), solo o con un modificador mantenido. Por
+  defecto, en el Xone K2 de Gabriel: **mantener D#0 y apretar D0** (canal 15, notas 15 y 14; desde el
+  2026-11-06). En su mezcla externa D0 pliega la biblioteca, condicionado en Traktor a M6 = 0, y D#0
+  pone M6 = 1 mientras está apretado; en la interna, D#0 es Modifier #1 y D0 no tiene función. Con otro
+  controlador, el botón que se aprende (`--aprender`) va solo, salvo que se aprenda con un modificador.
 - **Python 3.11** en el `.venv` del repo, sin paquetes extra en Windows. Lo crea el lanzador. En macOS
   hace falta `python-rtmidi`, que el lanzador `.command` instala solo. A mano:
 
@@ -230,7 +238,7 @@ Opciones; lo que se elige queda guardado para la próxima vez:
 | Opción | Para qué |
 | --- | --- |
 | `--midi <palabra>` | Otro controlador: una palabra de su nombre (`--listar` muestra las entradas). Por defecto `K2`. |
-| `--aprender` | Elegir otro botón apretándolo. Sirve una nota o un CC (valor >= 64). |
+| `--aprender` | Elegir otro botón apretándolo. Sirve una nota o un CC (valor >= 64). Para usar dos juntos, mantener el modificador y apretar el otro; `"modificador": null` en los ajustes lo quita. |
 | `--n <N>` | Temas por lista (30). |
 | `--dir <carpeta>` | Carpeta del `.nml`. |
 | `--backend winmm\|rtmidi` | Motor MIDI. Por defecto `winmm` en Windows y `rtmidi` en el resto. |
