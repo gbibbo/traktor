@@ -16,6 +16,7 @@ CHANGELOG:
   - 2026-11-04: Orden "goto" (ruta completa) y wait_result() para esperar el reporte de una orden.
   - 2026-11-05: Con show_browser=False tampoco imprime el "goto" fallido (lo avisa sugerencias_vivo.py).
   - 2026-11-05: open_servers() para este receptor y sugerencias_vivo.py; ::1 solo si el equipo tiene IPv6.
+  - 2026-11-06: log_event(): el registro de la sesión con un solo candado para todos los que escriben.
 """
 from __future__ import annotations
 
@@ -148,8 +149,21 @@ class State:
             return self.commands.pop(0) if self.commands else None
 
 
+_LOG_LOCK = threading.Lock()
+
+
+def log_event(log_path: Optional[Path], kind: str, target: str, data: dict) -> None:
+    """Una línea JSON en el registro de la sesión (la usan el receptor y sugerencias_vivo.py, que anota
+    cada pulsación con los temas sugeridos)."""
+    if log_path is None:
+        return
+    line = json.dumps({"t": dt.datetime.now().isoformat(timespec="milliseconds"), "kind": kind,
+                       "target": target, "data": data}, ensure_ascii=False)
+    with _LOG_LOCK, open(log_path, "a", encoding="utf-8") as f:
+        f.write(line + "\n")
+
+
 def make_handler(state: State, log_path: Optional[Path]):
-    log_lock = threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
         def _reply(self, body: bytes = b"", ctype: str = "application/json") -> None:
@@ -203,10 +217,7 @@ def make_handler(state: State, log_path: Optional[Path]):
                 print(f"[AVISO] JSON ilegible en {self.path}: {text[:200]!r}")
                 data = {"_raw": text}
             now = dt.datetime.now()
-            if log_path is not None:
-                with log_lock, open(log_path, "a", encoding="utf-8") as f:
-                    f.write(json.dumps({"t": now.isoformat(timespec="milliseconds"), "kind": ep[0],
-                                        "target": ep[1], "data": data}, ensure_ascii=False) + "\n")
+            log_event(log_path, ep[0], ep[1], data)
             if "_raw" in data:
                 return
             for line in state.apply(ep[0], ep[1], data):

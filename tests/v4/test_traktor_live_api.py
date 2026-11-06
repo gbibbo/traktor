@@ -344,14 +344,19 @@ def test_press_goes_to_suggestions_then_back_with_a_fake_probe(tmp_path):
             st.apply("browserProbe", "left", {"reason": reason, "id": cmd["id"], "path": where["path"],
                                               "currentIndex": where["index"]})
     threading.Thread(target=fake_probe, daemon=True).start()
+    log = tmp_path / "sesion.jsonl"
     try:
-        sv.press(st, tg, sugg)
+        sv.press(st, tg, sugg, log)
         assert where["path"].endswith("TRAKTOR ML Sugerencias NML") and where["index"] == 0
         assert len(list(ET.parse(sugg.nml).getroot().iter("PRIMARYKEY"))) == 5
-        sv.press(st, tg, sugg)
+        sv.press(st, tg, sugg, log)
         assert where == {"path": "Browser | Playlist | Cluster_02", "index": 7}
     finally:
         done.set()
+    ida, vuelta = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+    assert (ida["kind"], ida["target"], vuelta["target"]) == ("boton", "sugerencias", "volver")
+    assert ida["data"]["llego"] and ida["data"]["lista"] == 1 and len(ida["data"]["temas"]) == 5
+    assert ida["data"]["desde"] == "Browser | Playlist | Cluster_02" and "temas" not in vuelta["data"]
 
 
 def test_wait_result_returns_the_probe_report_for_an_order():

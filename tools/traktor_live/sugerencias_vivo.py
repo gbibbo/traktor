@@ -28,6 +28,8 @@ CHANGELOG:
   - 2026-11-05: En otro ordenador: si la colección tiene menos de N temas con cues propios, las listas de
                 prueba salen de toda la colección (antes se caía); si ni así alcanzan, un mensaje claro.
                 Al arrancar avisa si a Traktor le falta la sonda, con el comando para instalarla.
+  - 2026-11-06: Cada pulsación queda en el registro de la sesión (kind "boton": ida o vuelta, desde y
+                hacia dónde, si llegó, ms y, en una ida, los temas sugeridos), para la prueba tocando.
 """
 from __future__ import annotations
 
@@ -376,7 +378,7 @@ def main() -> int:
             if t - last < DEBOUNCE_S:
                 continue
             last = t
-            press(state, toggle, sugg)
+            press(state, toggle, sugg, log_path)
     finally:
         stop.set()
         signal.signal(signal.SIGINT, previous)
@@ -386,24 +388,32 @@ def main() -> int:
     return 0
 
 
-def press(state: te.State, toggle: Toggle, sugg: Suggestions) -> None:
+def press(state: te.State, toggle: Toggle, sugg: Suggestions, log_path: Optional[Path] = None) -> None:
+    """Una pulsación del botón. Anota en el registro de la sesión qué hizo, si llegó, cuánto tardó, desde
+    dónde y, en una ida, los temas sugeridos (para ver después cuáles se cargaron en un deck)."""
     t0 = time.perf_counter()
     rid = state.enqueue("report")
     rep = state.wait_result(rid, 2.0)
     if rep is None:
+        te.log_event(log_path, "boton", "sin_respuesta", {})
         print("[AVISO] La pantalla del D2 no responde: ¿Traktor abierto, con el Kontrol D2 agregado en el "
               "Controller Manager y la sonda instalada (instalar_api_client.py --sonda)?")
         return
     action, path, index = toggle.decide(rep.get("path", ""), int(rep.get("currentIndex", -1)))
+    event = {"desde": rep.get("path", ""), "hacia": path}
     if action == "sugerencias":
         chosen = sugg.next()
+        event.update({"lista": sugg.round, "temas": [str(t.path) for t in chosen]})
         print(f"[{dt.datetime.now():%H:%M:%S}] Sugerencias (lista {sugg.round}): "
               + "; ".join(f"{t.artist} - {t.title}" for t in chosen[:3]) + " ...")
     gid = state.enqueue("goto", {"path": path, "index": index})
     res = state.wait_result(gid, 12.0)
     ms = (time.perf_counter() - t0) * 1000
     now = f"{dt.datetime.now():%H:%M:%S}"
-    if res is not None and res.get("reason") == "gotoDone":
+    ok = res is not None and res.get("reason") == "gotoDone"
+    event.update({"llego": ok, "ms": round(ms), "error": "" if ok else (res or {}).get("error", "sin respuesta")})
+    te.log_event(log_path, "boton", action, event)
+    if ok:
         where = " › ".join(path[1:])
         print(f"[{now}] {'En las sugerencias' if action == 'sugerencias' else 'De vuelta en ' + where}"
               f" ({ms:.0f} ms)")
