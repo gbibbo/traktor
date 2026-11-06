@@ -95,6 +95,18 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    - un cambio con el tema anterior todavía al aire se sostiene 3 s; si el anterior sale del aire,
      cambia enseguida;
    - tocado = 30 s en play con el fader al 50 % o más.
+8. **Tonalidad de Traktor, 30 sugerencias y cambio de mezcla con Traktor abierto** (Gabriel, 2026-11-06).
+   - Toca con la tonalidad que estima Traktor: se ve en el deck, con un color que le dice si el cambio
+     de pitch deja los temas compatibles. La recomendación usa esa; la de los tags, solo si Traktor
+     todavía no analizó el tema. Traktor analizó 231 de los 1717 temas del paquete que tiene en su
+     colección; en los 194 que tienen las dos, coinciden 160.
+   - 30 sugerencias por lista.
+   - Cambia entre la mezcla interna y la externa con Traktor abierto, cargando el otro `.tsi`; el K2
+     está siempre conectado. Traktor escribe `Traktor Settings.tsi` solo al cerrarse, así que el modo
+     leído al abrir no ve ese cambio. La DJM conectada tampoco indica mezcla externa: desde el 11-04,
+     Traktor estuvo en mezcla interna con la DJM como placa de sonido (respaldos de `Backup/Settings`).
+     Lo que sí cambia: con `XONE K2 + TECLADO (TEMPO).tsi` los faders del K2 mueven el volumen de canal
+     de Traktor; con `DJM + K2 (external mix) (1).tsi`, no.
 
 ## 2026-11-04
 
