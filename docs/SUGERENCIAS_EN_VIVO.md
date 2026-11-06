@@ -16,8 +16,10 @@ Funciona mientras se toca: Traktor sigue usando el controlador como siempre.
     también a una carpeta cuatro niveles adentro (`#1 BIBO › PRO › #2 VA - Best Of Toolroom 2015`).
 - **macOS:** el código y los tests ya cubren las rutas, el MIDI (python-rtmidi), el instalador y el
   permiso de administrador, pero todavía no se probó en un Mac con Traktor.
-- **Los temas son de prueba:** salen al azar de la colección. El cálculo de las sugerencias, con la
-  trayectoria del set, viene después.
+- **Los temas (2026-11-06):** los 30 más parecidos por CLAP al tema principal, con el BPM a ±20 del que
+  suena y tonalidad compatible (`recomendador.py`; ver «Las sugerencias» abajo). Mientras no hay tema
+  principal, o sin el índice de la biblioteca, salen al azar de la colección. La trayectoria del set
+  viene después.
 
 ## Desde cero en otro ordenador
 
@@ -73,7 +75,7 @@ necesita el resto del proyecto: ni modelos, ni `requirements_v4.txt`, ni la mús
 7. **Apretar el botón.** Si el programa dice «No pude llegar», navegar una vez a mano hasta la playlist
    `TRAKTOR ML Sugerencias NML` y apretarlo: aprende el camino.
 
-Si la colección no tiene 10 temas con cue points propios, las listas de prueba salen de toda la
+Si la colección no tiene 30 temas con cue points propios, las listas al azar salen de toda la
 colección.
 
 ## Cómo funciona
@@ -82,7 +84,7 @@ colección.
 flowchart LR
     C[Controlador MIDI<br/>p. ej. Xone K2] -->|MIDI, compartido| T[Traktor]
     C -->|MIDI, compartido| P[sugerencias_vivo.py]
-    P -->|escribe 10 temas| N[(TRAKTOR ML Sugerencias NML.nml)]
+    P -->|escribe 30 temas| N[(TRAKTOR ML Sugerencias NML.nml)]
     N -->|Explorer lo lee al entrar| T
     P <-->|HTTP localhost:8080| S[Sonda QML en la pantalla<br/>del Kontrol D2 virtual]
     S -->|entra y sale de carpetas| T
@@ -106,7 +108,7 @@ flowchart LR
    - `goto`: ir a un camino, saliendo hasta la parte común y entrando carpeta por carpeta.
 5. **Al apretar el botón:**
    - el programa pregunta dónde está el árbol y lo guarda;
-   - escribe 10 temas nuevos en el `.nml`;
+   - escribe en el `.nml` la lista calculada para el tema principal (30 temas);
    - lleva el árbol a la playlist, pasando por su carpeta para que Traktor relea el archivo.
 
    Al apretarlo otra vez, vuelve a la carpeta guardada, y Traktor conserva el tema que estaba elegido
@@ -126,6 +128,27 @@ flowchart LR
    Si el programa arranca con Traktor ya abierto, no sabe qué hay cargado ni quién es el MASTER hasta que
    algo cambie: Traktor avisa cada cambio una sola vez. El servicio automático no tiene ese problema,
    porque arranca antes que Traktor.
+7. **Las sugerencias** (`recomendador.py`; reglas en `docs/DECISIONS.md`, 2026-11-06, puntos 7 y 8).
+   Cada vez que cambia el tema principal, que un tema pasa a tocado o que el pitch cambia el BPM o la
+   tonalidad del tema principal, el programa calcula los 30 temas de la biblioteca más parecidos por
+   CLAP. Quedan los que tienen el BPM a ±20 del que suena y una tonalidad compatible transponiendo
+   hasta 2 semitonos (`docs/HARMONIC_COMPATIBILITY.md`). Quedan afuera el tema principal y lo ya tocado
+   en la sesión.
+   - Tonalidad y BPM: los que analizó Traktor (su colección); si todavía no lo analizó, los de los tags.
+     Un tema sin tonalidad no se sugiere.
+   - Solo se sugiere la copia del paquete (`<unidad>:\TRAKTOR ML`) que Traktor tiene en su colección.
+   - El tema principal se reconoce también si suena desde la carpeta original (`Música/...`). Si no está
+     en la biblioteca, quedan los compatibles por BPM y tonalidad, del BPM más cercano al más lejano.
+   - El cálculo tarda unos 50 ms y se hace antes de apretar: el botón solo escribe la lista y navega.
+
+   Hace falta el índice de la biblioteca, una vez y otra cada vez que cambie la biblioteca, con el
+   Python del pipeline (numpy y pandas):
+
+   ```
+   python tools/traktor_live/indice_recomendacion.py
+   ```
+
+   Sin índice, las listas salen al azar y la ventana lo dice.
 
 ## Requisitos
 
@@ -208,7 +231,7 @@ Opciones; lo que se elige queda guardado para la próxima vez:
 | --- | --- |
 | `--midi <palabra>` | Otro controlador: una palabra de su nombre (`--listar` muestra las entradas). Por defecto `K2`. |
 | `--aprender` | Elegir otro botón apretándolo. Sirve una nota o un CC (valor >= 64). |
-| `--n <N>` | Temas por lista (10). |
+| `--n <N>` | Temas por lista (30). |
 | `--dir <carpeta>` | Carpeta del `.nml`. |
 | `--backend winmm\|rtmidi` | Motor MIDI. Por defecto `winmm` en Windows y `rtmidi` en el resto. |
 | `--listar` | Mostrar las entradas MIDI y salir. |
@@ -228,7 +251,8 @@ El programa aprende ese camino y lo guarda.
 | --- | --- | --- |
 | Playlist de sugerencias | `C:\TRAKTOR ML Sugerencias\` (raíz de la unidad del usuario) | `/Users/Shared/TRAKTOR ML Sugerencias/` |
 | Ajustes (botón, controlador, camino aprendido) | `artifacts/v4/traktor_live/sugerencias_vivo.json` | igual |
-| Registro de cada sesión (`.jsonl`: avisos de Traktor, pulsaciones, faders de la DJM, mezcla, tema principal y temas tocados) | `artifacts/v4/traktor_live/` | igual |
+| Registro de cada sesión (`.jsonl`: avisos de Traktor, pulsaciones, faders de la DJM, mezcla, tema principal, temas tocados y cada lista calculada) | `artifacts/v4/traktor_live/` | igual |
+| Índice de la biblioteca para las sugerencias | `artifacts/v4/traktor_live/indice_recomendacion.json` | igual |
 | Copias de los QML de Traktor | `artifacts/v4/traktor_backups/` | igual |
 
 En Windows la playlist no va en la carpeta personal porque la pantalla del D2 vio vacía

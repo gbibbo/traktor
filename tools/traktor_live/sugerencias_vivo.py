@@ -13,8 +13,9 @@ PURPOSE: Sugerencias en vivo dentro de Traktor con un botón del controlador MID
          artifacts/v4/traktor_live/sugerencias_vivo.json, junto con el camino del árbol hasta la
          playlist si Traktor lo muestra distinto del calculado (navegar una vez a mano hasta la playlist
          y apretar el botón lo enseña).
-         Los temas son de prueba (rondas de la colección con cues propios): el cálculo de las
-         sugerencias, con la trayectoria del set, viene después.
+         Los temas salen de recomendador.py (los más parecidos por CLAP al tema principal, con BPM y
+         tonalidad compatibles); al azar solo mientras no hay tema principal o si falta el índice. La
+         trayectoria del set viene después.
 CHANGELOG:
   - 2026-11-04: Creación inicial.
   - 2026-11-05: El botón es Ch15.Note.D0 sin aprender (la primera prueba aprendió C#0, el que despliega
@@ -37,6 +38,10 @@ CHANGELOG:
                 MidiWatcher, en su hilo; que falte no es un aviso) deciden el tema principal y lo tocado,
                 que quedan en el registro de la sesión ("principal", "tocado", "fader", "mezcla"). El
                 modo de mezcla sale de Traktor Settings.tsi. Las sugerencias todavía son de prueba.
+  - 2026-11-06: Sugerencias reales (recomendador.py): cuando cambia el tema principal o un tema pasa a
+                tocado se calculan los 30 más parecidos por CLAP con BPM ±20 y tonalidad compatible; el
+                botón escribe esa lista (al azar solo si todavía no hay tema principal o falta el índice).
+                El registro anota "recomendacion" y, en cada ida, el modo y los puntajes. 30 por defecto.
 """
 from __future__ import annotations
 
@@ -59,6 +64,7 @@ sys.path.insert(0, str(REPO_ROOT))
 import src.v4.common  # noqa: E402,F401  (salida UTF-8 en consolas cp1252)
 from src.v4.common.traktor_nml import DEFAULT_MAC_BOOT_VOLUME, find_collection, mac_boot_volume  # noqa: E402
 from tools.traktor_live import instalar_api_client as inst  # noqa: E402
+from tools.traktor_live import recomendador as rc  # noqa: E402
 from tools.traktor_live import tema_principal as tp  # noqa: E402
 from tools.traktor_live import traktor_estado as te  # noqa: E402
 from tools.traktor_live.midi_io import BACKENDS, default_backend, list_inputs, open_input  # noqa: E402
@@ -69,7 +75,8 @@ from tools.traktor_live.sugerencias_itunes import PLAYLIST_NAME, collection_trac
 SETTINGS_FILE = te.DEFAULT_LOG_DIR / "sugerencias_vivo.json"
 NML_NAME = f"{PLAYLIST_NAME} NML"
 DEFAULT_MIDI = "K2"
-DEFAULT_DJM = "DJM"                   # entrada MIDI del mezclador (DJM-750MK2): sus faders, CC 17 a 20
+DEFAULT_N = rc.DEFAULT_N              # temas por lista (Gabriel, 2026-11-06: 30)
+DEFAULT_DJM = "DJM"                  # entrada MIDI del mezclador (DJM-750MK2): sus faders, CC 17 a 20
 DEBOUNCE_S = 0.4
 MIDI_POLL_S = 2.0                     # cada cuánto se revisa si el controlador se desenchufó o apareció
 LEVELS = {"info": "INFO", "ok": "OK", "aviso": "AVISO", "error": "ERROR"}
@@ -236,9 +243,10 @@ def learn_button(events: "queue.SimpleQueue", stop: threading.Event) -> Optional
 
 
 class Suggestions:
-    """Escribe cada ronda de prueba en el .nml (las entradas copiadas de la colección). Los temas salen de
-    los que tienen cues propios (se nota al cargarlos que Traktor usa su entrada); si son menos de n,
-    como en una colección recién armada, de todos los que tienen el archivo en su lugar."""
+    """Escribe cada lista en el .nml (las entradas copiadas de la colección). Si hay recomendador y ya
+    calculó una lista para el tema principal (recomendador.py), es esa; si no, una ronda de prueba al
+    azar entre los temas con cues propios (se nota al cargarlos que Traktor usa su entrada) o, si son
+    menos de n, como en una colección recién armada, entre todos los que tienen el archivo en su lugar."""
 
     def __init__(self, collection: Path, out_dir: Path, n: int):
         self.tracks = collection_tracks(collection)
@@ -256,10 +264,17 @@ class Suggestions:
         self.seed = int(time.time())
         self.round = 0
         self.rounds = max(1, len(self.tracks) // n)
+        self.recommender = None                         # recomendador.Recommender, si hay índice
+        self.last_mode, self.last_info = "azar", {}
 
     def next(self) -> List:
         self.round += 1
-        chosen = pick(self.tracks, (self.round - 1) % self.rounds + 1, self.n, self.seed)
+        tracks, info = self.recommender.snapshot() if self.recommender is not None else ([], {})
+        if tracks:
+            chosen, self.last_mode, self.last_info = tracks, info.get("modo", "clap"), info
+        else:
+            chosen = pick(self.tracks, (self.round - 1) % self.rounds + 1, self.n, self.seed)
+            self.last_mode, self.last_info = "azar", {}
         entries = [self.by_path[str(t.path).lower()] for t in chosen]
         write_atomic(nml_bytes(entries, self.round, self.version, name=NML_NAME), self.nml)
         return chosen
@@ -272,7 +287,7 @@ def main() -> int:
                     help=f"Parte del nombre de la entrada MIDI del controlador (por defecto la guardada o {DEFAULT_MIDI})")
     ap.add_argument("--aprender", action="store_true",
                     help=f"Elegir otro botón apretándolo (por defecto {DEFAULT_BUTTON.name()}); nota o CC")
-    ap.add_argument("--n", type=int, default=None, help="Temas por lista (por defecto el guardado o 10)")
+    ap.add_argument("--n", type=int, default=None, help=f"Temas por lista (por defecto el guardado o {DEFAULT_N})")
     ap.add_argument("--dir", default=None, help="Carpeta del .nml de sugerencias (por defecto la guardada o "
                                                 f"{default_live_dir()})")
     ap.add_argument("--backend", choices=BACKENDS, default=None,
@@ -398,14 +413,20 @@ def run_session(settings_path: Path, stop: threading.Event, say: Say = console_s
                      "indicarlo con --collection")
         return 1
     out_dir = Path(settings.get("dir") or default_live_dir())
+    n = int(settings.get("n") or DEFAULT_N)
     try:
-        sugg = Suggestions(collection, out_dir, int(settings.get("n") or 10))
+        sugg = Suggestions(collection, out_dir, n)
         if not sugg.nml.exists():
             sugg.next()                                     # para que la playlist exista en el Explorer
     except (ValueError, OSError) as exc:
         say("error", str(exc))
         return 1
-    say("info", f"Colección: {collection} ({len(sugg.tracks)} {sugg.pool} para las listas de prueba)")
+    say("info", f"Colección: {collection} ({len(sugg.tracks)} {sugg.pool} para las listas al azar)")
+    index_path = Path(settings.get("indice") or rc.DEFAULT_INDEX)
+    rec, rec_text = rc.load_recommender(sugg.by_path, index_path, n)
+    # sin índice es lo normal en otro ordenador (las listas salen al azar); viejo o ilegible, un aviso
+    say("aviso" if "VIEJO" in rec_text or (rec is None and index_path.exists()) else "info", rec_text)
+    sugg.recommender = rec
     d2 = inst.default_d2()
     if d2 is None:
         say("aviso", "No encontré Traktor instalado en el lugar de siempre: si está en otro, instalar la sonda "
@@ -421,9 +442,16 @@ def run_session(settings_path: Path, stop: threading.Event, say: Say = console_s
     log_path = te.DEFAULT_LOG_DIR / f"sugerencias_vivo_{dt.datetime.now():%Y%m%d_%H%M%S}.jsonl"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     live = tp.Live(tp.Tracker(faders=tp.faders_from(settings.get("faders"))), log_path, say)
+    on_deck = hook_recommender(live, rec, log_path) if rec is not None else None
+
+    def listener(kind: str, target: str, data: dict) -> None:
+        live.http(kind, target, data)
+        if on_deck is not None:
+            on_deck(kind, target, data)
+
     mixer = tp.MixerWatch(tp.settings_tsi(collection))
     try:
-        servers = te.open_servers(port, te.make_handler(state, log_path, listener=live.http))
+        servers = te.open_servers(port, te.make_handler(state, log_path, listener=listener))
     except OSError as exc:
         if te.port_in_use(exc):
             say("error", f"El puerto {port} ya lo usa otro programa: ¿ya corren las sugerencias (en otra ventana "
@@ -487,6 +515,38 @@ def run_session(settings_path: Path, stop: threading.Event, say: Say = console_s
     return 0
 
 
+def hook_recommender(live: "tp.Live", rec: "rc.Recommender", log_path: Optional[Path]):
+    """Recalcula las sugerencias cuando cambia el tema principal, cuando un tema pasa a tocado y cuando
+    cambian el BPM (redondeado) o la tonalidad resultante del deck del tema principal (el pitch). Cada
+    cálculo queda en el registro ("recomendacion"). Devuelve el oyente de los eventos de los decks."""
+    last = {"sig": None}
+
+    def signature(p: dict) -> tuple:
+        return (p.get("deck"), p.get("path"), p.get("key"),
+                round(float(p.get("bpm") or 0) * float(p.get("tempo") or 1)))
+
+    def recalc(principal: dict) -> None:
+        last["sig"] = signature(principal)
+        info = rec.update(principal, list(live.tracker.played))
+        te.log_event(log_path, "recomendacion", principal.get("deck", ""), info)
+
+    def on_played(_data: dict) -> None:
+        info = rec.refresh(list(live.tracker.played))
+        if info is not None:
+            te.log_event(log_path, "recomendacion", "", info)
+
+    def on_deck(kind: str, target: str, data: dict) -> None:
+        if kind != "updateDeck" or not ({"tempo", "resultingKey"} & set(data)):
+            return
+        p = live.principal_now()
+        if p is not None and p["deck"] == target and signature(p) != last["sig"]:
+            recalc(p)
+
+    live.on_principal.append(recalc)
+    live.on_tocado.append(on_played)
+    return on_deck
+
+
 def watch_mixer(djm: MidiWatcher, mixer: "tp.MixerWatch", live: "tp.Live", stop: threading.Event) -> None:
     """Hilo del tema principal: los faders de la DJM (llegan con su reloj MIDI, decenas de mensajes por
     segundo) y el modo de mezcla, que se vuelve a leer cuando Traktor reescribe sus ajustes."""
@@ -526,8 +586,10 @@ def press(state: te.State, toggle: Toggle, sugg: Suggestions, log_path: Optional
     event = {"desde": rep.get("path", ""), "hacia": path}
     if action == "sugerencias":
         chosen = sugg.next()
-        event.update({"lista": sugg.round, "temas": [str(t.path) for t in chosen]})
-        print(f"[{dt.datetime.now():%H:%M:%S}] Sugerencias (lista {sugg.round}): "
+        event.update({"lista": sugg.round, "modo": sugg.last_mode, "temas": [str(t.path) for t in chosen]})
+        if sugg.last_info:
+            event["recomendacion"] = sugg.last_info
+        print(f"[{dt.datetime.now():%H:%M:%S}] Sugerencias (lista {sugg.round}, {sugg.last_mode}): "
               + "; ".join(f"{t.artist} - {t.title}" for t in chosen[:3]) + " ...")
     gid = state.enqueue("goto", {"path": path, "index": index})
     res = state.wait_result(gid, 12.0)

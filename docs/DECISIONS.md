@@ -128,6 +128,16 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
      Lo que sí cambia: con `XONE K2 + TECLADO (TEMPO).tsi` los faders del K2 mueven el volumen de canal
      de Traktor; con `DJM + K2 (external mix) (1).tsi`, no.
 
+   Cómo (agente), en `tools/traktor_live/recomendador.py`:
+   - el índice de la biblioteca (`indice_recomendacion.py`, con el Python del pipeline) da embedding
+     CLAP, BPM y tonalidad de tags por track_uid; en vivo se lee con la biblioteca estándar;
+   - se sugiere solo la copia de `C:\TRAKTOR ML`, la que Traktor tiene en su colección (1717 temas);
+   - un tema sin tonalidad de Traktor ni de tags no se sugiere (227 de 1717 hoy);
+   - si el tema principal no está en la biblioteca, quedan los compatibles por BPM y tonalidad, del BPM
+     más cercano al más lejano;
+   - la lista se recalcula cuando cambia el tema principal, cuando un tema pasa a tocado y cuando el
+     pitch cambia el BPM redondeado o la tonalidad del tema principal (unos 50 ms).
+
 ## 2026-11-04
 
 1. **La Organización en el PC de escritorio, sin copiar la música** (Gabriel): del ordenador que

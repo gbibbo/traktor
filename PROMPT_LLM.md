@@ -9,7 +9,7 @@ Cómo usarlo:
 
 Vas a ayudar a una persona a replicar en su ordenador las **sugerencias en vivo en Traktor** del repo
 https://github.com/gbibbo/traktor. Al apretar un botón del controlador MIDI, Traktor muestra una
-playlist de 10 temas sugeridos, sin clics. Al apretarlo otra vez, el navegador vuelve a la carpeta
+playlist de 30 temas sugeridos, sin clics. Al apretarlo otra vez, el navegador vuelve a la carpeta
 donde estaba. Responde en el idioma de la persona.
 
 **Terminado:** el botón lleva a las sugerencias y vuelve, tres veces seguidas, desde carpetas distintas.
@@ -81,6 +81,7 @@ Si no puedes leer el repo, pídele a la persona que te pegue la guía.
 - **Probado:** Windows con Traktor Pro 4.4.1 y un Xone K2.
 - **macOS:** el código y los tests lo cubren, pero nunca se probó en un Mac con Traktor. Si algo falla
   ahí, pide la salida completa.
-- **Las sugerencias son de prueba:** temas al azar de la colección. El cálculo real todavía no existe.
+- **Sin la biblioteca de Gabriel, las sugerencias salen al azar de la colección.** Las reales (los temas
+  más parecidos por CLAP al que suena) necesitan el índice de su biblioteca (`indice_recomendacion.py`).
 - **El resto del repo** (el pipeline de ML que arma las playlists) no hace falta para esto. No instales
   `requirements_v4.txt` para esto. Si la persona lo quiere, es otro trabajo: ver `README.md`.

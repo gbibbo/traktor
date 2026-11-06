@@ -21,6 +21,8 @@ PURPOSE: El tema principal que suena en Traktor y los temas ya tocados en la ses
          externa o interna (Routing.Mixer.External), porque la API de Traktor no lo dice.
 CHANGELOG:
   - 2026-11-06: Creación (etapa de recomendación, unidad 1: tema principal y registro).
+  - 2026-11-06: El cambio de tema principal lleva BPM, tempo y tonalidad resultante del deck;
+                Live.on_tocado (las sugerencias se recalculan sin lo recién tocado).
 """
 from __future__ import annotations
 
@@ -253,6 +255,7 @@ class Tracker:
         pos = d.position(now)
         return [("principal", {
             "deck": deck, "path": d.path, "title": d.title, "artist": d.artist, "modo": mode, "motivo": why,
+            "bpm": d.bpm, "tempo": d.tempo, "key": d.key,
             "seccion": d.section(now), "posicion": None if pos is None else round(pos, 3),
             "fader": round(self.level(deck), 3), "mezcla": self.mixer,
             "al_aire": {x: {"seccion": self.decks[x].section(now), "fader": round(self.level(x), 3)} for x in on_air},
@@ -327,14 +330,15 @@ def describe(data: dict) -> str:
 
 class Live:
     """El Tracker con candado, el registro de la sesión y los avisos. http() lo llama el receptor por
-    cada evento de Traktor y midi() el hilo de la DJM por cada mensaje; on_principal recibe cada cambio
-    (para calcular las sugerencias cuando cambia el tema principal, no al apretar el botón)."""
+    cada evento de Traktor y midi() el hilo de la DJM por cada mensaje; on_principal y on_tocado reciben
+    cada cambio (las sugerencias se calculan ahí, no al apretar el botón)."""
 
     def __init__(self, tracker: Tracker, log_path: Optional[Path], say: Callable[[str, str], None],
                  clock: Callable[[], float] = time.monotonic):
         self.tracker, self.log_path, self.say, self.clock = tracker, log_path, say, clock
         self.lock = threading.Lock()
         self.on_principal: List[Callable[[dict], None]] = []
+        self.on_tocado: List[Callable[[dict], None]] = []
 
     def http(self, kind: str, target: str, data: dict) -> None:
         with self.lock:
@@ -355,6 +359,16 @@ class Live:
             te.log_event(self.log_path, "fader", deck, {"canal": ch, "cc": d1, "valor": d2})
         self._report(changes)
 
+    def principal_now(self) -> Optional[dict]:
+        """El tema principal con el BPM, el tempo y la tonalidad resultante que tiene ahora su deck."""
+        with self.lock:
+            p = self.tracker.principal
+            if p is None or self.tracker.decks[p.deck].path != p.path:
+                return None
+            d = self.tracker.decks[p.deck]
+            return {"deck": p.deck, "path": p.path, "title": p.title, "artist": p.artist,
+                    "bpm": d.bpm, "tempo": d.tempo, "key": d.key}
+
     def set_mixer(self, mixer: Optional[str]) -> None:
         with self.lock:
             changes = self.tracker.set_mixer(mixer, self.clock())
@@ -373,3 +387,5 @@ class Live:
             elif kind == "tocado":
                 who = f"{data.get('artist') or ''} - {data.get('title') or ''}".strip(" -")
                 self.say("info", f"Tocado: {who} (deck {data['deck']}, {data['segundos']:.0f} s al aire)")
+                for fn in self.on_tocado:
+                    fn(data)
