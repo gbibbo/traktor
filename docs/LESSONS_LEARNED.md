@@ -165,6 +165,14 @@ finales de línea (`instalar_api_client.same_text`). En un clon superficial (`--
 `git pull` falla con "unrelated histories": para actualizarlo, `git fetch --depth 1 origin main` y
 `git reset --hard origin/main`.
 
+### Si un controlador deja de responder, ver primero si manda MIDI a alguien
+
+El 2026-11-06 el K2 dejó de responder en Traktor justo al abrir las sugerencias en vivo. Parecía culpa
+del programa, pero no lo era. Ni Traktor, ni el programa, ni un tercer oyente recibían nada del K2,
+mientras la DJM seguía mandando su reloj por el mismo MIDI de Windows. El K2, o su driver, estaba
+colgado. Se arregló desenchufándolo y volviéndolo a enchufar. Antes de culpar al software, abrir la
+entrada con `midi_monitor.py` y comparar con otro aparato que mande MIDI solo.
+
 ### Si Traktor arranca sin la DJM, cambia solo el audio y el K2 deja de responder
 
 El 2026-11-05 la DJM-750MK2 no estaba conectada al abrir Traktor: Traktor pasó solo de

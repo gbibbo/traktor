@@ -211,6 +211,12 @@ carpeta personal.
   1. Cerrar Traktor y encender la placa.
   2. Abrir Traktor.
   3. Revisar Preferences > Audio Setup: DJM-750MK2 ASIO, Master 3/4, Monitor 1/2.
+- **El controlador no hace nada en Traktor y el programa tampoco ve el botón.** Con la placa encendida,
+  el controlador o su driver puede quedarse colgado: no manda MIDI a nadie (2026-11-06, el K2).
+  Para confirmarlo, correr `python tools/traktor_live/midi_monitor.py --port K2` y mover algo: no
+  aparece nada, mientras la DJM sí manda su reloj. Arreglo: desenchufar el USB del controlador,
+  esperar 5 s y volver a enchufarlo. Si Traktor no lo retoma, elegir de nuevo su In-Port o reiniciar
+  Traktor.
 - **«La pantalla del D2 no responde».** Falta algo de esto: Traktor abierto, el Kontrol D2 agregado en
   el Controller Manager, o la sonda instalada (`instalar_api_client.py --status`).
 - **«No pude llegar».** El siguiente apretón lo reintenta. Si se repite, enseñarle el camino (ver *Uso*).

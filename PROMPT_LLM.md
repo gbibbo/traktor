@@ -67,6 +67,7 @@ Si no puedes leer el repo, pídele a la persona que te pegue la guía.
 | Síntoma | Causa | Arreglo |
 | --- | --- | --- |
 | El controlador no hace nada en Traktor. | La placa de sonido no estaba encendida al abrir Traktor, que pasó solo a la tarjeta interna. | Cerrar Traktor, encender la placa, abrir Traktor y revisar Audio Setup. |
+| Ni Traktor ni el programa ven el controlador, con la placa encendida. | El controlador o su driver se colgó y no manda MIDI. Se confirma con `midi_monitor.py --port <palabra>`: no llega nada. | Desenchufar el USB del controlador, esperar 5 s y volver a enchufarlo. Si Traktor no lo retoma, elegir de nuevo su In-Port o reiniciar Traktor. |
 | «A Traktor le falta la sonda». | La sonda no está instalada, o Traktor se actualizó. | Paso 7, con Traktor cerrado. |
 | «La pantalla del D2 no responde». | Traktor está cerrado, falta el Kontrol D2 (paso 6) o falta la sonda. | Revisar esos tres. |
 | «No pude llegar». | Traktor muestra la carpeta por otro camino. | Apretar otra vez. Si sigue, navegar a mano una vez hasta `TRAKTOR ML Sugerencias NML` y apretar: el programa aprende el camino. |
