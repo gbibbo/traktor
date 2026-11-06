@@ -35,8 +35,14 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 3. **Los mapeos de Gabriel van al repo, y otro LLM puede guiar la réplica** (Gabriel). Cómo (agente):
    - `tools/traktor_live/mapeos/` tiene su Xone K2 y su teclado, exportados de su Traktor 4.4.1 con
      `mapeo_tsi.py`.
-   - Al K2 se le quitaron las dos asignaciones de D0, la preescucha que no usaba (punto 1), así que
-     queda listo para las sugerencias. En su Traktor actual D0 todavía las tiene.
+   - Al K2 se le quitó la preescucha, que no usaba (punto 1), así que queda listo para las sugerencias.
+     Son tres asignaciones:
+     - D0: "Load Selected (Preview Player)", con M1 = 0;
+     - D0: "Modifier #2" mientras está apretado;
+     - el encoder derecho con M2 = 1: "Seek Position (Preview Player)".
+
+     El 11-06 Gabriel preguntó por el modificador y se vio que solo servía para eso. En su Traktor
+     actual las tres siguen.
    - No se sube su exportación completa de la configuración (`XONE K2 + TECLADO (TEMPO).tsi`), porque
      trae audio, ruteo y campos de contraseña.
    - `PROMPT_LLM.md`, en la raíz, es el prompt mínimo para un LLM que acompaña a una persona.

@@ -56,7 +56,9 @@ Si no puedes leer el repo, pídele a la persona que te pegue la guía.
 | 10 | Apretar el botón dos veces. | `En las sugerencias (N ms)` y `De vuelta en …`. |
 
 - **Mapeos (paso 4):** los de Gabriel están en `tools/traktor_live/mapeos/`. Con otro controlador, usar
-  el suyo y borrar en Traktor la función del botón elegido.
+  el suyo y borrar en Traktor la función del botón elegido. Si ese botón fija un modificador
+  ("Modifier #n"), revisar antes qué otras asignaciones dependen de él:
+  `python tools/traktor_live/mapeo_tsi.py --detalle todos`.
 - **Python (paso 8):** la primera vez el lanzador crea `.venv`. En macOS también instala python-rtmidi,
   y para eso necesita internet.
 

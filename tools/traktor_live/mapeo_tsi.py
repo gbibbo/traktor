@@ -10,8 +10,16 @@ PURPOSE: Exporta mapeos de controlador o de teclado de Traktor a un .tsi propio,
          DDAT > DDIF, DDIV (versión), DDIC (comentario), DDPT (puertos), DDDC (controles posibles),
          DDCB > CMAS (cantidad + CMAI: una asignación, que empieza con el id de su control) y DCBM
          (cantidad + DCBM: id del control + su nombre, p. ej. "Ch15.Note.D0"), DVST.
+         CMAI = id del control, tipo, número de comando y un bloque CMAD con enteros de 4 bytes. Campos
+         del CMAD deducidos del mapeo de Gabriel (2026-11-06; coinciden con lo que muestra Traktor):
+         2 = modo, 3 = deck, 11 = valor, 12 = comentario (texto) y, después del comentario, la
+         condición 1 (modificador, valor) y la condición 2 (valor, modificador). Modificador #n =
+         comando 2547 + n.
 CHANGELOG:
   - 2026-11-05: Creación: el mapeo del K2 de Gabriel (con D0 libre) y su teclado van al repo.
+  - 2026-11-06: --detalle (asignaciones de un control con nombre de comando y condiciones) y --quitar
+                CONTROL:COMANDO (una sola asignación). D0 tenía, además de la preescucha, el Modifier #2
+                que habilita "Seek Position" de la preescucha en el encoder derecho: se quita también.
 """
 from __future__ import annotations
 
@@ -31,6 +39,15 @@ import src.v4.common  # noqa: E402,F401  (salida UTF-8 en consolas cp1252)
 from src.v4.common.traktor_nml import find_collection  # noqa: E402
 
 ENTRIES = {"controlador": "DeviceIO.Config.Controller", "teclado": "DeviceIO.Config.Keyboard"}
+# Nombres de los comandos que aparecen en el mapeo del K2 de Gabriel. Datos sueltos, revisados contra
+# commands.xml de github.com/ivanz/Traktor.Mapping (AGPL: no se copia el archivo).
+COMMAND_NAMES = {
+    8: "Monitor Volume Adjust", 17: "Monitor Mix Adjust", 100: "Play/Pause", 211: "Seek Position (Preview Player)",
+    319: "Filter On", 320: "Filter Adjust", 2351: "Move", 3076: "Load Selected (Deck)",
+    3137: "Load Selected (Preview Player)", 3200: "Select Up/Down (Browser List)",
+    3328: "Select Up/Down (Browser Tree)", 3329: "Select Expand/Collapse (Browser Tree)",
+    **{2547 + n: f"Modifier #{n}" for n in range(1, 9)},
+}
 Chunk = Tuple[str, bytes]
 
 
@@ -148,18 +165,72 @@ def info(devi: bytes) -> DeviceInfo:
 def free_controls(devi: bytes, names: Sequence[str]) -> Tuple[bytes, int]:
     """El dispositivo sin las asignaciones de esos controles (y sin sus definiciones en DCBM). Devuelve
     el dispositivo nuevo y cuántas asignaciones quitó. Los ids no se renumeran: no van seguidos."""
+    wanted = set(names)
+    return _drop(devi, lambda name, _cmd: name in wanted)
+
+
+@dataclass
+class Assignment:
+    control: str
+    command: int
+    mode: int
+    deck: int
+    value: int
+    conditions: List[Tuple[str, int]]     # [("M1", 0), ("M2", 1)]
+
+    def describe(self) -> str:
+        name = COMMAND_NAMES.get(self.command, "comando sin nombre conocido")
+        cond = " y ".join(f"{m}={v}" for m, v in self.conditions) or "sin condición"
+        return f"{self.control}: {name} [{self.command}] modo {self.mode}, deck {self.deck}, valor {self.value}, {cond}"
+
+
+def _modifier(cmd: int) -> Optional[str]:
+    return f"M{cmd - 2547}" if 2548 <= cmd <= 2555 else None
+
+
+def assignments(devi: bytes) -> List[Assignment]:
+    """Cada asignación con su control, comando, modo, deck, valor y condiciones de modificador."""
+    _, parts = _devi_parts(devi)
+    cb = split(body_of(split(body_of(parts, "DDAT")), "DDCB"))
+    _, dcbm = counted(body_of(cb, "DCBM"))
+    names = {struct.unpack(">I", b[:4])[0]: wstr(b, 4)[0] for _, b in dcbm}
+    out = []
+    for _, b in counted(body_of(cb, "CMAS"))[1]:
+        cid, _kind, cmd = struct.unpack(">III", b[:12])
+        (_, cmad), = split(b[12:])
+        head = struct.unpack(">12i", cmad[:48])
+        _, k = wstr(cmad, 48)                        # comentario
+        c1_mod, c1_val, c2_val, c2_mod = struct.unpack(">4i", cmad[k:k + 16])
+        conds = [(m, v) for m, v in ((_modifier(c1_mod), c1_val), (_modifier(c2_mod), c2_val)) if m]
+        out.append(Assignment(names.get(cid, "?"), cmd, head[2], head[3], head[11], conds))
+    return out
+
+
+def _drop(devi: bytes, gone_assignment) -> Tuple[bytes, int]:
+    """El dispositivo sin las asignaciones para las que gone_assignment(nombre, comando) es verdad, y
+    sin las definiciones DCBM que ya no use ninguna."""
     head, parts = _devi_parts(devi)
     ddat = split(body_of(parts, "DDAT"))
     cb = split(body_of(ddat, "DDCB"))
     _, dcbm = counted(body_of(cb, "DCBM"))
-    gone = {struct.unpack(">I", b[:4])[0] for _, b in dcbm if wstr(b, 4)[0] in set(names)}
+    names = {struct.unpack(">I", b[:4])[0]: wstr(b, 4)[0] for _, b in dcbm}
     _, cmas = counted(body_of(cb, "CMAS"))
-    keep_cmas = [(t, b) for t, b in cmas if struct.unpack(">I", b[:4])[0] not in gone]
-    keep_dcbm = [(t, b) for t, b in dcbm if struct.unpack(">I", b[:4])[0] not in gone]
+    keep_cmas = []
+    for t, b in cmas:
+        cid, _kind, cmd = struct.unpack(">III", b[:12])
+        if not gone_assignment(names.get(cid, ""), cmd):
+            keep_cmas.append((t, b))
+    used = {struct.unpack(">I", b[:4])[0] for _, b in keep_cmas}
+    keep_dcbm = [(t, b) for t, b in dcbm if struct.unpack(">I", b[:4])[0] in used]
     cb = replace(replace(cb, "CMAS", counted_body(keep_cmas)), "DCBM", counted_body(keep_dcbm))
     ddat = replace(ddat, "DDCB", join(cb))
     parts = replace(parts, "DDAT", join(ddat))
     return head + join(parts), len(cmas) - len(keep_cmas)
+
+
+def remove_assignments(devi: bytes, control: str, command: int) -> Tuple[bytes, int]:
+    """Quita solo las asignaciones de ese control con ese comando (el resto del control queda)."""
+    return _drop(devi, lambda name, cmd: name == control and cmd == command)
 
 
 def set_ports(devi: bytes, in_port: str, out_port: str) -> bytes:
@@ -212,6 +283,10 @@ def main() -> int:
     ap.add_argument("--dispositivo", type=int, default=None, help="Índice del dispositivo (ver --listar)")
     ap.add_argument("--liberar", action="append", default=[],
                     help='Control a dejar sin asignaciones, p. ej. "Ch15.Note.D0" (se puede repetir)')
+    ap.add_argument("--quitar", action="append", default=[],
+                    help='Una sola asignación, "CONTROL:COMANDO", p. ej. "Ch15.CC.021:211" (se puede repetir)')
+    ap.add_argument("--detalle", action="append", default=[],
+                    help='Mostrar las asignaciones de un control ("todos" = todas) y salir')
     ap.add_argument("--puertos", default=None, help='Puertos de entrada y salida, "Entrada|Salida"')
     ap.add_argument("--salida", default=None, help="Archivo .tsi a escribir")
     ap.add_argument("--listar", action="store_true", help="Mostrar los dispositivos y salir")
@@ -227,6 +302,14 @@ def main() -> int:
     print(f"[INFO] {src} ({entry}):")
     for i, d in enumerate(devis):
         print(describe(i, info(d), args.liberar))
+    if args.detalle:
+        for i, d in enumerate(devis):
+            if args.dispositivo is not None and i != args.dispositivo:
+                continue
+            rows = [a for a in assignments(d) if "todos" in args.detalle or a.control in args.detalle]
+            for a in sorted(rows, key=lambda a: (a.control, a.command)):
+                print(f"  [{i}] {a.describe()}")
+        return 0
     if args.listar:
         return 0
     if args.dispositivo is None or not 0 <= args.dispositivo < len(devis) or not args.salida:
@@ -236,6 +319,14 @@ def main() -> int:
     if args.liberar:
         devi, removed = free_controls(devi, args.liberar)
         print(f"[OK] Quité {removed} asignaciones de {', '.join(args.liberar)}")
+    for item in args.quitar:
+        control, _, command = item.rpartition(":")
+        if not control or not command.isdigit():
+            print(f'[ERROR] --quitar espera "CONTROL:COMANDO", p. ej. "Ch15.CC.021:211", no «{item}»')
+            return 1
+        devi, removed = remove_assignments(devi, control, int(command))
+        print(f"[OK] Quité {removed} asignación(es) de {control} con "
+              f"{COMMAND_NAMES.get(int(command), 'el comando ' + command)}")
     if args.puertos:
         in_port, _, out_port = args.puertos.partition("|")
         devi = set_ports(devi, in_port, out_port or in_port)
