@@ -206,6 +206,25 @@ mapeo del K2 no hacía nada, aunque el K2 mandaba MIDI y el puerto no estaba tom
 encender la DJM, después abrir Traktor. Para volver: Preferences > Audio Setup, o copiar las entradas
 `Audio.*` y `Routing.*Out.Internal.*` de un respaldo en `Backup\Settings\` con Traktor cerrado.
 
+### Importar un .tsi completo reemplaza el Controller Manager: el Kontrol D2 tiene que estar en cada uno
+
+El 2026-11-06 Gabriel cargó `DJM + K2 (external mix) (1).tsi` con Traktor abierto. Traktor escribió sus
+ajustes (y un respaldo en `Backup\Settings\`) sin cerrarse, y la mezcla externa se vio a los 2 s. Pero
+esa exportación es anterior a las sugerencias en vivo y no trae el Kontrol D2 virtual. Desde ese
+momento no llegó ningún aviso de los decks, y cada pulsación dio «La pantalla del D2 no responde». La
+sonda y el módulo están en los QML de Traktor, que no cambian; lo que se pierde es el dispositivo. Cada
+configuración que se cargue tiene que tener el D2 en el Controller Manager: se agrega una vez y se
+vuelve a exportar.
+
+### Dos sesiones en el mismo árbol: subir solo los bloques propios con contexto y verificar
+
+Dos sesiones de agentes compartían el árbol y el índice de Git. Para subir solo sus bloques de un
+documento compartido, una usó `git diff -U0` filtrado y `git apply --cached --unidiff-zero`. El
+2026-11-06 un bloque sin contexto quedó en otro lugar: el punto 9 de DECISIONS cayó dentro de la
+entrada 2026-11-04 y cortó una oración (commit bd0e074; la otra sesión lo arregló). Con contexto
+(`-U3`), un bloque que no encaja falla en vez de caer mal. Después de prepararlo, `git diff -- <doc>`
+tiene que mostrar solo los bloques ajenos. Si el otro no tiene nada sin commit, subir el archivo entero.
+
 ## Entorno HPC (ver también memory/MEMORY.md)
 
 [REEMPLAZADO 2026-09-12 por DECISIONS 2026-09-12, punto 4: Surrey HPC ya no existe; se trabaja en CPU local (AGENTS.md). Se conserva como registro.]

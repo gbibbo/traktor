@@ -282,7 +282,9 @@ carpeta personal.
   esperar 5 s y volver a enchufarlo. Si Traktor no lo retoma, elegir de nuevo su In-Port o reiniciar
   Traktor.
 - **«La pantalla del D2 no responde».** Falta algo de esto: Traktor abierto, el Kontrol D2 agregado en
-  el Controller Manager, o la sonda instalada (`instalar_api_client.py --status`).
+  el Controller Manager, o la sonda instalada (`instalar_api_client.py --status`). Cargar un `.tsi`
+  completo reemplaza el Controller Manager: si esa configuración no trae el D2, hay que agregarlo
+  (Add… > Traktor > Kontrol D2) y volver a exportarla (2026-11-06, la configuración de mezcla externa).
 - **«No pude llegar».** El siguiente apretón lo reintenta. Si se repite, enseñarle el camino (ver *Uso*).
 - **«El puerto 8080 ya lo usa otro programa».** Hay otra ventana de este programa o de
   `traktor_estado.py` abierta: cerrarla con Ctrl+C.

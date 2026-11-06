@@ -136,7 +136,10 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
      colección; en los 194 que tienen las dos, coinciden 160.
    - 30 sugerencias por lista.
    - Cambia entre la mezcla interna y la externa con Traktor abierto, cargando el otro `.tsi`; el K2
-     está siempre conectado. Traktor escribe `Traktor Settings.tsi` solo al cerrarse, así que el modo
+     está siempre conectado. [REFUTADO 2026-11-06 por la sesión de las 17:12: Traktor escribió sus
+     ajustes estando abierto (17:14:00, al cargar la configuración externa, y 17:20:13), y el programa
+     anotó «mezcla externa» a las 17:14:02. `MixerWatch` ve el cambio a los 2 s.] Traktor escribe
+     `Traktor Settings.tsi` solo al cerrarse, así que el modo
      leído al abrir no ve ese cambio. La DJM conectada tampoco indica mezcla externa: desde el 11-04,
      Traktor estuvo en mezcla interna con la DJM como placa de sonido (respaldos de `Backup/Settings`).
      Lo que sí cambia: con `XONE K2 + TECLADO (TEMPO).tsi` los faders del K2 mueven el volumen de canal
