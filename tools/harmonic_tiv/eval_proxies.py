@@ -142,6 +142,10 @@ def run_musica(args) -> dict:
     trans = pd.read_csv(args.eval_dir / "transitions_history.csv").dropna(subset=["a_uid", "b_uid"])
     trans = trans[trans["split"] == args.split]
     all_ids = list(keys_all["track_uid"])
+    if args.ids_file:
+        # conjunto congelado: todas las variantes se evalúan sobre los mismos temas
+        frozen = set(Path(args.ids_file).read_text(encoding="utf-8").split())
+        all_ids = [i for i in all_ids if i in frozen]
     variants = ONE_AT_A_TIME if not args.only else [v for v in ONE_AT_A_TIME if v[0] in args.only]
     results, kr = [], None
     for label, change in variants:
@@ -224,6 +228,7 @@ def main() -> int:
     ap.add_argument("--bpm", type=Path)
     ap.add_argument("--out", type=Path)
     ap.add_argument("--only", nargs="*", help="solo estas variantes (por su etiqueta)")
+    ap.add_argument("--ids-file", type=Path, help="evaluar solo estos track_uid (uno por línea): mismo conjunto para todas las variantes")
     ap.add_argument("--no-history", action="store_true",
                     help="sin transiciones reales (necesitan la biblioteca entera como candidatos)")
     args = ap.parse_args()

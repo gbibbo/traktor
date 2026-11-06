@@ -260,6 +260,8 @@ escucha lo apruebe. Protocolo y criterios: `docs/plans/armonia_tiv_protocolo.md`
 | `tools/harmonic_tiv/eval_proxies.py` | Grilla de variantes de a una variable contra FEM#10 y la regla Camelot (`--set thesis48` o `--set musica --split dev`), con el percentil de las transiciones reales dentro de cada clase Camelot |
 | `src/v4/harmonic_tiv/render.py` | Transiciones de DJ para la escucha: tramo más tonal, tempo igualado con rubberband (ffmpeg), fase de bombo calibrada contra la grilla de Traktor y autoalineación dentro de la mezcla, cambio de graves por EQ |
 | `tools/harmonic_tiv/listening_test.py` | Etapa C: `build` elige ítems donde Camelot y el TIV discrepan (vecinos CLAP con BPM compatible), renderiza, agrega repetidos y escribe una página local a ciegas; `score` aplica el criterio del protocolo |
+| `tools/harmonic_tiv/survey_reanalysis.py` | Reanálisis de la encuesta de la tesis (15 × 10): TPRc y análisis por ítem |
+| `tools/harmonic_tiv/paired_selfsup_boot.py` | Comparación pareada de variantes (S1-hard y teoría) con bootstrap sobre un conjunto congelado |
 | `tests/v4/test_harmonic_tiv.py` | TIV igual a TIV.lib, transposición, front-end con señales sintéticas, HPSS por tramos, métricas |
 
 ## Herramienta de feedback del DJ (`tools/dj_feedback/`)
@@ -289,6 +291,6 @@ escucha lo apruebe. Protocolo y criterios: `docs/plans/armonia_tiv_protocolo.md`
 | `docs/plans/armonia_tiv_protocolo.md` | Protocolo (rama `harmonic-tiv`) para retomar la tesis de TIV: lo verificado de la tesis, datos de ajuste y evaluación, líneas base, hipótesis y criterios de éxito fijados antes de evaluar (decide la escucha a ciegas de Gabriel) |
 | `docs/plans/representation_model_plan.md` | Plan operativo vigente: evaluación, tabla de representaciones, 1001Tracklists, entrenamiento en Kaggle, MVP |
 | `docs/DECISIONS.md` | Registro fechado de decisiones de Gabriel que condicionan el trabajo (prevalecen sobre planes anteriores) |
-| `docs/reports/` | Informes fechados de resultados (baselines de tripletas; `scientific_review_2026-09-12.md` compara todas las versiones y fija el plan; `mvp_biblioteca_2026-09-27.md` biblioteca completa, CLAP, Vocal y export; `temas_repetidos_2026-09-29.md` versiones frente a duplicados y cómo detectarlos; `organizacion_escritorio_2026-11-04.md` tamaños y opciones para la pestaña Organización en el PC de escritorio; `embeddings_en_los_archivos_2026-11-04.md` si los embeddings pueden ir dentro de los tags de cada archivo) |
+| `docs/reports/` | Informes fechados de resultados (baselines de tripletas; `scientific_review_2026-09-12.md` compara todas las versiones y fija el plan; `mvp_biblioteca_2026-09-27.md` biblioteca completa, CLAP, Vocal y export; `temas_repetidos_2026-09-29.md` versiones frente a duplicados y cómo detectarlos; `organizacion_escritorio_2026-11-04.md` tamaños y opciones para la pestaña Organización en el PC de escritorio; `embeddings_en_los_archivos_2026-11-04.md` si los embeddings pueden ir dentro de los tags de cada archivo; `auditoria_armonia_tiv_2026-11-06.md` informe para un auditor externo: los criterios offline del TIV se contradicen, opciones y pregunta concreta) |
 | `v4_implementation_plan.md` | Plan de implementación completo (rev.5) |
 | `docs/DJ_FEEDBACK_TOOL.md` | Herramienta de escucha y anotación del DJ (tripletas con cola fija) |
