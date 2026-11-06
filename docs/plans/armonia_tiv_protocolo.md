@@ -90,6 +90,10 @@ Todo fuera de Git, en `D:\TRAKTOR ML datos\harmonic_tiv\` (`eval_sets_report.jso
   apariciones. Guardarraíl: no más concentrado que K0.
 - A4 *transiciones reales* (sesiones dev): percentil medio del tema que Gabriel tocó entre los candidatos
   con BPM compatible, con IC bootstrap 95 %.
+- A4b *transiciones reales dentro de la clase Camelot* (agregado el 2026-11-06, antes de ver resultados
+  de `musica`): mismo percentil, pero solo contra candidatos con el mismo score Camelot (tonalidad MIK)
+  que el tema que tocó. Ahí K0 empata por construcción, así que A4b > 0,5 dice que el TIV sabe algo de lo
+  que Gabriel elige que la tonalidad que ve no dice. Se informa con IC; no cambia la regla de selección.
 - A5 costo (s por tema en CPU) y cobertura (% de temas con score; K0 tiene ~84 %).
 - **Regla de selección del finalista** (fijada ahora): entre las variantes que no empeoran A1 respecto de
   T0 más allá de su IC y cumplen A3, la de mayor A4; empate → la más simple. Combinar varios cambios solo
@@ -125,6 +129,24 @@ negativo o no concluyente:** se documenta en `docs/reports/` y la regla Camelot 
 - [x] Tesis leída completa; código original revisado; TIV reimplementado y verificado contra TIV.lib.
 - [x] Front-end CPU sin Essentia (`frontend.py`), validado con señales sintéticas (afinación ±0,02 st).
 - [x] Conjuntos de evaluación y splits (`build_eval_sets.py`).
-- [ ] Caché de espectros: thesis48 → musica completa (`extract_semitones.py`, ~25 s por tema).
-- [ ] Etapa A sobre thesis48 (reproducir la tesis) y sobre musica dev.
-- [ ] Etapa B, generador de transiciones para la escucha, Etapa C.
+- [x] Caché de espectros de thesis48 (48/48, 0 errores, valores finitos).
+- [x] Etapa A sobre thesis48: ver la sección 8.
+- [ ] Caché de musica completa (`extract_semitones.py`, ~6 s por tema con 8 procesos).
+- [ ] Etapa A sobre musica dev → finalista → Etapa B.
+- [x] Herramienta de la etapa C (`listening_test.py`), probada de punta a punta con 2 ítems.
+- [ ] Etapa C con Gabriel.
+
+## 8. Resultados de la etapa A en thesis48 (exploratorio: 24 temas por género)
+
+Fuente: `D:\TRAKTOR ML datos\harmonic_tiv\proxies_thesis48.json`, caché `cache_semitones_v2`, commit
+fddb3b1. IC bootstrap pareados sobre los temas objetivo (aproximados: las columnas no se remuestrean).
+
+| Afirmación | Etiqueta | Evidencia |
+| :--- | :--- | :--- |
+| La reimplementación reproduce el orden de la tesis por Perf: FEM#10 13,3 > 30 % central 12,1 > sin blanqueo 9,7 (tesis: 11,26 / 10,44) | EVIDENCIA OBSERVADA | `proxies_thesis48.json` |
+| Perf no sirve para comparar fórmulas: la disonancia de la mezcla da Perf 44,6 con peor orden de pares (Spearman 0,87 contra 0,91) | EVIDENCIA OBSERVADA | ídem |
+| En Progressive House el TIV recupera las relaciones de tonalidad casi perfecto (Spearman 0,91, AUC 0,99, encuentra primero al compañero de misma tonalidad en 24 de 24, transposición correcta 99 %); en Techno mucho menos (0,41; 0,78; MRR 0,53; 61 %) | EVIDENCIA OBSERVADA | ídem |
+| Con la misma información de audio, comparar TIV directo ordena mejor que estimar la tonalidad y aplicar Camelot (PH 0,91 contra 0,68; Techno 0,41 contra 0,28) | EVIDENCIA OBSERVADA | ídem; tonalidad por perfiles de Temperley sobre el mismo croma (83 % y 25 % de acierto) |
+| El blanqueo espectral es el paso que más pesa (sin él, Spearman −0,25 y −0,23, IC lejos de 0) | EVIDENCIA OBSERVADA | bootstrap pareado |
+| Agregar el bajo al croma, el NNLS, ponderar bloques por igual o por claridad tonal, y la distancia sola empeoran o no cambian | EVIDENCIA OBSERVADA (n chico) | bootstrap pareado |
+| En Techno, 30 % o 50 % central mejora a todo el tema (+0,05 y +0,04 de Spearman) y la pérdida de coherencia mejora a TIV.lib (+0,04); en PH no cambian | EXPLORATORIO | IC excluyen 0 pero n = 24 y los IC son optimistas |
