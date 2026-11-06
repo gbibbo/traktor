@@ -149,8 +149,11 @@ def main() -> int:
         while pending and rounds_without_progress < 3:
             before = len(done)
             try:
+                # Sin max_tasks_per_child: en Python 3.11, con todas las tareas encoladas de entrada, los
+                # trabajadores que se retiran no se reemplazan y el pool queda colgado (pasó el 2026-11-06
+                # a las 200 tareas = 8 trabajadores x 25).
                 with ProcessPoolExecutor(max_workers=args.workers, initializer=_worker_init,
-                                         initargs=(args.low_priority,), max_tasks_per_child=25) as ex:
+                                         initargs=(args.low_priority,)) as ex:
                     futs = {ex.submit(analyze_file, i, p, str(args.out), cfg.as_dict()): i for i, p in pending}
                     for fut in as_completed(futs):
                         r = fut.result()

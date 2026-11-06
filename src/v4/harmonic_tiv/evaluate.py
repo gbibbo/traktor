@@ -196,7 +196,8 @@ def _rank_metrics(pos_scores: np.ndarray, neg_scores: np.ndarray) -> Dict:
 
 
 def selfsup_continuation(frags: Dict[str, np.ndarray], metric: Callable, n_neg: int = 200, pairs_per_track: int = 4,
-                         seed: int = 0, key_of: Optional[Dict[str, str]] = None) -> Dict:
+                         seed: int = 0, key_of: Optional[Dict[str, str]] = None,
+                         hard_key_of: Optional[Dict[str, str]] = None, n_hard: int = 50) -> Dict:
     """Objetivo autosupervisado (propuesta de Gabriel, 2026-11-06): para cada tema, pares de fragmentos
     consecutivos (f_i, f_i+1); el positivo f_i+1 compite con `n_neg` fragmentos de otros temas. Score =
     1 - metric(f_i, c) sin transponer. Además: % de pares cuya mejor transposición es 0 (en ±6 y en ±2).
@@ -233,6 +234,24 @@ def selfsup_continuation(frags: Dict[str, np.ndarray], metric: Callable, n_neg: 
         neg_k = np.array([[best_key_shift(kq[r], key_of.get(pool_owner[j], "?"), max_shift=0)[0]
                            for j in negs_idx[r]] for r in range(len(pairs))])
         out["camelot"] = _rank_metrics(pos_k, neg_k)
+    if hard_key_of is not None:
+        # S1-hard: negativos de otros temas con la MISMA tonalidad (MIK) que el tema de la consulta. Ahí
+        # Camelot empata por construcción; mide si el TIV distingue por debajo del nivel de la tonalidad.
+        owner_key = np.array([hard_key_of.get(u, "?") for u in pool_owner])
+        rows, pos_h, neg_h = [], [], []
+        for r, (u, _) in enumerate(pairs):
+            kk = hard_key_of.get(u, "?")
+            if kk == "?":
+                continue
+            cand = np.flatnonzero((pool_owner != u) & (owner_key == kk))
+            if len(cand) < n_hard:
+                continue
+            sel = rng.choice(cand, size=n_hard, replace=False)
+            pos_h.append(pos_s[r])
+            neg_h.append(1.0 - metric(q[r][None, :], pool[sel]))
+            rows.append(r)
+        if rows:
+            out["tiv_hard"] = _rank_metrics(np.array(pos_h), np.array(neg_h))
     return out
 
 

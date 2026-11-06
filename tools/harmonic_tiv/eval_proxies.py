@@ -166,7 +166,8 @@ def run_musica(args) -> dict:
         hub = ev.hubness(score, k=10)
         dev = [i for i in ids if i in split_ids]
         want_k = label.startswith("base")
-        s1 = ev.selfsup_continuation({i: feats[i]["frags"] for i in dev}, fn, key_of=tag_of if want_k else None)
+        s1 = ev.selfsup_continuation({i: feats[i]["frags"] for i in dev}, fn, key_of=tag_of if want_k else None,
+                                     hard_key_of=tag_of)
         s3 = ev.selfsup_intro_outro({i: feats[i]["first"] for i in dev}, {i: feats[i]["last"] for i in dev}, fn,
                                     key_of=tag_of if want_k else None)
         pairs = [(a, b) for a, b in zip(trans.a_uid, trans.b_uid) if a in pos and b in pos and a != b]
@@ -191,6 +192,9 @@ def run_musica(args) -> dict:
                "S1_top1": round(s1["tiv"]["top1"], 4), "S2_shift0_full": round(s1["tiv"]["shift0_full"], 3),
                "S2_shift0_pm2": round(s1["tiv"]["shift0_pm2"], 3), "S3_mrr": round(s3["tiv"]["mrr"], 4),
                "S3_auc": round(s3["tiv"]["auc"], 4), "S1_n": s1["tiv"]["n_queries"], "S1_chance": round(s1["tiv"]["chance_mrr"], 4),
+               "S1hard_mrr": round(s1["tiv_hard"]["mrr"], 4) if "tiv_hard" in s1 else None,
+               "S1hard_auc": round(s1["tiv_hard"]["auc"], 4) if "tiv_hard" in s1 else None,
+               "S1hard_n": s1["tiv_hard"]["n_queries"] if "tiv_hard" in s1 else 0,
                "A1_spearman": round(pm["spearman_fifths"], 3), "A1_auc": round(pm["auc_near_far"], 3),
                "A1_mrr_same": round(pm["mrr_same"], 3), "A2_shift_exact": round(sa["exact"], 3), "consensus_n": len(ci),
                "A3_hub_skew": round(hub["skew"], 2), "A3_hub_never": round(hub["never"], 3), "A3_hub_max": hub["max_occ"],

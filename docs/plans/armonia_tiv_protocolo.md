@@ -98,6 +98,12 @@ Todo fuera de Git, en `D:\TRAKTOR ML datos\harmonic_tiv\` (`eval_sets_report.jso
 - **S1 autosupervisado (objetivo principal, decisión de Gabriel):** para cada tema dev, pares de
   fragmentos consecutivos de 30 s; el siguiente fragmento del mismo tema tiene que quedar arriba entre
   él y 200 fragmentos de otros temas dev. Métricas: MRR y AUC con el score sin transponer.
+- **S1-hard** (agregado antes de ver resultados): igual que S1, pero los 50 negativos son fragmentos de
+  otros temas con la **misma tonalidad MIK**; Camelot empata ahí por construcción, así que mide la
+  distinción por debajo de la tonalidad que motivó la tesis. Se informa.
+- *Sesgo conocido de S1 y S3:* premian cualquier contenido de alturas estable dentro del tema, aunque no
+  sea el que choca en la mezcla (el bajo repetido mejora S1, pero el DJ lo saca con el EQ). La decisión
+  sobre el registro (H4) no se toma solo con S1.
 - **S2 transposición autosupervisada:** entre fragmentos consecutivos del mismo tema, la mejor
   transposición (de las 12) tiene que ser 0; % de aciertos en ±6 y en ±2.
 - **S3 intro contra outro:** los primeros 2 min de un tema contra los últimos 2 min del mismo tema, entre

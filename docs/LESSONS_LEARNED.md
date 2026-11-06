@@ -190,6 +190,13 @@ una extracción con `--low-priority` corrió en prioridad Normal con la CPU al 9
 prioridad con `psutil.Process().nice()`. La versión correcta ya estaba en
 `lower_priority()` de `src/v4/pipeline/extract_representations.py`: buscarla antes de escribir otra.
 
+### `ProcessPoolExecutor(max_tasks_per_child=...)` se cuelga en Python 3.11
+
+Con todas las tareas encoladas de entrada, cada trabajador que llega a su tope se retira y el pool no lo
+reemplaza: el proceso principal queda esperando sin CPU y sin hijos. El 2026-11-06 una extracción se
+detuvo a las 200 tareas (8 trabajadores × 25). Si una corrida larga no avanza, mirar si quedan procesos
+hijos; para acotar memoria, procesar por tramos en vez de reciclar trabajadores.
+
 ## Entorno HPC (ver también memory/MEMORY.md)
 
 [REEMPLAZADO 2026-09-12 por DECISIONS 2026-09-12, punto 4: Surrey HPC ya no existe; se trabaja en CPU local (AGENTS.md). Se conserva como registro.]
