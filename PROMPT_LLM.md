@@ -51,7 +51,7 @@ Si no puedes leer el repo, pídele a la persona que te pegue la guía.
 | 5 | Elegir In-Port y Out-Port del controlador. | El controlador mueve Traktor. |
 | 6 | Agregar el Kontrol D2 con Add… > Traktor > Kontrol D2 (no hace falta tenerlo). | Aparece "Kontrol D2" en Device. |
 | 7 | Con Traktor cerrado: `python tools/traktor_live/instalar_api_client.py --sonda`, aceptando el permiso de administrador. | El script dice `[OK] Sonda instalada`. En Windows sale en la ventana nueva y en `artifacts/v4/traktor_backups/instalar_api_client.log`. `--status` dice "igual al del repo". |
-| 8 | Abrir Traktor y dar doble clic a `Sugerencias en vivo.bat` (Windows) o `.command` (macOS). | `[INFO] Listo. Controlador: … Botón: …`. |
+| 8 | Dar doble clic a `Activar sugerencias automaticas.bat` (Windows) o `.command` (macOS), una vez. Después, abrir Traktor. | `[OK] Inicio automático` al activarlo. Al abrir Traktor, la notificación «Sugerencias en vivo: Listo». `sugerencias_servicio.py estado` muestra el registro. Para verlo en una ventana: `Sugerencias en vivo.bat` / `.command`. |
 | 9 | Solo si el controlador no es un K2 o el botón es otro: cerrar con Ctrl+C y correr `sugerencias_vivo.py --midi <palabra> --aprender`. | `[OK] Botón: …`. |
 | 10 | Apretar el botón dos veces. | `En las sugerencias (N ms)` y `De vuelta en …`. |
 
@@ -71,7 +71,8 @@ Si no puedes leer el repo, pídele a la persona que te pegue la guía.
 | «A Traktor le falta la sonda». | La sonda no está instalada, o Traktor se actualizó. | Paso 7, con Traktor cerrado. |
 | «La pantalla del D2 no responde». | Traktor está cerrado, falta el Kontrol D2 (paso 6) o falta la sonda. | Revisar esos tres. |
 | «No pude llegar». | Traktor muestra la carpeta por otro camino. | Apretar otra vez. Si sigue, navegar a mano una vez hasta `TRAKTOR ML Sugerencias NML` y apretar: el programa aprende el camino. |
-| «El puerto 8080 ya lo usa otro programa». | Hay otra ventana de este programa abierta. | Cerrarla con Ctrl+C. |
+| «El puerto 8080 ya lo usa otro programa». | Ya corre el servicio automático u otra ventana de este programa. | Si es el automático, no hace falta la ventana. Si no, cerrar la otra con Ctrl+C. |
+| No aparece «Listo» al abrir Traktor. | El servicio no está activo. | `sugerencias_servicio.py estado` y su registro (`artifacts/v4/traktor_live/servicio.log`). Si no corre, `sugerencias_servicio.py instalar`. |
 | «… no identifica una sola entrada MIDI». | El nombre no coincide con el controlador. | `sugerencias_vivo.py --listar` y después `--midi <palabra>`. |
 | macOS: «falta python-rtmidi». | El paquete no está instalado. | `.venv/bin/python -m pip install python-rtmidi==1.5.8` |
 

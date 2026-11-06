@@ -50,9 +50,9 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    tracklists y descarga del audio se consultan antes de implementar.
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
-5. Sugerencias en vivo (`docs/SUGERENCIAS_EN_VIVO.md`): D0 del K2 lleva a 10 nuevas y vuelve; probado
-   en Windows (tags `sugerencias-vivo-v1` y `-v2`), macOS solo con tests. GABRIEL + LOCAL: el cálculo
-   de las sugerencias con la trayectoria del set.
+5. Sugerencias en vivo (`docs/SUGERENCIAS_EN_VIVO.md`): D0 del K2 lleva a 10 nuevas y vuelve; arrancan
+   solas con Traktor (`sugerencias_servicio.py`, activo en este PC); macOS solo con tests. GABRIEL:
+   probarlo tocando. Después, chat nuevo para el cálculo de las sugerencias.
 
 ## RUN RECIPES
 

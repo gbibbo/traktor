@@ -30,6 +30,9 @@ CHANGELOG:
                 Al arrancar avisa si a Traktor le falta la sonda, con el comando para instalarla.
   - 2026-11-06: Cada pulsación queda en el registro de la sesión (kind "boton": ida o vuelta, desde y
                 hacia dónde, si llegó, ms y, en una ida, los temas sugeridos), para la prueba tocando.
+  - 2026-11-06: run_session() (la usa también el servicio automático, sugerencias_servicio.py) y
+                MidiWatcher: si el controlador aparece tarde o se desenchufa y vuelve, se reabre solo.
+                Los avisos van por say(nivel, texto).
 """
 from __future__ import annotations
 
@@ -62,7 +65,10 @@ SETTINGS_FILE = te.DEFAULT_LOG_DIR / "sugerencias_vivo.json"
 NML_NAME = f"{PLAYLIST_NAME} NML"
 DEFAULT_MIDI = "K2"
 DEBOUNCE_S = 0.4
-NOTE_NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+MIDI_POLL_S = 2.0                     # cada cuánto se revisa si el controlador se desenchufó o apareció
+LEVELS = {"info": "INFO", "ok": "OK", "aviso": "AVISO", "error": "ERROR"}
+Say = Callable[[str, str], None]      # (nivel, texto): la ventana lo imprime, el servicio además notifica
+NOTE_NAMES =("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 
 
 @dataclass(frozen=True)
@@ -295,10 +301,92 @@ def main() -> int:
             print(f"  {i}: {name}")
         return 0
 
-    collection = Path(args.collection) if args.collection else find_collection()
+    save_settings(settings, settings_path)
+    stop = threading.Event()
+    previous = signal.signal(signal.SIGINT, lambda *_: stop.set())
+    try:
+        return run_session(settings_path, stop, port=args.port, collection_arg=args.collection,
+                           learn=args.aprender)
+    finally:
+        signal.signal(signal.SIGINT, previous)
+
+
+def console_say(level: str, text: str) -> None:
+    print(f"[{LEVELS.get(level, level.upper())}] {text}", flush=True)
+
+
+class MidiWatcher:
+    """Mantiene abierta la entrada del controlador: la busca por una palabra de su nombre, la abre y, si
+    cambia la lista de entradas (se desenchufó y se volvió a enchufar, o apareció más tarde), la vuelve a
+    abrir. Avisa una sola vez por cada problema distinto."""
+
+    def __init__(self, text: str, backend: str, say: Say, lister=list_inputs, opener=open_input):
+        self.text, self.backend, self.say = text, backend, say
+        self.lister, self.opener = lister, opener
+        self.names: Optional[List[str]] = None
+        self.input = None
+        self.name = ""
+        self._last_problem = ""
+
+    def _problem(self, level: str, text: str) -> None:
+        if text != self._last_problem:
+            self._last_problem = text
+            self.say(level, text)
+
+    def poll(self) -> None:
+        try:
+            names = self.lister(self.backend)
+        except RuntimeError as exc:                     # p. ej. falta python-rtmidi
+            self._problem("error", str(exc))
+            return
+        if self.input is not None and names == self.names:
+            return
+        changed = self.names is not None and names != self.names
+        self.names = names
+        if self.input is not None:
+            self.input.close()
+            self.input = None
+            self.say("aviso", "Cambiaron las entradas MIDI: vuelvo a abrir el controlador")
+        idx = find_input(names, self.text)
+        if idx is None:
+            self._problem("aviso", f"No veo el controlador «{self.text}» entre las entradas MIDI {names}: "
+                                   "lo sigo buscando (¿enchufado?; --midi elige otro)")
+            return
+        inp = self.opener(idx, self.backend)
+        error = inp.open()
+        if error:
+            self._problem("error", f"No pude abrir {names[idx]}: {error}")
+            return
+        self.input, self.name = inp, names[idx]
+        if self._last_problem or changed:
+            self.say("ok", f"Controlador abierto: {self.name}")
+        self._last_problem = ""
+
+    def get(self, timeout: float):
+        if self.input is None:
+            time.sleep(timeout)
+            return None
+        try:
+            return self.input.events.get(timeout=timeout)
+        except queue.Empty:
+            return None
+
+    def close(self) -> None:
+        if self.input is not None:
+            self.input.close()
+            self.input = None
+
+
+def run_session(settings_path: Path, stop: threading.Event, say: Say = console_say, port: int = 8080,
+                collection_arg: Optional[str] = None, learn: bool = False) -> int:
+    """Una sesión de sugerencias en vivo hasta que stop se activa: la ventana la corta con Ctrl+C y el
+    servicio automático (sugerencias_servicio.py) cuando se cierra Traktor. 0 si terminó bien."""
+    settings = load_settings(settings_path)
+    backend = settings.get("backend") or default_backend()
+    collection = Path(collection_arg) if collection_arg else find_collection()
     if collection is None or not collection.exists():
-        print("[ERROR] No encontré collection.nml de Traktor (Documentos/Native Instruments/Traktor*); "
-              "indicarlo con --collection")
+        say("error", "No encontré collection.nml de Traktor (Documentos/Native Instruments/Traktor*); "
+                     "indicarlo con --collection")
         return 1
     out_dir = Path(settings.get("dir") or default_live_dir())
     try:
@@ -306,98 +394,92 @@ def main() -> int:
         if not sugg.nml.exists():
             sugg.next()                                     # para que la playlist exista en el Explorer
     except (ValueError, OSError) as exc:
-        print(f"[ERROR] {exc}")
+        say("error", str(exc))
         return 1
-    print(f"[INFO] Colección: {collection} ({len(sugg.tracks)} {sugg.pool} para las listas de prueba)")
+    say("info", f"Colección: {collection} ({len(sugg.tracks)} {sugg.pool} para las listas de prueba)")
     d2 = inst.default_d2()
     if d2 is None:
-        print("[AVISO] No encontré Traktor instalado en el lugar de siempre: si está en otro, instalar la sonda "
-              "con instalar_api_client.py --sonda --d2 <carpeta qml/CSI/D2>")
+        say("aviso", "No encontré Traktor instalado en el lugar de siempre: si está en otro, instalar la sonda "
+                     "con instalar_api_client.py --sonda --d2 <carpeta qml/CSI/D2>")
     elif not inst.is_ready(d2):
         installer = Path(__file__).resolve().parent / "instalar_api_client.py"
-        print(f"[AVISO] A Traktor le falta la sonda o está desactualizada. Cerrar Traktor y correr una vez:\n"
-              f'         "{sys.executable}" "{installer}" --sonda')
+        say("aviso", f"A Traktor le falta la sonda o está desactualizada. Cerrar Traktor y correr una vez:\n"
+                     f'         "{sys.executable}" "{installer}" --sonda')
     learned: Dict[str, List[str]] = settings.get("destinos") or {}
     target = learned.get(str(sugg.nml)) or explorer_path(sugg.nml)
-
-    midi_text = settings.get("midi") or DEFAULT_MIDI
-    idx = find_input(names, midi_text)
-    if idx is None:
-        print(f"[ERROR] «{midi_text}» no identifica una sola entrada MIDI. Entradas: {names}. "
-              "Elegir con --midi (una palabra del nombre)")
-        return 1
-    midi = open_input(idx, backend)
-    error = midi.open()
-    if error:
-        print(f"[ERROR] No pude abrir {names[idx]}: {error}")
-        return 1
 
     state = te.State(show_browser=False)
     log_path = te.DEFAULT_LOG_DIR / f"sugerencias_vivo_{dt.datetime.now():%Y%m%d_%H%M%S}.jsonl"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        servers = te.open_servers(args.port, te.make_handler(state, log_path))
+        servers = te.open_servers(port, te.make_handler(state, log_path))
     except OSError as exc:
-        midi.close()
         if te.port_in_use(exc):
-            print(f"[ERROR] El puerto {args.port} ya lo usa otro programa (¿traktor_estado.py u otra ventana de "
-                  "esto abierta?). Cerrarlo con Ctrl+C y volver a correr esto.")
+            say("error", f"El puerto {port} ya lo usa otro programa: ¿ya corren las sugerencias (en otra ventana "
+                         "o en el inicio automático) o traktor_estado.py?")
             return 1
         raise
 
-    stop = threading.Event()
-    previous = signal.signal(signal.SIGINT, lambda *_: stop.set())
     serve_thread = threading.Thread(target=te.serve, args=(servers, stop), daemon=True)
     serve_thread.start()
+    midi = MidiWatcher(settings.get("midi") or DEFAULT_MIDI, backend, say)
     try:
-        if args.aprender:
-            button = learn_button(midi.events, stop)
+        midi.poll()
+        if learn:
+            if midi.input is None:
+                say("error", "Para aprender el botón el controlador tiene que estar enchufado")
+                return 1
+            button = learn_button(midi.input.events, stop)
             if button is None:
                 return 0
             settings["button"] = asdict(button)
+            save_settings(settings, settings_path)
         else:
             button = button_from_settings(settings)
-        save_settings(settings, settings_path)
 
         def remember(path: List[str]) -> None:
             settings.setdefault("destinos", {})[str(sugg.nml)] = path
             save_settings(settings, settings_path)
-            print(f"[OK] Aprendí el camino hasta las sugerencias: {' › '.join(path[1:])}")
+            say("ok", f"Aprendí el camino hasta las sugerencias: {' › '.join(path[1:])}")
 
-        print(f"[INFO] Listo. Controlador: {names[idx]}. Botón: {button.name()}. "
-              f"Sugerencias en {sugg.nml}. Ctrl+C para salir.")
+        say("ok", f"Listo. Controlador: {midi.name or '(todavía no aparece)'}. Botón: {button.name()}. "
+                  f"Sugerencias en {sugg.nml}.")
         toggle = Toggle(target, on_learn=remember)
-        last = 0.0
+        last, last_poll = 0.0, time.monotonic()
         while not stop.is_set():
-            try:
-                packed, t = midi.events.get(timeout=0.1)
-            except queue.Empty:
+            if time.monotonic() - last_poll > MIDI_POLL_S:
+                midi.poll()
+                last_poll = time.monotonic()
+            event = midi.get(0.1)
+            if event is None:
                 continue
+            packed, t = event
             if not button.pressed(*decode(packed)):
                 continue
             if t - last < DEBOUNCE_S:
                 continue
             last = t
-            press(state, toggle, sugg, log_path)
+            press(state, toggle, sugg, log_path, say)
     finally:
         stop.set()
-        signal.signal(signal.SIGINT, previous)
         serve_thread.join(timeout=3)
         midi.close()
-    print("[INFO] Fin.")
+    say("info", "Fin de la sesión de sugerencias.")
     return 0
 
 
-def press(state: te.State, toggle: Toggle, sugg: Suggestions, log_path: Optional[Path] = None) -> None:
+def press(state: te.State, toggle: Toggle, sugg: Suggestions, log_path: Optional[Path] = None,
+          say: Say = console_say) -> None:
     """Una pulsación del botón. Anota en el registro de la sesión qué hizo, si llegó, cuánto tardó, desde
-    dónde y, en una ida, los temas sugeridos (para ver después cuáles se cargaron en un deck)."""
+    dónde y, en una ida, los temas sugeridos (para ver después cuáles se cargaron en un deck). Lo normal
+    se imprime; los problemas van también por say (el servicio los muestra como notificación)."""
     t0 = time.perf_counter()
     rid = state.enqueue("report")
     rep = state.wait_result(rid, 2.0)
     if rep is None:
         te.log_event(log_path, "boton", "sin_respuesta", {})
-        print("[AVISO] La pantalla del D2 no responde: ¿Traktor abierto, con el Kontrol D2 agregado en el "
-              "Controller Manager y la sonda instalada (instalar_api_client.py --sonda)?")
+        say("aviso", "La pantalla del D2 no responde: ¿Traktor abierto, con el Kontrol D2 agregado en el "
+                     "Controller Manager y la sonda instalada (instalar_api_client.py --sonda)?")
         return
     action, path, index = toggle.decide(rep.get("path", ""), int(rep.get("currentIndex", -1)))
     event = {"desde": rep.get("path", ""), "hacia": path}
@@ -420,10 +502,11 @@ def press(state: te.State, toggle: Toggle, sugg: Suggestions, log_path: Optional
         return
     toggle.failed(action, path, index)
     why = "el navegador del D2 no contestó a tiempo" if res is None else res.get("error")
-    print(f"[{now}] [AVISO] No pude llegar ({why}). Apretando otra vez lo reintento.")
+    text = f"[{now}] No pude llegar ({why}). Apretando otra vez lo reintento."
     if action == "sugerencias":
-        print(f"         Si Traktor muestra la carpeta por otro camino: navega a mano una vez hasta la playlist "
-              f"«{NML_NAME}» y aprieta el botón; aprendo ese camino.")
+        text += (f" Si Traktor muestra la carpeta por otro camino: navega a mano una vez hasta la playlist "
+                 f"«{NML_NAME}» y aprieta el botón; aprendo ese camino.")
+    say("aviso", text)
 
 
 if __name__ == "__main__":

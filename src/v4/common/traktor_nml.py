@@ -8,6 +8,8 @@ CHANGELOG:
                 de src/v4/pipeline/traktor_collection.py, que importaba pandas por usb_package.
   - 2026-11-05: macOS: traktor_running mira los procesos con ps, y entry_path arma las rutas de Mac (en
                 el .nml, VOLUME es el nombre del disco: el de arranque es "/", los otros /Volumes/<nombre>).
+  - 2026-11-06: En Windows, traktor_running lee los procesos por la API (sin tasklist, que desde el
+                servicio invisible de las sugerencias abría una consola cada vez).
 """
 from __future__ import annotations
 
@@ -32,12 +34,42 @@ def find_collection() -> Optional[Path]:
     return found[0] if found else None
 
 
+def _windows_process_names() -> list:
+    """Nombres de los ejecutables en marcha, por la API de Windows (CreateToolhelp32Snapshot): sin abrir
+    un proceso aparte, que desde un servicio invisible haría parpadear una consola."""
+    import ctypes
+    from ctypes import wintypes
+
+    class PROCESSENTRY32W(ctypes.Structure):
+        _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD), ("th32ProcessID", wintypes.DWORD),
+                    ("th32DefaultHeapID", ctypes.c_size_t), ("th32ModuleID", wintypes.DWORD),
+                    ("cntThreads", wintypes.DWORD), ("th32ParentProcessID", wintypes.DWORD),
+                    ("pcPriClassBase", ctypes.c_long), ("dwFlags", wintypes.DWORD),
+                    ("szExeFile", wintypes.WCHAR * 260)]
+
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    snap = k32.CreateToolhelp32Snapshot(0x2, 0)                  # TH32CS_SNAPPROCESS
+    if snap in (None, wintypes.HANDLE(-1).value):
+        return []
+    names = []
+    try:
+        entry = PROCESSENTRY32W()
+        entry.dwSize = ctypes.sizeof(entry)
+        ok = k32.Process32FirstW(snap, ctypes.byref(entry))
+        while ok:
+            names.append(entry.szExeFile)
+            ok = k32.Process32NextW(snap, ctypes.byref(entry))
+    finally:
+        k32.CloseHandle(snap)
+    return names
+
+
 def traktor_running() -> bool:
-    """¿Hay un Traktor abierto? Windows: tasklist; macOS: nombres de proceso de ps (sin la línea de
-    comandos, que en este repo dice "traktor" en cada script)."""
+    """¿Hay un Traktor abierto? Windows: la lista de procesos de la API; macOS: nombres de proceso de ps
+    (sin la línea de comandos, que en este repo dice "traktor" en cada script)."""
     if sys.platform == "win32":
-        out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq Traktor*"], capture_output=True, text=True).stdout
-        return "Traktor" in out
+        return any(n.lower().startswith("traktor") for n in _windows_process_names())
     if sys.platform == "darwin":
         out = subprocess.run(["ps", "-axco", "comm="], capture_output=True, text=True).stdout
         return any(line.strip().startswith("Traktor") for line in out.splitlines())

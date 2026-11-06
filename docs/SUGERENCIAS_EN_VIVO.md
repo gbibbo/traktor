@@ -164,11 +164,28 @@ Al actualizar Traktor, el instalador de NI puede reemplazar esos archivos: volve
 
 ## Uso
 
+**Automático, la forma normal.** Se activa una sola vez con doble clic en
+`Activar sugerencias automaticas.bat` (Windows) o `.command` (macOS). Desde ahí:
+- un proceso sin ventana arranca solo al iniciar sesión: en Windows, un acceso directo en la carpeta
+  Inicio; en macOS, un LaunchAgent;
+- cuando se abre Traktor, prende las sugerencias y muestra la notificación «Sugerencias en vivo: Listo»;
+- cuando Traktor se cierra, suelta el controlador.
+
+Los problemas también llegan como notificación, siempre sin sonido para que nada salga por el equipo.
+Todo queda en `artifacts/v4/traktor_live/servicio.log`. Para ver cómo está, correr
+`tools/traktor_live/sugerencias_servicio.py estado`; para quitarlo, `... quitar`. En Windows también
+sirve el mismo `.bat` con `estado` o `quitar`.
+
+Si el controlador se desenchufa y vuelve, o aparece después de abrir Traktor, el programa lo vuelve a
+abrir solo.
+
+**A mano, para ver lo que pasa en una ventana:**
 1. Encender la placa de sonido (la DJM). Ver *Problemas* abajo.
 2. Abrir Traktor.
 3. Abrir `Sugerencias en vivo.bat` (Windows) o `Sugerencias en vivo.command` (macOS) con doble clic, o
    correr `tools/traktor_live/sugerencias_vivo.py`.
-4. La ventana tiene que quedar abierta mientras se toca.
+4. La ventana tiene que quedar abierta mientras se toca. Con el automático activo y Traktor abierto,
+   la ventana avisa que el puerto está ocupado: ya está corriendo.
 
 Opciones; lo que se elige queda guardado para la próxima vez:
 
@@ -234,7 +251,9 @@ carpeta personal.
 | `tools/traktor_live/traktor_qml/` | El mod `traktor-api-client` (MIT) y `Screens/ApiBrowserProbe.qml`, la sonda. |
 | `tools/traktor_live/instalar_api_client.py` | Instala, revisa y desinstala el mod y la sonda en Windows y macOS. |
 | `tools/traktor_live/midi_monitor.py` | Monitor MIDI para probar controladores. |
-| `Sugerencias en vivo.bat` / `.command` | Lanzadores de doble clic. |
+| `Sugerencias en vivo.bat` / `.command` | Lanzadores de doble clic, con ventana. |
+| `tools/traktor_live/sugerencias_servicio.py` | El servicio automático: arranca con Traktor, sin ventana, y avisa con notificaciones. |
+| `Activar sugerencias automaticas.bat` / `.command` | Dejan activo el inicio automático (una vez). |
 | `tools/traktor_live/mapeos/` | Mapeos de Gabriel para importar: Xone K2 con D0 libre y teclado. |
 | `tools/traktor_live/mapeo_tsi.py` | Exporta un mapeo de Traktor a `.tsi` y libera botones (`--liberar`). |
 | `PROMPT_LLM.md` | Prompt para que otro LLM guíe a una persona a replicar esto. |

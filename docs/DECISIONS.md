@@ -46,6 +46,19 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    - No se sube su exportación completa de la configuración (`XONE K2 + TECLADO (TEMPO).tsi`), porque
      trae audio, ruteo y campos de contraseña.
    - `PROMPT_LLM.md`, en la raíz, es el prompt mínimo para un LLM que acompaña a una persona.
+4. **Las sugerencias arrancan solas con Traktor, sin correr nada a mano** (Gabriel, 2026-11-06). Cómo
+   (agente):
+   - `sugerencias_servicio.py` corre sin ventana desde que se inicia sesión: en Windows, un acceso
+     directo a `pythonw` en la carpeta Inicio, que no pide administrador; en macOS, un LaunchAgent;
+   - cuando Traktor se abre, empieza una sesión; cuando se cierra, suelta el K2 y el puerto;
+   - avisa con notificaciones del sistema sin sonido, para que nada salga por la DJM;
+   - en Windows detecta Traktor por la API de procesos, porque `tasklist` desde `pythonw` abriría una
+     consola cada vez.
+
+   Queda activo en este PC desde el 2026-11-06. La ventana a mano (`Sugerencias en vivo.bat`) sigue
+   para ver lo que pasa. Al cerrar esta etapa se entrega un prompt para un chat nuevo sobre el cálculo
+   de las sugerencias: tema principal con mezclador interno o la DJM, generación y registro de lo que
+   suena.
 
 ## 2026-11-04
 
