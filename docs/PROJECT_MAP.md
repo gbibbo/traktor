@@ -277,6 +277,7 @@ guarda lo conseguido y termina como `partial` (código 3).
 | `docs/STATUS.md` | Estado actual, pendientes y recetas de ejecución; se inyecta al abrir cada sesión de Claude Code |
 | `docs/v4/JOBS_STATUS.md` | Legado: registro de jobs Slurm de marzo de 2026 (reemplazado por `docs/STATUS.md`) |
 | `docs/LESSONS_LEARNED.md` | Base de conocimiento de lecciones aprendidas |
+| `reports/Revisión científica de armonía TIV.md` y `research_notes/Revisión científica de armonía TIV/` | Revisión metodológica del informe TIV (2026-11-06): fuentes científicas y comerciales, verificación local y propuesta de escucha; no modifica el protocolo vigente |
 | `docs/HARMONIC_COMPATIBILITY.md` | Regla de compatibilidad armónica aprobada (relaciones, transposición, ejemplo 12A) |
 | `docs/plans/representation_model_plan.md` | Plan operativo vigente: evaluación, tabla de representaciones, 1001Tracklists, entrenamiento en Kaggle, MVP |
 | `docs/DECISIONS.md` | Registro fechado de decisiones de Gabriel que condicionan el trabajo (prevalecen sobre planes anteriores) |
