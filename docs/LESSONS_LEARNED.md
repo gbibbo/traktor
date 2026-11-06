@@ -181,6 +181,15 @@ mapeo del K2 no hacía nada, aunque el K2 mandaba MIDI y el puerto no estaba tom
 encender la DJM, después abrir Traktor. Para volver: Preferences > Audio Setup, o copiar las entradas
 `Audio.*` y `Routing.*Out.Internal.*` de un respaldo en `Backup\Settings\` con Traktor cerrado.
 
+### ctypes en Windows de 64 bits: declarar restype y argtypes de los HANDLE
+
+`ctypes.windll.kernel32.SetPriorityClass(GetCurrentProcess(), ...)` sin declarar tipos no hace nada y
+no avisa: `GetCurrentProcess` devuelve el pseudo-handle -1 y ctypes lo trunca a 32 bits. El 2026-11-06
+una extracción con `--low-priority` corrió en prioridad Normal con la CPU al 93 %. Declarar
+`restype = wintypes.HANDLE` y `argtypes`, revisar el valor que devuelve la llamada, y comprobar la
+prioridad con `psutil.Process().nice()`. La versión correcta ya estaba en
+`lower_priority()` de `src/v4/pipeline/extract_representations.py`: buscarla antes de escribir otra.
+
 ## Entorno HPC (ver también memory/MEMORY.md)
 
 [REEMPLAZADO 2026-09-12 por DECISIONS 2026-09-12, punto 4: Surrey HPC ya no existe; se trabaja en CPU local (AGENTS.md). Se conserva como registro.]

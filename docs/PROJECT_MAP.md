@@ -243,6 +243,23 @@ guarda lo conseguido y termina como `partial` (código 3).
 | `tools/traktor_live/mapeos/` | Mapeos de Gabriel para importar en otro ordenador: `Xone K2 - TRAKTOR ML (D0 libre).tsi` (125 asignaciones, sin la preescucha: Load Selected y Modifier #2 de D0 y el Seek del encoder derecho con M2) y `Teclado - TRAKTOR ML.tsi` (56); su README dice cómo importarlos y regenerarlos |
 | `PROMPT_LLM.md` | Prompt mínimo para que otro LLM guíe a una persona a replicar las sugerencias en vivo: fuentes, pasos con su comprobación, fallas conocidas y límites |
 
+## Compatibilidad armónica propia con TIV (rama `harmonic-tiv`, investigación)
+
+Retoma la tesis de máster de Gabriel. Nada alimenta el pipeline ni las sugerencias en vivo hasta que la
+escucha lo apruebe. Protocolo y criterios: `docs/plans/armonia_tiv_protocolo.md`. Datos fuera de Git en
+`D:\TRAKTOR ML datos\harmonic_tiv\`.
+
+| Archivo | Descripción |
+| :--- | :--- |
+| `src/v4/harmonic_tiv/tiv.py` | TIV (Bernardes 2016) y compatibilidad de TIV.lib en numpy, vectorizados (un tema contra toda la colección y 12 transposiciones); verificado igual a TIV.lib; métricas alternativas (distancia, disonancia de la mezcla, pérdida de coherencia) |
+| `src/v4/harmonic_tiv/frontend.py` | Audio -> espectro por semitono en CPU sin Essentia (ffmpeg, HPSS por tramos, log-frecuencia, afinación, blanqueo, NNLS aproximado) y perfiles de croma |
+| `src/v4/harmonic_tiv/features.py` | Caché -> TIV por tema según `TivConfig` (preproceso, espectro, registro, sección, ponderación); `THESIS_FEM10` reproduce la tesis |
+| `src/v4/harmonic_tiv/evaluate.py` | Métricas proxy: Perf de la tesis, teoría de tonalidades (Spearman, AUC, MRR), transposición, hubness, percentil de las transiciones reales |
+| `tools/harmonic_tiv/build_eval_sets.py` | Arma thesis48, tonalidades de `musica` por fuente (MIK, Beatport, Traktor) con consenso, transiciones reales de los History de Traktor y los splits dev/test |
+| `tools/harmonic_tiv/extract_semitones.py` | Caché de espectros por semitono por tema (`--manifest`, `--folder`, `--workers`, `--low-priority`), con reintento si un proceso muere |
+| `tools/harmonic_tiv/eval_proxies.py` | Grilla de variantes de a una variable contra FEM#10 y la regla Camelot (`--set thesis48` o `--set musica --split dev`) |
+| `tests/v4/test_harmonic_tiv.py` | TIV igual a TIV.lib, transposición, front-end con señales sintéticas, HPSS por tramos, métricas |
+
 ## Herramienta de feedback del DJ (`tools/dj_feedback/`)
 
 | Archivo | Descripción |
@@ -267,6 +284,7 @@ guarda lo conseguido y termina como `partial` (código 3).
 | `docs/v4/JOBS_STATUS.md` | Legado: registro de jobs Slurm de marzo de 2026 (reemplazado por `docs/STATUS.md`) |
 | `docs/LESSONS_LEARNED.md` | Base de conocimiento de lecciones aprendidas |
 | `docs/HARMONIC_COMPATIBILITY.md` | Regla de compatibilidad armónica aprobada (relaciones, transposición, ejemplo 12A) |
+| `docs/plans/armonia_tiv_protocolo.md` | Protocolo (rama `harmonic-tiv`) para retomar la tesis de TIV: lo verificado de la tesis, datos de ajuste y evaluación, líneas base, hipótesis y criterios de éxito fijados antes de evaluar (decide la escucha a ciegas de Gabriel) |
 | `docs/plans/representation_model_plan.md` | Plan operativo vigente: evaluación, tabla de representaciones, 1001Tracklists, entrenamiento en Kaggle, MVP |
 | `docs/DECISIONS.md` | Registro fechado de decisiones de Gabriel que condicionan el trabajo (prevalecen sobre planes anteriores) |
 | `docs/reports/` | Informes fechados de resultados (baselines de tripletas; `scientific_review_2026-09-12.md` compara todas las versiones y fija el plan; `mvp_biblioteca_2026-09-27.md` biblioteca completa, CLAP, Vocal y export; `temas_repetidos_2026-09-29.md` versiones frente a duplicados y cómo detectarlos; `organizacion_escritorio_2026-11-04.md` tamaños y opciones para la pestaña Organización en el PC de escritorio; `embeddings_en_los_archivos_2026-11-04.md` si los embeddings pueden ir dentro de los tags de cada archivo) |

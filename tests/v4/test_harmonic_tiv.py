@@ -1,0 +1,136 @@
+"""
+PURPOSE: Tests de src/v4/harmonic_tiv (rama harmonic-tiv): TIV igual a TIV.lib, transposición,
+         front-end con señales sintéticas y métricas proxy.
+CHANGELOG:
+  - 2026-11-06: Creación.
+"""
+import os
+import sys
+
+import numpy as np
+import pytest
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, REPO_ROOT)
+
+from src.v4.harmonic_tiv import evaluate as ev  # noqa: E402
+from src.v4.harmonic_tiv import frontend as fe  # noqa: E402
+from src.v4.harmonic_tiv import tiv as tv  # noqa: E402
+
+# Valores de referencia calculados con tivlib/tiv.py de github.com/gbibbo/harmonic_mix (TIV.from_pcp,
+# small_scale_compatibility, get_max_compatibility) el 2026-11-06.
+A_MINOR = np.array([1.0, 0, 0.2, 0, 0.8, 0.3, 0, 0.1, 0, 1.0, 0, 0.2])     # índice 0 = C
+E_MINOR = np.roll(A_MINOR, 7)
+
+
+def _tivlib_reference(a, b):
+    """Fórmulas de TIV.lib escritas de nuevo, tal cual (sin vectorizar), para comparar."""
+    w = np.array([3, 8, 11.5, 15, 14.5, 7.5])
+
+    def from_pcp(p):
+        f = np.fft.rfft(p, n=12)
+        return f[1:7] / f[0] * w
+
+    ta, tb = from_pcp(a), from_pcp(b)
+    rel = np.linalg.norm(ta - tb) / (np.linalg.norm(w) * 2)
+    dis = 1 - np.linalg.norm((ta + tb) / 2) / np.linalg.norm(w)
+    return ta, rel * dis
+
+
+def test_tiv_matches_tivlib_formulas():
+    rng = np.random.default_rng(3)
+    for _ in range(50):
+        a, b = rng.random(12), rng.random(12)
+        ta, ref = _tivlib_reference(a, b)
+        assert np.allclose(tv.tiv_from_chroma(a), ta)
+        assert tv.hc_tivlib(tv.tiv_from_chroma(a), tv.tiv_from_chroma(b)) == pytest.approx(ref, abs=1e-12)
+
+
+def test_transpose_equals_rolling_the_chroma():
+    t = tv.tiv_from_chroma(A_MINOR)
+    for p in range(-6, 7):
+        assert np.allclose(tv.transpose(t, p), tv.tiv_from_chroma(np.roll(A_MINOR, p)))
+    many = tv.transpose(t, np.arange(12))
+    assert many.shape == (12, 6)
+
+
+def test_k0_and_k6_are_real_not_a_bug():
+    # La tesis (6.2) lo reportó como bug de TIV.lib; es la DFT de 12 valores reales.
+    f = np.fft.rfft(np.random.default_rng(0).random(12))
+    assert f[0].imag == 0 and abs(f[6].imag) < 1e-12
+    assert tv.tiv_from_chroma(A_MINOR)[5].imag == pytest.approx(0.0, abs=1e-12)
+
+
+def test_best_shift_recovers_transposition_and_prefers_small_shift():
+    a, e = tv.tiv_from_chroma(A_MINOR), tv.tiv_from_chroma(E_MINOR)
+    s, hc = tv.best_shift(a, e)
+    assert (s - (-7)) % 12 == 0 and s == 5 and hc == pytest.approx(0.0, abs=1e-12)
+    s2, _ = tv.best_shift(a, e, max_shift=2)
+    assert abs(s2) <= 2
+    assert tv.tivlib_best_shift(a, e)[0] == 5
+
+
+def test_hc_matrix_shape_and_identity():
+    T = np.stack([tv.tiv_from_chroma(A_MINOR), tv.tiv_from_chroma(E_MINOR)])
+    m = tv.hc_matrix(T, T, shifts=[0, 5])
+    assert m.shape == (2, 2, 2)
+    assert m[0, 0, 0] == pytest.approx(0.0) and m[0, 1, 1] == pytest.approx(0.0, abs=1e-12)
+
+
+def test_flat_chroma_has_zero_tiv_and_strength():
+    assert np.allclose(tv.tiv_from_chroma(np.ones(12)), 0)
+    assert tv.tonal_strength(tv.tiv_from_chroma(np.ones(12))) == pytest.approx(0.0, abs=1e-12)
+    assert np.allclose(tv.tiv_from_chroma(np.zeros(12)), 0)
+
+
+def _tone(midi, detune, sr, seconds=8.0):
+    t = np.arange(int(sr * seconds)) / sr
+    f0 = 440.0 * 2 ** ((midi - 69 + detune) / 12)
+    return sum(0.6 ** (h - 1) * np.sin(2 * np.pi * f0 * h * t) for h in range(1, 6))
+
+
+@pytest.mark.parametrize("detune", [0.0, 0.25, -0.3])
+def test_frontend_tuning_and_chroma_on_synthetic_chord(detune):
+    cfg = fe.FrontendConfig()
+    x = (_tone(57, detune, cfg.sr) + _tone(60, detune, cfg.sr) + _tone(64, detune, cfg.sr)).astype(np.float32)
+    out = fe.analyze_signal(x / np.abs(x).max(), cfg, variants=("white_lin",))
+    assert out["tuning"] == pytest.approx(detune, abs=0.05)
+    ch = fe.semitone_to_chroma(out["white_lin"].astype(float), fe.chroma_profile("treble")).sum(0)
+    assert set(np.argsort(ch)[::-1][:3]) == {9, 0, 4}          # A, C, E
+    assert out["white_lin"].shape[0] == fe.N_SEMI and np.all(np.isfinite(out["white_lin"].astype(float)))
+
+
+def test_segmented_hpss_equals_whole_signal():
+    # Por tramos (memoria acotada) tiene que dar lo mismo que de una vez: tramos alineados al salto.
+    cfg = fe.FrontendConfig()
+    rng = np.random.default_rng(5)
+    x = (_tone(57, 0.0, cfg.sr, 14.0) + 0.3 * rng.standard_normal(int(cfg.sr * 14.0))).astype(np.float32)
+    whole = fe._hpss_block(x, cfg)
+    seg = fe.hpss_harmonic(x, cfg, segment_s=5.0, pad_s=1.0)
+    assert np.allclose(whole, seg, atol=1e-5)
+
+
+def test_fifths_distance_and_shift_target():
+    assert ev.fifths_distance("8A", "8B") == 0
+    assert ev.fifths_distance("8A", "9A") == 1
+    assert ev.fifths_distance("1A", "7A") == 6
+    assert ev.key_shift_target("8A", "8A") == 0
+    assert ev.key_shift_target("8A", "9A") in (5, -7 + 12)       # bajar una quinta = subir 5
+    assert ev.key_shift_target("8A", "1A") % 12 == (7 * 7) % 12
+
+
+def test_auc_and_hubness():
+    assert ev.auc(np.array([3, 4]), np.array([1, 2])) == 1.0
+    assert ev.auc(np.array([1, 2]), np.array([1, 2])) == 0.5
+    s = np.zeros((5, 5))
+    s[:, 0] = 1.0                                               # el tema 0 aparece arriba para todos
+    h = ev.hubness(s, k=1)
+    assert h["max_occ"] == 4 and h["never"] > 0.5
+
+
+def test_key_pair_metrics_perfect_score():
+    keys = ["8A", "8A", "9A", "9A", "2A", "2A"]
+    n = len(keys)
+    score = np.array([[-ev.fifths_distance(keys[i], keys[j]) for j in range(n)] for i in range(n)], float)
+    m = ev.key_pair_metrics(score, keys)
+    assert m["auc_near_far"] == 1.0 and m["mrr_same"] == 1.0
