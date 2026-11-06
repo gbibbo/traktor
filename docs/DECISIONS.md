@@ -59,6 +59,11 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    para ver lo que pasa. Al cerrar esta etapa se entrega un prompt para un chat nuevo sobre el cálculo
    de las sugerencias: tema principal con mezclador interno o la DJM, generación y registro de lo que
    suena.
+5. **Cierre de la etapa de las sugerencias en vivo** (Gabriel, 2026-11-06: «considera que sí funciona
+   tocando un rato largo y pasemos a la siguiente etapa»). Queda con la etiqueta
+   `sugerencias-vivo-v3`. La siguiente etapa, la recomendación real, empieza en un chat nuevo con
+   `docs/plans/PROMPT_ETAPA_RECOMENDACION.md`: tema principal con mezclador interno o la DJM,
+   registro de lo que suena y cómo se generan las sugerencias.
 
 ## 2026-11-04
 
