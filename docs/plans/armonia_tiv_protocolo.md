@@ -29,9 +29,21 @@ números sirven para ajustar y para descartar lo claramente peor.
 | `src/v4/harmonic_tiv/tiv.py` reproduce TIV.lib exacto | EVIDENCIA OBSERVADA | 2000 pares al azar: error máximo 3·10⁻¹⁶, 0 diferencias en la transposición sugerida |
 | Perf = (100 − meanHC)/meanSTD premia la dispersión de una escala arbitraria (el reescalado 70–100 % de la ec. 4.2 la cambia) y no mide si el orden de los candidatos es correcto; se ajustó con 24 temas de un solo género | INFERENCIA | ecs. 3.3–3.10; tabla 5 |
 | La prueba de escucha (15 personas × 10 ejemplos, TPRc 73,7 %, χ² = 36,7) trata 118 respuestas como independientes: la unidad que se replica son los 10 ejemplos, así que el χ² está inflado; descarta el 21 % de empates; los 5 FEM se compararon con las mismas respuestas | INFERENCIA | tesis 5.4–5.6, tabla 6 |
-| La prueba comparó "candidato transpuesto contra original", nunca contra la regla Camelot: no hay evidencia de que el TIV mejore a la tonalidad | EVIDENCIA OBSERVADA | tesis 5.2 |
-| El máximo sobre 12 transposiciones modela algo que los DJ casi no hacen: 2,5 % de 24 202 temas tocados estaban transpuestos (Kim et al., ISMIR 2020) | EVIDENCIA OBSERVADA (fuente externa, leída por un subagente) | arXiv 2008.10267 |
+| [REEMPLAZADO 2026-11-06 por aclaración de Gabriel: no comparar con la tonalidad fue una decisión deliberada de la tesis, que no quería emular ni repetir las sugerencias de la clave; sigue siendo cierto que no hay medición TIV contra Camelot, y para integrarlo al recomendador hace falta, porque Camelot es lo que usaría si no] La prueba comparó "candidato transpuesto contra original", nunca contra la regla Camelot: no hay evidencia de que el TIV mejore a la tonalidad | EVIDENCIA OBSERVADA | tesis 5.2 |
+| [REEMPLAZADO 2026-11-06 por decisión de Gabriel: él transpone, y se sigue trabajando con las 12 transposiciones porque el TIV lo permite; en la práctica se sugiere hasta ±2] El máximo sobre 12 transposiciones modela algo que los DJ casi no hacen: 2,5 % de 24 202 temas tocados estaban transpuestos (Kim et al., ISMIR 2020) | EVIDENCIA OBSERVADA (fuente externa, leída por un subagente) | arXiv 2008.10267 |
 | Trabajo futuro de la tesis: croma de 36 bins (desafinación), ventana local de los últimos compases, TIV por beat sobre todo el tema, base de preferencias de usuarios, transposición automática | EVIDENCIA OBSERVADA | tesis 6.3 |
+
+## 2b. Decisiones de Gabriel (2026-11-06)
+
+1. Usa transposición. Se calculan las 12; el recomendador y la escucha sugieren hasta ±2.
+2. Mezcla intro con outro y a veces partes centrales, con solapamientos de hasta 2 minutos.
+3. La tesis no comparó con la tonalidad a propósito: el TIV no busca emular la clave. Por eso la
+   concordancia con la teoría de tonalidades (A1, A2) queda como diagnóstico, no como objetivo.
+4. Propuesta suya, adoptada como **objetivo principal de ajuste**: autosupervisado, sin etiquetas de
+   tonalidad. Un tema suena bien consigo mismo, así que un fragmento y el que le sigue en el mismo tema
+   tienen que salir compatibles (y con transposición 0) frente a fragmentos de otros temas.
+5. La escucha (etapa C) la hace más adelante; hasta entonces todo es offline y la decisión queda abierta.
+6. La rama `harmonic-tiv` se sube a GitHub (sin tocar `main`).
 
 ## 3. Datos (contados en esta sesión; `tools/harmonic_tiv/build_eval_sets.py`)
 
@@ -76,12 +88,20 @@ Todo fuera de Git, en `D:\TRAKTOR ML datos\harmonic_tiv\` (`eval_sets_report.jso
 | H5 Ponderación | media cruda / cada bloque igual / bloques pesados por claridad tonal (los tramos de solo batería no votan) | A1–A4 y hubness |
 | H6 Temas atonales | un tema sin centro tonal (‖T‖ chico) es neutro, no "compatible con todo" ni "incompatible" | hubness A3 y escucha del estrato S3 |
 | H7 Fórmula | TIV.lib (distancia × disonancia) / solo distancia / disonancia de la mezcla con energías reales / choque ponderado por la claridad tonal de ambos | A1–A4 |
-| H8 Transposición | sin transponer (default) / ±1 / ±2 con penalización | solo si Gabriel usa key shift (pregunta abierta) |
+| H8 Transposición | se calculan las 12; se sugiere hasta ±2 con penalización por semitono | A2, S2 (abajo) y escucha con el candidato transpuesto |
+| H10 Secciones de la mezcla | TIV de los últimos 2 min del principal contra los primeros 2 min del candidato (asimétrico), contra el tema entero | A4 con el orden real de las transiciones (A sale, B entra) |
 | H9 Afinación | corrección de afinación global (ya incluida) / sin corregir; medir cuántos temas están desafinados > 25 cents antes de pensar en 36 bins | conteo + A1 |
 
 ## 6. Métricas y criterios de éxito
 
 **Etapa A — desarrollo (solo dev; ajusta y descarta).** Script: `tools/harmonic_tiv/eval_proxies.py`.
+- **S1 autosupervisado (objetivo principal, decisión de Gabriel):** para cada tema dev, pares de
+  fragmentos consecutivos de 30 s; el siguiente fragmento del mismo tema tiene que quedar arriba entre
+  él y 200 fragmentos de otros temas dev. Métricas: MRR y AUC con el score sin transponer.
+- **S2 transposición autosupervisada:** entre fragmentos consecutivos del mismo tema, la mejor
+  transposición (de las 12) tiene que ser 0; % de aciertos en ±6 y en ±2.
+- **S3 intro contra outro:** los primeros 2 min de un tema contra los últimos 2 min del mismo tema, entre
+  los últimos 2 min de 200 temas más (lo más parecido a una mezcla real que no necesita etiquetas).
 - A1 *teoría de tonalidades* sobre pares de consenso: Spearman del score contra la distancia en el
   círculo de quintas, AUC (distancia 0–1 contra 3–6), MRR del compañero de misma tonalidad.
 - A2 *transposición*: % de pares donde la transposición sugerida lleva al candidato a la armadura del
@@ -95,9 +115,12 @@ Todo fuera de Git, en `D:\TRAKTOR ML datos\harmonic_tiv\` (`eval_sets_report.jso
   que el tema que tocó. Ahí K0 empata por construcción, así que A4b > 0,5 dice que el TIV sabe algo de lo
   que Gabriel elige que la tonalidad que ve no dice. Se informa con IC; no cambia la regla de selección.
 - A5 costo (s por tema en CPU) y cobertura (% de temas con score; K0 tiene ~84 %).
-- **Regla de selección del finalista** (fijada ahora): entre las variantes que no empeoran A1 respecto de
-  T0 más allá de su IC y cumplen A3, la de mayor A4; empate → la más simple. Combinar varios cambios solo
-  si cada uno mejoró por separado, y volver a medir la combinación.
+- [REEMPLAZADO 2026-11-06 por decisión de Gabriel (punto 2b.4), antes de ver resultados de `musica`:
+  el objetivo principal es S1] ~~Regla de selección: entre las variantes que no empeoran A1 respecto de
+  T0 más allá de su IC y cumplen A3, la de mayor A4.~~
+- **Regla de selección del finalista:** la de mayor S1 (MRR) entre las que cumplen A3 (hubness no peor
+  que K0) y no empeoran A4 respecto de T0 más allá de su IC; empate → la más simple. Combinar cambios solo
+  si cada uno mejoró por separado, y volver a medir la combinación. A1, A2, A4b y S2–S3 se informan.
 
 **Etapa B — prueba offline (test, una sola vez por finalista).** Las mismas métricas con IC.
 - **Puerta B:** el finalista supera al azar en las transiciones reales de test (IC 95 % del percentil por
@@ -108,12 +131,14 @@ Todo fuera de Git, en `D:\TRAKTOR ML datos\harmonic_tiv\` (`eval_sets_report.jso
 - *Ítems:* temas principales del split test. Para cada uno, el mejor candidato según K0 y según el
   finalista, del mismo conjunto de candidatos; solo cuando difieren. Estratos (se informan, no deciden):
   S1 empate en K0 que el TIV desempata, S2 K0 compatible y TIV bajo, S3 TIV alto y K0 incompatible.
-- *Audio:* transición de 32 beats con los tempos igualados (grilla de Traktor cuando exista), del outro del
-  principal al intro del candidato, con el cambio de bajos por EQ como en la tesis, sin transponer. A y B
-  difieren solo en el candidato.
+- *Audio:* solapamiento de 64 beats (~30 s; las mezclas de Gabriel llegan a 2 min, pero 60 ítems de 2 min
+  serían 4 horas) con los tempos igualados (grilla de Traktor cuando exista), de la segunda mitad del
+  principal a la primera mitad del candidato, con el cambio de graves por EQ como en la tesis. Cada sistema
+  transpone su candidato con lo que sugiere, hasta ±2. A y B difieren solo en el candidato y su
+  transposición.
 - *Respuesta:* "A más armónico / B más armónico / igual", a ciegas y en orden al azar; 10 ítems repetidos
   para medir la consistencia de Gabriel consigo mismo.
-- *Tamaño:* 60 ítems (dos sesiones de ~30 min) + 10 repetidos. Mirada intermedia a los 30: si el TIV gana
+- *Tamaño:* 60 ítems (tres sesiones de ~30 min) + 10 repetidos. Mirada intermedia a los 30: si el TIV gana
   ≤ 50 % de los no empates, se para por futilidad.
 - **Éxito:** sin contar empates, el TIV gana ≥ 60 % y la prueba binomial exacta unilateral da p < 0,05;
   y la consistencia de Gabriel en los repetidos es ≥ 70 %. Si la consistencia es menor, el resultado es

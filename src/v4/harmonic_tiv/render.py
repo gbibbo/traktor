@@ -38,18 +38,23 @@ KICK_CONF_MIN = 1.5      # confianza mínima de la fase de bombo para autoalinea
 @dataclass(frozen=True)
 class Template:
     lead_beats: int = 8
-    overlap_beats: int = 32
+    overlap_beats: int = 64
     tail_beats: int = 4
     fade_beats: int = 4
     bass_cut_hz: float = 180.0
     rms_dbfs: float = -18.0
 
 
-def read_excerpt(path: Path, start_s: float, dur_s: float, sr: int = SR, tempo: float = 1.0) -> np.ndarray:
+def read_excerpt(path: Path, start_s: float, dur_s: float, sr: int = SR, tempo: float = 1.0,
+                 semitones: int = 0) -> np.ndarray:
     """Tramo mono float32 desde `start_s` (segundos del archivo) de `dur_s` segundos *de salida*;
-    con tempo != 1 se estira con rubberband sin cambiar la altura (lee dur_s·tempo del original)."""
+    con tempo != 1 se estira con rubberband sin cambiar la altura (lee dur_s·tempo del original); con
+    `semitones` != 0 se transpone (key shift de Traktor) sin cambiar el tempo."""
     src_dur = dur_s * tempo + 0.5
-    af = f"rubberband=tempo={tempo:.6f}:pitchq=quality" if abs(tempo - 1.0) > 1e-6 else "anull"
+    if abs(tempo - 1.0) > 1e-6 or semitones:
+        af = f"rubberband=tempo={tempo:.6f}:pitch={2.0 ** (semitones / 12.0):.6f}:pitchq=quality"
+    else:
+        af = "anull"
     cmd = ["ffmpeg", "-v", "error", "-nostdin", "-ss", f"{max(0.0, start_s):.4f}", "-t", f"{src_dur:.4f}",
            "-i", str(path), "-af", af, "-ac", "1", "-ar", str(sr), "-f", "f32le", "-"]
     raw = subprocess.run(cmd, capture_output=True, check=True).stdout
@@ -183,8 +188,9 @@ def snap_by_audio(t_s: float, info: TrackInfo, bpm: float, context_s: float = 90
 
 
 def render_pair(target: TrackInfo, cand_a: TrackInfo, cand_b: TrackInfo, out_a: Path, out_b: Path,
-                t: Template = Template()) -> Dict:
-    """Dos mezclas que comparten el tramo del principal. Devuelve los parámetros usados."""
+                t: Template = Template(), shift_a: int = 0, shift_b: int = 0) -> Dict:
+    """Dos mezclas que comparten el tramo del principal; cada candidato va transpuesto `shift_*`
+    semitonos (lo que sugiere su sistema). Devuelve los parámetros usados."""
     bpm_t = target.grid_bpm or target.bpm
     beat_s = 60.0 / bpm_t
     t_len = (t.lead_beats + t.overlap_beats) * beat_s
@@ -194,7 +200,7 @@ def render_pair(target: TrackInfo, cand_a: TrackInfo, cand_b: TrackInfo, out_a: 
         snapped = snap_by_audio(t0, target, bpm_t)
     tgt = read_excerpt(Path(target.path), snapped, t_len)
     mixes, params = [], {"target_start_s": round(snapped, 3), "bpm": round(bpm_t, 3)}
-    for name, c, out in (("a", cand_a, out_a), ("b", cand_b, out_b)):
+    for name, c, out, semis in (("a", cand_a, out_a, shift_a), ("b", cand_b, out_b, shift_b)):
         bpm_c = c.grid_bpm or c.bpm
         # medio o doble tempo: se lleva al múltiplo más cercano
         ratio = min((bpm_t / (bpm_c * m) for m in (0.5, 1.0, 2.0)), key=lambda r: abs(np.log(r)))
@@ -203,7 +209,7 @@ def render_pair(target: TrackInfo, cand_a: TrackInfo, cand_b: TrackInfo, out_a: 
         cs = snap_to_grid(c0, c)
         if cs is None:
             cs = snap_by_audio(c0, c, bpm_c)
-        cx = read_excerpt(Path(c.path), cs, c_len + beat_s, tempo=ratio)
+        cx = read_excerpt(Path(c.path), cs, c_len + beat_s, tempo=ratio, semitones=semis)
         # Autoalineación: si los dos tramos tienen bombo, se mide la fase de cada uno y se corre el
         # candidato para que sus beats caigan sobre los del principal (corrige grillas o fases malas).
         pt_, ct_ = beat_phase_conf(tgt, bpm_t)
@@ -218,6 +224,7 @@ def render_pair(target: TrackInfo, cand_a: TrackInfo, cand_b: TrackInfo, out_a: 
         params[f"cand_{name}_align_ms"] = round(shift * 1000, 1)
         params[f"cand_{name}_kick_conf"] = round(min(ct_, cc_), 2)
         params[f"cand_{name}_start_s"] = round(cs, 3)
+        params[f"cand_{name}_semitones"] = int(semis)
         params[f"cand_{name}_tempo"] = round(ratio, 5)
     peak = max(float(np.abs(m).max()) for m in mixes)
     gain = 10 ** (-1.0 / 20) / max(peak, 1e-9)            # misma ganancia para las dos: -1 dBFS de pico

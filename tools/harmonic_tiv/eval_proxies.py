@@ -100,6 +100,10 @@ def run_thesis48(args) -> dict:
         keys, genres = list(sub["camelot"]), list(sub["genre"])
         score, best, hc0 = scores_from_tivs(T, metric)
         row = {"variant": label, "config": cfg.name() + "/" + metric, "n": len(ids)}
+        fr = {i: ft.fragment_tivs(ft.load_cache(Path(args.cache) / f"{i}.npz"), cfg) for i in ids}
+        s1 = ev.selfsup_continuation(fr, tv.METRICS[metric], n_neg=100)
+        row["S1_mrr"] = round(s1["tiv"]["mrr"], 4)
+        row["S2_shift0_full"] = round(s1["tiv"]["shift0_full"], 3)
         for g in ("progressive_house", "techno"):
             idx = [k for k, gg in enumerate(genres) if gg == g]
             kk = [keys[k] for k in idx]
@@ -125,26 +129,32 @@ def run_thesis48(args) -> dict:
 
 
 def run_musica(args) -> dict:
-    """TIV de toda la biblioteca. Teoría de tonalidades: pares de consenso (MIK == Beatport) del split de
-    temas. Transiciones reales: sesiones del split, con toda la biblioteca como candidatos (como en vivo).
-    Hubness: toda la biblioteca."""
+    """Una pasada por el caché de cada tema por variante (track_features). Autosupervisado (S1-S3) y
+    teoría de tonalidades (A1-A2) sobre los temas del split; transiciones reales (A4, A4b) en las sesiones
+    del split con toda la biblioteca como candidatos, con el score del tema entero y el asimétrico
+    (últimos 2 min del que sale contra los primeros 2 min del que entra); hubness sobre toda la biblioteca."""
     keys_all = pd.read_csv(args.eval_dir / "keys_musica.csv")
-    split_of = keys_all.set_index("track_uid")["split"]
-    tag_of = keys_all.set_index("track_uid")["k_tag"]
+    tag_of = keys_all.set_index("track_uid")["k_tag"].to_dict()
+    split_ids = set(keys_all[keys_all.split == args.split]["track_uid"])
     cons_ids = list(keys_all[(keys_all.k_tag != "?") & (keys_all.k_tag == keys_all.k_beatport)
                              & (keys_all.split == args.split)]["track_uid"])
     bpm = pd.read_parquet(args.bpm)[["track_uid", "bpm"]].set_index("track_uid")["bpm"]
     trans = pd.read_csv(args.eval_dir / "transitions_history.csv").dropna(subset=["a_uid", "b_uid"])
     trans = trans[trans["split"] == args.split]
     all_ids = list(keys_all["track_uid"])
-    results = []
-    kr = None
-    for label, change in ONE_AT_A_TIME:
+    variants = ONE_AT_A_TIME if not args.only else [v for v in ONE_AT_A_TIME if v[0] in args.only]
+    results, kr = [], None
+    for label, change in variants:
         t0 = time.time()
         cfg, metric = split_change(change)
-        tivs = ft.collection_tivs(args.cache, all_ids, cfg)
-        ids = [i for i in all_ids if i in tivs]
-        T = np.stack([tivs[i] for i in ids])
+        fn = tv.METRICS[metric]
+        feats = {}
+        for i in all_ids:
+            p = Path(args.cache) / f"{i}.npz"
+            if p.exists():
+                feats[i] = ft.track_features(ft.load_cache(p), cfg)
+        ids = [i for i in all_ids if i in feats]
+        T = np.stack([feats[i]["tiv"] for i in ids])
         pos = {i: k for k, i in enumerate(ids)}
         score, best, _ = scores_from_tivs(T, metric)
         if kr is None:
@@ -154,6 +164,11 @@ def run_musica(args) -> dict:
         pm = ev.key_pair_metrics(score[np.ix_(ci, ci)], ck)
         sa = ev.shift_accuracy(best[np.ix_(ci, ci)], ck)
         hub = ev.hubness(score, k=10)
+        dev = [i for i in ids if i in split_ids]
+        want_k = label.startswith("base")
+        s1 = ev.selfsup_continuation({i: feats[i]["frags"] for i in dev}, fn, key_of=tag_of if want_k else None)
+        s3 = ev.selfsup_intro_outro({i: feats[i]["first"] for i in dev}, {i: feats[i]["last"] for i in dev}, fn,
+                                    key_of=tag_of if want_k else None)
         pairs = [(a, b) for a, b in zip(trans.a_uid, trans.b_uid) if a in pos and b in pos and a != b]
         bpm_of = {i: float(bpm.get(i, np.nan)) for i in ids}
         pools = {}
@@ -166,19 +181,29 @@ def run_musica(args) -> dict:
         def sc(a, b):
             return score[pos[a], pos[b]]
 
+        def sc_asym(a, b):
+            return 1.0 - float(fn(feats[a]["last"], feats[b]["first"]))
+
         def kclass(a, b):
             return round(float(kr[pos[a], pos[b]]), 2)
-        row = {"variant": label, "config": cfg.name() + "/" + metric, "n_tracks": len(ids), "consensus_n": len(ci),
-               "spearman": round(pm["spearman_fifths"], 3), "auc_near_far": round(pm["auc_near_far"], 3),
-               "auc_rule": round(pm["auc_rule"], 3), "mrr_same": round(pm["mrr_same"], 3),
-               "shift_exact": round(sa["exact"], 3), "hub_skew": round(hub["skew"], 2),
-               "hub_never": round(hub["never"], 3), "hub_max": hub["max_occ"],
-               "history": ev.transition_percentile(pairs, sc, pool_fn),
-               "history_within_camelot": ev.within_class_percentile(pairs, sc, kclass, pool_fn),
+        row = {"variant": label, "config": cfg.name() + "/" + metric, "n_tracks": len(ids), "n_split": len(dev),
+               "S1_mrr": round(s1["tiv"]["mrr"], 4), "S1_auc": round(s1["tiv"]["auc"], 4),
+               "S1_top1": round(s1["tiv"]["top1"], 4), "S2_shift0_full": round(s1["tiv"]["shift0_full"], 3),
+               "S2_shift0_pm2": round(s1["tiv"]["shift0_pm2"], 3), "S3_mrr": round(s3["tiv"]["mrr"], 4),
+               "S3_auc": round(s3["tiv"]["auc"], 4), "S1_n": s1["tiv"]["n_queries"], "S1_chance": round(s1["tiv"]["chance_mrr"], 4),
+               "A1_spearman": round(pm["spearman_fifths"], 3), "A1_auc": round(pm["auc_near_far"], 3),
+               "A1_mrr_same": round(pm["mrr_same"], 3), "A2_shift_exact": round(sa["exact"], 3), "consensus_n": len(ci),
+               "A3_hub_skew": round(hub["skew"], 2), "A3_hub_never": round(hub["never"], 3), "A3_hub_max": hub["max_occ"],
+               "A4": ev.transition_percentile(pairs, sc, pool_fn),
+               "A4_asym": ev.transition_percentile(pairs, sc_asym, pool_fn),
+               "A4b": ev.within_class_percentile(pairs, sc, kclass, pool_fn),
+               "A4b_asym": ev.within_class_percentile(pairs, sc_asym, kclass, pool_fn),
                "seconds": round(time.time() - t0, 1)}
-        if label.startswith("base"):
-            row["camelot_tag_history"] = ev.transition_percentile(pairs, lambda a, b: kr[pos[a], pos[b]], pool_fn)
-            row["camelot_tag_hubness"] = ev.hubness(kr + 1e-6 * np.random.default_rng(0).random(kr.shape), k=10)
+        if want_k:
+            row["camelot_S1"] = s1.get("camelot")
+            row["camelot_S3"] = s3.get("camelot")
+            row["camelot_A4"] = ev.transition_percentile(pairs, lambda a, b: kr[pos[a], pos[b]], pool_fn)
+            row["camelot_A3_hub"] = ev.hubness(kr + 1e-6 * np.random.default_rng(0).random(kr.shape), k=10)
             row["n_pairs_history"] = len(pairs)
         results.append(row)
         print(json.dumps(row, ensure_ascii=False), flush=True)
@@ -193,6 +218,7 @@ def main() -> int:
     ap.add_argument("--split", default="dev")
     ap.add_argument("--bpm", type=Path)
     ap.add_argument("--out", type=Path)
+    ap.add_argument("--only", nargs="*", help="solo estas variantes (por su etiqueta)")
     args = ap.parse_args()
     res = run_thesis48(args) if args.set == "thesis48" else run_musica(args)
     out = args.out or args.eval_dir / f"proxies_{args.set}{'_' + args.split if args.set == 'musica' else ''}.json"

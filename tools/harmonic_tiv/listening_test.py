@@ -77,8 +77,15 @@ def select_items(args, keys: pd.DataFrame, tivs: dict, clap: dict, metric: str, 
         sims = np.array([clap[t] @ clap[x] for x in pool])
         top = [pool[i] for i in np.argsort(-sims)[: args.pool_k]]
         sim_of = {x: float(clap[t] @ clap[x]) for x in top}
-        cam = {x: best_key_shift(k.at[t, "k_tag"], k.at[x, "k_tag"], max_shift=0)[0] for x in top}
-        tsc = {x: 1.0 - float(fn(tivs[t], tivs[x])) for x in top}
+        # K0 con transposición, como harmonic.py: hasta ±2, -0,15 por semitono
+        cam_full = {x: best_key_shift(k.at[t, "k_tag"], k.at[x, "k_tag"], max_shift=args.max_shift) for x in top}
+        cam = {x: cam_full[x][0] for x in top}
+        # TIV: misma idea; un semitono cuesta 25 % del rango (5-95 %) del TIV entre estos candidatos,
+        # como en harmonic.py, donde 0,15 es ~25 % de su rango (0,4 a 1,0). Regla fijada antes de escuchar.
+        hc0 = np.array([float(fn(tivs[t], tivs[x])) for x in top])
+        lam = args.shift_cost * float(np.percentile(hc0, 95) - np.percentile(hc0, 5))
+        tbest = {x: tv.best_shift(tivs[t], tivs[x], max_shift=args.max_shift, shift_penalty=lam) for x in top}
+        tsc = {x: 1.0 - (tbest[x][1] + lam * abs(tbest[x][0])) for x in top}
         pick_k = max(top, key=lambda x: (cam[x], sim_of[x]))
         pick_t = max(top, key=lambda x: (tsc[x], sim_of[x]))
         if pick_k == pick_t or pick_k in used or pick_t in used:
@@ -88,6 +95,7 @@ def select_items(args, keys: pd.DataFrame, tivs: dict, clap: dict, metric: str, 
             continue
         got[stratum].append({"target": t, "k_pick": pick_k, "t_pick": pick_t, "stratum": stratum,
                              "camelot_k": cam[pick_k], "camelot_t": cam[pick_t],
+                             "shift_k": int(cam_full[pick_k][1]), "shift_t": int(tbest[pick_t][0]),
                              "tiv_k": round(tsc[pick_k], 4), "tiv_t": round(tsc[pick_t], 4),
                              "clap_k": round(sim_of[pick_k], 4), "clap_t": round(sim_of[pick_t], 4),
                              "key_target": k.at[t, "k_tag"], "key_k": k.at[pick_k, "k_tag"], "key_t": k.at[pick_t, "k_tag"]})
@@ -172,7 +180,8 @@ def cmd_build(args) -> int:
         tok_a, tok_b = secrets.token_hex(4), secrets.token_hex(4)
         fa, fb = out / "audio" / f"{tok_a}.mp3", out / "audio" / f"{tok_b}.mp3"
         params = rd.render_pair(track_info(it["target"], k, args.cache), track_info(it["k_pick"], k, args.cache),
-                                track_info(it["t_pick"], k, args.cache), fa, fb)
+                                track_info(it["t_pick"], k, args.cache), fa, fb,
+                                shift_a=it["shift_k"], shift_b=it["shift_t"])
         tiv_first = bool(rng.integers(0, 2))
         c1, c2 = (fb, fa) if tiv_first else (fa, fb)
         item_id = f"i{n:03d}"
@@ -262,6 +271,9 @@ def main() -> int:
     b.add_argument("--strata", default="S1:30,S2:30")
     b.add_argument("--n-repeat", type=int, default=10)
     b.add_argument("--pool-k", type=int, default=30)
+    b.add_argument("--max-shift", type=int, default=2, help="transposición máxima sugerida (semitonos)")
+    b.add_argument("--shift-cost", type=float, default=0.25,
+                   help="costo de un semitono para el TIV, como fracción del rango 5-95 %% del TIV en los candidatos")
     b.add_argument("--seed", type=int, default=20261106)
     b.add_argument("--out", type=Path, required=True)
     s = sub.add_parser("score")

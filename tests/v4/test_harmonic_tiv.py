@@ -155,6 +155,37 @@ def test_fifths_distance_and_shift_target():
     assert ev.key_shift_target("8A", "1A") % 12 == (7 * 7) % 12
 
 
+def test_selfsup_continuation_finds_the_next_fragment_and_shift_zero():
+    rng = np.random.default_rng(2)
+    frags = {}
+    for t in range(30):
+        base = rng.random(12) ** 3                       # perfil de alturas propio de cada tema
+        frags[f"t{t}"] = np.array([tv.tiv_from_chroma(base + 0.02 * rng.random(12)) for _ in range(6)])
+    out = ev.selfsup_continuation(frags, tv.hc_tivlib, n_neg=20, pairs_per_track=2)
+    assert out["tiv"]["mrr"] > 0.9 and out["tiv"]["shift0_full"] > 0.9
+    assert out["tiv"]["mrr"] > 3 * out["tiv"]["chance_mrr"]
+
+
+def test_selfsup_skips_silent_fragments_and_intro_outro_runs():
+    rng = np.random.default_rng(4)
+    frags = {f"t{t}": np.array([tv.tiv_from_chroma(rng.random(12)) for _ in range(4)]) for t in range(10)}
+    frags["t0"][1] = np.nan                                # fragmento en silencio
+    out = ev.selfsup_continuation(frags, tv.hc_tivlib, n_neg=5, pairs_per_track=3)
+    assert out["tiv"]["n_queries"] > 0
+    first = {u: f[0] for u, f in frags.items()}
+    last = {u: f[-1] for u, f in frags.items()}
+    io = ev.selfsup_intro_outro(first, last, tv.hc_tivlib, n_neg=5, key_of={u: "8A" for u in frags})
+    assert io["camelot"]["auc"] == pytest.approx(0.5)      # misma tonalidad para todos: Camelot empata
+
+
+def test_timed_sections():
+    from src.v4.harmonic_tiv import features as ft
+    m = ft.section_mask(1000, "last120s")
+    assert m.sum() == 240 and m[-1] and not m[0]
+    m = ft.section_mask(100, "first120s")
+    assert m.all()
+
+
 def test_auc_and_hubness():
     assert ev.auc(np.array([3, 4]), np.array([1, 2])) == 1.0
     assert ev.auc(np.array([1, 2]), np.array([1, 2])) == 0.5

@@ -14,6 +14,7 @@ CHANGELOG:
 """
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Dict, Iterable, Optional
@@ -52,8 +53,18 @@ def load_cache(path: Path) -> Dict[str, np.ndarray]:
         return {k: z[k] for k in z.files}
 
 
-def section_mask(n_blocks: int, section: str, rms: Optional[np.ndarray] = None) -> np.ndarray:
+def section_mask(n_blocks: int, section: str, rms: Optional[np.ndarray] = None, block_s: float = 0.5) -> np.ndarray:
+    """Bloques de la sección: 'whole', 'centerNN' / 'introNN' / 'outroNN' (porcentaje de la duración),
+    'firstNs' / 'lastNs' (segundos, p. ej. 'last120s' = los últimos 2 minutos) o 'core' (por energía)."""
     m = np.zeros(n_blocks, dtype=bool)
+    timed = re.fullmatch(r"(first|last)(\d+)s", section)
+    if timed:
+        nb = max(1, min(n_blocks, int(round(int(timed.group(2)) / block_s))))
+        if timed.group(1) == "first":
+            m[:nb] = True
+        else:
+            m[n_blocks - nb:] = True
+        return m
     if section == "whole":
         m[:] = True
     elif section.startswith("center"):
@@ -113,6 +124,36 @@ def aggregate_chroma(cache: Dict[str, np.ndarray], cfg: TivConfig, mask: Optiona
 
 def track_tiv(cache: Dict[str, np.ndarray], cfg: TivConfig) -> np.ndarray:
     return tv.tiv_from_chroma(aggregate_chroma(cache, cfg))
+
+
+def fragment_tivs(cache: Dict[str, np.ndarray], cfg: TivConfig, frag_s: float = 30.0, block_s: float = 0.5,
+                  min_loud: float = 0.5) -> np.ndarray:
+    """TIV de fragmentos consecutivos sin solapar de `frag_s` segundos, con la misma configuración que
+    el tema (salvo la sección). Un fragmento con menos de `min_loud` de bloques sonando queda como NaN
+    (se descarta en el objetivo autosupervisado). Devuelve (F, 6) complejo."""
+    rms = cache["orig__rms"].astype(np.float64)
+    n = len(rms)
+    w = max(1, int(round(frag_s / block_s)))
+    loud = 20 * np.log10(np.maximum(rms, 1e-12) / max(rms.max(), 1e-12)) > cfg.silence_db
+    out = []
+    for a in range(0, n - w + 1, w):
+        mask = np.zeros(n, dtype=bool)
+        mask[a:a + w] = True
+        if loud[a:a + w].mean() < min_loud:
+            out.append(np.full(6, np.nan + 0j))
+            continue
+        out.append(tv.tiv_from_chroma(aggregate_chroma(cache, cfg, mask=mask)))
+    return np.array(out).reshape(-1, 6)
+
+
+def track_features(cache: Dict[str, np.ndarray], cfg: TivConfig, frag_s: float = 30.0,
+                   mix_section_s: int = 120) -> Dict[str, np.ndarray]:
+    """Todo lo que la evaluación usa de un tema en una sola pasada por su caché: TIV de la sección de
+    cfg, de los primeros y los últimos `mix_section_s` segundos, y de los fragmentos consecutivos."""
+    return {"tiv": track_tiv(cache, cfg),
+            "first": track_tiv(cache, cfg.with_(section=f"first{mix_section_s}s")),
+            "last": track_tiv(cache, cfg.with_(section=f"last{mix_section_s}s")),
+            "frags": fragment_tivs(cache, cfg, frag_s)}
 
 
 def collection_tivs(cache_dir: Path, ids: Iterable[str], cfg: TivConfig) -> Dict[str, np.ndarray]:

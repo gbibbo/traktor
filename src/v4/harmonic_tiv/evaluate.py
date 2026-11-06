@@ -20,6 +20,7 @@ from typing import Callable, Dict, List, Optional, Sequence
 import numpy as np
 
 from src.v4.common.harmonic import best_key_shift
+from src.v4.harmonic_tiv import tiv as tv
 
 
 def camelot_parts(k: str):
@@ -181,6 +182,77 @@ def _summ(pct, rng, n_boot):
     boots = [rng.choice(pct, len(pct)).mean() for _ in range(n_boot)]
     return {"n": int(len(pct)), "mean_pct": float(pct.mean()), "ci95": [float(np.percentile(boots, 2.5)),
                                                                          float(np.percentile(boots, 97.5))]}
+
+
+def _rank_metrics(pos_scores: np.ndarray, neg_scores: np.ndarray) -> Dict:
+    """pos_scores (Q,), neg_scores (Q, N): rango del positivo (empates a medias), MRR, top-1 y AUC."""
+    better = (neg_scores > pos_scores[:, None]).sum(axis=1)
+    ties = (neg_scores == pos_scores[:, None]).sum(axis=1)
+    rank = 1 + better + 0.5 * ties
+    n = neg_scores.shape[1]
+    return {"n_queries": int(len(pos_scores)), "mrr": float(np.mean(1.0 / rank)),
+            "top1": float(np.mean(rank <= 1.0)), "auc": float(np.mean(1 - (better + 0.5 * ties) / n)),
+            "chance_mrr": float(np.mean(1.0 / np.arange(1, n + 2)))}
+
+
+def selfsup_continuation(frags: Dict[str, np.ndarray], metric: Callable, n_neg: int = 200, pairs_per_track: int = 4,
+                         seed: int = 0, key_of: Optional[Dict[str, str]] = None) -> Dict:
+    """Objetivo autosupervisado (propuesta de Gabriel, 2026-11-06): para cada tema, pares de fragmentos
+    consecutivos (f_i, f_i+1); el positivo f_i+1 compite con `n_neg` fragmentos de otros temas. Score =
+    1 - metric(f_i, c) sin transponer. Además: % de pares cuya mejor transposición es 0 (en ±6 y en ±2).
+    Con `key_of` (tonalidad por tema) calcula lo mismo para la regla Camelot como referencia."""
+    rng = np.random.default_rng(seed)
+    pairs, pool, pool_owner = [], [], []
+    for uid, f in frags.items():
+        ok = [i for i in range(len(f) - 1) if np.all(np.isfinite(f[i])) and np.all(np.isfinite(f[i + 1]))]
+        for i in rng.permutation(ok)[:pairs_per_track]:
+            pairs.append((uid, int(i)))
+        for i in range(len(f)):
+            if np.all(np.isfinite(f[i])):
+                pool.append(f[i])
+                pool_owner.append(uid)
+    pool = np.array(pool)
+    pool_owner = np.array(pool_owner)
+    q = np.array([frags[u][i] for u, i in pairs])
+    pos = np.array([frags[u][i + 1] for u, i in pairs])
+    negs_idx = np.empty((len(pairs), n_neg), dtype=int)
+    for k, (u, _) in enumerate(pairs):
+        cand = np.flatnonzero(pool_owner != u)
+        negs_idx[k] = rng.choice(cand, size=n_neg, replace=False)
+    pos_s = 1.0 - metric(q, pos)
+    neg_s = 1.0 - metric(q[:, None, :], pool[negs_idx])
+    out = {"tiv": _rank_metrics(pos_s, neg_s)}
+    shifts = np.arange(-5, 7)
+    by_shift = metric(q[:, None, :], tv.transpose(pos, shifts))          # (Q, 12)
+    out["tiv"]["shift0_full"] = float(np.mean(shifts[np.argmin(by_shift, axis=1)] == 0))
+    near = np.abs(shifts) <= 2
+    out["tiv"]["shift0_pm2"] = float(np.mean(shifts[near][np.argmin(by_shift[:, near], axis=1)] == 0))
+    if key_of is not None:
+        kq = [key_of.get(u, "?") for u, _ in pairs]
+        pos_k = np.array([best_key_shift(k, k, max_shift=0)[0] for k in kq])
+        neg_k = np.array([[best_key_shift(kq[r], key_of.get(pool_owner[j], "?"), max_shift=0)[0]
+                           for j in negs_idx[r]] for r in range(len(pairs))])
+        out["camelot"] = _rank_metrics(pos_k, neg_k)
+    return out
+
+
+def selfsup_intro_outro(first: Dict[str, np.ndarray], last: Dict[str, np.ndarray], metric: Callable,
+                        n_neg: int = 200, seed: int = 0, key_of: Optional[Dict[str, str]] = None) -> Dict:
+    """Los primeros 2 min de un tema contra sus últimos 2 min, entre los últimos 2 min de `n_neg` temas más
+    (sin etiquetas: un tema mezcla bien consigo mismo)."""
+    rng = np.random.default_rng(seed)
+    uids = [u for u in first if u in last and np.all(np.isfinite(first[u])) and np.all(np.isfinite(last[u]))]
+    L = np.array([last[u] for u in uids])
+    q = np.array([first[u] for u in uids])
+    negs = np.array([rng.choice(np.delete(np.arange(len(uids)), i), size=min(n_neg, len(uids) - 1), replace=False)
+                     for i in range(len(uids))])
+    out = {"tiv": _rank_metrics(1.0 - metric(q, L), 1.0 - metric(q[:, None, :], L[negs]))}
+    if key_of is not None:
+        ks = [key_of.get(u, "?") for u in uids]
+        pos_k = np.array([best_key_shift(k, k, max_shift=0)[0] for k in ks])
+        neg_k = np.array([[best_key_shift(ks[i], ks[j], max_shift=0)[0] for j in negs[i]] for i in range(len(uids))])
+        out["camelot"] = _rank_metrics(pos_k, neg_k)
+    return out
 
 
 def within_class_percentile(pairs: List[tuple], score_fn: Callable[[str, str], float],
