@@ -25,9 +25,21 @@ Lo verificó Gabriel tocando, en Windows, con Traktor Pro 4.4.1, el Xone K2 y la
 
 Estas definiciones son de Gabriel. Proponé, mostrá datos y preguntá; no las decidas solo.
 
-1. **Cuál es el tema principal que está sonando.**
-   - **Con el mezclador interno de Traktor:** `updateChannel/<n>` trae `isOnAir` (volumen > 0) y
-     `onAirLevel` (volumen por crossfader).
+1. **Cuál es el tema principal que está sonando.** Gabriel ya decidió que hay **dos modos**, y que el
+   modo lo elige el MASTER de Traktor (DECISIONS 2026-11-06, punto 6):
+   - **Un deck es el MASTER** (deck 1 a 4, es decir A a D): el tema principal es el tema cargado en ese
+     deck, **esté o no sonando y tenga o no el volumen arriba**. Es el modo simple.
+   - **El MASTER es el master tempo** (el reloj de Traktor, ningún deck): el tema principal se calcula
+     con el algoritmo de las señales de abajo. Es el modo difícil; lo que sigue en este punto es para
+     él.
+   - **Cómo se distinguen:** `updateMasterClock` trae `deck` con "A" a "D" cuando el MASTER es un deck,
+     y `null` cuando es el master tempo (`app.traktor.masterclock.source_id` = -1). Los registros
+     `sugerencias_vivo_*.jsonl` ya tienen los dos casos.
+   - **Cambio de modo:** si el MASTER cambia en medio del set, el tema principal se recalcula con el
+     modo nuevo.
+   - **Falta comprobar:** que Traktor mande el valor al arrancar, y no solo cuando cambia.
+   - **El modo difícil, con el mezclador interno de Traktor:** `updateChannel/<n>` trae `isOnAir`
+     (volumen > 0) y `onAirLevel` (volumen por crossfader).
    - **Con la DJM (mezcla externa):** Traktor no ve los faders. La DJM manda sus faders de canal por
      MIDI, canal 1, CC 17 a 20 (0 a 127). Gabriel nunca usa el crossfader.
    - **Qué canal de la DJM corresponde a cada deck:** sale del ruteo externo de Traktor
@@ -36,7 +48,8 @@ Estas definiciones son de Gabriel. Proponé, mostrá datos y preguntá; no las d
    - **Señales que se combinan:** `isPlaying` y `elapsedTime` de cada deck (`updateDeck`), nivel del
      fader, cuánto tiempo lleva al aire.
    - **Reglas a fijar:** histéresis, y qué pasa en una transición con dos temas al aire.
-   - **El deck master de `updateMasterClock`** es el del tempo, no necesariamente el que suena.
+   - **El deck MASTER** es el del tempo, no necesariamente el que suena. Por eso en el modo difícil
+     no sirve como atajo; en el modo simple manda por decisión de Gabriel.
 2. **Registro riguroso de lo que suena:** todo lo que importa para recomendar.
    - Distinguir **cargado**, **preescuchado**, **sonando** (deck en play) y **al aire** (fader arriba).
    - Por tema: inicio y fin de reproducción, curva o resumen del volumen, tiempo al aire, tempo

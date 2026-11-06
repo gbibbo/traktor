@@ -64,6 +64,16 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    `sugerencias-vivo-v3`. La siguiente etapa, la recomendación real, empieza en un chat nuevo con
    `docs/plans/PROMPT_ETAPA_RECOMENDACION.md`: tema principal con mezclador interno o la DJM,
    registro de lo que suena y cómo se generan las sugerencias.
+6. **Dos modos para elegir el tema principal, según el MASTER de Traktor** (Gabriel). En Traktor el
+   MASTER puede ser el deck 1, 2, 3 o 4, o el master tempo: cinco opciones.
+   - **Si el MASTER es un deck,** el tema principal es el de ese deck, esté o no sonando y tenga o no
+     el volumen arriba.
+   - **Si es el master tempo,** el tema principal se calcula con el algoritmo de las señales: faders
+     de la DJM o volumen interno, play, tiempo al aire. Es el modo difícil.
+   - El receptor ya lo distingue: `updateMasterClock.deck` vale "A" a "D", o `null` para el master
+     tempo.
+
+   Se agregó al prompt de la etapa de recomendación.
 
 ## 2026-11-04
 
