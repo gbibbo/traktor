@@ -259,7 +259,8 @@ escucha lo apruebe. Protocolo y criterios: `docs/plans/armonia_tiv_protocolo.md`
 | `tools/harmonic_tiv/extract_semitones.py` | Caché de espectros por semitono por tema (`--manifest`, `--folder`, `--workers`, `--low-priority`), con reintento si un proceso muere |
 | `tools/harmonic_tiv/eval_proxies.py` | Grilla de variantes de a una variable contra FEM#10 y la regla Camelot (`--set thesis48` o `--set musica --split dev`), con el percentil de las transiciones reales dentro de cada clase Camelot |
 | `src/v4/harmonic_tiv/render.py` | Transiciones de DJ para la escucha: tramo más tonal, tempo igualado con rubberband (ffmpeg), fase de bombo calibrada contra la grilla de Traktor y autoalineación dentro de la mezcla, cambio de graves por EQ |
-| `tools/harmonic_tiv/listening_test.py` | Etapa C: `build` elige ítems donde Camelot y el TIV discrepan (vecinos CLAP con BPM compatible), renderiza, agrega repetidos y escribe una página local a ciegas; `score` aplica el criterio del protocolo |
+| `tools/harmonic_tiv/listening_test.py` | Escucha a ciegas según el auditor (protocolo, sección 9): `build --phase pilot` (FEM#10 contra «sin blanqueo») y `--phase confirm` (la configuración congelada contra el recomendador actual y contra «sin armonía», contextos representativos con empates automáticos, 20 repetidos, temas sin repetir); `score` calcula U con empates y el veredicto secuencial |
+| `tools/harmonic_tiv/listening_page.html` | Plantilla de la página local de escucha (respuestas en el navegador, exporta JSON) |
 | `tools/harmonic_tiv/survey_reanalysis.py` | Reanálisis de la encuesta de la tesis (15 × 10): TPRc y análisis por ítem |
 | `tools/harmonic_tiv/paired_selfsup_boot.py` | Comparación pareada de variantes (S1-hard y teoría) con bootstrap sobre un conjunto congelado |
 | `tests/v4/test_harmonic_tiv.py` | TIV igual a TIV.lib, transposición, front-end con señales sintéticas, HPSS por tramos, métricas |

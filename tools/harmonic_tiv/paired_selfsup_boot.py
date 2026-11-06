@@ -2,10 +2,13 @@
 PURPOSE: Comparación pareada entre variantes del TIV sobre un conjunto congelado de temas dev: S1-hard
          (mismas consultas y mismos 50 negativos de la misma tonalidad MIK para todas las variantes;
          bootstrap por tema) y Spearman contra la teoría de tonalidades en los temas de consenso
-         (bootstrap remuestreando temas en los dos roles).
+         (bootstrap remuestreando temas en los dos roles, con multiplicidades).
          Uso: python tools/harmonic_tiv/paired_selfsup_boot.py <repo> <eval_dir> <cache_dir> <ids_congelados.txt>
 CHANGELOG:
   - 2026-11-06: Creación (rama harmonic-tiv, informe de auditoría).
+  - 2026-11-06: El bootstrap de teoría conserva las multiplicidades del remuestreo (antes dict.fromkeys las
+                descartaba: era una submuestra de ~63 % de temas distintos, no un bootstrap). Señalado por el
+                auditor. B = 1000.
 """
 import sys
 from pathlib import Path
@@ -62,30 +65,43 @@ def rr_per_track(name):
     return {u: np.mean(v) for u, v in out.items()}
 
 
-def spearman_tracks(name, tracks):
-    ids = [u for u in tracks if u in cons]
+def theory_matrices(name, ids):
+    """Score sin transponer y distancia de quintas entre los temas de consenso (en el orden de ids)."""
     T = np.stack([whole[name][u] for u in ids])
     S = 1 - tv.hc_matrix(T, T, shifts=[0])[:, :, 0]
-    return ev.key_pair_metrics(S, [tag[u] for u in ids])["spearman_fifths"]
+    D = np.array([[ev.fifths_distance(tag[a], tag[b]) for b in ids] for a in ids], float)
+    return S, D
+
+
+def spearman_resampled(S, D, idx):
+    """Spearman de score contra -distancia sobre los pares (p, q) del remuestreo con multiplicidades:
+    un tema repetido cuenta tantas veces como salió; se excluyen solo los pares de un tema consigo mismo
+    (mismo tema original), no los pares entre sus copias y otros temas. Corrige la versión anterior, que
+    con dict.fromkeys descartaba las repeticiones (revisión del auditor, 2026-11-06)."""
+    idx = np.asarray(idx)
+    mask = idx[:, None] != idx[None, :]
+    s = S[np.ix_(idx, idx)][mask]
+    d = D[np.ix_(idx, idx)][mask]
+    return ev.spearman(s, -d)
 
 
 rr = {n: rr_per_track(n) for n in VARIANTS}
 tracks = sorted(rr["FEM#10"])
 cons_dev = [u for u in dev if u in cons]
 print("consensus dev tracks (for theory):", len(cons_dev))
+mats = {n: theory_matrices(n, cons_dev) for n in VARIANTS}
 B = 1000
 boots = [rng.choice(len(tracks), len(tracks)) for _ in range(B)]
-boots_c = [rng.choice(len(cons_dev), len(cons_dev)) for _ in range(300)]
+boots_c = [rng.choice(len(cons_dev), len(cons_dev)) for _ in range(B)]
+full = np.arange(len(cons_dev))
 for n in VARIANTS:
     if n == "FEM#10":
-        print(f"FEM#10: S1-hard MRR {np.mean([rr[n][u] for u in tracks]):.3f}  theory Spearman {spearman_tracks(n, cons_dev):.3f}")
+        print(f"FEM#10: S1-hard MRR {np.mean([rr[n][u] for u in tracks]):.3f}  theory Spearman "
+              f"{spearman_resampled(*mats[n], full):.3f}")
         continue
     d = np.array([rr[n][u] - rr["FEM#10"][u] for u in tracks])
     db = [d[b].mean() for b in boots]
-    # theory: bootstrap over consensus tracks (resampling tracks in both roles)
-    dt = []
-    for b in boots_c:
-        sel = list(dict.fromkeys(cons_dev[k] for k in b))
-        dt.append(spearman_tracks(n, sel) - spearman_tracks("FEM#10", sel))
+    point = spearman_resampled(*mats[n], full) - spearman_resampled(*mats["FEM#10"], full)
+    dt = np.array([spearman_resampled(*mats[n], b) - spearman_resampled(*mats["FEM#10"], b) for b in boots_c])
     print(f"{n:12s} dS1-hard {d.mean():+.3f} [{np.percentile(db, 2.5):+.3f},{np.percentile(db, 97.5):+.3f}]"
-          f"   dTheory {np.mean(dt):+.3f} [{np.percentile(dt, 2.5):+.3f},{np.percentile(dt, 97.5):+.3f}]")
+          f"   dTheory {point:+.3f} [{np.percentile(dt, 2.5):+.3f},{np.percentile(dt, 97.5):+.3f}]")

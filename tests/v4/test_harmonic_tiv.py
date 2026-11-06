@@ -146,6 +146,68 @@ def test_mix_transition_length_and_finite():
     assert len(out) == expected and np.all(np.isfinite(out))
 
 
+def _lt():
+    sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "harmonic_tiv"))
+    import listening_test
+    return listening_test
+
+
+def test_camelot_control_replicates_the_live_recommender_filter():
+    lt = _lt()
+    keys = {"t": "8A", "same": "8A", "rel": "8B", "far": "2A", "nokey": "?", "shift1": "3A"}
+    passing, shifts = lt.camelot_pass(keys, "t", ["same", "rel", "far", "nokey", "shift1"])
+    assert set(passing) == {"same", "rel", "shift1"}          # 3A a +1 semitono = 10A: no; a -1 = 8A: sí
+    assert shifts["same"] == 0 and abs(shifts["shift1"]) == 1
+    keys["t"] = "?"                                            # principal sin tonalidad: no filtra
+    passing, _ = lt.camelot_pass(keys, "t", ["same", "far", "nokey"])
+    assert set(passing) == {"same", "far", "nokey"}
+
+
+def test_build_items_never_repeats_a_track_and_marks_auto_ties():
+    lt = _lt()
+    rng = np.random.default_rng(0)
+    ids = [f"x{i}" for i in range(200)]
+
+    def pool_fn(t, used):
+        return [x for x in ids if x not in used]
+
+    def arm_first(t, pool):
+        return pool[0], 0
+
+    def arm_second(t, pool):
+        return pool[1], 0
+    used = set()
+    items, _ = lt.build_items(ids[:20], 5, pool_fn, arm_first, arm_first, used, rng, only_disagreements=False)
+    assert all(it["auto_tie"] for it in items)
+    items2, _ = lt.build_items(ids[20:60], 5, pool_fn, arm_first, arm_second, used, rng, only_disagreements=True)
+    seen = [u for it in items + items2 for u in (it["target"], it["pick_a"], it["pick_b"])]
+    assert len(seen) - len(items) == len(set(seen))            # en un empate pick_a == pick_b: se cuenta una vez
+
+
+def test_score_u_with_ties_sequential_verdict_and_repeats():
+    lt = _lt()
+    items = {}
+    for k in range(60):
+        items[f"c1{k:03d}"] = {"auto_tie": k < 10, "clip_of_a": 1, "comparison": "c1", "repeat_of": None}
+        items[f"c2{k:03d}"] = {"auto_tie": False, "clip_of_a": 2, "comparison": "c2", "repeat_of": None}
+    for r in range(20):
+        items[f"r{r:03d}"] = {"auto_tie": False, "clip_of_a": 2, "comparison": "c1", "repeat_of": f"c1{10 + r:03d}"}
+    ans = {}
+    for k in range(10, 60):                                    # c1: 40 victorias del TIV, 10 derrotas
+        ans[f"c1{k:03d}"] = "1" if k < 50 else "2"
+    for k in range(60):                                        # c2: 30 victorias, 30 empates del oyente
+        ans[f"c2{k:03d}"] = "2" if k < 30 else "0"
+    for r in range(20):                                        # repetidos con el orden invertido: coinciden 18
+        ans[f"r{r:03d}"] = "2" if r < 18 else "1"
+    res = lt.score({"phase": "confirm", "items": items}, ans)
+    assert res["c1"]["U"] == pytest.approx((40 + 0.5 * 10) / 60, abs=1e-3) and res["c1"]["aprueba"]
+    assert res["c2"]["U"] == pytest.approx((30 + 15) / 60, abs=1e-3) and res["c2"]["aprueba"]
+    assert res["repetidos"]["acuerdos"] == 18 and res["veredicto"].startswith("SE INTEGRA")
+    for r in range(20):                                        # consistencia insuficiente -> no concluyente
+        ans[f"r{r:03d}"] = "1"
+    assert lt.score({"phase": "confirm", "items": items}, ans)["veredicto"].startswith("NO CONCLUYENTE")
+
+
 def test_fifths_distance_and_shift_target():
     assert ev.fifths_distance("8A", "8B") == 0
     assert ev.fifths_distance("8A", "9A") == 1

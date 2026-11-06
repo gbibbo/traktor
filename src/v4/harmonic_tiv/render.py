@@ -187,28 +187,55 @@ def snap_by_audio(t_s: float, info: TrackInfo, bpm: float, context_s: float = 90
     return float(first + np.round((t_s - first) / beat) * beat)
 
 
+REGION_MODES = ("tonal", "outro_intro", "central")
+
+
+def region_starts(mode: str, target: TrackInfo, cand: TrackInfo, t_len: float, c_len_src: float):
+    """Inicio (s, antes de alinear al beat) del tramo del principal y del candidato según el modo:
+    'outro_intro'  el principal termina 16 beats antes del final; el candidato arranca en su primer beat
+                   (mezcla intro con outro, lo más común en Gabriel);
+    'central'      el principal centrado en la mitad del tema; el candidato desde el 30 % de su duración
+                   (Gabriel a veces mezcla partes centrales);
+    'tonal'        la ventana más tonal (versión anterior; elige tramos, no representa la mezcla real)."""
+    dur_t = float(target.cache["duration_s"]) if "duration_s" in target.cache else None
+    dur_c = float(cand.cache["duration_s"]) if "duration_s" in cand.cache else None
+    beat_t = 60.0 / (target.grid_bpm or target.bpm)
+    if mode == "outro_intro":
+        return max(0.0, dur_t - 16 * beat_t - t_len), 0.0
+    if mode == "central":
+        return max(0.0, dur_t / 2 - t_len / 2), 0.30 * dur_c
+    if mode == "tonal":
+        return tonal_window(target.cache, 0.40, 0.92, t_len), tonal_window(cand.cache, 0.08, 0.60, c_len_src)
+    raise ValueError(f"modo de región desconocido: {mode}")
+
+
 def render_pair(target: TrackInfo, cand_a: TrackInfo, cand_b: TrackInfo, out_a: Path, out_b: Path,
-                t: Template = Template(), shift_a: int = 0, shift_b: int = 0) -> Dict:
+                t: Template = Template(), shift_a: int = 0, shift_b: int = 0, mode: str = "tonal") -> Dict:
     """Dos mezclas que comparten el tramo del principal; cada candidato va transpuesto `shift_*`
-    semitonos (lo que sugiere su sistema). Devuelve los parámetros usados."""
+    semitonos (lo que sugiere su sistema). `mode` elige las regiones (region_starts). Devuelve los
+    parámetros usados."""
     bpm_t = target.grid_bpm or target.bpm
     beat_s = 60.0 / bpm_t
     t_len = (t.lead_beats + t.overlap_beats) * beat_s
-    t0 = tonal_window(target.cache, 0.40, 0.92, t_len)
+    t0, _ = region_starts(mode, target, target, t_len, t_len)
     snapped = snap_to_grid(t0, target)
     if snapped is None:
         snapped = snap_by_audio(t0, target, bpm_t)
+    while snapped < 0:
+        snapped += beat_s
     tgt = read_excerpt(Path(target.path), snapped, t_len)
-    mixes, params = [], {"target_start_s": round(snapped, 3), "bpm": round(bpm_t, 3)}
+    mixes, params = [], {"target_start_s": round(snapped, 3), "bpm": round(bpm_t, 3), "mode": mode}
     for name, c, out, semis in (("a", cand_a, out_a, shift_a), ("b", cand_b, out_b, shift_b)):
         bpm_c = c.grid_bpm or c.bpm
         # medio o doble tempo: se lleva al múltiplo más cercano
         ratio = min((bpm_t / (bpm_c * m) for m in (0.5, 1.0, 2.0)), key=lambda r: abs(np.log(r)))
         c_len = (t.overlap_beats + t.tail_beats) * beat_s
-        c0 = tonal_window(c.cache, 0.08, 0.60, c_len * ratio)
+        _, c0 = region_starts(mode, target, c, t_len, c_len * ratio)
         cs = snap_to_grid(c0, c)
         if cs is None:
             cs = snap_by_audio(c0, c, bpm_c)
+        while cs < 0:                                   # el primer beat, no antes del inicio del archivo
+            cs += 60.0 / bpm_c
         cx = read_excerpt(Path(c.path), cs, c_len + beat_s, tempo=ratio, semitones=semis)
         # Autoalineación: si los dos tramos tienen bombo, se mide la fase de cada uno y se corre el
         # candidato para que sus beats caigan sobre los del principal (corrige grillas o fases malas).

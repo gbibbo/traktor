@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Escucha armónica</title>
+<style>
+:root{--bg:#fafafa;--fg:#1b1b1b;--mut:#666;--card:#fff;--line:#ddd;--acc:#2a5bd7;--sel:#e7eefc}
+@media (prefers-color-scheme: dark){:root{--bg:#151515;--fg:#eee;--mut:#aaa;--card:#1f1f1f;--line:#333;--acc:#7da2ff;--sel:#24314f}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin:14px 0}
+audio{width:100%;margin:4px 0 10px} .row{display:flex;gap:8px;flex-wrap:wrap}
+button{font:inherit;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
+button.on{background:var(--sel);border-color:var(--acc)} .mut{color:var(--mut);font-size:14px}
+</style></head><body><main>
+<h1>Escucha armónica</h1>
+<p>En cada ítem, el tema que suena primero es el mismo en las dos mezclas; cambia el tema que entra (y, a veces,
+su transposición). Elegí la mezcla que suena <b>más armónica</b> (menos choque de notas), o «iguales» si no notás
+diferencia. Las respuestas se guardan en este navegador; al terminar, «Exportar respuestas».</p>
+<p class="mut" id="prog"></p>
+<div id="items"></div>
+<p><button id="exp">Exportar respuestas</button></p>
+</main><script>
+const ITEMS = __ITEMS__;
+const KEY = "escucha_armonica___TEST_ID__";
+let ans = {};
+try { ans = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { ans = {}; }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(ans)); } catch (e) {} prog(); }
+function prog() { document.getElementById("prog").textContent = Object.keys(ans).length + " de " + ITEMS.length + " respondidos"; }
+const box = document.getElementById("items");
+ITEMS.forEach((it, i) => {
+  const d = document.createElement("div"); d.className = "card";
+  d.innerHTML = `<b>Ítem ${i + 1}</b><div class="mut">Mezcla 1</div><audio controls preload="none" src="${it.c1}"></audio>
+    <div class="mut">Mezcla 2</div><audio controls preload="none" src="${it.c2}"></audio>
+    <div class="row"><button data-v="1">1 más armónica</button><button data-v="2">2 más armónica</button><button data-v="0">Iguales</button></div>`;
+  d.querySelectorAll("button").forEach(b => {
+    if (ans[it.id] === b.dataset.v) b.classList.add("on");
+    b.onclick = () => { ans[it.id] = b.dataset.v; d.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); save(); };
+  });
+  box.appendChild(d);
+});
+document.getElementById("exp").onclick = () => {
+  const blob = new Blob([JSON.stringify({test_id: "__TEST_ID__", answers: ans}, null, 1)], {type: "application/json"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "respuestas___TEST_ID__.json"; a.click();
+};
+prog();
+</script></body></html>

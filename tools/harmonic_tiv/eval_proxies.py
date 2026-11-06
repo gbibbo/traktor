@@ -174,8 +174,10 @@ def run_musica(args) -> dict:
                                      hard_key_of=tag_of)
         s3 = ev.selfsup_intro_outro({i: feats[i]["first"] for i in dev}, {i: feats[i]["last"] for i in dev}, fn,
                                     key_of=tag_of if want_k else None)
-        pairs = [] if args.no_history else [(a, b) for a, b in zip(trans.a_uid, trans.b_uid)
-                                            if a in pos and b in pos and a != b]
+        hist = [] if args.no_history else [(a, b, ses) for a, b, ses in zip(trans.a_uid, trans.b_uid, trans.session)
+                                           if a in pos and b in pos and a != b]
+        pairs = [(a, b) for a, b, _ in hist]
+        sessions = [ses for _, _, ses in hist]        # IC por sesión (las transiciones de una noche no son independientes)
         bpm_of = {i: float(bpm.get(i, np.nan)) for i in ids}
         pools = {}
 
@@ -203,15 +205,16 @@ def run_musica(args) -> dict:
                "A1_spearman": round(pm["spearman_fifths"], 3), "A1_auc": round(pm["auc_near_far"], 3),
                "A1_mrr_same": round(pm["mrr_same"], 3), "A2_shift_exact": round(sa["exact"], 3), "consensus_n": len(ci),
                "A3_hub_skew": round(hub["skew"], 2), "A3_hub_never": round(hub["never"], 3), "A3_hub_max": hub["max_occ"],
-               "A4": ev.transition_percentile(pairs, sc, pool_fn),
-               "A4_asym": ev.transition_percentile(pairs, sc_asym, pool_fn),
-               "A4b": ev.within_class_percentile(pairs, sc, kclass, pool_fn),
-               "A4b_asym": ev.within_class_percentile(pairs, sc_asym, kclass, pool_fn),
+               "A4": ev.transition_percentile(pairs, sc, pool_fn, clusters=sessions),
+               "A4_asym": ev.transition_percentile(pairs, sc_asym, pool_fn, clusters=sessions),
+               "A4b": ev.within_class_percentile(pairs, sc, kclass, pool_fn, clusters=sessions),
+               "A4b_asym": ev.within_class_percentile(pairs, sc_asym, kclass, pool_fn, clusters=sessions),
                "seconds": round(time.time() - t0, 1)}
         if want_k:
             row["camelot_S1"] = s1.get("camelot")
             row["camelot_S3"] = s3.get("camelot")
-            row["camelot_A4"] = ev.transition_percentile(pairs, lambda a, b: kr[pos[a], pos[b]], pool_fn)
+            row["camelot_A4"] = ev.transition_percentile(pairs, lambda a, b: kr[pos[a], pos[b]], pool_fn,
+                                                         clusters=sessions)
             row["camelot_A3_hub"] = ev.hubness(kr + 1e-6 * np.random.default_rng(0).random(kr.shape), k=10)
             row["n_pairs_history"] = len(pairs)
         results.append(row)

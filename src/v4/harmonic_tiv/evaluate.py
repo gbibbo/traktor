@@ -160,28 +160,45 @@ def bpm_compatible(a: float, b: float, tol: float = 0.06) -> bool:
 
 
 def transition_percentile(pairs: List[tuple], score_fn: Callable[[str, str], float], pool_fn: Callable[[str], List[str]],
-                          rng: Optional[np.random.Generator] = None, n_boot: int = 2000) -> Dict:
+                          rng: Optional[np.random.Generator] = None, n_boot: int = 2000,
+                          clusters: Optional[List] = None) -> Dict:
     """Para cada transición real (a, b): percentil de score(a, b) entre score(a, x) de los candidatos x
     de pool_fn(a) (empates a medias). Devuelve la media y su IC bootstrap 95 %."""
     rng = rng or np.random.default_rng(0)
-    pct = []
-    for a, b in pairs:
+    pct, cl = [], []
+    for k, (a, b) in enumerate(pairs):
         pool = [x for x in pool_fn(a) if x not in (a, b)]
         if len(pool) < 20:
             continue
         sb = score_fn(a, b)
         sp = np.array([score_fn(a, x) for x in pool])
         pct.append(float((sp < sb).mean() + 0.5 * (sp == sb).mean()))
-    return _summ(pct, rng, n_boot)
+        cl.append(clusters[k] if clusters is not None else k)
+    return _summ(pct, rng, n_boot, cl)
 
 
-def _summ(pct, rng, n_boot):
+def _summ(pct, rng, n_boot, clusters=None):
+    """Media y IC bootstrap 95 %. Con `clusters` (p. ej. la sesión de cada transición) remuestrea grupos
+    enteros: las transiciones de una misma sesión no son independientes (revisión del auditor, 2026-11-06)."""
     pct = np.array(pct)
     if not len(pct):
         return {"n": 0}
-    boots = [rng.choice(pct, len(pct)).mean() for _ in range(n_boot)]
-    return {"n": int(len(pct)), "mean_pct": float(pct.mean()), "ci95": [float(np.percentile(boots, 2.5)),
-                                                                         float(np.percentile(boots, 97.5))]}
+    if clusters is None:
+        boots = [rng.choice(pct, len(pct)).mean() for _ in range(n_boot)]
+        n_cl = len(pct)
+    else:
+        groups = {}
+        for v, c in zip(pct, clusters):
+            groups.setdefault(c, []).append(v)
+        g = [np.array(v) for v in groups.values()]
+        n_cl = len(g)
+        boots = []
+        for _ in range(n_boot):
+            pick = rng.integers(0, n_cl, n_cl)
+            vals = np.concatenate([g[i] for i in pick])
+            boots.append(vals.mean())
+    return {"n": int(len(pct)), "n_clusters": int(n_cl), "mean_pct": float(pct.mean()),
+            "ci95": [float(np.percentile(boots, 2.5)), float(np.percentile(boots, 97.5))]}
 
 
 def _rank_metrics(pos_scores: np.ndarray, neg_scores: np.ndarray) -> Dict:
@@ -276,14 +293,15 @@ def selfsup_intro_outro(first: Dict[str, np.ndarray], last: Dict[str, np.ndarray
 
 def within_class_percentile(pairs: List[tuple], score_fn: Callable[[str, str], float],
                             class_fn: Callable[[str, str], object], pool_fn: Callable[[str], List[str]],
-                            min_pool: int = 5, rng: Optional[np.random.Generator] = None, n_boot: int = 2000) -> Dict:
+                            min_pool: int = 5, rng: Optional[np.random.Generator] = None, n_boot: int = 2000,
+                            clusters: Optional[List] = None) -> Dict:
     """Como transition_percentile, pero el pool de cada transición real (a, b) son solo los candidatos x
     con class_fn(a, x) == class_fn(a, b) (p. ej. el mismo score Camelot con la tonalidad que Gabriel ve).
     Ahí la regla de referencia empata por construcción: un percentil > 0,5 dice que `score_fn` aporta
     información sobre lo que Gabriel tocó más allá de esa clase."""
     rng = rng or np.random.default_rng(0)
-    pct = []
-    for a, b in pairs:
+    pct, cl = [], []
+    for k, (a, b) in enumerate(pairs):
         cb = class_fn(a, b)
         pool = [x for x in pool_fn(a) if x not in (a, b) and class_fn(a, x) == cb]
         if len(pool) < min_pool:
@@ -291,4 +309,5 @@ def within_class_percentile(pairs: List[tuple], score_fn: Callable[[str, str], f
         sb = score_fn(a, b)
         sp = np.array([score_fn(a, x) for x in pool])
         pct.append(float((sp < sb).mean() + 0.5 * (sp == sb).mean()))
-    return _summ(pct, rng, n_boot)
+        cl.append(clusters[k] if clusters is not None else k)
+    return _summ(pct, rng, n_boot, cl)

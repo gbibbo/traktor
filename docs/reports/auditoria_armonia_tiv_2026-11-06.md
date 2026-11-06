@@ -90,7 +90,7 @@ Etiquetas del protocolo de auditoría del proyecto (`.claude/skills/auditar/SKIL
 | Las tonalidades son ruidosas. MIK y Beatport coinciden exactamente en el 50 % de 1187 temas. El desacuerdo es casi todo de modo: 348 de 593 son la paralela (MIK dice menor en el 90 % de los temas, Beatport en el 57 %). Los errores grandes son ~7 % | EVIDENCIA OBSERVADA | `keys_musica.csv` |
 | La tonalidad de Traktor coincide con MIK en el 91 %: no es una fuente independiente | EVIDENCIA OBSERVADA | ídem |
 | De los History de Traktor salen 550 transiciones reales (B arranca mientras A suena en otro deck; los dos ≥ 60 s), atadas al catálogo por ruta o por hash del audio | EVIDENCIA OBSERVADA | `transitions_history.csv` |
-| Con la tonalidad que Gabriel ve en Traktor (MIK), el tema que tocó cae en el percentil 0,603 [0,579; 0,627] de los candidatos con BPM compatible. Con la de Beatport, que no ve: 0,520 [0,495; 0,545] | EVIDENCIA OBSERVADA | bootstrap 95 % |
+| Con la tonalidad que Gabriel ve en Traktor (MIK), el tema que tocó cae en el percentil 0,603 [0,579; 0,627] de los candidatos con BPM compatible. Con la de Beatport, que no ve: 0,520 [0,495; 0,545]. [REEMPLAZADO 2026-11-06 por el bootstrap por sesión que pidió el auditor (27 y 26 sesiones): MIK 0,603 [0,576; 0,635]; Beatport 0,520 [0,495; 0,550]] | EVIDENCIA OBSERVADA | bootstrap 95 % |
 | Las transiciones reales tienen señal armónica, pero confundida con la tonalidad que muestra Traktor | INFERENCIA | de las dos filas anteriores |
 
 ### 3.3 Criterios offline sobre variantes del TIV (resultado central)
@@ -101,6 +101,8 @@ Definiciones:
 - **S1 (autosupervisado):** MRR al buscar el fragmento siguiente de 30 s del mismo tema entre fragmentos
   de 200 temas.
 - **S1-hard:** igual, pero con 50 negativos de temas con la misma tonalidad MIK.
+- [REFUTADO 2026-11-06 por el auditor: S1 usa 200 fragmentos tomados del conjunto de fragmentos de otros
+  temas, no necesariamente de 200 temas distintos (los temas largos aportan más); S1-hard, 50 fragmentos.]
 - **S3:** los primeros 2 min de un tema contra sus últimos 2 min, entre los de 200 temas.
 - **Teoría:** Spearman del score contra la distancia en el círculo de quintas, en los 66 temas de consenso
   (MIK = Beatport).
@@ -125,13 +127,18 @@ bootstrap por tema):
 
 | Contra FEM#10 | Δ S1-hard | Δ Teoría |
 | :--- | :--- | :--- |
-| sin blanqueo | +0,035 [+0,004; +0,064] | −0,21 [−0,26; −0,17] |
-| solo bajo | +0,041 [+0,005; +0,074] | −0,33 [−0,39; −0,26] |
+| sin blanqueo | +0,035 [+0,004; +0,064] | −0,21 [−0,27; −0,16] |
+| solo bajo | +0,041 [+0,005; +0,074] | −0,33 [−0,41; −0,24] |
 | con bajo | +0,015 [−0,003; +0,034] | −0,05 [−0,07; −0,04] |
+
+[REEMPLAZADO 2026-11-06 por el bootstrap corregido que pidió el auditor: la versión anterior descartaba las
+repeticiones del remuestreo (`dict.fromkeys`), así que era una submuestra, no un bootstrap. Los IC de teoría
+de arriba ya están recalculados con multiplicidades, excluyendo solo los pares de un tema consigo mismo
+(B = 1000). Antes decían: sin blanqueo [−0,26; −0,17], solo bajo [−0,39; −0,26]. Ningún signo cambió.]
 
 | Afirmación | Etiqueta | Evidencia |
 | :--- | :--- | :--- |
-| Los objetivos autosupervisados (S1, S1-hard, S3) ponen arriba justo las variantes que peor representan las relaciones tonales (sin blanqueo, solo bajo), con IC que excluyen 0 en las dos direcciones | EVIDENCIA OBSERVADA | tablas de arriba |
+| [REFUTADO 2026-11-06 por el AUC del mismo JSON, señalado por el auditor: vale para el MRR de S1-hard y para S3; con AUC, FEM#10 queda por encima de las dos en S1 (0,980 > 0,968 > 0,958) y en S1-hard (0,946 > 0,941 > 0,934). Los criterios autosupervisados no ordenan igual según la métrica] Los objetivos autosupervisados (S1, S1-hard, S3) ponen arriba justo las variantes que peor representan las relaciones tonales (sin blanqueo, solo bajo), con IC que excluyen 0 en las dos direcciones | EVIDENCIA OBSERVADA | tablas de arriba |
 | Lo mismo en los 48 temas de la tesis, con tonalidad verificada a mano (S1: FEM#10 0,821, sin blanqueo 0,829, solo bajo 0,816; Spearman Progressive House 0,91, 0,66 y 0,31) | EVIDENCIA OBSERVADA | `proxies_thesis48.json` |
 | Encontrar la continuación del mismo tema premia la identidad del tema: cualquier contenido de alturas estable (una línea de bajo, el espectro sin blanquear) alcanza. La armonía en sí no queda medida | INFERENCIA | variantes que pierden información tonal mejoran S1; la regla Camelot, puramente armónica, saca 0,19 |
 | Usar como positivos versiones de la misma canción (original y remix) evitaría esa fuga, pero hay 77 pares y solo el 40 % de los que tienen tonalidad comparte la de MIK | EVIDENCIA OBSERVADA | catálogo agrupado por título base |
@@ -262,3 +269,22 @@ Separada para que el auditor la ataque y no lo ancle; no es evidencia.
 - Reanálisis de la encuesta: `tools/harmonic_tiv/survey_reanalysis.py <csv de la hoja de respuestas>`.
 - Bootstrap pareado S1-hard / teoría: `tools/harmonic_tiv/paired_selfsup_boot.py <repo> <eval_dir> <cache>
   <ids congelados>`.
+
+## Anexo C. Respuesta del auditor (2026-11-06)
+
+La respuesta está en `reports/Revisión científica de armonía TIV.md` (en `main`, commit b73afbf), con notas
+en `research_notes/Revisión científica de armonía TIV/`. Decisión: **P4 modificada ahora → P5(b)
+después; no integrar el TIV todavía.**
+- Piloto de escucha con FEM#10 y «sin blanqueo»; se congela una sola configuración.
+- Confirmación contra dos controles en orden: el recomendador actual y CLAP+BPM sin armonía.
+- 60 contextos nuevos y representativos por comparación.
+- Aprobación: U ≥ 0,60 contando los empates, y p < 0,05.
+- 20 repetidos, con 16 acuerdos.
+
+Las fallas que señaló están marcadas arriba en su lugar:
+- bootstrap de teoría;
+- negativos de S1;
+- orden por AUC;
+- IC por sesión.
+
+Cómo se aplicó: `docs/plans/armonia_tiv_protocolo.md`, sección 9.

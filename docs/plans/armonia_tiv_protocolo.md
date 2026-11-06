@@ -94,10 +94,14 @@ Todo fuera de Git, en `D:\TRAKTOR ML datos\harmonic_tiv\` (`eval_sets_report.jso
 
 ## 6. Métricas y criterios de éxito
 
-**Etapa A — desarrollo (solo dev; ajusta y descarta).** Script: `tools/harmonic_tiv/eval_proxies.py`.
+**Etapa A — desarrollo (solo dev).** Script: `tools/harmonic_tiv/eval_proxies.py`. [REEMPLAZADO 2026-11-06 por la decisión del auditor (sección 9): los criterios
+offline no eligen ni vetan variantes; son diagnóstico.] ~~ajusta y descarta~~
 - **S1 autosupervisado (objetivo principal, decisión de Gabriel):** para cada tema dev, pares de
   fragmentos consecutivos de 30 s; el siguiente fragmento del mismo tema tiene que quedar arriba entre
-  él y 200 fragmentos de otros temas dev. Métricas: MRR y AUC con el score sin transponer.
+  él y 200 fragmentos de otros temas dev ([REFUTADO 2026-11-06 por el auditor: son 200 fragmentos tomados
+  del conjunto de fragmentos de otros temas, no necesariamente de 200 temas distintos; los temas largos
+  aportan más]). Métricas: MRR y AUC con el score sin transponer. El MRR usa el rango medio ante empates
+  (1/(1 + mejores + empates/2)): penaliza más que el desempate al azar a los scores discretos como Camelot.
 - **S1-hard** (agregado antes de ver resultados): igual que S1, pero los 50 negativos son fragmentos de
   otros temas con la **misma tonalidad MIK**; Camelot empata ahí por construcción, así que mide la
   distinción por debajo de la tonalidad que motivó la tesis. Se informa.
@@ -113,9 +117,12 @@ Todo fuera de Git, en `D:\TRAKTOR ML datos\harmonic_tiv\` (`eval_sets_report.jso
 - A2 *transposición*: % de pares donde la transposición sugerida lleva al candidato a la armadura del
   principal.
 - A3 *hubness* (k = 10): asimetría de la k-ocurrencia, % de temas que nunca entran a un top-10, máximo de
-  apariciones. Guardarraíl: no más concentrado que K0.
+  apariciones. [REFUTADO 2026-11-06 por el auditor: como veto es imposible, K0 tiene asimetría −0,37 y
+  todas las variantes TIV, FEM#10 incluida, la tienen positiva; y Camelot desempata con ruido] ~~Guardarraíl:
+  no más concentrado que K0.~~ Diagnóstico de diversidad, no veto.
 - A4 *transiciones reales* (sesiones dev): percentil medio del tema que Gabriel tocó entre los candidatos
-  con BPM compatible, con IC bootstrap 95 %.
+  con BPM compatible, con IC bootstrap 95 % remuestreando sesiones (corregido el 2026-11-06 por el
+  auditor: antes se remuestreaban transiciones sueltas).
 - A4b *transiciones reales dentro de la clase Camelot* (agregado el 2026-11-06, antes de ver resultados
   de `musica`): mismo percentil, pero solo contra candidatos con el mismo score Camelot (tonalidad MIK)
   que el tema que tocó. Ahí K0 empata por construcción, así que A4b > 0,5 dice que el TIV sabe algo de lo
@@ -124,16 +131,18 @@ Todo fuera de Git, en `D:\TRAKTOR ML datos\harmonic_tiv\` (`eval_sets_report.jso
 - [REEMPLAZADO 2026-11-06 por decisión de Gabriel (punto 2b.4), antes de ver resultados de `musica`:
   el objetivo principal es S1] ~~Regla de selección: entre las variantes que no empeoran A1 respecto de
   T0 más allá de su IC y cumplen A3, la de mayor A4.~~
-- **Regla de selección del finalista:** la de mayor S1 (MRR) entre las que cumplen A3 (hubness no peor
-  que K0) y no empeoran A4 respecto de T0 más allá de su IC; empate → la más simple. Combinar cambios solo
-  si cada uno mejoró por separado, y volver a medir la combinación. A1, A2, A4b y S2–S3 se informan.
+- [REEMPLAZADO 2026-11-06 por la decisión del auditor (sección 9): no se elige por criterios offline; FEM#10 y «sin blanqueo» van a un
+  piloto de escucha y se congela la que gane] ~~Regla de selección del finalista: la de mayor S1 (MRR) entre
+  las que cumplen A3 y no empeoran A4 respecto de T0 más allá de su IC.~~
 
-**Etapa B — prueba offline (test, una sola vez por finalista).** Las mismas métricas con IC.
+**Etapa B — prueba offline (test, una sola vez por finalista).** [REEMPLAZADO 2026-11-06 por la decisión del auditor (sección 9): no hay puerta offline;
+las transiciones reales son evidencia complementaria.] Las mismas métricas con IC.
 - **Puerta B:** el finalista supera al azar en las transiciones reales de test (IC 95 % del percentil por
   encima de 0,5) y cumple A3. Si no supera al azar, no captura nada de lo que Gabriel elige: se detiene y
   se informa. No se le exige superar a K0 acá, porque K0 está favorecida (Gabriel ve esa tonalidad).
 
-**Etapa C — escucha (decide la integración).**
+**Etapa C — escucha (decide la integración).** [REEMPLAZADO 2026-11-06 por la decisión del auditor (sección 9): todo este bloque lo reemplaza la sección 9:
+piloto, dos controles, contextos representativos, U con empates, 20 repetidos.]
 - *Ítems:* temas principales del split test. Para cada uno, el mejor candidato según K0 y según el
   finalista, del mismo conjunto de candidatos; solo cuando difieren. Estratos (se informan, no deciden):
   S1 empate en K0 que el TIV desempata, S2 K0 compatible y TIV bajo, S3 TIV alto y K0 incompatible.
@@ -163,9 +172,11 @@ negativo o no concluyente:** se documenta en `docs/reports/` y la regla Camelot 
 - [x] Caché de espectros de thesis48 (48/48, 0 errores, valores finitos).
 - [x] Etapa A sobre thesis48: ver la sección 8.
 - [ ] Caché de musica completa (`extract_semitones.py`, ~6 s por tema con 8 procesos).
-- [ ] Etapa A sobre musica dev → finalista → Etapa B.
-- [x] Herramienta de la etapa C (`listening_test.py`), probada de punta a punta con 2 ítems.
-- [ ] Etapa C con Gabriel.
+- [x] Auditoría externa (2026-11-06): decisión en la sección 9; correcciones aplicadas.
+- [x] `listening_test.py` rehecha según el auditor; probada en seco (piloto y confirmación) y con 2 ítems
+  renderizados.
+- [ ] Caché completo -> armar el piloto (30 contextos) cuando Gabriel pueda escuchar.
+- [ ] Piloto con Gabriel -> congelar una configuración -> confirmación (C1, C2, 20 repetidos).
 
 ## 8. Resultados de la etapa A en thesis48 (exploratorio: 24 temas por género)
 
@@ -185,6 +196,48 @@ fddb3b1. IC bootstrap pareados sobre los temas objetivo (aproximados: las column
 | S1 premia la identidad del tema (cualquier contenido de alturas estable, como una línea de bajo), no la armonía; S2 tampoco separa (sin blanqueo 0,96, solo bajo 0,92, FEM#10 0,91) | INFERENCIA | filas de arriba |
 | Pares de versiones de la misma canción (original y remix) como positivos sin etiquetas y sin fuga de identidad: hay 77 pares en 60 grupos, y solo el 40 % de los que tienen tonalidad MIK la comparten | EVIDENCIA OBSERVADA | catálogo de `musica`, agrupado por título base |
 
+[REEMPLAZADO 2026-11-06 por la decisión del auditor (sección 9): ningún criterio offline elige ni veta]
 **Pendiente de Gabriel:** con esta evidencia, S1 solo no sirve como criterio de selección. Propuesta: S1 y
 A1 como guardarraíles (cada uno detecta fallas distintas: S1 las de parecido, A1 las tonales), y elegir por
 S1-hard y A4b (transiciones reales dentro de la clase Camelot), que no usan la tonalidad como objetivo.
+
+## 9. Decisión del auditor (2026-11-06) y cómo se aplica
+
+Gabriel delegó la decisión en un auditor externo (`reports/Revisión científica de armonía TIV.md` en
+`main`, commit b73afbf). Decisión: **P4 modificada ahora → P5(b) después; no se integra el TIV todavía.**
+
+1. **Selección.** No se elige por autosupervisión ni por teoría, ni se descarta una variante por
+   correlacionar peor con las quintas (eso volvería la tonalidad el objetivo). FEM#10 y «sin blanqueo» van
+   a un **piloto** de escucha; se congela una sola configuración para la confirmación con temas nuevos.
+   Las transiciones reales son evidencia complementaria.
+2. **Controles de la confirmación**, en este orden:
+   - **C1, el recomendador actual** (`tools/traktor_live/recomendador.py` en `main`): tonalidad de
+     Traktor con los tags de respaldo, BPM a ±20, corte Camelot ≥ 0,60 transponiendo hasta ±2, orden CLAP.
+   - **C2, sin armonía:** CLAP y BPM, sin filtro tonal y sin transponer (no basta con peso 0).
+   C2 solo se confirma si pasa C1.
+3. **Contextos:** 60 nuevos por comparación, representativos del uso (no solo desacuerdos), separados del
+   piloto por temas y artistas. Si los dos brazos eligen lo mismo, es un empate.
+4. **Aprobación**, frente a cada control: U = (victorias + 0,5 · empates) / N ≥ 0,60 y prueba pareada
+   unilateral p < 0,05 (binomial exacta sobre los no empates). Con 60 sin empates hacen falta 37
+   victorias; con preferencia real de 60 %, la potencia es ~45 %. No aprobar = evidencia insuficiente, no
+   equivalencia. La conclusión vale para Gabriel.
+5. **Repetidos:** 20, fuera de N; hacen falta 16 acuerdos (control operativo, no garantía de fiabilidad).
+6. **Condiciones de mezcla fijas** y solapamientos reales; ambos métodos que transponen pueden ir hasta
+   ±2; el control sin armonía no transpone.
+
+**Cómo quedó implementado** (`tools/harmonic_tiv/listening_test.py`; decisiones operativas del agente,
+fijadas antes de escuchar):
+- *Brazo TIV:* la misma política que C1 con el filtro Camelot reemplazado por un filtro TIV de la misma
+  selectividad media: el umbral se calibra en dev para dejar pasar la misma fracción del pool que Camelot
+  (~60 %). Transposición hasta ±2 con un costo por semitono de 0,25 × la mediana del rango 5–95 % del score
+  TIV en los pools de dev (la proporción de harmonic.py: 0,15 sobre un rango de 0,6). Orden CLAP.
+- *Piloto:* 30 contextos de un grupo de artistas aparte donde FEM#10 y «sin blanqueo» eligen distinto; se
+  congela la de mayor U (empate exacto: FEM#10, la referencia). Exploratorio, sin umbral de significación.
+- *Independencia:* ningún tema aparece en más de un ítem entre piloto, C1 y C2 (principal o elegido); los
+  principales salen de tres grupos de artistas distintos del split test.
+- *Regiones:* 2 de cada 3 contextos outro→intro (el principal termina 16 beats antes del final; el
+  candidato desde su primer beat) y 1 central (principal en la mitad; candidato desde el 30 %), por lo que
+  Gabriel describe. Los History no sirven para fijarlo: suponiendo que A arrancó desde el principio, B entra
+  con A en la mediana del 50 % de su duración, pero la duración del deck incluye la preescucha.
+- *Correcciones del auditor aplicadas:* bootstrap de teoría con multiplicidades; IC de transiciones por
+  sesión; descripción de los negativos de S1; un principal ya no puede ser candidato de otro ítem.
