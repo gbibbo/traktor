@@ -437,8 +437,19 @@ I5 entra con I3, para que D2 guarde la etiqueta de M3 desde la primera sesión.
    - qué tan bien T12 separa los temas.
 
    Con eso se decide la escala y si hace falta GPU.
+   - HECHO 2026-11-07 con John Digweed: `docs/reports/piloto_trayectorias_digweed_2026-11-07.md`.
+     Fueron 3 compilaciones de Bedrock (17,7 h de sets, 179 temas con original) y 2 sets crudos (7,2 h).
+     - CLAP de esta PC es el de la biblioteca.
+     - Por tema, el original se identifica en el 79-86 %; bloque a bloque y contra toda la biblioteca,
+       en el 26-34 %.
+     - La separación simple (T12) no supera a cortes fijos.
+     - CLAP tarda 1,3-1,9 min por hora de audio: no hace falta GPU para el piloto.
 5. Con D7 a escala: T11, y E1 con los componentes de audio sobre sets de otros DJs (adenda 11-07, ver
    sección 10).
+   - Según el piloto, D7 da trayectorias por tema con los originales (limpias, sin separar el set), y
+     D8 queda en el nivel de bloque hasta que T12 funcione (alineación contra los originales).
+   - Entre temas consecutivos, CLAP casi no muestra el orden dentro de la noche (0,16 frente a 0,18 al
+     azar del mismo disco). Para las playlists de dirección pesan T3 y T13.
 
 ### Etapa 3: dirección e introspectiva
 
@@ -583,7 +594,7 @@ alternativa a 1001Tracklists (DECISIONS 2026-11-07, puntos 12 y 13). Se suman do
 | El índice se carga en 0,02 s y se decodifica en 0,01 s: los campos de la versión 4 no comprometen I4 | EVIDENCIA OBSERVADA | Medido sobre `indice_recomendacion.json`, 1760 temas, 5,8 MB (auditoría 11-07) |
 | MusicBrainz tiene 26 438 grupos `DJ-mix` que no son radio, 4817 de ellos con etiqueta techno, tech house, progressive o deep house, y 49 de John Digweed | EVIDENCIA OBSERVADA | Consultas a la API de búsqueda de MusicBrainz, 2026-11-07 (adenda) |
 | En las tiendas, el álbum de una mezcla lleva «(DJ Mix)» y cada tema «(Mixed)» | EVIDENCIA OBSERVADA para los distribuidores (RouteNote, Label Worx) y ejemplos de Apple Music y Deezer; no verificada como regla de Spotify | Fuentes de la adenda |
-| Los tramos de un tema «(Mixed)» o de un set crudo caen cerca del mismo tema de la biblioteca | HIPÓTESIS | Piloto de la etapa 2, punto 4 |
+| Los tramos de un tema «(Mixed)» o de un set crudo caen cerca del mismo tema de la biblioteca | [REEMPLAZADO 2026-11-07 por el piloto de Digweed] HIPÓTESIS. Lo medido: EVIDENCIA OBSERVADA. Por tema, el original sale primero en el 79-86 % entre los de su disco. Bloque a bloque y contra toda la biblioteca, en el 26-34 % | `docs/reports/piloto_trayectorias_digweed_2026-11-07.md` |
 
 ## 9. Fuentes
 

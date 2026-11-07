@@ -49,9 +49,9 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    tracklists y descarga del audio se consultan antes de implementar.
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
-5. Recomendación en vivo (DECISIONS 11-06 p. 7-11, 11-07): parecidos hoy (`recomendador.py`, D#0+D0);
-   plan de playlists de dirección `docs/plans/recomendacion_playlists_plan.md`, auditado 11-07 (etapa 0-1).
-   GABRIEL: Kontrol D2; correo a 1001Tracklists; probar Favoritos (V1). TIV aparte.
+5. Recomendación en vivo (DECISIONS 11-06 p. 7-11, 11-07): parecidos (`recomendador.py`, D#0+D0);
+   plan de dirección `docs/plans/recomendacion_playlists_plan.md` (auditado; etapa 1). Piloto de
+   trayectorias con Digweed hecho (`tools/dj_sets/`). GABRIEL: correo a 1001Tracklists. TIV aparte.
 
 ## RUN RECIPES
 

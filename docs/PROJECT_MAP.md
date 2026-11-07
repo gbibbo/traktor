@@ -104,6 +104,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_triplet_evidence.py` | Unit tests de triplet_evidence (dedup, resolución, baselines) |
 | `test_tags_catalog.py` | Unit tests de tags.py y del catálogo recursivo (hash estable al escribir tags, dedup) |
 | `test_beatport.py` | Unit tests sin red de beatport.py y de las consultas de beatport_lookup (niveles A-D, alias de artista, sellos, convención de tags, caché, subgénero y género completo de la página de un tema) |
+| `test_dj_sets.py` | Emparejamiento de títulos de MusicBrainz con YouTube (también con el artista en otro alfabeto), límites por duración acumulada, novedad y picos, precisión/recuperación/F de cortes, resumen de MusicBrainz y lectura en bloques de `clap_blocks` |
 | `test_genre_taxonomy.py` | Similitud por el árbol de familias, relaciones de género y de subgénero, subgénero faltante, matriz simétrica, validación de forma, `compare` con alias y la taxonomía en uso validada contra los géneros de Beatport |
 | `test_genre_model.py` | Unit tests de genre_model.py (gate, etiquetas confirmadas alineadas por track_uids, validación cruzada) |
 | `test_write_beatport_tags.py` | Unit tests de write_beatport_tags.py (reglas del plan, escritura real en MP3 ID3 2.3 y FLAC, hash estable, reversión) |
@@ -228,6 +229,19 @@ guarda lo conseguido y termina como `partial` (código 3).
 | `audio_devices.ps1` | Lista las salidas de audio y fija la predeterminada (IMMDeviceEnumerator + IPolicyConfig); `-App`/`-SetApp`: la salida de una sola app (IAudioPolicyConfigFactory, no documentada) |
 | `crear_acceso_directo.ps1` | Crea «Descargar playlists» en el Escritorio (`.venv\Scripts\pythonw.exe`, `icon.ico`) |
 | `icon.svg`, `icon.ico` | Icono de la ventana y del acceso directo |
+
+## Sets de DJ (`tools/dj_sets/`)
+
+Fuentes de trayectorias de DJs para las playlists de dirección (`docs/plans/recomendacion_playlists_plan.md`,
+D7 y D8). Los datos van fuera de Git, en `--root` (en este PC, `D:\TRAKTOR ML datos\dj_sets`).
+
+| Archivo | Descripción |
+| :--- | :--- |
+| `tools/dj_sets/musicbrainz_mixes.py` | Compilaciones mezcladas (`DJ-mix`, sin radio) en MusicBrainz: `buscar --artista`, `bajar --release` (orden, disco y duración de cada pista → `musicbrainz/<id>.json`), `artistas --lista` (por cada artista de `config/dj_sets/artistas_spotify.txt`) |
+| `tools/dj_sets/youtube_audio.py` | Baja una playlist o un video de YouTube con yt-dlp, sin recodificar, a `audio/<id>/` con `manifest.json`; lo ya bajado no se repite |
+| `tools/dj_sets/clap_blocks.py` | CLAP por bloques de 30 s (el mismo modelo y preprocesado que `clap_full`, en streaming con ffmpeg) → `clap/<carpeta>/<archivo>.npz`; en temas de hasta 20 min, también el embedding como en la biblioteca. `--verificar N` compara con `clap_full`; `--low-priority` |
+| `tools/dj_sets/piloto.py` | Análisis del piloto: identificación del original, separación en temas, trayectoria por tema y por bloque, y por hora del set → `piloto/resultados.json` (informe `docs/reports/piloto_trayectorias_digweed_2026-11-07.md`) |
+| `config/dj_sets/artistas_spotify.txt` | Los 92 artistas que Gabriel sigue en Spotify, punto de partida para buscar sets y compilaciones |
 
 ## Taxonomía de géneros (`tools/genre_taxonomy/`)
 
