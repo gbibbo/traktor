@@ -212,16 +212,20 @@ Decidido por Gabriel el 2026-11-06 (`docs/DECISIONS.md`). Pasos, una sola vez po
    Salida. Tiene que aparecer **«Voicemeeter Input (VB-Audio Voicemeeter VAIO)»**.
    **No** la elijas como predeterminada: la predeterminada sigue siendo la tuya
    (DJM, parlantes o auriculares).
-4. **Que Voicemeeter no lo mande a ningún parlante**: abre Voicemeeter. En la tira
-   del medio, **VOICEMEETER VAIO** (Virtual Input), apaga los botones **A** y **B**
-   (que no quede ninguno encendido). En el menú **Menu**, marca **Run on Windows
-   Startup** y **System Tray (Run Minimized)**, así queda siempre abierto y
-   escondido.
+4. **Que Voicemeeter no lo mande a ningún parlante**: abre Voicemeeter (Inicio →
+   «Voicemeeter»). La columna del medio dice **VIRTUAL INPUT** y debajo «Voicemeeter
+   Input»: es por donde va a entrar Spotify. En esa columna, los botones **▸A** y
+   **▸B** están verdes (encendidos): haz clic en los dos para apagarlos (quedan
+   oscuros). No toques las otras columnas. Arriba a la derecha, **Menu** → marca
+   **Run on Windows Startup** y **System Tray (Run Minimized)**. Minimiza la ventana
+   con **_**: la **X** cierra Voicemeeter.
 5. **Mandar solo Spotify a Voicemeeter**: abre Spotify de escritorio y pon algo a
-   sonar. Configuración de Windows → Sistema → Sonido → **Mezclador de volumen** →
-   en Aplicaciones, **Spotify** → **Dispositivo de salida**: «Voicemeeter Input
+   sonar (Spotify solo aparece en el mezclador mientras suena). Clic derecho en el
+   ícono del parlante de la barra de tareas → **Abrir el mezclador de volumen** (o
+   Configuración → Sistema → Sonido → **Mezclador de volumen**) → en Aplicaciones,
+   la flechita de **Spotify** → **Dispositivo de salida**: «Voicemeeter Input
    (VB-Audio Voicemeeter VAIO)». Spotify deja de oírse: es lo esperado. Windows lo
-   recuerda.
+   recuerda. La **Salida** de arriba (la predeterminada) no se toca.
 6. **Decirle a la app qué grabar**: en «Descargar playlists», abajo a la derecha
    (Salida de audio) → **Grabar desde** → «Voicemeeter Input (VB-Audio Voicemeeter
    VAIO)». Para la terminal (y como valor inicial de la app), la línea
