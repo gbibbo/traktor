@@ -237,6 +237,17 @@ Decidido por Gabriel el 2026-11-06 (`docs/DECISIONS.md`). Pasos, una sola vez po
    * Con Spotify sonando, **Medir lo que suena**: la barra se mueve. Si dice
      «Silencio», Spotify no sale por Voicemeeter (paso 5).
 8. Traktor sigue con el DJM: no hay que tocar su Audio Setup.
+9. **Opcional: esconder lo que Voicemeeter agregó y no se usa.** El driver agrega 16
+   dispositivos y solo hace falta «Voicemeeter Input». Hazlo sin ninguna grabación en
+   curso: tecla Windows + R → `mmsys.cpl` → Enter.
+   * Pestaña **Reproducción**: clic derecho → **Deshabilitar** en cada Voicemeeter
+     **menos «Voicemeeter Input»**: AUX Input, VAIO3 Input, In 1 a In 5 (7).
+   * Pestaña **Grabación**: **Deshabilitar** las 8 «Voicemeeter Out» (A1 a A5, B1 a
+     B3).
+   * Si siguen apareciendo en gris: clic derecho en la lista → desmarca **Mostrar
+     dispositivos deshabilitados**.
+   Para devolver uno: marca esa opción, clic derecho → **Habilitar**. Después,
+   **Probar sonido** en la app (paso 7) tiene que seguir saliendo bien.
 
 Para volver a grabar lo que suena por la salida predeterminada: **Grabar desde** →
 «Lo que suena por la salida predeterminada», y en el Mezclador de volumen, Spotify →
