@@ -30,8 +30,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
   temas de `biblioteca` por playlist; `_organizacion.csv` da archivo y track_uid de cada uno
   (verificado en ambas el 11-04). Carátulas 1630/1760. Rekordbox: `Preparar Rekordbox.bat`.
 - **`download_JIJIJI/`**: playlists de Spotify por Soulseek, 2 temas a la vez; lo que falte se graba
-  mientras busca (DECISIONS 11-06). GABRIEL: instalar Voicemeeter (paso 7b de
-  `CONFIGURAR_OTRO_ORDENADOR.md`) y probar. Entrada `spotify_soulseek_orchestrator.py`; logs `runs/logs/`.
+  mientras busca; Spotify va solo a Voicemeeter al grabar (DECISIONS 11-06, 11-07). GABRIEL: «Grabar
+  desde» Voicemeeter y probar de nuevo. Entrada `spotify_soulseek_orchestrator.py`; logs `runs/logs/`.
 - **Chequeo pre-commit** en `tools/git_hooks/` (audio, arrays, pesos, credenciales, archivos > 5 MB).
 
 ## OPEN ITEMS (por prioridad; LOCAL = trabajo del agente, GABRIEL = lo hace o decide Gabriel)

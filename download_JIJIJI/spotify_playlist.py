@@ -2,6 +2,15 @@
 PURPOSE: Open a Spotify playlist in the Windows desktop client and start playback.
 
 CHANGELOG:
+- 2026-11-07: The playlist plays on repeat while it is recorded: after its last track Spotify goes on to
+              the first one, so the recorder hears the end of the last track like any other cut. With
+              repeat off Spotify stopped there and went back to the first track (progress 0), and the
+              watchdog took that end for a stall (Gabriel's run of 2026-11-07: 0/1 recorded). The
+              watchdog also judges the end from the last state it saw playing, and ``--pause`` turns
+              repeat off again.
+- 2026-11-07: ``--route-output NAME --route-state PATH``: once Spotify is open and before it plays, send
+              it alone to the recorded output (spotify_output.py; the orchestrator gives the previous
+              output back when the download ends).
 - 2026-11-06: ``--pause --device-id ID``: pause this computer's Spotify (only if it is the one playing),
               so autoplay does not go on between recording sessions or after one is postponed. The
               ready file says the device ("starting") before playback starts, so the orchestrator can
@@ -42,6 +51,9 @@ SCOPES = " ".join([
 # Absolute so the authorization is reused from any working directory: inside the
 # orchestrator the player has only seconds to start, too few for a browser login.
 TOKEN_CACHE = Path(__file__).resolve().parent.parent / ".spotify_token_cache"
+# A stop this close to where the track last seen playing was due to end is that track's natural end
+# (the watchdog polls every ~0.4 s and Spotify's progress lags a little).
+NATURAL_END_MS = 2000
 
 
 def playlist_url_to_uri(url: str) -> str:
@@ -137,13 +149,18 @@ def write_status(path: Path, payload: dict) -> None:
 
 
 def monitor_playback_health(sp, status_file: Path, grace_seconds: float) -> int:
-    """Return 75 if Spotify remains paused away from a natural track ending."""
+    """Return 75 if Spotify remains paused away from a natural track ending.
+
+    The end of a playlist is a natural ending too, but there Spotify goes back to its first track
+    (progress 0): the end is also judged from the last state seen playing."""
     stopped_since: float | None = None
+    last_playing: tuple[dict, int, float] | None = None  # (track, progress_ms, when it was seen)
     while True:
         state = sp.current_playback()
         now = time.monotonic()
         if state and state.get("is_playing"):
             stopped_since = None
+            last_playing = (state.get("item") or {}, int(state.get("progress_ms") or 0), now)
             time.sleep(0.4)
             continue
 
@@ -157,6 +174,13 @@ def monitor_playback_health(sp, status_file: Path, grace_seconds: float) -> int:
         duration_ms = int(item.get("duration_ms") or 0)
         progress_ms = int((state or {}).get("progress_ms") or 0)
         remaining_ms = duration_ms - progress_ms if duration_ms else None
+        if (remaining_ms is None or remaining_ms > 1000) and last_playing is not None:
+            seen_item, seen_progress, seen_at = last_playing
+            seen_duration = int(seen_item.get("duration_ms") or 0)
+            reached_ms = seen_progress + (stopped_since - seen_at) * 1000.0
+            if seen_duration and seen_duration - reached_ms <= NATURAL_END_MS:
+                item, duration_ms = seen_item, seen_duration
+                progress_ms, remaining_ms = min(int(reached_ms), seen_duration), 0
         if remaining_ms is not None and remaining_ms <= 1000:
             write_status(
                 status_file,
@@ -187,6 +211,20 @@ def monitor_playback_health(sp, status_file: Path, grace_seconds: float) -> int:
         return 75
 
 
+def route_to_recorded_output(output: str, state_path: Path | None) -> None:
+    """Spotify alone to the recorded output (spotify_output.py). If it fails, the recording says that no sound
+    arrived there; it does not stop playback."""
+    import spotify_output
+
+    try:
+        result = spotify_output.route(output, state_path or Path(spotify_output.STATE_NAME))
+    except Exception as exc:  # noqa: BLE001
+        print(f"No pude mandar Spotify a «{output}» ({exc}). Mándalo a mano: Configuración → Sonido → "
+              f"Mezclador de volumen → Spotify → {output}.", file=sys.stderr, flush=True)
+        return
+    print(f"Spotify sale por «{result.get('device') or output}» mientras se graba.", flush=True)
+
+
 def pause_device(sp, device_id: str) -> bool:
     """Pause only if this device is the one playing: never the phone that took over playback."""
     state = sp.current_playback() or {}
@@ -194,6 +232,10 @@ def pause_device(sp, device_id: str) -> bool:
     if device.get("id") != device_id or not state.get("is_playing"):
         return False
     sp.pause_playback(device_id=device_id)
+    try:
+        sp.repeat(state="off", device_id=device_id)  # the recording left the playlist on repeat
+    except Exception:  # noqa: BLE001 (paused is what matters)
+        pass
     return True
 
 
@@ -237,6 +279,17 @@ def main() -> int:
         type=Path,
         default=None,
         help="Write playback health status and keep monitoring until completion",
+    )
+    parser.add_argument(
+        "--route-output",
+        default="",
+        help="Before playing, send Spotify alone to this output (the one recorded, e.g. \"Voicemeeter Input\")",
+    )
+    parser.add_argument(
+        "--route-state",
+        type=Path,
+        default=None,
+        help="Where the output Spotify had is saved, to give it back (spotify_output.py)",
     )
     parser.add_argument(
         "--watchdog-grace",
@@ -286,6 +339,8 @@ def main() -> int:
     device_id = device["id"]
     if args.ready_file is not None:  # no es «ready»: dice qué dispositivo, por si el arranque se demora
         write_status(args.ready_file.expanduser().resolve(), {"status": "starting", "device_id": device_id})
+    if args.route_output:
+        route_to_recorded_output(args.route_output, args.route_state)
 
     sp.transfer_playback(
         device_id=device_id,
@@ -299,8 +354,11 @@ def main() -> int:
         device_id=device_id
     )
 
+    # On repeat: after the last track Spotify goes on to the first one, so the recorder hears the end
+    # of the last track like any other cut. The orchestrator pauses Spotify once the session is
+    # recorded (and ``--pause`` turns repeat off).
     sp.repeat(
-        state="off",
+        state="context",
         device_id=device_id
     )
 
@@ -314,6 +372,10 @@ def main() -> int:
     )
 
     print(f"Playback started at playlist position {args.offset_position}.", flush=True)
+    try:  # a new context must not have reset it
+        sp.repeat(state="context", device_id=device_id)
+    except Exception as exc:  # noqa: BLE001 (the watchdog still recognizes the end of the playlist)
+        print(f"Could not confirm repeat: {exc}", file=sys.stderr, flush=True)
 
     if args.ready_file is not None:
         write_status(

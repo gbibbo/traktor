@@ -198,7 +198,10 @@ por loopback (`playlist_loopback_recorder.py`) y los reportes JSON/TXT de una pr
 consigue entra en la cola de grabación (`recording_queue.py`, `recording_queue.jsonl` del run) y el
 orquestador lo graba de Spotify mientras sigue la búsqueda, en tandas de hasta 10 temas con su propia
 playlist privada (borrada al terminar la tanda) y su carpeta `recordings/NN/`. El descargador trabaja con
-2 temas a la vez por una sola sesión de Soulseek (`SockseekDaemon`: el daemon de sockseek, con `--remote`). Reúne los resultados bajo
+2 temas a la vez por una sola sesión de Soulseek (`SockseekDaemon`: el daemon de sockseek, con `--remote`).
+La playlist de cada tanda suena en repetición, para que el último tema se corte como los demás. Con
+«Grabar desde» en una salida concreta (Voicemeeter), `spotify_output.py` manda solo Spotify ahí antes
+de darle play y le devuelve su salida al terminar la descarga. Reúne los resultados bajo
 `download_JIJIJI/runs/` (git-ignorado). `download_JIJIJI/README.md` documenta la
 configuración inicial y el uso; `download_JIJIJI/CONFIGURAR_OTRO_ORDENADOR.md`, la instalación
 paso a paso en otra PC (claves de Spotify y Soulseek, `sockseek.exe` en `tools/sockseek/`,
@@ -221,7 +224,7 @@ guarda lo conseguido y termina como `partial` (código 3).
 | `descargas_app.py` | App local (http.server, solo 127.0.0.1 y con token; una instancia; se apaga sola sin ventana ni descarga): vista previa de la playlist con autorización propia, salida de audio de Windows (elegir, probar con tono grabado, medidor del loopback), carpetas de destino y de trabajo, lanzar/detener/reanudar el orquestador, estado de cada tema leído de los JSON del run (también de runs lanzados desde la terminal), historial y guardado parcial de un run con error (`consolidate_audio` sin conjunto esperado). Ajustes y token en `%APPDATA%\traktor_descargas`. Además, la pestaña Colección (carpetas de descargas, biblioteca organizada y las agregadas a mano; temas y tamaño por subcarpeta y cuáles se eligen para generar playlists, en `collection.json`) y la pestaña Organización (lanza `src/v4/ui/review_app.py --exit-on-stdin-eof` en su propio proceso, que se cierra con la app después de la tarea en curso) |
 | `index.html` | Interfaz (una página, sin dependencias salvo la fuente Figtree): pestañas Descargas, Colección y Organización arriba a la izquierda (la Organización, en un iframe); biblioteca, vista de playlist con tabla de temas y estado, barra inferior con progreso, salida de audio y carpeta |
 | `run_job.py` | Ejecuta el orquestador y lo interrumpe como un Ctrl+C cuando aparece un archivo de señal |
-| `audio_devices.ps1` | Lista las salidas de audio y fija la predeterminada (IMMDeviceEnumerator + IPolicyConfig) |
+| `audio_devices.ps1` | Lista las salidas de audio y fija la predeterminada (IMMDeviceEnumerator + IPolicyConfig); `-App`/`-SetApp`: la salida de una sola app (IAudioPolicyConfigFactory, no documentada) |
 | `crear_acceso_directo.ps1` | Crea «Descargar playlists» en el Escritorio (`.venv\Scripts\pythonw.exe`, `icon.ico`) |
 | `icon.svg`, `icon.ico` | Icono de la ventana y del acceso directo |
 

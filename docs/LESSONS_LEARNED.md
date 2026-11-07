@@ -106,6 +106,28 @@ descarga. Ahora el grabador lo dice y sale con el código 76, y `playlist_loopba
 --check-device` lo prueba antes de cada tanda. Para grabar con Traktor abierto, Spotify tiene que
 sonar por otra salida.
 
+### Al final de una playlist, Spotify se detiene en el progreso 0: no es una pausa
+
+Con la repetición apagada, al terminar el último tema Spotify se detiene y vuelve al primero de la
+playlist con `progress_ms` 0. El watchdog, que solo daba por natural una parada a menos de 1 s del
+final del tema, lo tomó como una pausa: el 2026-11-07 la tanda de un tema se cortó con 0/1 grabados
+(`spotify_playback_status.json`: `progress_ms` 0, `duration_ms` 302065). Además, el grabador necesita
+1,5 s de audio después del final esperado para cortar, y el watchdog esperaba 1,5 s: una carrera.
+La corrida del 2026-10-30 tiene la misma huella y la ganó. Ahora la playlist de la tanda suena en
+repetición (el último tema se corta como los demás) y el watchdog mide el final con el último estado
+que vio sonando. Con tandas tema a tema, casi cada tema es el último de su tanda.
+
+### La salida de una sola app (Spotify a Voicemeeter) usa una interfaz no documentada
+
+Windows guarda una salida por programa (Mezclador de volumen), pero no hay API pública. EarTrumpet
+usa `Windows.Media.Internal.AudioPolicyConfig` (`IAudioPolicyConfigFactory`, IID
+`ab3d4648-e242-459f-b02f-541c70306324` desde Windows 10 21H2): 19 métodos sin usar y después
+`SetPersistedDefaultAudioEndpoint` / `GetPersistedDefaultAudioEndpoint`, con el id envuelto en
+`\\?\SWD#MMDEVAPI#<id>#{e6327cad-dcec-4949-ae8a-991e976a79d2}`. Se pide con un proceso abierto y
+queda guardado para el programa. Verificado el 2026-11-07 en el escritorio (`app/audio_devices.ps1
+-App/-SetApp`, ida y vuelta). Windows PowerShell 5.1 lee un `.ps1` sin BOM como ANSI y rompe los
+acentos de los mensajes: el script va con BOM UTF-8.
+
 ### Probar en Soulseek mientras baja una descarga: otra cuenta y `--no-config`
 
 Una segunda sesión con la misma cuenta corta la otra, y el descargador abre una por transferencia.

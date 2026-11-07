@@ -48,7 +48,8 @@ En la pestaña Descargas:
   **graba** («Grabar desde»): lo que suena por la salida predeterminada, o una salida concreta.
   Con Voicemeeter, Spotify sale solo por «Voicemeeter Input», no suena nada, el DJM queda libre
   para Traktor y se graba solo Spotify (`CONFIGURAR_OTRO_ORDENADOR.md`, paso 7b;
-  `SPOTIFY_RECORDING_OUTPUT` en el `.env`, `--recording-output` en la terminal). Si lo que se
+  `SPOTIFY_RECORDING_OUTPUT` en el `.env`, `--recording-output` en la terminal). Spotify se manda
+  ahí solo al grabar y al terminar la descarga vuelve a su salida (`spotify_output.py`). Si lo que se
   graba no es lo que suena, la app deja escuchar mientras graba. «Probar sonido» toca un ding-dong y lo
   graba para medirlo; «Medir lo que suena» muestra el nivel mientras suena Spotify. Con una
   descarga en curso no se puede cambiar ni probar, porque cortaría o ensuciaría la grabación;
@@ -125,7 +126,10 @@ El orquestador va **tema a tema**, como cuando se busca a mano en Soulseek (2026
    de grabación** (`recording_queue.jsonl`) apenas se sabe;
 3. mientras la búsqueda sigue, el orquestador graba esa cola de Spotify en **tandas**: cada
    tanda toma lo que haya en la cola (hasta 10 temas), crea una playlist privada de Spotify solo
-   con esos temas, abre el grabador WASAPI loopback y reproduce la playlist. La primera tanda
+   con esos temas, abre el grabador WASAPI loopback y reproduce la playlist **en repetición**:
+   después del último tema Spotify sigue con el primero, así el final del último se corta igual
+   que los demás, y Spotify se pausa apenas la tanda queda grabada (sin repetición, Spotify se
+   detenía al final de la playlist y la tanda se daba por cortada). La primera tanda
    empieza con el primer tema que haya que grabar, sin esperar al resto de la búsqueda;
 4. si la cola queda vacía y la búsqueda sigue, espera el próximo tema (Spotify se pausa, para
    que su reproducción automática no siga sonando); cuando entra uno, abre otra tanda. Antes de
@@ -290,7 +294,8 @@ y los reportes de la búsqueda y de las descargas se escriben tema a tema.
 
 Un watchdog consulta el estado real de Spotify y detecta una pausa sostenida; como respaldo, el
 loopback también detecta 10 segundos de silencio digital. En ese caso el tema actual se considera
-incompleto y la tanda queda reanudable.
+incompleto y la tanda queda reanudable. Una parada justo donde terminaba el tema que el watchdog
+vio sonando es el final natural, aunque Spotify ya haya vuelto al comienzo de la playlist.
 
 Al ejecutar nuevamente exactamente el mismo comando (o «Continuar» / «Grabar ahora» en la app),
 el orquestador retoma el run más reciente de la playlist si no terminó (interrumpido, en pausa,

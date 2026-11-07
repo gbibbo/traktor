@@ -55,6 +55,19 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
      info@1001tracklists.com, como hizo el grupo de Kim. Mientras tanto, sets largos de MixesDB y los
      suyos.
    - Plan e informe para auditoría: `docs/plans/recomendacion_playlists_plan.md`.
+10. **Al grabar, Spotify va solo a Voicemeeter y después vuelve a su salida, sin que Gabriel lo note**
+    (Gabriel). Cómo (agente):
+    - antes de darle play, el reproductor manda Spotify a la salida de «Grabar desde»;
+    - al terminar la descarga (bien, pausada, detenida o con error), Spotify recupera la salida que
+      tenía. Si se la cambió a mano mientras tanto, queda la suya;
+    - `spotify_output.py` y `app/audio_devices.ps1 -App/-SetApp`. Es la interfaz no documentada que
+      usa EarTrumpet (`docs/LESSONS_LEARNED.md`).
+    - Reemplaza el paso manual del Mezclador de volumen del punto 4 de 2026-11-06.
+11. **La playlist de cada tanda suena en repetición** (agente, por la primera prueba de Gabriel con
+    Voicemeeter, que grabó 0/1). Al final de una playlist, Spotify se detiene y vuelve al primer tema
+    con el progreso en 0, y el vigilante lo tomaba por una pausa. En repetición, el último tema se
+    corta como los demás y Spotify se pausa apenas la tanda queda grabada. El vigilante también
+    reconoce ese final.
 
 ## 2026-11-06
 
@@ -93,9 +106,12 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    grabar horas con los parlantes apagados, pero con Traktor abierto el DJM queda en exclusiva y no se
    puede grabar (la prueba del 2026-11-06 falló así). Gabriel eligió Voicemeeter (ya tenía el
    instalador) entre las opciones del agente: un cable virtual, o la salida del K2. Cómo (agente):
-   Spotify sale solo por «Voicemeeter Input» (Mezclador de volumen de Windows) y el grabador graba
-   esa salida («Grabar desde» en la app, `SPOTIFY_RECORDING_OUTPUT`). Pasos en
+   Spotify sale solo por «Voicemeeter Input» (Mezclador de volumen de Windows) [REEMPLAZADO 2026-11-07
+   por el punto 10 de 2026-11-07: la descarga manda Spotify ahí al grabar y se lo devuelve al terminar]
+   y el grabador graba esa salida («Grabar desde» en la app, `SPOTIFY_RECORDING_OUTPUT`). Pasos en
    `download_JIJIJI/CONFIGURAR_OTRO_ORDENADOR.md`, paso 7b. Falta que Gabriel lo instale y lo pruebe.
+   [REEMPLAZADO 2026-11-07 por la instalación: Voicemeeter está instalado en el escritorio; falta una
+   grabación completa con el punto 11 de 2026-11-07.]
 
 ## 2026-11-05
 

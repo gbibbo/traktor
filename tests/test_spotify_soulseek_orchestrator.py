@@ -543,6 +543,41 @@ class ResumeTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(status["status"], "natural_end")
 
+    class ScriptedSpotify:
+        """Spotify state polled in order; the last one repeats."""
+
+        def __init__(self, states: list[dict]) -> None:
+            self.states = list(states)
+
+        def current_playback(self) -> dict:
+            return self.states.pop(0) if len(self.states) > 1 else self.states[0]
+
+    def test_spotify_watchdog_allows_the_end_of_the_playlist(self) -> None:
+        # Gabriel, 2026-11-07: at the end of the playlist Spotify stops and goes back to its first track
+        # (progress 0). Seen playing 0.5 s before the end, that stop is the natural end, not a stall.
+        playing = {"is_playing": True, "progress_ms": 301_565,
+                   "item": {"id": "last", "name": "Unsociable Hours", "duration_ms": 302_065}}
+        back_to_start = {"is_playing": False, "progress_ms": 0,
+                         "item": {"id": "first", "name": "First", "duration_ms": 200_000}}
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(PLAYER.time, "sleep"):
+            status_path = Path(temp_dir) / "status.json"
+            code = PLAYER.monitor_playback_health(self.ScriptedSpotify([playing, back_to_start]), status_path,
+                                                  0.001)
+            status = json.loads(status_path.read_text(encoding="utf-8"))
+        self.assertEqual((code, status["status"], status["track_id"]), (0, "natural_end", "last"))
+
+    def test_spotify_watchdog_still_catches_a_stop_in_the_middle_of_the_last_track(self) -> None:
+        playing = {"is_playing": True, "progress_ms": 120_000,
+                   "item": {"id": "last", "name": "Unsociable Hours", "duration_ms": 302_065}}
+        back_to_start = {"is_playing": False, "progress_ms": 0,
+                         "item": {"id": "last", "name": "Unsociable Hours", "duration_ms": 302_065}}
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(PLAYER.time, "sleep"):
+            status_path = Path(temp_dir) / "status.json"
+            code = PLAYER.monitor_playback_health(self.ScriptedSpotify([playing, back_to_start]), status_path,
+                                                  0.001)
+            status = json.loads(status_path.read_text(encoding="utf-8"))
+        self.assertEqual((code, status["status"]), (75, "stalled"))
+
 
 class FallbackRecordingTests(unittest.TestCase):
     """Temas que Soulseek no pudo dar: se graban, se reanudan y, si aun así faltan, se guarda lo que hay."""
@@ -781,7 +816,8 @@ class TrackByTrackFlowTests(unittest.TestCase):
                 mock.patch.object(ORCHESTRATOR, "_validate_final_mp3", side_effect=ORCHESTRATOR.embedded_spotify_id), \
                 mock.patch.object(ORCHESTRATOR, "create_spotify_playlist", side_effect=create_playlist), \
                 mock.patch.object(ORCHESTRATOR, "delete_spotify_playlist",
-                                  side_effect=lambda playlist: deleted.append(playlist["id"])), \
+                                  side_effect=lambda playlist: deleted.append(playlist["id"])
+                                  or self.events.append(("delete", playlist["id"]))), \
                 mock.patch.object(ORCHESTRATOR, "check_recording_device", side_effect=check_output), \
                 mock.patch.object(ORCHESTRATOR, "DEVICE_RETRY_S", 0.0), \
                 mock.patch.object(ORCHESTRATOR, "pause_spotify",
@@ -985,6 +1021,25 @@ class TrackByTrackFlowTests(unittest.TestCase):
             self.assertIn(("check", "Voicemeeter Input"), self.events)
             recorder = next(cmd for name, cmd in calls if name == "playlist_loopback_recorder.py")
             self.assertEqual(recorder[recorder.index("--output-device") + 1], "Voicemeeter Input")
+            # Spotify solo va a esa salida mientras graba: el reproductor la recibe, con dónde guardar la de antes.
+            player = next(cmd for name, cmd in calls if name == "spotify_playlist.py")
+            self.assertEqual(player[player.index("--route-output") + 1], "Voicemeeter Input")
+            self.assertEqual(Path(player[player.index("--route-state") + 1]),
+                             (root / "runs" / ORCHESTRATOR.spotify_output.STATE_NAME).resolve())
+
+    def test_spotify_gets_its_output_back_when_the_download_ends(self) -> None:
+        script = [[("availability", [1, 2]), ("download", 1), ("queue", 2), ("close", "finished")]]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            with mock.patch.object(ORCHESTRATOR.spotify_output, "restore", return_value="vuelve") as restore:
+                code, _, _, report, _ = self.run_flow(root, script, recording_output="Voicemeeter Input")
+            self.assertEqual((code, report["status"]), (0, "completed"))
+            restore.assert_called_once_with((root / "runs").resolve() / ORCHESTRATOR.spotify_output.STATE_NAME)
+        # Sin elegir salida, Spotify no se toca.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            _, calls, _, _, _ = self.run_flow(Path(temp_dir), script)
+            player = next(cmd for name, cmd in calls if name == "spotify_playlist.py")
+            self.assertNotIn("--route-output", player)
 
     def test_spotify_is_paused_before_the_next_session_starts_recording(self) -> None:
         # 12 en la cola: tanda de 10 y tanda de 2, una detrás de la otra. La reproducción automática que
@@ -998,6 +1053,17 @@ class TrackByTrackFlowTests(unittest.TestCase):
             order = [e for e in self.events if e[0] in {"recorder", "pause"}]
             second = order.index(("recorder", "02", 0))
             self.assertIn(("pause", "dev1"), order[:second])
+
+    def test_a_recorded_session_pauses_spotify_before_its_playlist_is_deleted(self) -> None:
+        # La playlist suena en repetición: al terminar la tanda, Spotify se pausa enseguida y después
+        # se borra la playlist (no se borra mientras suena).
+        script = [[("availability", [1, 2]), ("download", 1), ("queue", 2), ("close", "finished")]]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            code, _, _, report, spotify = self.run_flow(Path(temp_dir), script)
+            self.assertEqual((code, report["status"]), (0, "completed"))
+            self.assertEqual(spotify["deleted"], ["s1"])
+            order = [e for e in self.events if e[0] in {"pause", "delete"}]
+            self.assertEqual(order[:2], [("pause", "dev1"), ("delete", "s1")])
 
     def test_a_player_that_times_out_is_not_retried_and_spotify_is_paused(self) -> None:
         script = [[("availability", [1, 2]), ("download", 1), ("queue", 2), ("close", "finished")]]
@@ -1273,6 +1339,65 @@ class EnvironmentSetupTests(unittest.TestCase):
         repo_root = Path(__file__).resolve().parents[1]
         self.assertEqual(PLAYER.TOKEN_CACHE, repo_root / ".spotify_token_cache")
 
+    def test_spotify_goes_alone_to_the_recorded_output_and_gets_back_the_one_it_had(self) -> None:
+        output = ORCHESTRATOR.spotify_output
+        apps = {"Spotify": {"device_id": "{dj}", "device": "Line (DJM-750MK2)"}}
+        names = {"Voicemeeter Input": ("{vm}", "Voicemeeter Input (VB-Audio Voicemeeter VAIO)"),
+                 "default": ("", ""), "{dj}": ("{dj}", "Line (DJM-750MK2)")}
+        calls: list[tuple[str, ...]] = []
+
+        def fake_call(*args):
+            calls.append(args)
+            if args[0] == "-App":
+                if "Spotify" not in apps:
+                    raise output.AppNotRunning("Spotify no está abierto.")
+                return {"app": "Spotify", **apps["Spotify"]}
+            before = dict(apps["Spotify"])
+            device_id, device = names[args[3]]
+            apps["Spotify"] = {"device_id": device_id, "device": device}
+            return {"app": "Spotify", **apps["Spotify"], "previous_id": before["device_id"],
+                    "previous": before["device"]}
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(output, "_call", side_effect=fake_call):
+            state = Path(temp_dir) / output.STATE_NAME
+            output.route("Voicemeeter Input", state)
+            output.route("Voicemeeter Input", state)  # la tanda siguiente: no pisa la salida de antes
+            self.assertEqual(json.loads(state.read_text(encoding="utf-8"))["previous_id"], "{dj}")
+            self.assertEqual(apps["Spotify"]["device_id"], "{vm}")
+
+            del apps["Spotify"]  # Spotify cerrado: Windows no la cambia; queda para la próxima vez
+            self.assertIn("cerrado", output.restore(state))
+            self.assertTrue(state.is_file())
+
+            apps["Spotify"] = {"device_id": "{vm}", "device": "Voicemeeter Input (VB-Audio Voicemeeter VAIO)"}
+            self.assertEqual(output.restore(state), "Spotify vuelve a sonar por «Line (DJM-750MK2)».")
+            self.assertEqual(apps["Spotify"]["device_id"], "{dj}")
+            self.assertFalse(state.is_file())
+            self.assertIsNone(output.restore(state))  # nada que devolver
+
+            # Si la cambiaste a mano mientras tanto, queda la tuya.
+            output.route("Voicemeeter Input", state)
+            names["Speakers"] = ("{sp}", "Speakers (Senary Audio)")
+            fake_call("-SetApp", "Spotify", "-Device", "Speakers")
+            self.assertIsNone(output.restore(state))
+            self.assertEqual(apps["Spotify"]["device_id"], "{sp}")
+            self.assertFalse(state.is_file())
+
+            # Si antes salía por la predeterminada, vuelve a la predeterminada.
+            fake_call("-SetApp", "Spotify", "-Device", "default")
+            output.route("Voicemeeter Input", state)
+            self.assertIn("la salida predeterminada de Windows", output.restore(state))
+            self.assertEqual(apps["Spotify"]["device_id"], "")
+        self.assertIn(("-SetApp", "Spotify", "-Device", "{dj}"), calls)
+        self.assertEqual(calls[-1], ("-SetApp", "Spotify", "-Device", "default"))
+
+    def test_a_failed_route_does_not_stop_playback(self) -> None:
+        stderr = io.StringIO()
+        with mock.patch.object(ORCHESTRATOR.spotify_output, "route", side_effect=RuntimeError("sin permiso")), \
+                contextlib.redirect_stderr(stderr):
+            PLAYER.route_to_recorded_output("Voicemeeter Input", Path("x.json"))
+        self.assertIn("Mezclador de volumen → Spotify → Voicemeeter Input", stderr.getvalue())
+
     def test_pause_only_touches_this_computer(self) -> None:
         spotify = mock.Mock()
         spotify.current_playback.return_value = {"is_playing": True, "device": {"id": "phone"}}
@@ -1280,6 +1405,7 @@ class EnvironmentSetupTests(unittest.TestCase):
         spotify.current_playback.return_value = {"is_playing": True, "device": {"id": "dev1"}}
         self.assertTrue(PLAYER.pause_device(spotify, "dev1"))
         spotify.pause_playback.assert_called_once_with(device_id="dev1")
+        spotify.repeat.assert_called_once_with(state="off", device_id="dev1")  # la grabación la dejó en repetición
 
 
 if __name__ == "__main__":

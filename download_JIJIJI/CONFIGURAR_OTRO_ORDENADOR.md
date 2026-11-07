@@ -219,23 +219,24 @@ Decidido por Gabriel el 2026-11-06 (`docs/DECISIONS.md`). Pasos, una sola vez po
    oscuros). No toques las otras columnas. Arriba a la derecha, **Menu** → marca
    **Run on Windows Startup** y **System Tray (Run Minimized)**. Minimiza la ventana
    con **_**: la **X** cierra Voicemeeter.
-5. **Mandar solo Spotify a Voicemeeter**: abre Spotify de escritorio y pon algo a
-   sonar (Spotify solo aparece en el mezclador mientras suena). Clic derecho en el
-   ícono del parlante de la barra de tareas → **Abrir el mezclador de volumen** (o
-   Configuración → Sistema → Sonido → **Mezclador de volumen**) → en Aplicaciones,
-   la flechita de **Spotify** → **Dispositivo de salida**: «Voicemeeter Input
-   (VB-Audio Voicemeeter VAIO)». Spotify deja de oírse: es lo esperado. Windows lo
-   recuerda. La **Salida** de arriba (la predeterminada) no se toca.
+5. **Spotify no se toca a mano.** Al grabar, la descarga manda **solo Spotify** a
+   la salida elegida en el paso 6, antes de darle play, y al terminar (bien,
+   pausada, detenida o con error) le devuelve la salida que tenía. Fuera de las
+   grabaciones Spotify suena por donde siempre. En el Mezclador de volumen, Spotify
+   tiene que quedar en **Predeterminado**; la **Salida** predeterminada de Windows
+   es la tuya (DJM, parlantes o auriculares), **no** Voicemeeter. Detalle:
+   `spotify_output.py` (la salida de antes queda en
+   `runs/spotify_output_restore.json` hasta devolverla; con Spotify cerrado, se
+   devuelve al terminar la próxima descarga).
 6. **Decirle a la app qué grabar**: en «Descargar playlists», abajo a la derecha
    (Salida de audio) → **Grabar desde** → «Voicemeeter Input (VB-Audio Voicemeeter
    VAIO)». Para la terminal (y como valor inicial de la app), la línea
    `SPOTIFY_RECORDING_OUTPUT=Voicemeeter Input` del `.env` (paso 6a).
-7. **Comprobar**, en ese mismo panel:
-   * **Probar sonido** tiene que decir «Sonó por «Voicemeeter Input…» y se grabó
-     bien… No se oye». Si dice «No se grabó nada», revisa que Voicemeeter esté
-     abierto (paso 4).
-   * Con Spotify sonando, **Medir lo que suena**: la barra se mueve. Si dice
-     «Silencio», Spotify no sale por Voicemeeter (paso 5).
+7. **Comprobar**, en ese mismo panel: **Probar sonido** tiene que decir «Sonó por
+   «Voicemeeter Input…» y se grabó bien… No se oye». Si dice «No se grabó nada»,
+   revisa que Voicemeeter esté abierto (paso 4). En la primera descarga, el registro
+   dice «Spotify sale por «Voicemeeter Input…» mientras se graba» y, al final,
+   «Spotify vuelve a sonar por «…»».
 8. Traktor sigue con el DJM: no hay que tocar su Audio Setup.
 9. **Opcional: esconder lo que Voicemeeter agregó y no se usa.** El driver agrega 16
    dispositivos y solo hace falta «Voicemeeter Input». Hazlo sin ninguna grabación en
@@ -250,15 +251,16 @@ Decidido por Gabriel el 2026-11-06 (`docs/DECISIONS.md`). Pasos, una sola vez po
    **Probar sonido** en la app (paso 7) tiene que seguir saliendo bien.
 
 Para volver a grabar lo que suena por la salida predeterminada: **Grabar desde** →
-«Lo que suena por la salida predeterminada», y en el Mezclador de volumen, Spotify →
-«Predeterminado».
+«Lo que suena por la salida predeterminada» (así Spotify ya no se cambia de salida).
 
 Si algo falla, el registro de la descarga lo dice:
 
 | Mensaje | Qué pasa | Qué hacer |
 |---|---|---|
 | «No encuentro la salida de audio «Voicemeeter Input»» | Voicemeeter no está instalado, o falta reiniciar | pasos 1 y 2 |
-| «No llegó sonido a «Voicemeeter Input…»» | Spotify no sale por Voicemeeter | paso 5 |
+| «No pude mandar Spotify a «Voicemeeter Input»…» | Windows no dejó cambiar la salida de Spotify | a mano: Mezclador de volumen → Spotify → Voicemeeter Input, y de vuelta a Predeterminado al terminar |
+| «No llegó sonido a «Voicemeeter Input…»» | Spotify no sale por Voicemeeter | la fila de arriba |
+| Spotify no se oye fuera de las grabaciones | quedó en Voicemeeter (Spotify estaba cerrado al terminar, o una descarga se cortó) | se devuelve al terminar la próxima descarga; o a mano: Mezclador de volumen → Spotify → Predeterminado |
 | Spotify se oye por los parlantes | la tira VAIO tiene A1 encendido | paso 4 |
 | «No se puede grabar la salida de audio «Line (DJM-750MK2)»» | sin el paso 7b, Traktor tiene el DJM | paso 7b, o cerrar Traktor |
 

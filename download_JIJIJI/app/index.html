@@ -501,7 +501,7 @@ details summary::before { content: "▸ "; } details[open] summary::before { con
   <div class="sub">La salida predeterminada de Windows: por ahí suena todo lo que no tenga otra elegida.</div>
   <div class="devlist" id="devlist"><div class="small">Buscando salidas…</div></div>
   <h4>Grabar desde</h4>
-  <div class="sub">Lo que se graba de Spotify. Con «Voicemeeter Input», y Spotify mandado ahí en Windows (Configuración → Sonido → Mezclador de volumen), se graba solo Spotify, no suena nada y el DJM queda libre para Traktor. Guía: <code>CONFIGURAR_OTRO_ORDENADOR.md</code>, «Grabar sin que suene nada».</div>
+  <div class="sub">Lo que se graba de Spotify. Con «Voicemeeter Input», al grabar se manda Spotify ahí solo y al terminar vuelve a su salida: se graba solo Spotify, no suena nada y el DJM queda libre para Traktor. Guía: <code>CONFIGURAR_OTRO_ORDENADOR.md</code>, «Grabar sin que suene nada».</div>
   <div class="devlist" id="reclist"></div>
   <div class="btnrow">
     <button class="pill green small" id="btn-test"><svg class="ico sm fill"><use href="#i-play"/></svg>Probar sonido</button>
@@ -1492,7 +1492,7 @@ async function toggleMeter() {
         $("#meter").style.width = `${pct}%`;
         $("#meter-txt").textContent = l.error ? l.error
           : l.db > -55 ? `Está sonando por «${l.device || "la salida"}»: se grabaría (${Math.round(l.db)} dB).`
-          : recOutput() ? `Silencio en «${l.device || recOutput()}». Dale play en Spotify: si la barra no se mueve, Spotify no sale por ahí.`
+          : recOutput() ? `Silencio en «${l.device || recOutput()}». Spotify sale por ahí solo mientras se graba.`
           : "Silencio. Dale play en Spotify: la barra tiene que moverse.";
         if (!l.active) stopMeterUi();
       } catch { stopMeterUi(); }

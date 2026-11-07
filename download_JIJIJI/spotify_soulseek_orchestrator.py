@@ -3,6 +3,11 @@
 PURPOSE: Run the complete Spotify -> Soulseek + loopback fallback workflow.
 
 CHANGELOG:
+- 2026-11-07: A recorded session pauses Spotify at once (its playlist plays on repeat, see
+              spotify_playlist.py) and only then deletes its temporary playlist.
+- 2026-11-07: With --recording-output, the player sends Spotify alone to that output before it plays,
+              and when the download ends (finished, paused, stopped or failed) Spotify gets back the
+              output it had (spotify_output.py, <runs>/spotify_output_restore.json).
 - 2026-11-06: --recording-output NAME (or SPOTIFY_RECORDING_OUTPUT in .env): record that output, e.g.
               "Voicemeeter Input" with Spotify alone routed to it, instead of the Windows default output
               (CONFIGURAR_OTRO_ORDENADOR.md, «Grabar sin que suene nada»).
@@ -88,6 +93,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from recording_queue import END_FINISHED, QUEUE_NAME, QueueState, read_queue, track_id  # noqa: E402
+import spotify_output  # noqa: E402
 
 DEFAULT_RUNS_DIR = SCRIPT_DIR / "runs"
 DEFAULT_PLAYLISTS_DIR = SCRIPT_DIR / "Playlists_DOWNLOAD"
@@ -894,6 +900,10 @@ class SessionRecorder:
                 "--ready-file", str(player_ready),
                 "--watchdog-file", str(playback_status),
             ]
+            if getattr(self.args, "recording_output", None):
+                # Spotify solo a la salida que se graba; la que tenía vuelve al terminar la descarga.
+                player_cmd += ["--route-output", self.args.recording_output,
+                               "--route-state", str(self.run_dir.parent / spotify_output.STATE_NAME)]
             for attempt in range(PLAYER_ATTEMPTS):
                 self.player = subprocess.Popen(player_cmd, env=self.env)
                 try:
@@ -1400,7 +1410,10 @@ def run_workflow(args: argparse.Namespace) -> int:
                 if outcome == "deferred":
                     sessions.pause()
                 elif outcome == "completed":
-                    forget_session_playlist(session_dir)  # grabada: la playlist temporal ya no hace falta
+                    # Grabada: Spotify (la playlist suena en repetición) se pausa ya, y después se borra la
+                    # playlist temporal, que no hace falta más.
+                    sessions.pause()
+                    forget_session_playlist(session_dir)
                 continue
             # Nada para grabar ahora: Spotify no sigue sonando por su cuenta.
             sessions.pause()
@@ -1510,6 +1523,17 @@ def run_workflow(args: argparse.Namespace) -> int:
         sessions.stop_processes()
         terminate_process(downloader)
         stop_leftover_daemon(run_dir)
+        give_back_spotify_output(runs_root)
+
+
+def give_back_spotify_output(runs_root: Path) -> None:
+    """Spotify vuelve a la salida que tenía antes de grabar (spotify_output.py). Nunca corta el final."""
+    try:
+        message = spotify_output.restore(runs_root / spotify_output.STATE_NAME)
+    except Exception as exc:  # noqa: BLE001
+        message = f"No pude devolver Spotify a su salida de antes ({exc})."
+    if message:
+        print(f"[grabación] {message}", flush=True)
 
 
 def build_parser() -> argparse.ArgumentParser:

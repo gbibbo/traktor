@@ -1,13 +1,24 @@
-# PURPOSE: Listar las salidas de audio de Windows y elegir la predeterminada (la que suena y la que
+﻿# PURPOSE: Listar las salidas de audio de Windows y elegir la predeterminada (la que suena y la que
 #          graba el loopback de playlist_loopback_recorder.py). Lo usa download_JIJIJI/app/descargas_app.py.
 #          -List           -> JSON: [{id, name, default}]
 #          -SetDefault <id> -> deja ese dispositivo como predeterminado (consola, multimedia y comunicaciones)
-#          Usa IMMDeviceEnumerator (documentada) e IPolicyConfig (no documentada, estable desde Windows 7).
+#          -App <proceso>   -> JSON: {app, pids, device_id, device}: la salida elegida para esa app en
+#                              Configuración → Sonido → Mezclador de volumen ("" = la predeterminada).
+#                              Sale con 3 si la app no está abierta (Windows solo la cambia con la app abierta).
+#          -SetApp <proceso> -Device <id, nombre o parte | default> -> se la cambia; el JSON agrega
+#                              previous_id y previous (la que tenía).
+#          Usa IMMDeviceEnumerator (documentada), IPolicyConfig (no documentada, estable desde Windows 7) e
+#          IAudioPolicyConfigFactory (no documentada; la de EarTrumpet y el Mezclador de volumen, desde
+#          Windows 10 21H2).
 # CHANGELOG:
+#   - 2026-11-07: -App y -SetApp: la salida de una sola app (Spotify a «Voicemeeter Input» mientras se graba).
 #   - 2026-10-30: Creación inicial.
 param(
     [switch]$List,
-    [string]$SetDefault
+    [string]$SetDefault,
+    [string]$App,
+    [string]$SetApp,
+    [string]$Device
 )
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -78,6 +89,85 @@ namespace TraktorAudio {
     [ComImport, Guid("870af99c-171d-4f9e-af0d-e63df40c2bc9")]
     class PolicyConfigComObject { }
 
+    // Windows 10 21H2 y posteriores (Windows 11). Es la vtable: los 19 primeros métodos no se usan, pero
+    // tienen que estar para que los otros caigan en su lugar (orden de EarTrumpet,
+    // IAudioPolicyConfigFactoryVariantFor21H2).
+    [ComImport, Guid("ab3d4648-e242-459f-b02f-541c70306324"), InterfaceType(ComInterfaceType.InterfaceIsIInspectable)]
+    interface IAudioPolicyConfigFactory {
+        int Unused01(); int Unused02(); int Unused03(); int Unused04(); int Unused05(); int Unused06();
+        int Unused07(); int Unused08(); int Unused09(); int Unused10(); int Unused11(); int Unused12();
+        int Unused13(); int Unused14(); int Unused15(); int Unused16(); int Unused17(); int Unused18();
+        int Unused19();
+        [PreserveSig] int SetPersistedDefaultAudioEndpoint(uint processId, int flow, int role, IntPtr deviceId);
+        [PreserveSig] int GetPersistedDefaultAudioEndpoint(uint processId, int flow, int role, out IntPtr deviceId);
+        [PreserveSig] int ClearAllPersistedApplicationDefaultEndpoints();
+    }
+
+    static class WinRT {
+        [DllImport("combase.dll")]
+        public static extern int WindowsCreateString([MarshalAs(UnmanagedType.LPWStr)] string source, int length, out IntPtr hstring);
+        [DllImport("combase.dll")]
+        public static extern int WindowsDeleteString(IntPtr hstring);
+        [DllImport("combase.dll")]
+        public static extern IntPtr WindowsGetStringRawBuffer(IntPtr hstring, out int length);
+        [DllImport("combase.dll")]
+        public static extern int RoGetActivationFactory(IntPtr activatableClassId, ref Guid iid, [MarshalAs(UnmanagedType.IInspectable)] out object factory);
+    }
+
+    // La salida de una sola app. Windows la guarda por programa (su ruta), pero se pide con uno de sus procesos.
+    public static class AppRouting {
+        const int ERender = 0;
+        const int RoleConsole = 0;
+        const int RoleMultimedia = 1;
+        const string Token = @"\\?\SWD#MMDEVAPI#";
+        const string RenderInterface = "#{e6327cad-dcec-4949-ae8a-991e976a79d2}";
+
+        static IAudioPolicyConfigFactory Factory() {
+            const string name = "Windows.Media.Internal.AudioPolicyConfig";
+            IntPtr className;
+            Marshal.ThrowExceptionForHR(WinRT.WindowsCreateString(name, name.Length, out className));
+            try {
+                Guid iid = typeof(IAudioPolicyConfigFactory).GUID;
+                object factory;
+                Marshal.ThrowExceptionForHR(WinRT.RoGetActivationFactory(className, ref iid, out factory));
+                return (IAudioPolicyConfigFactory)factory;
+            } finally {
+                WinRT.WindowsDeleteString(className);
+            }
+        }
+
+        public static string Get(int processId) {
+            IntPtr value;
+            Marshal.ThrowExceptionForHR(Factory().GetPersistedDefaultAudioEndpoint((uint)processId, ERender, RoleMultimedia, out value));
+            if (value == IntPtr.Zero) return "";
+            try {
+                int length;
+                string id = Marshal.PtrToStringUni(WinRT.WindowsGetStringRawBuffer(value, out length), length);
+                if (id.StartsWith(Token)) id = id.Substring(Token.Length);
+                if (id.EndsWith(RenderInterface)) id = id.Substring(0, id.Length - RenderInterface.Length);
+                return id;
+            } finally {
+                WinRT.WindowsDeleteString(value);
+            }
+        }
+
+        // deviceId vacío: vuelve a la salida predeterminada.
+        public static void Set(int processId, string deviceId) {
+            IntPtr value = IntPtr.Zero;
+            if (!string.IsNullOrEmpty(deviceId)) {
+                string full = Token + deviceId + RenderInterface;
+                Marshal.ThrowExceptionForHR(WinRT.WindowsCreateString(full, full.Length, out value));
+            }
+            try {
+                IAudioPolicyConfigFactory factory = Factory();
+                Marshal.ThrowExceptionForHR(factory.SetPersistedDefaultAudioEndpoint((uint)processId, ERender, RoleMultimedia, value));
+                Marshal.ThrowExceptionForHR(factory.SetPersistedDefaultAudioEndpoint((uint)processId, ERender, RoleConsole, value));
+            } finally {
+                if (value != IntPtr.Zero) WinRT.WindowsDeleteString(value);
+            }
+        }
+    }
+
     public class Device { public string Id; public string Name; public bool IsDefault; }
 
     public static class Endpoints {
@@ -132,7 +222,59 @@ namespace TraktorAudio {
 }
 '@
 
+function Find-Output([string]$name) {
+    if ($name -eq 'default') { return $null }
+    $all = @([TraktorAudio.Endpoints]::List())
+    $hit = $all | Where-Object { $_.Id -eq $name -or $_.Name -eq $name } | Select-Object -First 1
+    if (-not $hit) {
+        $hit = $all | Where-Object { $_.Name.IndexOf($name, [StringComparison]::OrdinalIgnoreCase) -ge 0 } |
+            Select-Object -First 1
+    }
+    if (-not $hit) { throw "No encuentro la salida de audio «$name»." }
+    return $hit
+}
+
+function Get-AppOutput([string]$name) {
+    $ids = @(Get-Process -Name $name -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+    if ($ids.Count -eq 0) {
+        [Console]::Error.WriteLine("$name no está abierto.")
+        exit 3
+    }
+    $id = ''
+    foreach ($processId in $ids) {
+        try { $id = [TraktorAudio.AppRouting]::Get($processId) } catch { continue }
+        if ($id) { break }
+    }
+    $label = ''
+    if ($id) {
+        $known = [TraktorAudio.Endpoints]::List() | Where-Object { $_.Id -eq $id } | Select-Object -First 1
+        $label = if ($known) { $known.Name } else { $id }
+    }
+    return [ordered]@{ app = $name; pids = $ids; device_id = $id; device = $label }
+}
+
 try {
+    if ($App) {
+        ConvertTo-Json -InputObject (Get-AppOutput $App) -Compress
+        exit 0
+    }
+    if ($SetApp) {
+        if (-not $Device) { throw "Falta -Device (una salida, o default)." }
+        $before = Get-AppOutput $SetApp
+        $target = Find-Output $Device
+        $targetId = if ($target) { $target.Id } else { '' }
+        $changed = 0
+        $lastError = $null
+        foreach ($processId in $before.pids) {  # uno alcanza (Windows la guarda por programa); otro pudo cerrarse
+            try { [TraktorAudio.AppRouting]::Set($processId, $targetId); $changed++ } catch { $lastError = $_ }
+        }
+        if ($changed -eq 0) { throw $lastError }
+        $after = Get-AppOutput $SetApp
+        $after['previous_id'] = $before.device_id
+        $after['previous'] = $before.device
+        ConvertTo-Json -InputObject $after -Compress
+        exit 0
+    }
     if ($SetDefault) {
         $known = [TraktorAudio.Endpoints]::List() | Where-Object { $_.Id -eq $SetDefault }
         if (-not $known) { throw "Esa salida de audio ya no está conectada." }
