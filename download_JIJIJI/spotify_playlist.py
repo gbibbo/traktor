@@ -8,6 +8,8 @@ CHANGELOG:
               watchdog took that end for a stall (Gabriel's run of 2026-11-07: 0/1 recorded). The
               watchdog also judges the end from the last state it saw playing, and ``--pause`` turns
               repeat off again.
+- 2026-11-07: ``--pause`` turns repeat off whenever this computer is the active device, also if Spotify was
+              already paused (it stayed on after Gabriel paused it by hand).
 - 2026-11-07: ``--route-output NAME --route-state PATH``: once Spotify is open and before it plays, send
               it alone to the recorded output (spotify_output.py; the orchestrator gives the previous
               output back when the download ends).
@@ -229,14 +231,19 @@ def pause_device(sp, device_id: str) -> bool:
     """Pause only if this device is the one playing: never the phone that took over playback."""
     state = sp.current_playback() or {}
     device = state.get("device") or {}
-    if device.get("id") != device_id or not state.get("is_playing"):
+    if device.get("id") != device_id:
         return False
-    sp.pause_playback(device_id=device_id)
-    try:
-        sp.repeat(state="off", device_id=device_id)  # the recording left the playlist on repeat
-    except Exception:  # noqa: BLE001 (paused is what matters)
-        pass
-    return True
+    paused = bool(state.get("is_playing"))
+    if paused:
+        sp.pause_playback(device_id=device_id)
+    if state.get("repeat_state") not in (None, "off"):
+        # La grabación deja la playlist en repetición: se apaga también si Spotify ya estaba en pausa (Gabriel,
+        # 2026-11-07: lo había pausado a mano y la repetición quedó activada).
+        try:
+            sp.repeat(state="off", device_id=device_id)
+        except Exception:  # noqa: BLE001 (paused is what matters)
+            pass
+    return paused
 
 
 def main() -> int:

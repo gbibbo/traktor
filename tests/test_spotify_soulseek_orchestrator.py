@@ -1520,10 +1520,17 @@ class EnvironmentSetupTests(unittest.TestCase):
         spotify = mock.Mock()
         spotify.current_playback.return_value = {"is_playing": True, "device": {"id": "phone"}}
         self.assertFalse(PLAYER.pause_device(spotify, "dev1"))
-        spotify.current_playback.return_value = {"is_playing": True, "device": {"id": "dev1"}}
+        spotify.repeat.assert_not_called()  # el teléfono no se toca
+        spotify.current_playback.return_value = {"is_playing": True, "device": {"id": "dev1"}, "repeat_state": "context"}
         self.assertTrue(PLAYER.pause_device(spotify, "dev1"))
         spotify.pause_playback.assert_called_once_with(device_id="dev1")
         spotify.repeat.assert_called_once_with(state="off", device_id="dev1")  # la grabación la dejó en repetición
+        # Ya en pausa (Gabriel la pausó a mano): no se pausa de nuevo, pero la repetición se apaga igual.
+        spotify.reset_mock()
+        spotify.current_playback.return_value = {"is_playing": False, "device": {"id": "dev1"}, "repeat_state": "context"}
+        self.assertFalse(PLAYER.pause_device(spotify, "dev1"))
+        spotify.pause_playback.assert_not_called()
+        spotify.repeat.assert_called_once_with(state="off", device_id="dev1")
 
 
 if __name__ == "__main__":
