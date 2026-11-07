@@ -171,12 +171,13 @@ negativo o no concluyente:** se documenta en `docs/reports/` y la regla Camelot 
 - [x] Conjuntos de evaluación y splits (`build_eval_sets.py`).
 - [x] Caché de espectros de thesis48 (48/48, 0 errores, valores finitos).
 - [x] Etapa A sobre thesis48: ver la sección 8.
-- [ ] Caché de musica completa (`extract_semitones.py`, ~6 s por tema con 8 procesos).
+- [x] Caché de musica completa (`extract_semitones.py`): 1760/1760, 0 fallas, valores finitos; 173 min en
+  prioridad baja.
 - [x] Auditoría externa (2026-11-06): decisión en la sección 9; correcciones aplicadas.
 - [x] `listening_test.py` rehecha según el auditor; probada en seco (piloto y confirmación) y con 2 ítems
   renderizados.
-- [ ] Caché completo -> armar el piloto (30 contextos) cuando Gabriel pueda escuchar.
-- [ ] Piloto con Gabriel -> congelar una configuración -> confirmación (C1, C2, 20 repetidos).
+- [x] Piloto armado (30 contextos, alineación nueva, orden balanceado, marca «se oye desfasada»): sección 9.
+- [ ] GABRIEL: escuchar el piloto -> congelar una configuración -> confirmación (C1, C2, 20 repetidos).
 
 ## 8. Resultados de la etapa A en thesis48 (exploratorio: 24 temas por género)
 
@@ -241,3 +242,28 @@ fijadas antes de escuchar):
   con A en la mediana del 50 % de su duración, pero la duración del deck incluye la preescucha.
 - *Correcciones del auditor aplicadas:* bootstrap de teoría con multiplicidades; IC de transiciones por
   sesión; descripción de los negativos de S1; un principal ya no puede ser candidato de otro ítem.
+
+**Piloto armado (2026-11-06, antes de escuchar).** Caché completo: 1760 temas, 0 fallas, todos los
+valores finitos. Calibración en dev (296 principales): Camelot deja pasar 0,607 del pool; FEM#10 λ = 0,0415,
+τ = 0,857 (pasa 0,606); «sin blanqueo» λ = 0,0186, τ = 0,927 (pasa 0,607). Para juntar 30 desacuerdos se
+recorrieron 71 contextos: en 41 las dos configuraciones eligen lo mismo. En 2 de los 30 eligen el mismo tema
+con distinta transposición. Audio y clave en `D:\TRAKTOR ML datos\harmonic_tiv\escucha\piloto\`.
+
+Decisiones de render, iguales para los dos brazos:
+- *Alineación.* El primer render se descartó sin escucharlo. Con la fase del bombo (< 130 Hz) de cada tema,
+  21 de 60 clips quedaban corridos 1/4 o 1/2 beat según un criterio por bandas en el que las bandas
+  coincidían entre sí, y la grilla de Traktor sola dejaba más. Ahora el candidato se alinea sobre el
+  solapamiento comparando perfiles rítmicos en 5 bandas, por mayoría de bandas, y después se corre el compás
+  (0 a 3 beats) solo si eso mejora en más de 0,15 sobre no correrlo (ruido medido ±0,06). Validación fuera
+  de muestra (ajuste con la primera mitad del solapamiento, residuo en la segunda): ≤ 20 ms en 42 de 60
+  clips, contra 29 con la alineación vieja y 22 con la grilla. Casi todo el resto son tramos donde cambia la
+  instrumentación entre mitades (se va el bombo), donde ninguna medida automática decide. En el render final,
+  41 de 60 clips quedan alineados en las dos mitades y 17 de 30 ítems tienen las dos mezclas así; los clips
+  dudosos se reparten 11 (FEM#10) y 8 («sin blanqueo»). El piloto sirve también de control del render con
+  oídos: las marcas de Gabriel dicen si los dudosos se oyen desfasados.
+- *Orden de las mezclas* balanceado dentro de cada comparación; el primer render, con una moneda por ítem,
+  dejó a FEM#10 segundo en 23 de 30.
+- *Marca «se oye desfasada»* en la página, por mezcla. No cambia la respuesta ni la regla de decisión: da un
+  análisis de sensibilidad sin esos ítems. Si más del 20 % de los ítems renderizados tiene alguna marca, los
+  estímulos no valen: en la confirmación el veredicto es NO CONCLUYENTE y se re-renderiza; en el piloto, se
+  revisa el render antes de confirmar.

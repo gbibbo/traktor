@@ -197,6 +197,16 @@ reemplaza: el proceso principal queda esperando sin CPU y sin hijos. El 2026-11-
 detuvo a las 200 tareas (8 trabajadores × 25). Si una corrida larga no avanza, mirar si quedan procesos
 hijos; para acotar memoria, procesar por tramos en vez de reciclar trabajadores.
 
+### Alinear dos temas por la fase del bombo falla con bajos a contratiempo
+
+Al renderizar transiciones para escuchar, medir la fase de cada tema con solo los graves (< 130 Hz) y
+restarlas dejó 1/4 o 1/2 beat corrido en 21 de 60 clips (2026-11-06): un bajo a contratiempo o en
+semicorcheas pesa tanto como el bombo. La grilla de Traktor tampoco alcanza: con grilla en los dos temas
+quedaron 50 ms o medio beat en algunos pares. Alinear sobre el tramo que suena junto, comparando los
+perfiles rítmicos de los dos en varias bandas (`rhythm_lag` en `src/v4/harmonic_tiv/render.py`), y
+verificar ajustando con una mitad y midiendo en la otra. Si la instrumentación cambia (se va el bombo), la
+medida por bandas también se confunde: no confundir eso con un desfase.
+
 ## Entorno HPC (ver también memory/MEMORY.md)
 
 [REEMPLAZADO 2026-09-12 por DECISIONS 2026-09-12, punto 4: Surrey HPC ya no existe; se trabaja en CPU local (AGENTS.md). Se conserva como registro.]

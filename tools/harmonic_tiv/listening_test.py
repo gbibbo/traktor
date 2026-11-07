@@ -32,6 +32,8 @@ CHANGELOG:
                 20 repetidos (16 acuerdos), piloto separado, temas sin repetir entre ítems (antes un
                 principal podía ser el candidato de otro ítem), regiones de mezcla reales. La página sale
                 de listening_page.html.
+  - 2026-11-06: Orden de las mezclas balanceado por comparación (el primer piloto, con moneda por ítem,
+                dejó al brazo a segundo en 23 de 30). Alineación nueva en render.py.
 """
 from __future__ import annotations
 
@@ -64,6 +66,7 @@ N_PER_COMPARISON = 60
 N_PILOT = 30
 N_REPEATS = 20
 MIN_REPEAT_AGREEMENTS = 16
+MAX_FLAGGED_FRAC = 0.20     # ítems con alguna mezcla marcada «se oye desfasada»: más -> estímulos no válidos
 U_MIN = 0.60
 ALPHA = 0.05
 MODE_WEIGHTS = (("outro_intro", 2), ("central", 1))
@@ -269,7 +272,12 @@ def write_page(out: Path, page_items: list, test_id: str) -> None:
 
 
 def render_items(lib, items, out, rng, label_a, label_b, tag, key_items, page_items, render=True):
-    """Renderiza los contextos que no son empate automático; el orden de las dos mezclas va al azar."""
+    """Renderiza los contextos que no son empate automático. Orden de las dos mezclas balanceado dentro de
+    la comparación: la mitad de los ítems con el brazo a primero, al azar cuáles (con una moneda por ítem,
+    el primer piloto salió 23 a 7)."""
+    n_todo = sum(not it["auto_tie"] for it in items)
+    firsts = [True] * (n_todo // 2) + [False] * (n_todo // 2) + ([bool(rng.integers(0, 2))] if n_todo % 2 else [])
+    firsts = iter([bool(f) for f in rng.permutation(firsts)])
     for n, it in enumerate(items, 1):
         iid = f"{tag}{n:03d}"
         key_items[iid] = {**it, "comparison": tag, "arm_a": label_a, "arm_b": label_b, "repeat_of": None}
@@ -281,7 +289,7 @@ def render_items(lib, items, out, rng, label_a, label_b, tag, key_items, page_it
             params = rd.render_pair(track_info(lib, it["target"]), track_info(lib, it["pick_a"]),
                                     track_info(lib, it["pick_b"]), fa, fb, shift_a=it["shift_a"],
                                     shift_b=it["shift_b"], mode=it["mode"])
-        a_first = bool(rng.integers(0, 2))
+        a_first = next(firsts)
         c1, c2 = (fa, fb) if a_first else (fb, fa)
         key_items[iid].update(params)
         key_items[iid]["clip_of_a"] = 1 if a_first else 2
@@ -396,14 +404,28 @@ def summarize(outs: list, n_expected: int) -> dict:
     return res
 
 
-def score(key: dict, a: dict) -> dict:
+def score(key: dict, a: dict, flags: dict | None = None) -> dict:
+    """`flags`: {ítem: ["1"|"2", ...]} con las mezclas que Gabriel marcó «se oye desfasada». No cambian la
+    respuesta ni la regla de decisión: dan un análisis de sensibilidad sin esos ítems y una condición de
+    validez de los estímulos (más de MAX_FLAGGED_FRAC marcados -> no concluyente, re-renderizar)."""
     items = key["items"]
+    flags = flags or {}
     res = {"fase": key["phase"],
            "sin_responder": len([i for i, it in items.items() if not it["auto_tie"] and i not in a])}
     reps = [(i, it) for i, it in items.items() if it["repeat_of"]]
     agree = [outcome(it, a[i]) == outcome(items[it["repeat_of"]], a[it["repeat_of"]])
              for i, it in reps if i in a and it["repeat_of"] in a]
     res["repetidos"] = {"n": len(agree), "acuerdos": int(sum(agree)), "minimo": MIN_REPEAT_AGREEMENTS}
+    rendered = [i for i, it in items.items() if not it["auto_tie"] and not it["repeat_of"]]
+    flagged = {i for i in rendered if flags.get(i)}
+    by_arm: dict = {}
+    for i in flagged:
+        for c in flags[i]:
+            arm = items[i]["arm_a"] if int(c) == items[i]["clip_of_a"] else items[i]["arm_b"]
+            by_arm[arm] = by_arm.get(arm, 0) + 1
+    res["desfasadas"] = {"items": len(flagged), "de": len(rendered), "maximo_fraccion": MAX_FLAGGED_FRAC,
+                         "mezclas_por_brazo": by_arm}
+    stimuli_ok = len(flagged) <= MAX_FLAGGED_FRAC * max(len(rendered), 1)
     main = {i: it for i, it in items.items() if not it["repeat_of"] and (it["auto_tie"] or i in a)}
     if key["phase"] == "pilot":
         outs = [outcome(it, a.get(i, 0)) for i, it in main.items()]
@@ -411,13 +433,21 @@ def score(key: dict, a: dict) -> dict:
         s.pop("aprueba")
         first = next(iter(items.values()))
         res["piloto"] = {**s, "brazo_a": first["arm_a"], "brazo_b": first["arm_b"]}
+        clean = [outcome(it, a.get(i, 0)) for i, it in main.items() if i not in flagged]
+        res["piloto_sin_desfasadas"] = {k: v for k, v in summarize(clean, len(clean)).items() if k != "aprueba"}
         # se congela la de mayor U; empate exacto -> el brazo a (FEM#10, la referencia)
         res["congelar"] = first["arm_a"] if s["U"] is not None and s["U"] >= 0.5 else first["arm_b"]
+        if not stimuli_ok:
+            res["aviso"] = "más del 20 % de los ítems se oyen desfasados: revisar el render antes de confirmar"
         return res
     for tag in ("c1", "c2"):
         outs = [outcome(it, a.get(i, 0)) for i, it in main.items() if it["comparison"] == tag]
         res[tag] = summarize(outs, N_PER_COMPARISON)
-    if res["repetidos"]["acuerdos"] < MIN_REPEAT_AGREEMENTS:
+        clean = [outcome(it, a.get(i, 0)) for i, it in main.items() if it["comparison"] == tag and i not in flagged]
+        res[f"{tag}_sin_desfasadas"] = summarize(clean, len(clean))
+    if not stimuli_ok:
+        res["veredicto"] = "NO CONCLUYENTE: más del 20 % de los ítems se oyen desfasados (re-renderizar)"
+    elif res["repetidos"]["acuerdos"] < MIN_REPEAT_AGREEMENTS:
         res["veredicto"] = "NO CONCLUYENTE: menos de 16 acuerdos en los 20 repetidos"
     elif not res["c1"]["aprueba"]:
         res["veredicto"] = "NO SE INTEGRA: no supera al recomendador actual (evidencia insuficiente, no equivalencia)"
@@ -434,7 +464,7 @@ def cmd_score(args) -> int:
     if ans.get("test_id") != key["test_id"]:
         print("ERROR: las respuestas son de otra prueba", file=sys.stderr)
         return 2
-    res = score(key, ans["answers"])
+    res = score(key, ans["answers"], ans.get("desfasadas", {}))
     print(json.dumps(res, indent=2, ensure_ascii=False))
     (args.dir / f"score_{key['test_id']}.json").write_text(json.dumps(res, indent=2, ensure_ascii=False), encoding="utf-8")
     return 0

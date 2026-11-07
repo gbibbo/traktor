@@ -14,31 +14,46 @@ button.on{background:var(--sel);border-color:var(--acc)} .mut{color:var(--mut);f
 <h1>Escucha armónica</h1>
 <p>En cada ítem, el tema que suena primero es el mismo en las dos mezclas; cambia el tema que entra (y, a veces,
 su transposición). Elegí la mezcla que suena <b>más armónica</b> (menos choque de notas), o «iguales» si no notás
-diferencia. Las respuestas se guardan en este navegador; al terminar, «Exportar respuestas».</p>
+diferencia. Si en alguna mezcla los beats no caen juntos, marcá «se oye desfasada»; igual elegí por la armonía.
+Las respuestas se guardan en este navegador; al terminar, «Exportar respuestas».</p>
 <p class="mut" id="prog"></p>
 <div id="items"></div>
 <p><button id="exp">Exportar respuestas</button></p>
 </main><script>
 const ITEMS = __ITEMS__;
 const KEY = "escucha_armonica___TEST_ID__";
-let ans = {};
+let ans = {}, flags = {};
 try { ans = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { ans = {}; }
-function save() { try { localStorage.setItem(KEY, JSON.stringify(ans)); } catch (e) {} prog(); }
+try { flags = JSON.parse(localStorage.getItem(KEY + "_desfasadas") || "{}"); } catch (e) { flags = {}; }
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(ans)); localStorage.setItem(KEY + "_desfasadas", JSON.stringify(flags)); } catch (e) {}
+  prog();
+}
 function prog() { document.getElementById("prog").textContent = Object.keys(ans).length + " de " + ITEMS.length + " respondidos"; }
 const box = document.getElementById("items");
 ITEMS.forEach((it, i) => {
   const d = document.createElement("div"); d.className = "card";
   d.innerHTML = `<b>Ítem ${i + 1}</b><div class="mut">Mezcla 1</div><audio controls preload="none" src="${it.c1}"></audio>
     <div class="mut">Mezcla 2</div><audio controls preload="none" src="${it.c2}"></audio>
-    <div class="row"><button data-v="1">1 más armónica</button><button data-v="2">2 más armónica</button><button data-v="0">Iguales</button></div>`;
+    <div class="row"><button data-v="1">1 más armónica</button><button data-v="2">2 más armónica</button><button data-v="0">Iguales</button></div>
+    <div class="row mut" style="margin-top:8px"><label><input type="checkbox" data-f="1"> se oye desfasada la 1</label>
+    <label><input type="checkbox" data-f="2"> se oye desfasada la 2</label></div>`;
   d.querySelectorAll("button").forEach(b => {
     if (ans[it.id] === b.dataset.v) b.classList.add("on");
     b.onclick = () => { ans[it.id] = b.dataset.v; d.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); save(); };
   });
+  d.querySelectorAll("input[data-f]").forEach(c => {
+    c.checked = (flags[it.id] || []).includes(c.dataset.f);
+    c.onchange = () => {
+      const s = new Set(flags[it.id] || []); c.checked ? s.add(c.dataset.f) : s.delete(c.dataset.f);
+      if (s.size) flags[it.id] = [...s].sort(); else delete flags[it.id];
+      save();
+    };
+  });
   box.appendChild(d);
 });
 document.getElementById("exp").onclick = () => {
-  const blob = new Blob([JSON.stringify({test_id: "__TEST_ID__", answers: ans}, null, 1)], {type: "application/json"});
+  const blob = new Blob([JSON.stringify({test_id: "__TEST_ID__", answers: ans, desfasadas: flags}, null, 1)], {type: "application/json"});
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "respuestas___TEST_ID__.json"; a.click();
 };
 prog();

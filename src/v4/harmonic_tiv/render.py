@@ -9,11 +9,16 @@ PURPOSE: Arma transiciones de DJ cortas para la prueba de escucha a ciegas (etap
                                     DJ); el principal sale en los últimos 4 beats
            [.., + tail)             candidato solo
          Tempo: el candidato se lleva al BPM del principal con rubberband (filtro de ffmpeg), sin
-         cambiar la altura (key lock). Fase de beat: grilla de Traktor si existe; si no, la fase que
-         maximiza la envolvente de ataques graves (bombo) en 60 s alrededor del tramo. Tramos: la ventana más tonal del caché (segunda
-         mitad del principal, primera mitad del candidato), para que la armonía se oiga.
+         cambiar la altura (key lock). Colocación inicial: grilla de Traktor si existe; si no, la fase
+         del bombo en 90 s alrededor. Alineación final dentro de la mezcla, como un DJ de oído: el
+         desfase de beat y después el de compás (0..3 beats) que hacen coincidir los perfiles rítmicos
+         de los dos tramos en el solapamiento, en 5 bandas (rhythm_lag, bar_offset). Tramos según el
+         modo (region_starts): outro->intro, central o la ventana más tonal.
 CHANGELOG:
   - 2026-11-06: Creación (rama harmonic-tiv).
+  - 2026-11-06: Alineación por perfiles rítmicos en 5 bandas sobre el solapamiento, con paso de compás;
+                reemplaza la diferencia de fase del bombo, que corría 1/4 o 1/2 beat en 21 de 60 clips
+                del primer piloto (bajos a contratiempo). Residuo por mitades en los parámetros.
 """
 from __future__ import annotations
 
@@ -32,7 +37,6 @@ SR = 44100
 # 2026-11-06 (dispersión ±8 ms; los otros 5 difieren ~1/4 de beat). Se corrige para mezclar temas con y
 # sin grilla en la misma convención.
 AUDIO_TO_TRAKTOR_S = -0.045
-KICK_CONF_MIN = 1.5      # confianza mínima de la fase de bombo para autoalinear dentro de la mezcla
 
 
 @dataclass(frozen=True)
@@ -91,6 +95,83 @@ def beat_phase_conf(x: np.ndarray, bpm: float, sr: int = SR, hop: int = 220):
 
 def beat_phase(x: np.ndarray, bpm: float, sr: int = SR, hop: int = 220) -> float:
     return beat_phase_conf(x, bpm, sr, hop)[0]
+
+
+# Alineación dentro de la mezcla, como un DJ de oído: se comparan los dos tramos que suenan juntos en todas
+# las bandas (bombo, bajo, medios, palmas, platillos), no solo el bombo. Con el bombo solo (< 130 Hz), un
+# bajo a contratiempo o en semicorcheas corría la fase 1/4 o 1/2 beat en 21 de 60 clips del primer piloto
+# (medido el 2026-11-06 con este mismo criterio por bandas; las bandas coincidían entre sí).
+ALIGN_BANDS = ((30, 130), (130, 400), (400, 2000), (2000, 6000), (6000, 16000))
+ALIGN_HOP = 110
+ALIGN_CONF_MIN = 2.0     # pico / media de la correlación sumada; por debajo, sin ritmo: se deja la grilla
+ALIGN_VOTE_TOL_S = 0.020  # dos bandas "coinciden" si sus desfases difieren en <= 20 ms
+BAR_GAIN_MIN = 0.15      # mejora mínima sobre no correr el compás (ruido medido en el piloto: ±0,06)
+BINS_PER_BEAT = 96
+
+
+def band_onsets(x: np.ndarray, sr: int = SR, hop: int = ALIGN_HOP, n_fft: int = 1024) -> np.ndarray:
+    """(bandas, frames): subida de la energía log en cada banda de ALIGN_BANDS."""
+    import torch
+    spec = torch.stft(torch.from_numpy(np.ascontiguousarray(x, dtype=np.float32)), n_fft=n_fft, hop_length=hop,
+                      window=torch.hann_window(n_fft), return_complex=True).abs().numpy() ** 2
+    freqs = np.fft.rfftfreq(n_fft, 1.0 / sr)
+    out = []
+    for lo, hi in ALIGN_BANDS:
+        e = np.log1p(1e3 * spec[(freqs >= lo) & (freqs < hi)].sum(axis=0))
+        out.append(np.concatenate([[0.0], np.maximum(np.diff(e), 0)]))
+    return np.array(out)
+
+
+def folded_profile(env: np.ndarray, period_s: float, nbins: int, sr: int = SR, hop: int = ALIGN_HOP) -> np.ndarray:
+    """Envolvente media por fase dentro de un período (beat o compás) desde el inicio del tramo, por banda,
+    centrada y normalizada."""
+    fps = sr / hop
+    ph = ((np.arange(env.shape[1]) / fps) % period_s) / period_s
+    idx = np.minimum((ph * nbins).astype(int), nbins - 1)
+    cnt = np.maximum(np.bincount(idx, minlength=nbins), 1)
+    prof = np.stack([np.bincount(idx, weights=e, minlength=nbins) / cnt for e in env])
+    prof -= prof.mean(axis=1, keepdims=True)
+    return prof / np.maximum(prof.std(axis=1, keepdims=True), 1e-12)
+
+
+def vote_lag(xc: np.ndarray, tol_bins: int) -> int:
+    """Bin de desfase elegido por mayoría de bandas: gana el desfase en el que coinciden más bandas (cada
+    una con su pico, a <= tol_bins); el pico exacto lo decide la correlación sumada cerca de ese desfase.
+    Con la suma sola, dos bandas de hi-hat muy regulares le ganaban a bombo, bajo y medios (piloto p006a)."""
+    n = xc.shape[1]
+    peaks = [int(np.argmax(r)) for r in xc]
+    near = lambda a, b: min(abs(a - b) % n, n - abs(a - b) % n) <= tol_bins  # noqa: E731
+    support = [sum(near(p, q) for q in peaks) for p in peaks]
+    winners = [p for p, s in zip(peaks, support) if s == max(support)]
+    window = sorted({(c + d) % n for c in winners for d in range(-tol_bins, tol_bins + 1)})
+    tot = xc.sum(axis=0)
+    return max(window, key=lambda i: tot[i])
+
+
+def rhythm_lag(ref: np.ndarray, x: np.ndarray, beat_s: float, sr: int = SR):
+    """(desfase en s de `x` respecto de `ref` en [-beat/2, beat/2), positivo = x llega tarde, por mayoría
+    de bandas; confianza = pico / media de la correlación circular sumada; desfase de cada banda en s)."""
+    n = BINS_PER_BEAT
+    pa, pb = folded_profile(band_onsets(ref, sr), beat_s, n, sr), folded_profile(band_onsets(x, sr), beat_s, n, sr)
+    xc = np.real(np.fft.ifft(np.conj(np.fft.fft(pa, axis=1)) * np.fft.fft(pb, axis=1), axis=1)) / n
+    to_s = lambda k: ((int(k) + n // 2) % n - n // 2) * beat_s / n  # noqa: E731
+    tot = xc.sum(axis=0)
+    k = vote_lag(xc, max(1, int(round(ALIGN_VOTE_TOL_S / beat_s * n))))
+    return to_s(k), float(tot.max() / max(np.abs(tot).mean(), 1e-12)), [to_s(np.argmax(r)) for r in xc]
+
+
+def bar_offset(ref: np.ndarray, x: np.ndarray, beat_s: float, sr: int = SR, beats_per_bar: int = 4):
+    """Cuántos beats (0..3) más tarde conviene arrancar `x` para que su compás caiga sobre el de `ref`
+    (palmas en 2 y 4, figuras de un compás). Los dos tramos ya están alineados al beat. Devuelve (k,
+    correlación de cada k). Se corre solo si mejora en más de BAR_GAIN_MIN sobre k = 0: con un compás sin
+    rasgos las opciones empatan dentro del ruido y se deja el arranque de la grilla."""
+    nb = BINS_PER_BEAT * beats_per_bar
+    bar = beat_s * beats_per_bar
+    pa = folded_profile(band_onsets(ref, sr), bar, nb, sr)
+    pb = folded_profile(band_onsets(x, sr), bar, nb, sr)
+    scores = [float((pa * np.roll(pb, -k * BINS_PER_BEAT, axis=1)).mean(axis=1).sum()) for k in range(beats_per_bar)]
+    k = int(np.argmax(scores))
+    return (k if scores[k] - scores[0] > BAR_GAIN_MIN else 0), scores
 
 
 def tonal_window(cache: Dict[str, np.ndarray], start_frac: float, end_frac: float, window_s: float,
@@ -224,6 +305,9 @@ def render_pair(target: TrackInfo, cand_a: TrackInfo, cand_b: TrackInfo, out_a: 
     while snapped < 0:
         snapped += beat_s
     tgt = read_excerpt(Path(target.path), snapped, t_len)
+    n_lead, n_ov = int(round(t.lead_beats * beat_s * SR)), int(round(t.overlap_beats * beat_s * SR))
+    spb = int(round(beat_s * SR))
+    tov = tgt[n_lead:n_lead + n_ov]
     mixes, params = [], {"target_start_s": round(snapped, 3), "bpm": round(bpm_t, 3), "mode": mode}
     for name, c, out, semis in (("a", cand_a, out_a, shift_a), ("b", cand_b, out_b, shift_b)):
         bpm_c = c.grid_bpm or c.bpm
@@ -236,20 +320,26 @@ def render_pair(target: TrackInfo, cand_a: TrackInfo, cand_b: TrackInfo, out_a: 
             cs = snap_by_audio(c0, c, bpm_c)
         while cs < 0:                                   # el primer beat, no antes del inicio del archivo
             cs += 60.0 / bpm_c
-        cx = read_excerpt(Path(c.path), cs, c_len + beat_s, tempo=ratio, semitones=semis)
-        # Autoalineación: si los dos tramos tienen bombo, se mide la fase de cada uno y se corre el
-        # candidato para que sus beats caigan sobre los del principal (corrige grillas o fases malas).
-        pt_, ct_ = beat_phase_conf(tgt, bpm_t)
-        pc_, cc_ = beat_phase_conf(cx[: int(c_len * SR)], bpm_t)
-        shift = 0.0
-        if ct_ >= KICK_CONF_MIN and cc_ >= KICK_CONF_MIN:
-            shift = ((pc_ - pt_ + beat_s / 2) % beat_s) - beat_s / 2
+        # margen: medio beat para la fase y 3 beats para el compás
+        cx = read_excerpt(Path(c.path), cs, c_len + 4 * beat_s, tempo=ratio, semitones=semis)
+        # 1) beat: el desfase que hace coincidir los perfiles rítmicos de los dos tramos en el solapamiento
+        lag, conf, _ = rhythm_lag(tov, cx[:n_ov], beat_s)
+        shift = lag if conf >= ALIGN_CONF_MIN else 0.0
         k0 = int(round(max(0.0, shift) * SR))
         cx = cx[k0:] if shift >= 0 else np.concatenate([np.zeros(int(round(-shift * SR)), np.float32), cx])
-        cx = cx[: int(round(c_len * SR))]
+        # 2) compás: arrancar el candidato 0..3 beats más tarde para que palmas y figuras caigan juntas
+        bar_k, bar_sc = bar_offset(tov, cx[:n_ov], beat_s) if conf >= ALIGN_CONF_MIN else (0, [])
+        cx = cx[bar_k * spb:]
+        cx = np.pad(cx, (0, max(0, int(round(c_len * SR)) - len(cx))))[: int(round(c_len * SR))]
+        # residuo por mitades del solapamiento, para el registro (deriva de tempo o fase mal medida)
+        h = n_ov // 2
+        res = [rhythm_lag(tov[:h], cx[:h], beat_s)[0], rhythm_lag(tov[h:], cx[h:n_ov], beat_s)[0]]
         mixes.append(mix_transition(tgt, cx, beat_s, t))
         params[f"cand_{name}_align_ms"] = round(shift * 1000, 1)
-        params[f"cand_{name}_kick_conf"] = round(min(ct_, cc_), 2)
+        params[f"cand_{name}_align_conf"] = round(conf, 2)
+        params[f"cand_{name}_bar_beats"] = int(bar_k)
+        params[f"cand_{name}_bar_scores"] = [round(s, 3) for s in bar_sc]
+        params[f"cand_{name}_resid_halves_ms"] = [round(r * 1000, 1) for r in res]
         params[f"cand_{name}_start_s"] = round(cs, 3)
         params[f"cand_{name}_semitones"] = int(semis)
         params[f"cand_{name}_tempo"] = round(ratio, 5)

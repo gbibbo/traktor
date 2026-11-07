@@ -135,6 +135,71 @@ def test_beat_phase_follows_the_kick_not_the_offbeat_hat():
     assert abs(phase - 0.137) < 0.012 and conf > 2.0
 
 
+def _groove(bpm, start_beat, n_beats, sr, clap_beats=(1, 3), seed=0, delay_s=0.0):
+    """Bombo en cada beat, bajo fuerte a contratiempo (60 Hz), hi-hat a contratiempo y palma en los beats
+    `clap_beats` del compás, a partir del beat `start_beat` del patrón; todo corrido `delay_s`."""
+    rng = np.random.default_rng(seed)
+    beat = 60.0 / bpm
+    x = np.zeros(int((n_beats + 1) * beat * sr), dtype=np.float32)
+    n_k = int(0.15 * sr)
+    kick = np.sin(2 * np.pi * 55 * np.arange(n_k) / sr) * np.exp(-np.arange(n_k) / (0.03 * sr))
+    n_b = int(0.2 * sr)
+    bass = 1.6 * np.sin(2 * np.pi * 62 * np.arange(n_b) / sr) * np.exp(-np.arange(n_b) / (0.08 * sr))
+    for b in range(n_beats):
+        t0 = b * beat + delay_s
+        i, j = int(t0 * sr), int((t0 + beat / 2) * sr)
+        x[i:i + n_k] += kick[: len(x[i:i + n_k])]
+        x[j:j + n_b] += bass[: len(x[j:j + n_b])]
+        hh = rng.standard_normal(int(0.02 * sr)) * np.exp(-np.arange(int(0.02 * sr)) / (0.004 * sr)) * 0.3
+        x[j:j + len(hh)] += hh[: len(x[j:j + len(hh)])]
+        if (b + start_beat) % 4 in clap_beats:
+            cl = rng.standard_normal(int(0.08 * sr)) * np.exp(-np.arange(int(0.08 * sr)) / (0.02 * sr)) * 0.6
+            x[i:i + len(cl)] += cl[: len(x[i:i + len(cl)])]
+    return x
+
+
+def test_rhythm_lag_recovers_a_quarter_beat_with_offbeat_bass():
+    from src.v4.harmonic_tiv import render as rd
+    bpm, beat = 125.0, 60.0 / 125.0
+    ref = _groove(bpm, 0, 32, rd.SR, seed=1)
+    x = _groove(bpm, 0, 32, rd.SR, seed=2, delay_s=beat / 4)
+    lag, conf, _ = rd.rhythm_lag(ref, x, beat)
+    assert abs(lag - beat / 4) < 0.01 and conf > rd.ALIGN_CONF_MIN
+    lag0, _, _ = rd.rhythm_lag(ref, _groove(bpm, 0, 32, rd.SR, seed=3), beat)
+    assert abs(lag0) < 0.01
+
+
+def test_vote_lag_prefers_the_layers_that_agree_over_two_strong_hat_bands():
+    from src.v4.harmonic_tiv import render as rd
+    n = rd.BINS_PER_BEAT
+    xc = np.zeros((5, n))
+    for b in range(3):                       # bombo, bajo y medios: pico débil en 0
+        xc[b, 0] = 0.3
+    for b in (3, 4):                         # dos bandas de hi-hat: pico fuerte a medio beat
+        xc[b, n // 2] = 0.9
+    assert int(np.argmax(xc.sum(axis=0))) == n // 2        # la suma sola elegiría medio beat
+    assert rd.vote_lag(xc, tol_bins=4) == 0
+
+
+def test_bar_offset_puts_the_claps_together():
+    from src.v4.harmonic_tiv import render as rd
+    bpm, beat = 125.0, 60.0 / 125.0
+    ref = _groove(bpm, 0, 32, rd.SR, seed=1)                       # palmas en 2 y 4 (índices 1, 3)
+    same, _ = rd.bar_offset(ref, _groove(bpm, 0, 32, rd.SR, seed=2), beat)
+    shifted, sc = rd.bar_offset(ref, _groove(bpm, 1, 32, rd.SR, seed=2), beat)   # arranca en el beat 2
+    assert same == 0 and shifted in (1, 3) and sc[shifted] > sc[0]
+
+
+def test_render_items_balances_the_order_of_the_two_mixes(tmp_path):
+    lt = _lt()
+    items = [{"target": f"t{i}", "pick_a": f"a{i}", "pick_b": f"b{i}", "shift_a": 0, "shift_b": 0,
+              "auto_tie": i % 7 == 0, "mode": "central"} for i in range(36)]
+    key_items, page = {}, []
+    lt.render_items(None, items, tmp_path, np.random.default_rng(5), "x", "y", "c1", key_items, page, render=False)
+    firsts = [key_items[p["id"]]["clip_of_a"] for p in page]
+    assert len(firsts) == 30 and firsts.count(1) == 15
+
+
 def test_mix_transition_length_and_finite():
     from src.v4.harmonic_tiv import render as rd
     t = rd.Template()
@@ -203,6 +268,14 @@ def test_score_u_with_ties_sequential_verdict_and_repeats():
     assert res["c1"]["U"] == pytest.approx((40 + 0.5 * 10) / 60, abs=1e-3) and res["c1"]["aprueba"]
     assert res["c2"]["U"] == pytest.approx((30 + 15) / 60, abs=1e-3) and res["c2"]["aprueba"]
     assert res["repetidos"]["acuerdos"] == 18 and res["veredicto"].startswith("SE INTEGRA")
+    for it in items.values():
+        it.update(arm_a="tiv", arm_b="control")
+    few = {f"c1{k:03d}": ["1"] for k in range(10, 20)}         # 10 de 110 renderizados: los estímulos valen
+    res = lt.score({"phase": "confirm", "items": items}, ans, few)
+    assert res["desfasadas"]["items"] == 10 and res["desfasadas"]["mezclas_por_brazo"] == {"tiv": 10}
+    assert res["veredicto"].startswith("SE INTEGRA") and res["c1_sin_desfasadas"]["N"] == 50
+    many = {f"c2{k:03d}": ["2"] for k in range(30)}            # 30 de 110 (> 20 %): no concluyente
+    assert "desfasados" in lt.score({"phase": "confirm", "items": items}, ans, many)["veredicto"]
     for r in range(20):                                        # consistencia insuficiente -> no concluyente
         ans[f"r{r:03d}"] = "1"
     assert lt.score({"phase": "confirm", "items": items}, ans)["veredicto"].startswith("NO CONCLUYENTE")
