@@ -131,3 +131,16 @@ def test_bench_breaks_ties_at_random_and_resamples_whole_sets():
     assert [c.uid for c in rec.candidates] == uids    # el orden original se restituye
     lo, hi = bs.bootstrap_sets({"a": [1, 1, 0], "b": [0, 0, 0, 0], "c": []}, n=200)
     assert 0.0 <= lo <= hi <= 1.0
+
+
+def test_d7_download_keeps_only_files_that_still_match_by_duration():
+    from tools.dj_sets.bajar_d7 import wanted
+    release = {"media": [{"disco": 1, "pistas": [{"ms": 300000, "posicion": 1}, {"ms": 400000, "posicion": 2}]},
+                         {"disco": 2, "pistas": [{"ms": 500000, "posicion": 1}]}]}
+    entries = [{"id": "a", "duration": 701}, {"id": "b", "duration": 530}, {"id": "c", "duration": 300},
+               {"id": "d", "duration": 401}, {"id": "e", "duration": 499}]
+    cont = {"youtube": {"tipo": "continua", "archivo_por_disco": [0, 1]}}
+    assert [(w["id"], w["disco"]) for w in wanted(cont, release, entries)] == [("a", 1)]   # b ya no dura 500
+    per_track = {"youtube": {"tipo": "por_tema", "archivo_por_pista": [2, 3, 4]}}
+    assert [(w["id"], w["disco"], w["pista"]) for w in wanted(per_track, release, entries)] == [
+        ("c", 1, 1), ("d", 1, 2), ("e", 2, 1)]
