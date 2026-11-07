@@ -125,6 +125,16 @@ con pico de −8,9 dBFS; los de Soulseek de la misma playlist están entre −6 
 `ebur128`). Es una baja pareja, sin recortes: el grabador sube cada tema hasta un pico de −1 dBFS
 y recupera el nivel. Desactivar la normalización en Spotify evita perder resolución.
 
+### Spotify puede rechazar con un 500 la transferencia al dispositivo que ya está activo
+
+El 2026-11-07 a las 18:33, `PUT /v1/me/player` (`transfer_playback`) devolvía 500 «Server error» en cada
+intento hacia el escritorio, que ya era el dispositivo activo. Siguió así por lo menos 10 minutos,
+con o sin `play`. En cambio, `shuffle` y `repeat` sobre el mismo dispositivo respondían 200. spotipy
+reintenta los 500 y lo informa como «rate/request limit» con un 429, que no es la causa. Los tres
+arranques de la tanda fallaron y la grabación quedó en pausa. Si el dispositivo ya está activo, no se
+transfiere; `start_playback` con el `device_id` alcanza. Una transferencia que falla no corta el
+arranque.
+
 ### Una transferencia cancelada deja su archivo abierto un momento (WinError 32)
 
 Al cancelar en el daemon de sockseek una transferencia trabada, el `.incomplete` sigue abierto unos

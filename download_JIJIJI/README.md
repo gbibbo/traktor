@@ -146,11 +146,20 @@ El orquestador va **tema a tema**, como cuando se busca a mano en Soulseek (2026
 7. **deja cada tema listo para la colección**, tema por tema apenas está bajado o grabado, mientras
    sigue el resto (`src/v4/pipeline/tag_downloads.py --watch`, con prioridad baja; DECISIONS
    2026-11-07, puntos 14 y 16):
-   - de Beatport: género, sello, artistas, remixers y fecha, si Beatport confirma el tema;
+   - de Beatport: género, sello, artistas, remixers y fecha, si Beatport confirma el tema; si no, el
+     género del clasificador de la biblioteca (`genre_model.py`) cuando su confianza es de al menos 0,6
+     (DECISIONS 2026-11-07, punto 18);
    - la etiqueta Vocal en el comentario, si al menos el 5 % del tema tiene voz (CLAP);
    - el embedding CLAP `clap_full` dentro del archivo, como en el pendrive, y en la caché del dataset
-     `musica`, que «Agregar música» reutiliza;
-   - ni BPM ni tonalidad.
+     `musica`, que «Agregar música» reutiliza; MAEST y el subgénero de Beatport, solo en caché;
+   - ni BPM ni tonalidad: los calcula Traktor.
+
+   **Después de la descarga**, dos pasos para que los temas entren en las playlists con los de la
+   colección: cargar la carpeta en Traktor y analizarla (**Analyze**), y después agregarla en la pestaña
+   Organización con «Agregar música nueva». Ese paso toma de Traktor el BPM y la tonalidad (Traktor los
+   guarda en su colección, no en el archivo) y arma el género y el subgénero de las tablas que usan las
+   playlists y las sugerencias. Una carpeta ya agregada se completa con «Completar BPM, tonalidad y
+   género».
 
    Los temas se mueven a la carpeta recién cuando el postproceso terminó; al final solo se completa lo
    que no alcanzó.

@@ -196,6 +196,70 @@ def test_added_music_gets_the_current_vocal_rule(running_app, monkeypatch):
     assert len(vocal) == 2 and all(c[c.index("--method") + 1] == "clap_probe" and "--write-tags" in c for c in vocal)
 
 
+def test_added_music_gets_traktor_bpm_key_and_genre_without_stopping_on_failures(running_app, monkeypatch):
+    """BPM y tonalidad también de Traktor; género y subgénero con los scripts de siempre. La búsqueda de Beatport
+    de la carpeta se suma a features/beatport sin tocar el resto, Beatport bloqueado pasa a --offline y lo que
+    falla queda como aviso sin cortar el agregado."""
+    import pandas as pd
+    from src.v4.common import beatport
+    app, base = running_app
+    features = app.artifacts / "features"
+    cat = pd.read_parquet(app.artifacts / "catalog.parquet")
+    a_uids = cat.loc[cat["rel_path"].str.startswith("A/"), "track_uid"].tolist()
+    b_uid = cat.loc[cat["rel_path"].str.startswith("B/"), "track_uid"].iloc[0]
+    pd.DataFrame({"track_uid": [a_uids[0], b_uid], "level": ["D", "A"], "bp_genre": [None, "Techno"]}).to_parquet(
+        features / "beatport.parquet", index=False)
+    calls = []
+
+    def fake_run(args, job, step):
+        calls.append([str(a) for a in args])
+        name = Path(args[0]).name
+        if name == "beatport_lookup.py":
+            out = args[args.index("--output") + 1]
+            pd.DataFrame({"track_uid": a_uids[:2], "level": ["A", "D"], "bp_genre": ["House", None]}).to_parquet(
+                features / f"{out}.parquet", index=False)
+        if name == "genre_model.py":
+            raise RuntimeError("otro conjunto de track_uids\nmás detalle")
+    monkeypatch.setattr(review_app, "run_script", fake_run)
+    monkeypatch.setattr(beatport, "available", lambda: (False, "pide la verificación anti-robots de Cloudflare"))
+    monkeypatch.setattr(review_app.organize, "add", lambda store, lib, scope: (7, {"added": 0}))
+    monkeypatch.setattr("src.v4.pipeline.dedupe.auto_resolve", lambda *a: {"resolved": [], "pending": []})
+    monkeypatch.setattr(review_app.organize, "Library", lambda *a: None)
+    monkeypatch.setattr(App, "package_dir", lambda self: None)
+    job = app.add_collection(str(app.library / "A"), keep=True)
+    t0 = time.time()
+    while job.status == "running" and time.time() - t0 < 30:
+        time.sleep(0.05)
+    assert job.status == "done", job.error
+    assert "Género y subgénero" in job.steps
+    by = {Path(c[0]).name: c for c in calls}
+    assert "--traktor" in by["phase1_tags.py"] and "--estimate-missing" in by["phase1_tags.py"]
+    maest = [c for c in calls if c[0].endswith("extract_representations.py") and "maesthf" in c]
+    assert maest and maest[0][maest[0].index("--folder") + 1] == "A"
+    assert by["beatport_lookup.py"][by["beatport_lookup.py"].index("--folder") + 1] == "A"
+    assert "--offline" in by["beatport_lookup.py"] and "--offline" in by["beatport_subgenres.py"]
+    assert "--predict" in by["genre_model.py"]
+    bp = pd.read_parquet(features / "beatport.parquet").set_index("track_uid")
+    assert len(bp) == 3 and bp.at[a_uids[0], "bp_genre"] == "House" and bp.at[b_uid, "bp_genre"] == "Techno"
+    assert not list(features.glob(f"{review_app.BEATPORT_PART}*"))
+    notes = job.result["notes"]
+    assert any(n.startswith("Beatport pide la verificación") for n in notes)
+    assert any(n.startswith("Género del modelo: no se pudo (otro conjunto de track_uids)") for n in notes)
+    # sin tonalidad en la carpeta: el aviso dice que falta analizarla en Traktor
+    table = pd.read_parquet(features / "bpm_key.parquet")
+    table.loc[table["track_uid"] == a_uids[0], "key"] = None
+    table.to_parquet(features / "bpm_key.parquet", index=False)
+    # una carpeta ya agregada se completa sin tocar las playlists; fuera de la biblioteca, no
+    calls.clear()
+    code, body, _ = _req(base + "/api/complete-metadata", {"path": str(app.library / "A")})
+    j = _wait(base, json.loads(body)["id"])
+    assert code == 200 and j["status"] == "done" and j["steps"] == ["BPM y tonalidad", "Género y subgénero"]
+    assert [Path(c[0]).name for c in calls] == ["phase1_tags.py", "extract_representations.py", "beatport_lookup.py",
+                                                "beatport_subgenres.py", "genre_model.py"]
+    assert any("1 tema quedó sin tonalidad" in n for n in j["result"]["notes"])
+    assert _req(base + "/api/complete-metadata", {"path": str(app.library.parent)})[0] == 400
+
+
 def test_reorder_and_remove_fusion(running_app):
     app, base = running_app
     a, _, _ = app.store.load()

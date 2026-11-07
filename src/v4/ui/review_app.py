@@ -35,6 +35,12 @@ CHANGELOG:
                 la app vuelve a permitir cambios, y «Preparar para Rekordbox y Traktor» y «Agregar música nueva»
                 además actualizan el pendrive: sus playlists (usb_package.refresh_from_org, sin mover audio) y el
                 lugar de cada tema guardado en su archivo (file_embeddings.py).
+  - 2026-11-07: «Agregar música nueva» completa lo que leen las playlists y las sugerencias en vivo: BPM y
+                tonalidad también de la colección de Traktor (phase1_tags --traktor) y el paso «Género y
+                subgénero» (MAEST, beatport_lookup de la carpeta sumado a features/beatport,
+                beatport_subgenres, genre_model --predict; lo que falle se avisa sin cortar). Para una carpeta
+                ya agregada, «Completar BPM, tonalidad y género» (/api/complete-metadata) sin tocar las
+                playlists (Gabriel: los temas descargados no tenían la metadata de la colección).
 """
 from __future__ import annotations
 
@@ -71,8 +77,10 @@ from tools.playlist_review.build_review_page import history_lines, make_data, re
 AUDIO_TYPES = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".flac": "audio/flac", ".aif": "audio/aiff",
                ".aiff": "audio/aiff", ".m4a": "audio/mp4"}
 ADD_STEPS = ["Copiar a tu biblioteca", "Leer la colección", "BPM y tonalidad", "Analizar el sonido de cada tema",
-             "Detectar voces", "Buscar temas repetidos", "Ubicar los temas en las playlists"]
-_PROGRESS = [re.compile(r"(\d+)/(\d+) temas"), re.compile(r"BPM estimado (\d+)/(\d+)")]
+             "Detectar voces", "Género y subgénero", "Buscar temas repetidos", "Ubicar los temas en las playlists"]
+_PROGRESS = [re.compile(r"(\d+)/(\d+) temas"), re.compile(r"BPM estimado (\d+)/(\d+)"),
+             re.compile(r"\[beatport\] (\d+)/(\d+)")]
+BEATPORT_PART = "beatport_agregado"     # búsqueda de la carpeta agregada, antes de sumarla a features/beatport
 
 
 # ---------------------------------------------------------------------------
@@ -361,9 +369,7 @@ class App:
             step = S["Leer la colección"]
             job.set(step, 0, "Leyendo tags y buscando duplicados…")
             run_script([str(pipe / "phase0_ingest.py"), *ds, "--scope", scope], job, step)
-            step = S["BPM y tonalidad"]
-            job.set(step, 0, "")
-            run_script([str(pipe / "phase1_tags.py"), *ds, "--estimate-missing"], job, step)
+            notes = self._bpm_key(scope, job, S["BPM y tonalidad"])
             step = S["Analizar el sonido de cada tema"]
             job.set(step, 0, "")
             backend = self.store.meta()["params"]["rep"].split("_")[0]
@@ -375,6 +381,7 @@ class App:
                 # clap_probe, la regla vigente (DECISIONS 2026-10-05): 'clap', el método viejo, reescribía la
                 # marca Vocal de toda la biblioteca. Los temas que ya tienen caché no cambian.
                 run_script([str(pipe / "tag_vocals.py"), *ds, "--method", "clap_probe", "--write-tags"], job, step)
+            notes += self._genres(scope, job, S["Género y subgénero"])
             step = S["Buscar temas repetidos"]
             job.set(step, 0, "Comparando con tu colección…")
             from src.v4.pipeline import dedupe
@@ -398,11 +405,97 @@ class App:
             counts["repeated"] = sum(len(g["tracks"]) - 1 for g in dups["resolved"])
             counts["to_decide"] = len(dups["pending"])
             job.set(step, 1, "")
-            result = {"version": v, "counts": counts, "scope": scope, "keep": keep}
+            result = {"version": v, "counts": counts, "scope": scope, "keep": keep, "notes": notes}
             if pkg is not None:  # playlists del pendrive y lugar de cada tema en su archivo (los nuevos también)
                 result.update(self._update_package(job, S["Actualizar el pendrive"]))
             return result
         return self.start("add", steps, fn)
+
+    def complete_metadata(self, path: str) -> Job:
+        """BPM, tonalidad y género de una carpeta que ya está organizada (p. ej. después de analizarla en
+        Traktor), sin tocar las playlists."""
+        info = self.describe_folder(path)
+        if not info["inside"] or info["is_library"]:
+            raise ValueError("Elegí una subcarpeta de tu biblioteca que ya esté agregada.")
+        scope = Path(info["path"]).relative_to(self.library).as_posix()
+        steps = ["BPM y tonalidad", "Género y subgénero"]
+
+        def fn(job: Job) -> Dict:
+            notes = self._bpm_key(scope, job, 0)
+            notes += self._genres(scope, job, 1)
+            return {"scope": scope, "notes": notes}
+        return self.start("complete", steps, fn)
+
+    def _bpm_key(self, scope: str, job: Job, step: int) -> List[str]:
+        """features/bpm_key: tags, después lo que Traktor analizó (collection.nml: no lo escribe en el archivo),
+        y el BPM que siga faltando se estima del audio. Avisa si temas de la carpeta quedaron sin tonalidad."""
+        import pandas as pd
+        job.set(step, 0, "")
+        run_script([str(REPO_ROOT / "src" / "v4" / "pipeline" / "phase1_tags.py"), "--dataset-name", self.dataset,
+                    "--traktor", "--estimate-missing"], job, step)
+        try:
+            cat = pd.read_parquet(self.artifacts / "catalog.parquet", columns=["track_uid", "rel_path"])
+            uids = cat.loc[cat["rel_path"].str.startswith(scope.rstrip("/") + "/"), "track_uid"]
+            table = pd.read_parquet(self.artifacts / "features" / "bpm_key.parquet", columns=["track_uid", "key"])
+            n = int(table.loc[table["track_uid"].isin(uids), "key"].isna().sum())
+        except Exception:  # noqa: BLE001 — un aviso no corta el agregado
+            return []
+        if not n:
+            return []
+        return [f"{'1 tema quedó' if n == 1 else f'{n} temas quedaron'} sin tonalidad: Traktor todavía no "
+                f"{'lo analizó' if n == 1 else 'los analizó'}. Cargá la carpeta en Traktor y analizala (Analyze); "
+                "después elegila de nuevo en «Agregar música nueva» y tocá «Completar BPM, tonalidad y género»."]
+
+    def _genres(self, scope: str, job: Job, step: int) -> List[str]:
+        """Género (de Beatport, o del modelo si Beatport no tiene el tema) y subgénero de la música agregada: las
+        tablas features/beatport, beatport_genres y genre_pred que leen las playlists y las sugerencias en vivo,
+        con los scripts de siempre. Cada parte que falle se avisa sin cortar el agregado."""
+        import pandas as pd
+        from src.v4.common.beatport import available
+        from src.v4.pipeline.beatport_lookup import save
+
+        pipe = REPO_ROOT / "src" / "v4" / "pipeline"
+        ds = ["--dataset-name", self.dataset]
+        features = self.artifacts / "features"
+        notes: List[str] = []
+
+        def attempt(what: str, fn: Callable[[], None]) -> bool:
+            try:
+                fn()
+                return True
+            except Exception as exc:  # noqa: BLE001
+                notes.append(f"{what}: no se pudo ({str(exc).splitlines()[0][:160]}).")
+                return False
+
+        job.set(step, 0, "Escuchando el estilo de cada tema…")  # MAEST: el modelo de género lo necesita
+        attempt("Estilo de cada tema", lambda: run_script(
+            [str(pipe / "extract_representations.py"), *ds, "--models", "maesthf", "--folder", scope,
+             "--min-duration", "90", "--max-duration", "900"], job, step))
+        job.set(step, 0, "Buscando en Beatport…")
+        online, why = available()
+        offline = [] if online else ["--offline"]
+        if not online:
+            notes.append(f"Beatport {why}: el género salió de lo que ya estaba guardado o del modelo. Volvé a "
+                         "agregar la carpeta más tarde para buscarlo de nuevo.")
+
+        def lookup() -> None:
+            run_script([str(pipe / "beatport_lookup.py"), *ds, "--folder", scope, "--output", BEATPORT_PART,
+                        *offline], job, step)
+            # solo las filas de esta carpeta: el resto de features/beatport no se toca
+            new = pd.read_parquet(features / f"{BEATPORT_PART}.parquet")
+            old = pd.read_parquet(features / "beatport.parquet")
+            save(pd.concat([old[~old["track_uid"].isin(new["track_uid"])], new], ignore_index=True),
+                 features, "beatport")
+            for suffix in (".parquet", ".csv", "_summary.json"):
+                (features / f"{BEATPORT_PART}{suffix}").unlink(missing_ok=True)
+
+        if attempt("Beatport", lookup):
+            job.set(step, 0.5, "Subgénero de Beatport…")
+            attempt("Subgénero", lambda: run_script([str(pipe / "beatport_subgenres.py"), *ds, *offline], job, step))
+        job.set(step, 0.8, "Género de los temas que Beatport no tiene…")
+        attempt("Género del modelo", lambda: run_script([str(pipe / "genre_model.py"), *ds, "--predict"], job, step))
+        job.set(step, 1, "")
+        return notes
 
     def save_drafts(self, drafts: List[Dict]) -> None:
         clean = [{"name": str(d.get("name") or f"Fusión {i + 1}")[:60], "color": int(d.get("color", i)) % organize.FUSION_COLORS,
@@ -601,6 +694,8 @@ def make_handler(app: App):
                     return self._json(200, app.describe_folder(body["path"]))
                 if path == "/api/add-collection":
                     return self._json(200, app.add_collection(body["path"], bool(body.get("keep", True))).public())
+                if path == "/api/complete-metadata":
+                    return self._json(200, app.complete_metadata(body["path"]).public())
                 if path == "/api/drafts":
                     app.save_drafts(body.get("fusions", []))
                     return self._json(200, {"ok": True})

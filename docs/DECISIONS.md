@@ -117,8 +117,10 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
       temas;
     - la tanda de grabación siguiente empieza en el último corte de la anterior, sin esperar a que se
       guarde su MP3; ese MP3 se codifica con LAME `-q 2` (14 s contra 45 s por tema de 5 minutos).
-    - Sigue sin modelo de género: lo que Beatport no encuentra queda sin género. El clasificador de la
-      biblioteca necesita además MAEST; se puede sumar si Gabriel lo pide.
+    - [REEMPLAZADO 2026-11-07 por el punto 18: lo que Beatport no confirma lleva el género del
+      clasificador de la biblioteca, y MAEST queda en caché] Sigue sin modelo de género: lo que Beatport
+      no encuentra queda sin género. El clasificador de la biblioteca necesita además MAEST; se puede
+      sumar si Gabriel lo pide.
 
 17. **La tonalidad se prueba como componente del puntaje, no solo como filtro, y lo tocado registra la
     transposición** (Gabriel).
@@ -139,6 +141,33 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
         tienen que salir de datos, evaluados fuera de muestra (plan, P7)] sumar la tonalidad como
         componente empeora, probablemente porque D1 solo tiene tonalidades originales;
       - se repite con D2. Informe: `docs/reports/e1_sets_gabriel_2026-11-07.md`, adenda.
+
+18. **Los temas nuevos quedan con la misma metadata que la colección, para entrar en playlists con los
+    viejos; la parte que no va en el archivo se completa al agregarlos a la colección** (Gabriel: «la
+    metadata debe estar completa, sino no se podrán utilizar los temas nuevos para formar playlists con
+    los temas viejos»).
+    - BPM y tonalidad los calcula Traktor cuando se cargan los temas (Gabriel). Traktor los guarda en
+      `collection.nml`, no en el archivo. HIPÓTESIS: por eso 249 de 300 archivos de la biblioteca
+      tienen TBPM=0 (todos llevan PRIV:TRAKTOR4).
+    - Lo que se hace al descargar (agente, aprobado por Gabriel):
+      - lo que Beatport no confirma (C o D) lleva el género del clasificador de la biblioteca
+        (`genre_model.py`), con la regla de 2026-09-29: confianza ≥ 0,6 y sin el gate de MAEST;
+      - MAEST y el subgénero de Beatport quedan en caché.
+    - Lo que se hace en «Agregar música nueva», el paso siguiente: Gabriel tiene que usarlo después de
+      cargar y analizar los temas en Traktor.
+      - BPM y tonalidad: los tags; si no, Traktor (`phase1_tags.py --traktor`, por nombre de archivo y
+        duración, solo con una coincidencia); y el BPM que siga faltando se estima.
+      - El paso «Género y subgénero»: MAEST de la carpeta, Beatport de la carpeta sumado a
+        `features/beatport`, `beatport_subgenres` y `genre_model --predict`. Lo que falla queda como
+        aviso y no corta el agregado.
+      - Una carpeta que ya se agregó se completa con «Completar BPM, tonalidad y género», sin tocar las
+        playlists.
+    - Verificado:
+      - Traktor y los tags coinciden en el BPM en el 98 % de los 102 temas comparables (±1 BPM).
+      - En la tonalidad coinciden en 81 de esos 102. Las diferencias son casi todas de un paso en el
+        círculo de quintas.
+      - El clasificador de la descarga da el mismo género que `genre_pred.parquet` en 330 de los 331
+        temas C/D de la biblioteca.
 
 ## 2026-11-06
 

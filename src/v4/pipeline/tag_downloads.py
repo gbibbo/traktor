@@ -4,8 +4,13 @@ PURPOSE: Deja los temas descargados (download_JIJIJI) listos para la colección 
            - Beatport: beatport_lookup.build_queries / lookup / record (misma caché,
              artifacts/v4/beatport_cache) y write_beatport_tags.build_plan / apply: con match A, o B
              confirmado por sello, fecha o duración, Artist, Remixers, Label, Genre y Released de Beatport
-             (DECISIONS 2026-09-29), con respaldo y verificación de que el audio no cambia. Sin modelo de
-             género: lo que Beatport no confirma queda sin género.
+             (DECISIONS 2026-09-29), con respaldo y verificación de que el audio no cambia. Lo que Beatport no
+             confirma (C o D) lleva el género del clasificador de genre_model.py (load_features, labeled_frame,
+             make_clf, gate_scores) entrenado una vez con la biblioteca (dataset `musica`), con la regla de
+             build_plan: confianza >= 0.6 y sin el gate de MAEST. El subgénero de los temas con match queda en la
+             caché de Beatport (track_genre) para beatport_subgenres.
+           - MAEST (`maesthf_full`, la otra mitad del clasificador) en la caché del dataset: «Agregar música
+             nueva» no lo vuelve a calcular.
            - Vocal: tag_vocals.clap_probe_vocals / write_tags (CLAP del tema entero y el clasificador
              lineal; Vocal si al menos el 5 % del tema tiene voz, DECISIONS 2026-10-05).
            - Embedding: CLAP `clap_full` como extract_representations (3 segmentos de 30 s del centro,
@@ -30,6 +35,8 @@ CHANGELOG:
   - 2026-11-07: Tema por tema (--watch) mientras la descarga sigue, y el embedding clap_full en el archivo y en
                 la caché del dataset (Gabriel: que la música quede lista para la colección y las playlists, y
                 que todo dure lo menos posible).
+  - 2026-11-07: Género del clasificador para lo que Beatport no confirma, MAEST en caché y el subgénero de
+                Beatport en caché (Gabriel: los temas nuevos tienen que llevar la metadata de la colección).
 """
 from __future__ import annotations
 
@@ -40,7 +47,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -49,6 +56,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.v4.common.beatport import BeatportBlocked, BeatportClient  # noqa: E402
+from src.v4.common.beatport import available as beatport_available  # noqa: E402
 from src.v4.common.config_loader import load_config  # noqa: E402
 from src.v4.common.path_resolver import resolve_artifacts_root, resolve_dataset_artifacts  # noqa: E402
 from src.v4.common.tags import audio_payload_hash, read_release_tags, read_tags  # noqa: E402
@@ -57,25 +65,26 @@ from src.v4.pipeline import beatport_lookup, file_embeddings, tag_vocals, write_
 AUDIO = (".mp3", ".flac")
 PENDING_NAME = "beatport_pending.txt"   # temas que esperan a Beatport (bloqueado la última vez)
 REP = "clap_full"
+MAEST_REP = "maesthf_full"              # caché con _l7 y _styles, como extract_representations --models maesthf
 DATASET = "musica"
 BEATPORT_RETRY_S = 600                  # bloqueado: se vuelve a probar cada 10 minutos
+MIN_CLASS = 15                          # como genre_model.py --min-class por defecto
+GATE_RATIO = 1.0                        # como genre_model.py --gate-ratio por defecto
+PRED_COLUMNS = ["track_uid", "model_source", "model_conf", "model_genre"]
 
 
-def beatport_available() -> Tuple[bool, str]:
-    """Un pedido de prueba: si Cloudflare pide la verificación anti-robots («Just a moment…», visto el
-    2026-11-07), BeatportClient pasaría ~5 minutos reintentando. Entonces se deja para la próxima vez."""
-    import requests
-    from src.v4.common.beatport import SEARCH_URL, USER_AGENT
 
+def models_downloaded() -> bool:
+    """CLAP y MAEST con sus pesos en la caché de Hugging Face. Mirar solo config.json no alcanza: en el escritorio
+    MAEST tenía config.json (lo lee genre_model.style_labels) y no sus pesos, y sin conexión no se bajarían."""
     try:
-        r = requests.get(SEARCH_URL, params={"q": "techno"}, timeout=30,
-                         headers={"User-Agent": USER_AGENT, "Accept-Language": "en-US,en;q=0.9"})
-    except requests.RequestException as exc:
-        return False, type(exc).__name__
-    if r.status_code == 200:
-        return True, ""
-    return False, ("pide la verificación anti-robots de Cloudflare" if r.headers.get("cf-mitigated") == "challenge"
-                   else f"respondió {r.status_code}")
+        from huggingface_hub import try_to_load_from_cache
+        from src.v4.pipeline.extract_representations import CLAP_NAME, MAESTHF_NAME
+    except Exception:  # noqa: BLE001
+        return False
+    return all(any(isinstance(try_to_load_from_cache(name, weights), str)
+                   for weights in ("model.safetensors", "pytorch_model.bin"))
+               for name in (CLAP_NAME, MAESTHF_NAME))
 
 
 def read_pending(path: Path) -> List[Path]:
@@ -112,7 +121,8 @@ def catalog_rows(files: List[Path]) -> Tuple[pd.DataFrame, Dict[str, Dict[str, O
 
 
 def beatport_tags(catalog: pd.DataFrame, rels: Dict[str, Dict[str, Optional[str]]], client: BeatportClient,
-                  backup: Path) -> pd.DataFrame:
+                  backup: Path, predict: Optional[Callable[[pd.DataFrame], pd.DataFrame]] = None) -> pd.DataFrame:
+    """Beatport (y, para C o D, el género de predict) escrito en los archivos; el subgénero queda en caché."""
     records = []
     for _, row in catalog.iterrows():
         variants = beatport_lookup.build_queries(row, rels[row["track_uid"]])
@@ -122,10 +132,53 @@ def beatport_tags(catalog: pd.DataFrame, rels: Dict[str, Dict[str, Optional[str]
         records.append(beatport_lookup.record(row, rels[row["track_uid"]], q, res, used))
     if not records:
         return pd.DataFrame()
-    no_model = pd.DataFrame(columns=["track_uid", "model_source", "model_conf", "model_genre"])
-    plan = write_beatport_tags.build_plan(pd.DataFrame(records), no_model, catalog)
+    bp = pd.DataFrame(records)
+    pred = pd.DataFrame(columns=PRED_COLUMNS)
+    unmatched = bp.loc[bp["level"].isin(["C", "D"]), "track_uid"]
+    if predict is not None and len(unmatched):
+        pred = predict(catalog[catalog["track_uid"].isin(unmatched)])
+    plan = write_beatport_tags.build_plan(bp, pred, catalog)
     log = write_beatport_tags.apply(plan, backup)
+    warm_subgenres(client, bp)
     return plan.merge(log[["track_uid", "status"]], on="track_uid", how="left") if len(log) else plan
+
+
+def warm_subgenres(client: BeatportClient, bp: pd.DataFrame) -> None:
+    """La página de cada tema con match (BeatportClient.track_genre, con caché): beatport_subgenres, en «Agregar
+    música nueva», la lee de ahí aunque Beatport se bloquee después. Si se bloquea ahora, queda para entonces."""
+    matched = bp[bp["level"].isin(["A", "B"]) & bp["bp_track_id"].notna()]
+    for r in matched.itertuples():
+        try:
+            client.track_genre(int(r.bp_track_id), r.bp_url if isinstance(r.bp_url, str) else None)
+        except BeatportBlocked:
+            return
+        except Exception as exc:  # noqa: BLE001 (el subgénero no frena la metadata)
+            print(f"[metadata] subgénero de {r.bp_track_id}: {type(exc).__name__}: {exc}", flush=True)
+
+
+class GenreModel:
+    """El clasificador de genre_model.py --predict, entrenado con la biblioteca: el género de los temas que Beatport
+    no confirma. predict() devuelve las columnas de genre_pred que lee write_beatport_tags.build_plan."""
+
+    def __init__(self, artifacts: Path, labels: List[str]):
+        from src.v4.pipeline import genre_model
+        self.gm, self.labels = genre_model, labels
+        bp = pd.read_parquet(artifacts / "features" / "beatport.parquet")
+        uids, X, _ = genre_model.load_features(artifacts)
+        lab = genre_model.labeled_frame(bp, uids, confirmed_only=True)
+        counts = lab["bp_genre"].value_counts()
+        train = lab[lab["bp_genre"].isin(counts[counts >= MIN_CLASS].index)]
+        self.clf = genre_model.make_clf().fit(X[train["row"].to_numpy()], train["bp_genre"].to_numpy())
+        self.n_train, self.n_classes = len(train), len(self.clf.classes_)
+
+    def predict(self, l7: np.ndarray, clap: np.ndarray, styles: np.ndarray) -> Dict[str, Any]:
+        ratio, parent = self.gm.gate_scores(np.asarray(styles, dtype=np.float32)[None, :], self.labels)
+        if ratio[0] > GATE_RATIO:
+            return {"model_source": "gate_discogs", "model_conf": None, "model_genre": self.gm.gate_genre(parent[0])}
+        p = self.clf.predict_proba(np.hstack([l7, clap]).astype(np.float32)[None, :])[0]
+        k = int(np.argmax(p))
+        return {"model_source": "classifier", "model_conf": round(float(p[k]), 3),
+                "model_genre": str(self.clf.classes_[k])}
 
 
 def vocal_tags(catalog: pd.DataFrame, cache_dir: Path, backup: Path) -> pd.DataFrame:
@@ -138,13 +191,16 @@ def vocal_tags(catalog: pd.DataFrame, cache_dir: Path, backup: Path) -> pd.DataF
 
 
 class Models:
-    """CLAP cargado una sola vez: ventanas del tema entero para la voz (vocal_eval.ClapDetector) y clap_full
-    para el embedding (extract_representations.build_backend). Se cargan recién cuando hacen falta."""
+    """Modelos cargados una sola vez: ventanas CLAP del tema entero para la voz (vocal_eval.ClapDetector),
+    clap_full y MAEST (extract_representations.build_backend) y el clasificador de género (GenreModel). Se
+    cargan recién cuando hacen falta."""
 
     def __init__(self, config: dict):
         self.config = config
         self.detector = None
-        self.backend = None
+        self.backends: Dict[str, Any] = {}
+        self.genre_model: Optional[GenreModel] = None
+        self.genre_error: Optional[str] = None
 
     def vocal_windows(self, path: Path, uid: str, cache: Path) -> None:
         """Las ventanas que clap_probe_vocals lee de su caché: con el modelo ya cargado, no lo carga de nuevo."""
@@ -158,28 +214,64 @@ class Models:
         cache.mkdir(parents=True, exist_ok=True)
         np.savez(target, starts=starts, emb=emb)
 
-    def clap_full(self, path: Path, uid: str, cache: Path) -> np.ndarray:
-        """El mismo embedding y el mismo formato de caché que extract_representations --models clap."""
+    def _embedding(self, backend: str, path: Path, uid: str, cache: Path) -> Dict[str, np.ndarray]:
+        """El mismo embedding y el mismo formato de caché que extract_representations --models <backend>."""
         target = cache / f"{uid}.npz"
         if target.exists():
-            return np.load(target)["_"]
+            with np.load(target) as data:
+                return {k: data[k] for k in data.files}
         from src.v4.common.audio_utils import read_dj_segments
         from src.v4.pipeline.extract_representations import (ESSENTIA_MODELS_DIR, build_backend, resample,
                                                               segmentation_params)
-        if self.backend is None:
-            self.backend = build_backend("clap", ESSENTIA_MODELS_DIR, os.environ.get("TRAKTOR_HF_CACHE"))
+        if backend not in self.backends:
+            self.backends[backend] = build_backend(backend, ESSENTIA_MODELS_DIR, os.environ.get("TRAKTOR_HF_CACHE"))
+        model = self.backends[backend]
         seg = segmentation_params(self.config)
         segments, sr = read_dj_segments(path, seg["segment_duration_s"], seg["n_intro"], seg["n_mid"],
                                         seg["n_outro"])
         acc: Dict[str, List[np.ndarray]] = {}
         for segment in segments:
-            for suffix, vec in self.backend.embed(resample(segment, sr, self.backend.sr)).items():
+            for suffix, vec in model.embed(resample(segment, sr, model.sr)).items():
                 acc.setdefault(suffix, []).append(vec)
         payload = {(k or "_"): (np.concatenate(v, axis=0) if k.startswith("_win") else np.mean(v, axis=0))
                    for k, v in acc.items()}
         cache.mkdir(parents=True, exist_ok=True)
         np.savez(target, **payload)
-        return payload["_"]
+        return payload
+
+    def clap_full(self, path: Path, uid: str, cache: Path) -> np.ndarray:
+        return self._embedding("clap", path, uid, cache)["_"]
+
+    def maest(self, path: Path, uid: str, cache: Path) -> Dict[str, np.ndarray]:
+        """_l7 (mitad del clasificador de género) y _styles (su gate), como --models maesthf."""
+        return self._embedding("maesthf", path, uid, cache)
+
+    def genre(self, catalog: pd.DataFrame, full_cache: Path, maest_cache: Path) -> pd.DataFrame:
+        """Columnas de genre_pred para estos temas. Sin la biblioteca en este ordenador, o si el modelo no se puede
+        entrenar, vacío: esos temas quedan sin género, como antes."""
+        if self.genre_model is None and self.genre_error is None:
+            try:
+                from src.v4.common.path_resolver import resolve_hf_cache
+                from src.v4.pipeline.genre_model import style_labels
+                self.genre_model = GenreModel(resolve_dataset_artifacts(DATASET, self.config),
+                                              style_labels(resolve_hf_cache(self.config)))
+                print(f"[metadata] Modelo de género: {self.genre_model.n_train} temas de la biblioteca, "
+                      f"{self.genre_model.n_classes} géneros", flush=True)
+            except Exception as exc:  # noqa: BLE001
+                self.genre_error = f"{type(exc).__name__}: {exc}"
+                print(f"[metadata] Sin modelo de género ({self.genre_error})", flush=True)
+        rows = []
+        if self.genre_model is not None:
+            for row in catalog.itertuples():
+                try:
+                    clap = self.clap_full(Path(row.source_path), row.track_uid, full_cache)
+                    maest = self.maest(Path(row.source_path), row.track_uid, maest_cache)
+                    rows.append({"track_uid": row.track_uid,
+                                 **self.genre_model.predict(maest["_l7"], clap, maest["_styles"])})
+                except Exception as exc:  # noqa: BLE001
+                    print(f"[metadata] {Path(row.source_path).name}: género del modelo: {type(exc).__name__}: {exc}",
+                          flush=True)
+        return pd.DataFrame(rows, columns=PRED_COLUMNS)
 
 
 def embed_in_file(path: Path, uid: str, vec: np.ndarray) -> bool:
@@ -192,17 +284,17 @@ def embed_in_file(path: Path, uid: str, vec: np.ndarray) -> bool:
     return True
 
 
-def caches(config: dict, tools_root: Path) -> Tuple[Path, Path]:
-    """Cachés de CLAP: las del dataset `musica` si está en este ordenador (así «Agregar música» las reutiliza),
-    si no, en artifacts/v4/download_tags."""
+def caches(config: dict, tools_root: Path) -> Tuple[Path, Path, Path]:
+    """Cachés de CLAP (voz, clap_full) y de MAEST: las del dataset `musica` si está en este ordenador (así
+    «Agregar música» las reutiliza), si no, en artifacts/v4/download_tags."""
     try:
         rep_root = resolve_dataset_artifacts(DATASET, config) / "representations"
         if rep_root.is_dir():
-            return rep_root / "clap_wholetrack" / "cache", rep_root / REP / "cache"
+            return rep_root / "clap_wholetrack" / "cache", rep_root / REP / "cache", rep_root / MAEST_REP / "cache"
     except Exception:  # noqa: BLE001
         pass
     base = tools_root / "download_tags"
-    return base / "clap_wholetrack_cache", base / "clap_full_cache"
+    return base / "clap_wholetrack_cache", base / "clap_full_cache", base / "maesthf_full_cache"
 
 
 class Beatport:
@@ -231,6 +323,8 @@ def process(files: List[Path], *, config: dict, tools_root: Path, backup_dir: Pa
     catalog, rels = catalog_rows(files)
     results = {row.track_uid: {"path": row.source_path, "name": Path(row.source_path).name}
                for row in catalog.itertuples()}
+    vocal_cache, full_cache, maest_cache = caches(config, tools_root)
+    predict = None if models is None else (lambda rows: models.genre(rows, full_cache, maest_cache))
 
     if beatport is not None:
         pending_path = backup_dir / PENDING_NAME
@@ -246,21 +340,23 @@ def process(files: List[Path], *, config: dict, tools_root: Path, backup_dir: Pa
                 bp_catalog, bp_rels = pd.concat([catalog, more], ignore_index=True), {**rels, **more_rels}
             try:
                 plan = beatport_tags(bp_catalog, bp_rels, beatport.client,
-                                     backup_dir / f"beatport_tags_{stamp}_{catalog.track_uid.iloc[0][:10]}.csv")
+                                     backup_dir / f"beatport_tags_{stamp}_{catalog.track_uid.iloc[0][:10]}.csv",
+                                     predict=predict)
                 write_pending(pending_path, [])
             except BeatportBlocked as exc:
                 beatport.blocked(str(exc))
                 write_pending(pending_path, pending + files)
                 plan = pd.DataFrame()
             for r in plan.itertuples() if len(plan) else []:
+                genre = (r.new_genre if r.action == "beatport" else f"{r.new_genre} (modelo, {r.source})"
+                         if r.action == "model" else f"sin Beatport, {r.source}")
                 if r.track_uid in results:
-                    results[r.track_uid]["genre"] = r.new_genre if r.action == "beatport" else "sin Beatport"
+                    results[r.track_uid]["genre"] = genre
                     results[r.track_uid]["level"] = r.level
-                elif r.action == "beatport":
-                    print(f"[metadata]   {Path(r.source_path).name} (esperaba a Beatport): {r.new_genre}", flush=True)
+                elif r.action in ("beatport", "model"):
+                    print(f"[metadata]   {Path(r.source_path).name} (esperaba a Beatport): {genre}", flush=True)
 
     if models is not None:
-        vocal_cache, full_cache = caches(config, tools_root)
         for row in catalog.itertuples():
             try:
                 models.vocal_windows(Path(row.source_path), row.track_uid, vocal_cache)
@@ -276,6 +372,10 @@ def process(files: List[Path], *, config: dict, tools_root: Path, backup_dir: Pa
                     Path(row.source_path), row.track_uid, vec) else "ya estaba"
             except Exception as exc:  # noqa: BLE001
                 results[row.track_uid]["embedding"] = f"falló: {type(exc).__name__}: {exc}"
+            try:  # MAEST en caché: «Agregar música nueva» (paso de género) no lo vuelve a calcular
+                models.maest(Path(row.source_path), row.track_uid, maest_cache)
+            except Exception as exc:  # noqa: BLE001
+                results[row.track_uid]["error"] = f"MAEST: {type(exc).__name__}: {exc}"
     return list(results.values())
 
 
@@ -360,13 +460,8 @@ def main() -> int:
                   beatport=None if args.no_beatport else Beatport(tools_root / "beatport_cache", args.offline),
                   models=None if args.no_vocal else Models(config), stamp=datetime.now().strftime("%Y%m%d_%H%M%S"))
 
-    try:  # CLAP ya bajado: sin consultar Hugging Face por actualizaciones (2026-11-07: lecturas que vencían)
-        from huggingface_hub import try_to_load_from_cache
-        from src.v4.pipeline.extract_representations import CLAP_NAME
-        if isinstance(try_to_load_from_cache(CLAP_NAME, "config.json"), str):
-            os.environ.setdefault("HF_HUB_OFFLINE", "1")
-    except Exception:  # noqa: BLE001 (sin caché: se baja la primera vez)
-        pass
+    if models_downloaded():  # sin consultar Hugging Face por actualizaciones (2026-11-07: lecturas que vencían)
+        os.environ.setdefault("HF_HUB_OFFLINE", "1")
 
     if args.watch:
         if args.done is None:

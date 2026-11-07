@@ -158,8 +158,11 @@ SPOTIFY_REDIRECT_URI=http://127.0.0.1:8888/callback
 ```
 
 Mientras se descarga, cada tema recibe la metadata de la biblioteca: género, sello, artistas y
-fecha de Beatport, la etiqueta Vocal y el embedding CLAP (README, «Cómo funciona», paso 7). La
-primera vez se baja el modelo CLAP de Hugging Face (unos 600 MB). Traktor no relee un archivo que
+fecha de Beatport (o el género del modelo de la biblioteca), la etiqueta Vocal y el embedding CLAP
+(README, «Cómo funciona», paso 7). La primera vez se bajan de Hugging Face los modelos CLAP (unos
+600 MB) y MAEST. BPM y tonalidad los calcula Traktor: después de cada descarga, cargá la
+carpeta en Traktor, analizala (**Analyze**) y agregala en la pestaña Organización con «Agregar
+música nueva». Sin ese paso, los temas no entran en las playlists ni en las sugerencias. Traktor no relee un archivo que
 ya cargó: si cambiaste sus etiquetas o su volumen después, clic derecho en el tema → **Reload from
 File** y **Analyze**. Para que lo grabado de Spotify salga
 con su nivel original, en Spotify de escritorio desactiva **Configuración → Reproducción →

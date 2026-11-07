@@ -41,7 +41,7 @@ def run(argv, *, available=(True, ""), beatport=None):
     """main() con Beatport, CLAP y la escritura simulados. Devuelve (código, búsquedas, voces, embeddings)."""
     looked_up, embedded = [], []
 
-    def beatport_tags(catalog, rels, client, backup):
+    def beatport_tags(catalog, rels, client, backup, predict=None):
         looked_up.append(sorted(Path(p).name for p in catalog["source_path"]))
         if beatport:
             raise beatport
@@ -58,10 +58,12 @@ def run(argv, *, available=(True, ""), beatport=None):
             mock.patch.object(tag_downloads, "vocal_tags", side_effect=vocal_tags) as vocal, \
             mock.patch.object(tag_downloads.Models, "vocal_windows"), \
             mock.patch.object(tag_downloads.Models, "clap_full", return_value=np.zeros(512, dtype=np.float32)), \
+            mock.patch.object(tag_downloads.Models, "maest") as maest, \
             mock.patch.object(tag_downloads, "embed_in_file",
                               side_effect=lambda path, uid, vec: embedded.append(Path(path).name) or True), \
             mock.patch.object(sys, "argv", ["tag_downloads.py", *argv]):
         code = tag_downloads.main()
+    run.maest_calls = maest.call_count
     return code, looked_up, vocal, embedded
 
 
@@ -74,6 +76,50 @@ def test_a_folder_gets_beatport_vocal_and_the_embedding(tmp_path):
     assert looked_up == [["A - One.mp3", "B - Two.flac"]]  # el .m3u8 no
     vocal.assert_called_once()
     assert sorted(embedded) == ["A - One.mp3", "B - Two.flac"]
+    assert run.maest_calls == 2  # MAEST en caché para «Agregar música nueva»
+
+
+def _library_for_genres(art: Path, labels):
+    """Biblioteca falsa: dos géneros separables en l7 ‖ clap, estilos electrónicos (el gate no salta)."""
+    rng = np.random.default_rng(0)
+    uids = [f"u{i:03d}" for i in range(80)]
+    genre = ["Techno (Peak Time / Driving)" if i % 2 else "Deep House" for i in range(80)]
+    l7 = rng.standard_normal((80, 8)).astype(np.float32) + np.array([[4 if i % 2 else -4] for i in range(80)])
+    clap = rng.standard_normal((80, 4)).astype(np.float32)
+    styles = np.full((80, len(labels)), 0.01, dtype=np.float32)
+    styles[:, 0] = 0.9
+    for rep, mat in (("maesthf_full_l7", l7), ("clap_full", clap), ("maesthf_full_styles", styles)):
+        (art / "representations" / rep).mkdir(parents=True)
+        np.save(art / "representations" / rep / "embeddings.npy", mat)
+        (art / "representations" / rep / "track_uids.json").write_text(json.dumps(uids))
+    (art / "features").mkdir()
+    pd.DataFrame({"track_uid": uids, "level": "A", "confirmed": True, "bp_genre": genre,
+                  "bp_artists": [f"Artista {i}" for i in range(80)], "cur_artist": ""}).to_parquet(
+        art / "features" / "beatport.parquet", index=False)
+
+
+def test_unconfirmed_tracks_get_the_library_genre_model_with_the_library_rules(tmp_path):
+    """Gabriel, 2026-11-07: los temas nuevos tienen que llevar la metadata de la colección. Lo que Beatport no
+    confirma lleva el género del clasificador de la biblioteca si la confianza es >= 0.6 y el gate no salta."""
+    from src.v4.pipeline import write_beatport_tags
+    labels = ["Electronic---Techno", "Electronic---House", "Pop---Ballad", "Rock---Punk"]
+    _library_for_genres(tmp_path, labels)
+    model = tag_downloads.GenreModel(tmp_path, labels)
+    techno = model.predict(np.full(8, 4.0, np.float32), np.zeros(4, np.float32), np.array([0.9, 0.1, 0.01, 0.01]))
+    assert techno["model_source"] == "classifier" and techno["model_genre"] == "Techno (Peak Time / Driving)"
+    assert techno["model_conf"] >= 0.6
+    unsure = model.predict(np.zeros(8, np.float32), np.zeros(4, np.float32), np.array([0.9, 0.1, 0.01, 0.01]))
+    pop = model.predict(np.full(8, 4.0, np.float32), np.zeros(4, np.float32), np.array([0.2, 0.1, 0.8, 0.01]))
+    assert pop == {"model_source": "gate_discogs", "model_conf": None, "model_genre": "Pop"}
+    # build_plan (la regla de la biblioteca): solo el clasificador seguro escribe Genre
+    bp = pd.DataFrame({"track_uid": ["t1", "t2", "t3"], "level": ["D", "C", "D"], "rel_path": "x",
+                       "confirmed": False})
+    pred = pd.DataFrame([{"track_uid": "t1", **techno}, {"track_uid": "t2", **unsure}, {"track_uid": "t3", **pop}])
+    catalog = pd.DataFrame({"track_uid": ["t1", "t2", "t3"], "source_path": ["a.mp3", "b.mp3", "c.mp3"]})
+    plan = write_beatport_tags.build_plan(bp, pred, catalog).set_index("track_uid")
+    assert plan.at["t1", "action"] == "model" and plan.at["t1", "new_genre"] == "Techno (Peak Time / Driving)"
+    assert plan.at["t3", "action"] == "keep"
+    assert unsure["model_conf"] < 0.6 and plan.at["t2", "action"] == "keep"
 
 
 def test_when_beatport_asks_for_the_anti_bot_check_the_tracks_wait_for_the_next_run(tmp_path):

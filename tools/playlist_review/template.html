@@ -611,7 +611,12 @@ function showFolder(info) {
   if (info.n_known >= info.n_audio) {  // ya organizados, o copias de temas que ya están: analizar no suma nada
     body.push(el("p", {}, el("strong", { text: `${fmt(info.n_audio)} ${info.n_audio === 1 ? "tema" : "temas"}` }),
       ` · ${fmt(info.size_mb)} MB: ${info.n_audio === 1 ? "ya está" : "ya están todos"} en tu organización (o son copias de temas que ya están). No hay nada nuevo para agregar.`));
-    return openDialog("Agregar música nueva", body, [btn("Cerrar", closeDialog), btn("Elegir otra carpeta", addMusic, true)]);
+    body.push(el("p", { class: "muted", text: "Si después de agregarla la analizaste en Traktor, «Completar BPM, tonalidad y género» trae lo que Traktor calculó y busca el género de nuevo. Las playlists no cambian." }));
+    return openDialog("Agregar música nueva", body, [btn("Cerrar", closeDialog), btn("Elegir otra carpeta", addMusic),
+      btn("Completar BPM, tonalidad y género", async () => {
+        try { const job = await api("/api/complete-metadata", { path: info.path }); watchJob(job, "complete"); }
+        catch (e) { errorDialog(e.message); }
+      }, true)]);
   }
   body.push(el("p", {}, el("strong", { text: `${fmt(info.n_audio)} ${info.n_audio === 1 ? "tema" : "temas"}` }),
     info.n_known ? ` (${fmt(info.n_known)} ya están organizados; se agregan los otros ${fmt(info.n_audio - info.n_known)})` : "", ` · ${fmt(info.size_mb)} MB`));
@@ -635,10 +640,11 @@ function consequence(what) {
         el("p", { class: "muted", text: "La versión actual queda guardada y podés volver a ella con «Deshacer el último cambio». Si preferís no mover nada, cancelá y encendé el interruptor." }));
 }
 function confirmAdd(info) {
-  const mins = Math.max(1, Math.round(info.n_audio * 2.2 / 60));
+  const mins = Math.max(1, Math.round(info.n_audio * 15 / 60));
   openDialog(prefs.keep ? "Agregar sin mover lo que ya está" : "Agregar y reorganizar todo", [
     consequence("add"),
-    el("p", { text: `El análisis tarda unos 2 segundos por tema (≈ ${mins} min para ${fmt(info.n_audio)} temas). A los temas con voz se les agrega «Vocal» en el comentario.` })],
+    el("p", { text: `El análisis tarda hasta unos 15 segundos por tema (≈ ${mins} min para ${fmt(info.n_audio)} temas); la música bajada con la app de descargas ya viene analizada y tarda mucho menos. A los temas con voz se les agrega «Vocal» en el comentario, y se busca el género en Beatport.` }),
+    el("p", { class: "muted", text: "BPM y tonalidad salen de lo que Traktor analizó: si todavía no cargaste esta carpeta en Traktor, hacelo antes (o completalo después desde acá)." })],
     [btn("Cancelar", closeDialog), btn("Aceptar y analizar", async () => {
       try { const job = await api("/api/add-collection", { path: info.path, keep: prefs.keep }); watchJob(job, "add"); }
       catch (e) { errorDialog(e.message); }
@@ -656,7 +662,8 @@ function renderJob(job, title) {
     el("p", { class: "muted", text: "Podés seguir escuchando mientras tanto; no cierres esta pestaña ni la ventana negra de la app." })], [], false);
 }
 function watchJob(job, kind) {
-  const titles = { add: "Analizando la música nueva", fusions: "Rehaciendo las playlists", export: "Preparando las playlists" };
+  const titles = { add: "Analizando la música nueva", fusions: "Rehaciendo las playlists", export: "Preparando las playlists",
+                   complete: "Completando BPM, tonalidad y género" };
   const tick = async () => {
     let j;
     try { j = await (await fetch(`/api/job/${job.id}`)).json(); } catch (e) { return setTimeout(tick, 1500); }
@@ -667,6 +674,11 @@ function watchJob(job, kind) {
   renderJob(job, titles[kind]); setTimeout(tick, 500);
 }
 function doneDialog(kind, r) {
+  const notes = (r.notes || []).map(t => el("p", { class: "muted", text: t }));
+  if (kind === "complete") {
+    return openDialog("Listo", [el("p", { text: notes.length ? "BPM, tonalidad y género actualizados, con estos avisos:" : "BPM, tonalidad y género al día. Las playlists no cambiaron." }), ...notes],
+      [btn("Cerrar", closeDialog, true)], false);
+  }
   if (kind === "add") {
     const c = r.counts || {};
     const txt = r.keep
@@ -675,7 +687,7 @@ function doneDialog(kind, r) {
       : "Se reorganizó toda tu colección con los temas nuevos incluidos.";
     const rep = c.repeated ? el("p", { text: `${c.repeated === 1 ? "1 tema ya estaba" : `${fmt(c.repeated)} temas ya estaban`} en tu colección: quedó la mejor copia y ${c.repeated === 1 ? "la otra se movió" : "las otras se movieron"} a Música/_copias.` }) : null;
     const pend = c.to_decide ? el("p", { class: "muted", text: `${c.to_decide === 1 ? "Un posible repetido quedó" : `${fmt(c.to_decide)} posibles repetidos quedaron`} como temas separados (no son lo bastante parecidos para decidir solo).` }) : null;
-    return openDialog("Listo", [el("p", { text: txt }), rep, pend].filter(Boolean), [btn("Ver en el mapa", () => { sessionStorage.setItem("traktor_show", "new"); location.reload(); }, true)], false);
+    return openDialog("Listo", [el("p", { text: txt }), rep, pend, ...notes].filter(Boolean), [btn("Ver en el mapa", () => { sessionStorage.setItem("traktor_show", "new"); location.reload(); }, true)], false);
   }
   if (kind === "fusions") {
     const txt = r.keep ? `Listo: ${r.moved === 1 ? "se movió 1 tema" : `se movieron ${fmt(r.moved || 0)} temas`} para que las fusiones queden juntas. El resto no cambió.`

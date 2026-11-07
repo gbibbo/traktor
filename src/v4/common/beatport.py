@@ -19,6 +19,8 @@ PURPOSE: Beatport como fuente de metadatos (género, sello, fecha de lanzamiento
          También lee la página de un tema (track_genre): categoría, género y subgénero de Beatport
          (taxonomía de tres niveles; el subgénero es opcional), con caché en disco por tema.
 CHANGELOG:
+  - 2026-11-07: available(): un pedido de prueba antes de una corrida (venía de tag_downloads.py, ahora
+                también lo usa «Agregar música nueva» de la app).
   - 2026-11-06: summarize guarda también genre_id y el subgénero (sub_genre); track_genre() y
                 parse_track_genre() leen categoría, género y subgénero de la página de un tema.
   - 2026-10-30: summarize guarda la carátula del lanzamiento (release_image) para package_tags.py.
@@ -72,6 +74,22 @@ _JUNK = [re.compile(p, re.I) for p in (
 
 class BeatportBlocked(RuntimeError):
     """Beatport respondió 403/429 de forma sostenida: cortar la corrida sin martillar."""
+
+
+def available() -> "tuple[bool, str]":
+    """Un pedido de prueba: si Cloudflare pide la verificación anti-robots («Just a moment…», visto el
+    2026-11-07), BeatportClient pasaría ~5 minutos reintentando. Devuelve (responde, por qué no)."""
+    import requests
+
+    try:
+        r = requests.get(SEARCH_URL, params={"q": "techno"}, timeout=30,
+                         headers={"User-Agent": USER_AGENT, "Accept-Language": "en-US,en;q=0.9"})
+    except requests.RequestException as exc:
+        return False, type(exc).__name__
+    if r.status_code == 200:
+        return True, ""
+    return False, ("pide la verificación anti-robots de Cloudflare" if r.headers.get("cf-mitigated") == "challenge"
+                   else f"respondió {r.status_code}")
 
 
 # ---------------------------------------------------------------------------
