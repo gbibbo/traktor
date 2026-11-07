@@ -672,6 +672,54 @@ def test_rejected_download_tries_the_next_candidate(tmp_path):
     assert [p.name for p in tmp_path.rglob("*.mp3")] == ["second.mp3"]  # el rechazado se borró
 
 
+def test_a_peer_that_stops_sending_is_not_asked_again(tmp_path):
+    # Gabriel, 2026-11-07: «musicmasterrdjpool» dejó de mandar «Amor» 5 veces (30 s cada una) y se gastaron
+    # los intentos del tema con sus otros archivos, que tampoco iba a mandar.
+    tried = []
+
+    def run(cmd, incoming, expected_bytes, config, failure=None):
+        incoming = Path(next(s.split("=", 1)[1] for s in cmd if s.startswith("--output-dir=")))
+        remote = next(s for s in cmd if s.startswith("slsk://"))
+        tried.append(remote.split("/")[2])
+        if "/queued/" in remote:
+            raise D.TransferStalled("la transferencia no avanzó en 45 s")
+        (incoming / "Amor.mp3").write_bytes(b"audio")
+        return 0
+
+    cands = [candidate(username="queued", filename="queued/Amor (Original Mix).flac"),
+             candidate(username="queued", filename="queued/Amor.mp3"),
+             candidate(username="other", filename="other/Amor.mp3")]
+    with mock.patch.object(D, "find_sockseek", return_value="sockseek"), mock.patch.object(
+        D, "_check_antivirus_ready"
+    ), mock.patch.object(D, "_write_sockseek_safe_config"), mock.patch.object(
+        D, "_validate_download"
+    ), mock.patch.object(D, "_run_sockseek_transfer", side_effect=run):
+        files = D.download_with_sockseek(track(), tmp_path, availability=D.AvailabilityCheck("available", 3, cands),
+                                         avoid=set())
+    assert tried == ["queued", "other"] and len(files) == 1
+    assert D.transfer_failure_reason("Error: Transfer became stale") == ("lo dejó de mandar (30 s sin avanzar)", True)
+
+
+def test_measuring_a_transfer_tolerates_sockseek_moving_its_folder(tmp_path):
+    # 2026-11-07: «[WinError 3]» y «ruta de transferencia no permitida» descartaron transferencias que llegaban:
+    # Sockseek movía .sockseek-staging/<id> mientras se medía.
+    incoming = tmp_path / "incoming"
+    (incoming / ".sockseek-staging").mkdir(parents=True)
+    (incoming / ".sockseek-staging" / "a.flac.incomplete").write_bytes(b"x" * 10)
+    config = incoming / "sockseek.conf"
+    root = incoming.resolve()
+    assert D._received_bytes(incoming, root, config) == 10
+    gone = incoming / ".sockseek-staging" / "ya-no-esta.flac.incomplete"
+    with mock.patch.object(Path, "rglob", return_value=iter([gone, incoming / ".sockseek-staging" / "a.flac.incomplete"])):
+        assert D._received_bytes(incoming, root, config) == 10  # lo que desapareció no cuenta ni rompe
+    with mock.patch.object(Path, "rglob", side_effect=FileNotFoundError(3, "The system cannot find the path specified")):
+        assert D._received_bytes(incoming, root, config) is None  # se mide en la vuelta siguiente
+    outside = tmp_path / "afuera.mp3"
+    outside.write_bytes(b"x")
+    with mock.patch.object(Path, "rglob", return_value=iter([outside])), pytest.raises(RuntimeError):
+        D._received_bytes(incoming, root, config)  # lo que sí está y apunta afuera sigue siendo un problema
+
+
 def test_a_stalled_transfer_whose_file_stays_open_does_not_end_the_track(tmp_path):
     # Gabriel, 2026-11-07 («Human Safari - Amor»): la transferencia se trabó, se canceló, y el daemon todavía
     # tenía abierto el .incomplete; borrar la carpeta del intento dio WinError 32 y el tema se fue a grabar.

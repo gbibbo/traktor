@@ -3,6 +3,8 @@
 PURPOSE: Record a Spotify playlist through Windows WASAPI loopback and split it.
 
 CHANGELOG:
+- 2026-11-07: MP3 with LAME -q 2 (compression_level 2) instead of 0: a 5-minute track is saved in ~14 s
+              instead of ~45 s, and the next queued track was waiting for it.
 - 2026-11-07: After the last cut the ready file says "captured", so the orchestrator pauses Spotify at
               once instead of after the MP3 is saved (the session playlist plays on repeat and the track
               started again for ~40 s; Gabriel took it for a recording that never ended).
@@ -546,8 +548,10 @@ def encode_segment(
         "libmp3lame",
         "-b:a",
         MP3_BITRATE,
+        # LAME -q 2, el que recomienda LAME: 5 minutos en ~14 s contra ~45 s con 0 (medido el 2026-11-07), y el
+        # tema siguiente de la cola esperaba ese guardado. A 320 kbps la diferencia no se oye.
         "-compression_level",
-        "0",
+        "2",
         str(output_path),
     ]
     subprocess.run(cmd, check=True)

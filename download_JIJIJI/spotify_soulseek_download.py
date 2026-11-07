@@ -13,6 +13,10 @@ CHANGELOG:
               next file is tried, and the leftovers go with the staging folder at the end. A new Spotify
               authorization also asks for the scopes DELETE /me/library needs (it answered 403); they are
               not required, so an older authorization keeps downloading. --authorize asks for them.
+- 2026-11-07: A peer that stops sending (Sockseek "stale", or nothing for TRANSFER_STALL_SECONDS) is not
+              asked again in the run: one kept «Amor» queued five times. The transfer watch tolerates
+              Sockseek moving its .sockseek-staging folder while it measures (WinError 3 and «ruta de
+              transferencia no permitida» dropped transfers that were arriving).
 - 2026-11-06: A transfer a peer does not send is one readable line (who and why: blocked us, offline, queue
               full, cut the connection...); Sockseek's own lines go to sockseek_transferencias.log in the
               run. A peer that blocked us, is offline or cannot be reached is not asked again in the run.
@@ -500,7 +504,9 @@ _TRANSFER_FAILURES = [
     (re.compile(r"Failed to establish a direct or indirect", re.I), "no se pudo conectar con él", True),
     (re.compile(r"File not shared", re.I), "ya no comparte ese archivo", False),
     (re.compile(r"Too many (files|megabytes)|queue.{0,20}full", re.I), "tiene la cola llena", False),
-    (re.compile(r"became stale|stale after", re.I), "lo dejó de mandar (30 s sin avanzar)", False),
+    # Nos tiene en cola: con sus otros archivos pasa lo mismo (2026-11-07: «musicmasterrdjpool» dejó de mandar
+    # «Amor» 5 veces, 30 s cada una, y gastó los intentos del tema).
+    (re.compile(r"became stale|stale after", re.I), "lo dejó de mandar (30 s sin avanzar)", True),
     (re.compile(r"connection closed|connection reset|forcibly closed", re.I), "cortó la conexión", False),
 ]
 
@@ -538,6 +544,36 @@ def _print_failed_transfer_log(code: int, log: Any) -> tuple[str, bool]:
     return transfer_failure_reason(detail.removeprefix("Error:") if detail else f"código {code}")
 
 
+class TransferStalled(RuntimeError):
+    """Nada nuevo en TRANSFER_STALL_SECONDS: ese usuario no responde o nos tiene en cola."""
+
+
+def _received_bytes(incoming: Path, root: Path, config: Path) -> int | None:
+    """Bytes que llegaron al intento; None si Sockseek movió su carpeta mientras se medía (se mide en la vuelta
+    siguiente). Mientras baja, Sockseek crea, renombra y borra .sockseek-staging/<id>: un archivo o una carpeta
+    que desaparece entre listar y mirar no es un problema (2026-11-07: «WinError 3» y «ruta de transferencia no
+    permitida» descartaron transferencias que estaban llegando). Lo que sí está y apunta afuera, sí lo es."""
+    try:
+        paths = list(incoming.rglob("*"))
+    except FileNotFoundError:
+        return None
+    received = 0
+    for path in paths:
+        if path == config:
+            continue
+        try:
+            if path.is_symlink():
+                raise RuntimeError("ruta de transferencia no permitida")
+            resolved = path.resolve(strict=True)
+            if not resolved.is_relative_to(root):
+                raise RuntimeError("ruta de transferencia no permitida")
+            if not path.is_dir():
+                received += path.stat().st_size
+        except FileNotFoundError:
+            continue  # se movió o se borró mientras mirábamos
+    return received
+
+
 def _run_sockseek_transfer(cmd: list[str], incoming: Path, expected_bytes: int, config: Path,
                            failure: dict[str, Any] | None = None) -> int:
     """Watch received bytes while the CLI runs; always reap it before cleaning files. A transfer that receives
@@ -552,18 +588,8 @@ def _run_sockseek_transfer(cmd: list[str], incoming: Path, expected_bytes: int, 
         last_received, last_progress = -1, time.monotonic()
         try:
             while True:
-                received = 0
-                for path in incoming.rglob("*"):
-                    if path == config:
-                        continue
-                    if path.is_symlink() or not path.resolve().is_relative_to(root):
-                        raise RuntimeError("ruta de transferencia no permitida")
-                    if path.is_dir():
-                        continue
-                    try:
-                        received += path.stat().st_size
-                    except FileNotFoundError:
-                        continue  # Sockseek can rename .incomplete while we poll.
+                measured = _received_bytes(incoming, root, config)
+                received = last_received if measured is None else measured
                 if received > limit:
                     raise RuntimeError("transferencia excedió los bytes anunciados; cancelada")
                 if os.fstat(log.fileno()).st_size > MAX_PROCESS_LOG_BYTES:
@@ -575,8 +601,8 @@ def _run_sockseek_transfer(cmd: list[str], incoming: Path, expected_bytes: int, 
                 if received != last_received:
                     last_received, last_progress = received, time.monotonic()
                 elif time.monotonic() - last_progress >= TRANSFER_STALL_SECONDS:
-                    raise RuntimeError(f"la transferencia no avanzó en {TRANSFER_STALL_SECONDS:.0f} s (el usuario "
-                                       "no responde o nos tiene en cola); pruebo otro archivo")
+                    raise TransferStalled(f"la transferencia no avanzó en {TRANSFER_STALL_SECONDS:.0f} s (el usuario "
+                                          "no responde o nos tiene en cola); pruebo otro archivo")
                 code = process.poll()
                 if code is not None:
                     if code != 0:
@@ -2153,6 +2179,8 @@ def download_with_sockseek(
                 say(f"    ! candidato bloqueado: {exc}")
                 if avoid is not None:
                     avoid.add((username, remote_path))
+                    if isinstance(exc, TransferStalled):  # nos tiene en cola: no se le pide nada más en esta descarga
+                        avoid.add((username, "*"))
                 if _DAEMON is not None:  # que el daemon no siga bajando lo que se dejó
                     _DAEMON.cancel_matching(Path(remote_path).stem)
         if destination is None:
