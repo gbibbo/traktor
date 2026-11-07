@@ -6,6 +6,40 @@ anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_impl
 Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 `[REEMPLAZADO <fecha> por <decisión>: <lo que rige ahora>]` (o `[REFUTADO …]` si era un error).
 
+## 2026-11-07
+
+1. **En Traktor habrá varias playlists que se actualizan solas** (Gabriel).
+   - Una playlist de parecidos, ordenada por parecido: el primer tema es el más parecido de la
+     biblioteca al tema principal que suena.
+   - Otras de dirección: mantener la energía, más energía, menos energía, más introspectiva. Estas
+     tienen en cuenta la trayectoria de todo el set.
+   - Plan con el inventario completo de ideas: `docs/plans/recomendacion_playlists_plan.md`.
+2. **Introspectivo**, en palabras de Gabriel:
+   - suele pasar en sets de 3 horas o más, en general después de la segunda hora;
+   - no depende necesariamente de la energía;
+   - en general no tiene grandes saltos.
+3. **La energía de Mixed In Key no se usa** (Gabriel: prácticamente inútil). En los datos, el 83 % de
+   los 1424 temas que la tienen está en 5 o 6. Queda por decidir con Gabriel la fase 4 del pipeline,
+   que arranca cada playlist por el tema de menor energía de Mixed In Key: quitarlo cambia el orden de
+   las playlists ya exportadas.
+4. **Pueden usarse las listas de sets de Kim et al.**, solo texto y sin audio (Gabriel).
+   - Cómo (agente): el dataset público de ese grupo es djmix-dataset, en
+     `artifacts/v4/dj_sets/djmix/`, fuera de Git. Viene de MixesDB, no de 1001Tracklists: 5040 sets,
+     63 038 temas y 64 764 transiciones.
+   - No tiene sets de más de 150 minutos: para la fase introspectiva cuentan los sets largos de Gabriel
+     y, si se decide, 1001Tracklists propiamente dicho.
+5. **Los sets pasados de Gabriel en este PC sirven de referencia, con ruido** (Gabriel: «no me
+   considero muy buen DJ»). Están en la historia de Traktor: 21 sets reales en 4.4.1 (592 temas al
+   aire) y 12 sesiones en 4.2.0. Toda medida se informa también sobre sets de otros DJs.
+6. **GPU y disco los consigue Gabriel cuando hagan falta**: en la etapa con audio, con una estimación
+   medida antes. Mientras se trabaje solo con texto, no hacen falta.
+7. **El género de Beatport es una decisión editorial por lanzamiento** (agente, sobre una observación
+   de Gabriel).
+   - Gabriel advirtió que usar esas etiquetas es aprender lo que decidió Beatport.
+   - El centro de ayuda de Beatport dice que su equipo de curación revisa y asigna el género, y que el
+     del sello es un pedido. No se encontró una fuente sobre un clasificador automático.
+   - La advertencia vale igual: es una señal entre otras.
+
 ## 2026-11-06
 
 1. **Descargas de Soulseek tema a tema, grabando mientras sigue la búsqueda** (Gabriel). Con muchos
