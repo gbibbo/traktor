@@ -117,6 +117,22 @@ La corrida del 2026-10-30 tiene la misma huella y la ganó. Ahora la playlist de
 repetición (el último tema se corta como los demás) y el watchdog mide el final con el último estado
 que vio sonando. Con tandas tema a tema, casi cada tema es el último de su tanda.
 
+### Lo grabado de Spotify sale unos 9 dB más bajo: la normalización de volumen
+
+Con «Normalizar volumen» activado (viene así; en `prefs` no aparece `audio.normalize_v2=false`),
+Spotify baja los masters fuertes hacia −14 LUFS. Un tema grabado el 2026-11-07 quedó en −17 LUFS
+con pico de −8,9 dBFS; los de Soulseek de la misma playlist están entre −6 y −10 LUFS (ffmpeg
+`ebur128`). Es una baja pareja, sin recortes: el grabador sube cada tema hasta un pico de −1 dBFS
+y recupera el nivel. Desactivar la normalización en Spotify evita perder resolución.
+
+### Beatport puede pedir la verificación anti-robots de Cloudflare
+
+El 2026-11-07, después de unos pocos pedidos seguidos (y de los reintentos de `BeatportClient`, que
+esperan unos 5 minutos), `beatport.com/search` respondió 403 con `cf-mitigated: challenge` («Just a
+moment…») a todo, también a consultas que minutos antes daban 200. `requests` no pasa esa
+verificación. `tag_downloads.py` hace un pedido de prueba antes de buscar y, si está bloqueado, deja
+los temas en espera en lugar de frenar el final de la descarga.
+
 ### La salida de una sola app (Spotify a Voicemeeter) usa una interfaz no documentada
 
 Windows guarda una salida por programa (Mezclador de volumen), pero no hay API pública. EarTrumpet

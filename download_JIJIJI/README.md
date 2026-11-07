@@ -141,7 +141,21 @@ El orquestador va **tema a tema**, como cuando se busca a mano en Soulseek (2026
    puede, queda anotado en la tanda y se reintenta antes de guardar; nunca corta la descarga;
 6. cuando la búsqueda terminó y no queda nada por grabar, mueve todos los MP3 a
    `Playlists_DOWNLOAD/<nombre de playlist>/`, elimina duplicados por Spotify Track ID, escribe
-   `<playlist>.m3u8` y limpia los intermedios del run.
+   `<playlist>.m3u8` y limpia los intermedios del run;
+7. **completa la metadata** de los temas de la carpeta con las reglas de la biblioteca
+   (`src/v4/pipeline/tag_downloads.py`, DECISIONS 2026-11-07, punto 14):
+   - de Beatport: género, sello, artistas, remixers y fecha, si Beatport confirma el tema;
+   - la etiqueta Vocal en el comentario, si al menos el 5 % del tema tiene voz (CLAP);
+   - ni BPM ni tonalidad.
+
+   Corre con un Python que tenga el pipeline (pandas, torch, transformers): el de la descarga, el del
+   PATH, el `.venv` o `TRAKTOR_PIPELINE_PYTHON` del `.env`. La primera vez baja el modelo CLAP (unos
+   600 MB). Si Beatport pide la verificación anti-robots, esos temas quedan en
+   `artifacts/v4/download_tags/beatport_pending.txt` y se completan en la próxima descarga. Los
+   respaldos de los tags anteriores quedan en `artifacts/v4/download_tags/` (`--revert`).
+
+Los temas grabados suben a un pico de −1 dBFS al guardarse (solo suben). La normalización de volumen
+de Spotify los dejaba unos 9 dB por debajo de los de Soulseek y en Traktor se veían más chicos.
 
 Soulseek bloquea la cuenta 30 minutos si se pasan 34 búsquedas cada 220 s. Como ahora cada
 búsqueda es un proceso, la cuenta la lleva el descargador en

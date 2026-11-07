@@ -461,6 +461,53 @@ class ResumeTests(unittest.TestCase):
             self.assertEqual(stored["completed_count"], 1)
             self.assertEqual(stored["completed_track_ids"], ["track-a"])
 
+    @staticmethod
+    def write_sine_wav(path: Path, amplitude: int, seconds: float = 2.0, rate: int = 8000) -> None:
+        samples = array("h", (int(amplitude * math.sin(2.0 * math.pi * 440.0 * frame / rate))
+                              for frame in range(int(rate * seconds)) for _channel in range(2)))
+        with wave.open(str(path), "wb") as w:
+            w.setnchannels(2)
+            w.setsampwidth(2)
+            w.setframerate(rate)
+            w.writeframes(samples.tobytes())
+
+    def test_a_quiet_recording_is_raised_to_a_minus_one_dbfs_peak_and_a_loud_one_is_left(self) -> None:
+        # Gabriel, 2026-11-07: con la normalización de Spotify, un tema grabado quedó en -17 LUFS (pico
+        # -8,9 dBFS) contra -6 a -10 LUFS de los mismos de Soulseek. Solo se sube, nunca se baja.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self.write_sine_wav(root / "quiet.wav", amplitude=int(32768 * 10 ** (-9 / 20)))
+            self.write_sine_wav(root / "loud.wav", amplitude=int(32768 * 10 ** (-0.5 / 20)))
+            self.write_sine_wav(root / "silent.wav", amplitude=0)
+            quiet = RECORDER.segment_peak_dbfs(root / "quiet.wav", 0.5, 1.5)
+            self.assertAlmostEqual(quiet, -9.0, delta=0.05)
+            self.assertAlmostEqual(RECORDER.recording_gain_db(quiet), 8.0, delta=0.05)
+            self.assertEqual(RECORDER.recording_gain_db(RECORDER.segment_peak_dbfs(root / "loud.wav", 0, 2)), 0.0)
+            self.assertIsNone(RECORDER.segment_peak_dbfs(root / "silent.wav", 0, 2))
+            self.assertEqual(RECORDER.recording_gain_db(None), 0.0)
+            self.assertIsNone(RECORDER.segment_peak_dbfs(root / "missing.wav", 0, 2))
+            with mock.patch.object(RECORDER.subprocess, "run") as run:
+                RECORDER.encode_segment("ffmpeg", root / "quiet.wav", root / "q.mp3", 0.0, 1.0, gain_db=8.0)
+                RECORDER.encode_segment("ffmpeg", root / "loud.wav", root / "l.mp3", 0.0, 1.0, gain_db=0.0)
+            raised, untouched = run.call_args_list[0].args[0], run.call_args_list[1].args[0]
+            self.assertEqual(raised[raised.index("-af") + 1], "volume=8.00dB")
+            self.assertNotIn("-af", untouched)
+
+    def test_the_raised_recording_really_peaks_near_minus_one_dbfs(self) -> None:
+        try:
+            ffmpeg = ORCHESTRATOR.find_required_program("ffmpeg")
+        except ORCHESTRATOR.WorkflowError:
+            self.skipTest("ffmpeg is not installed")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self.write_sine_wav(root / "quiet.wav", amplitude=int(32768 * 10 ** (-12 / 20)), rate=44100)
+            gain = RECORDER.recording_gain_db(RECORDER.segment_peak_dbfs(root / "quiet.wav", 0.0, 2.0))
+            RECORDER.encode_segment(str(ffmpeg), root / "quiet.wav", root / "out.mp3", 0.0, 2.0, gain_db=gain)
+            import subprocess
+            subprocess.run([str(ffmpeg), "-hide_banner", "-loglevel", "error", "-y", "-i", str(root / "out.mp3"),
+                            "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le", str(root / "back.wav")], check=True)
+            self.assertAlmostEqual(RECORDER.segment_peak_dbfs(root / "back.wav", 0.2, 1.8), -1.0, delta=0.5)
+
     def test_ffmpeg_can_encode_a_flushed_prefix_while_capture_remains_open(self) -> None:
         try:
             ffmpeg = ORCHESTRATOR.find_required_program("ffmpeg")
@@ -819,6 +866,9 @@ class TrackByTrackFlowTests(unittest.TestCase):
                                   side_effect=lambda playlist: deleted.append(playlist["id"])
                                   or self.events.append(("delete", playlist["id"]))), \
                 mock.patch.object(ORCHESTRATOR, "check_recording_device", side_effect=check_output), \
+                mock.patch.object(ORCHESTRATOR, "complete_metadata",
+                                  side_effect=lambda files, env: self.events.append(
+                                      ("metadata", sorted(p.name for p in files)))), \
                 mock.patch.object(ORCHESTRATOR, "DEVICE_RETRY_S", 0.0), \
                 mock.patch.object(ORCHESTRATOR, "pause_spotify",
                                   side_effect=lambda env, device: pauses.append(device) or self.events.append(("pause", device))), \
@@ -1053,6 +1103,24 @@ class TrackByTrackFlowTests(unittest.TestCase):
             order = [e for e in self.events if e[0] in {"recorder", "pause"}]
             second = order.index(("recorder", "02", 0))
             self.assertIn(("pause", "dev1"), order[:second])
+
+    def test_the_saved_tracks_get_their_metadata_completed(self) -> None:
+        # Gabriel, 2026-11-07: los temas salían solo con la metadata de Spotify. Al guardar la playlist,
+        # los temas de la carpeta (bajados y grabados) pasan por Beatport y la detección de voces.
+        script = [[("availability", [1, 2]), ("download", 1), ("queue", 2), ("close", "finished")]]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            code, _, _, report, _ = self.run_flow(root, script)
+            self.assertEqual((code, report["status"]), (0, "completed"))
+            metadata = [e for e in self.events if e[0] == "metadata"]
+            self.assertEqual(len(metadata), 1)
+            self.assertEqual(metadata[0][1], self.library(root))
+
+    def test_without_a_pipeline_python_the_download_still_ends_well(self) -> None:
+        out = io.StringIO()
+        with mock.patch.object(ORCHESTRATOR, "pipeline_python", return_value=None), contextlib.redirect_stdout(out):
+            ORCHESTRATOR.complete_metadata([Path("a.mp3")], {})
+        self.assertIn("TRAKTOR_PIPELINE_PYTHON", out.getvalue())
 
     def test_a_recorded_session_pauses_spotify_before_its_playlist_is_deleted(self) -> None:
         # La playlist suena en repetición: al terminar la tanda, Spotify se pausa enseguida y después

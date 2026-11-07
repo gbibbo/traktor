@@ -150,7 +150,18 @@ SPOTIFY_REDIRECT_URI=http://127.0.0.1:8888/callback
 # Opcional: grabar solo Spotify por Voicemeeter, sin que suene nada (paso 7b).
 # Sin esta línea se graba la salida predeterminada de Windows.
 # SPOTIFY_RECORDING_OUTPUT=Voicemeeter Input
+
+# Opcional: el Python que completa la metadata al terminar cada descarga (Beatport y Vocal;
+# necesita pandas, torch y transformers). Sin esta línea se busca solo: el de la descarga,
+# el del PATH o el .venv del repo. En el escritorio, el pipeline está en el Python de la Store.
+# TRAKTOR_PIPELINE_PYTHON=C:/Users/<tú>/AppData/Local/Microsoft/WindowsApps/python3.11.exe
 ```
+
+Al terminar cada descarga, los temas reciben la metadata de la biblioteca: género, sello,
+artistas y fecha de Beatport, y la etiqueta Vocal (README, «Cómo funciona», paso 7). La primera
+vez se baja el modelo CLAP de Hugging Face (unos 600 MB). Para que lo grabado de Spotify salga
+con su nivel original, en Spotify de escritorio desactiva **Configuración → Reproducción →
+Normalizar volumen**. Si no, el grabador igual lo sube, pero con algo menos de resolución.
 
 ### 6b. La app en el dashboard de Spotify
 

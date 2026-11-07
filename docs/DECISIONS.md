@@ -86,6 +86,21 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
       house, 49 de Digweed.
     - Dan el orden, el límite y la identidad de cada tema. Con su audio, los componentes de audio se
       miden sobre sets de otros DJs desde la etapa 2 del plan.
+14. **Los temas descargados llevan la metadata de la biblioteca, sola, al terminar cada descarga**
+    (Gabriel: salían solo con la de Spotify). Se usan las reglas de Beatport (2026-09-29) y de Vocal
+    (2026-10-05). **Sin BPM ni tonalidad** (Gabriel).
+    - Cómo (agente): `src/v4/pipeline/tag_downloads.py` reutiliza `beatport_lookup`,
+      `write_beatport_tags` y `tag_vocals`, sin reescribirlos (Gabriel lo pidió así). Corre con un
+      Python que tiene el pipeline (`TRAKTOR_PIPELINE_PYTHON`).
+    - Si Beatport pide la verificación anti-robots de Cloudflare, esos temas quedan en espera para la
+      próxima descarga.
+15. **Los temas grabados de Spotify suben al nivel de los bajados** (Gabriel: en Traktor se veían más
+    chicos y había que subirles la ganancia).
+    - Medido: un grabado quedó en −17 LUFS (pico −8,9 dBFS); los de Soulseek de la misma playlist
+      están entre −6 y −10 LUFS.
+    - Cómo (agente): el grabador sube cada tema hasta un pico de −1 dBFS. Solo sube, nunca baja: la
+      normalización de Spotify baja el tema entero por igual, así que esto le devuelve el nivel sin
+      cambiar el sonido.
 
 ## 2026-11-06
 

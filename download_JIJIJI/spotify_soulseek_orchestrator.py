@@ -3,6 +3,10 @@
 PURPOSE: Run the complete Spotify -> Soulseek + loopback fallback workflow.
 
 CHANGELOG:
+- 2026-11-07: When the playlist is saved, its tracks get Beatport metadata (genre, label, artists, date)
+              and the Vocal tag with the library's rules (src/v4/pipeline/tag_downloads.py), run with a
+              Python that has the pipeline (pipeline_python). Gabriel: the downloads only had Spotify's
+              metadata. It never fails the download.
 - 2026-11-07: A recorded session pauses Spotify at once (its playlist plays on repeat, see
               spotify_playlist.py) and only then deletes its temporary playlist.
 - 2026-11-07: With --recording-output, the player sends Spotify alone to that output before it plays,
@@ -1486,6 +1490,8 @@ def run_workflow(args: argparse.Namespace) -> int:
         consolidation_path = run_dir / "consolidation_report.json"
         write_summary(consolidation_path, consolidation)
         write_playlist_m3u8(playlist_dir, run_dir)
+        complete_metadata([Path(str(row["destination"])) for row in consolidation["tracks"]
+                           if row.get("destination") and Path(str(row["destination"])).is_file()], env)
 
         summary.pop("soulseek_output", None)
         summary.pop("recorded_output", None)
@@ -1524,6 +1530,52 @@ def run_workflow(args: argparse.Namespace) -> int:
         terminate_process(downloader)
         stop_leftover_daemon(run_dir)
         give_back_spotify_output(runs_root)
+
+
+PIPELINE_MODULES = "import pandas, torch, transformers, mutagen"
+TAG_DOWNLOADS = REPO_ROOT / "src" / "v4" / "pipeline" / "tag_downloads.py"
+
+
+def pipeline_python(env: dict[str, str]) -> str | None:
+    """Un Python con el pipeline (pandas, torch, transformers): TRAKTOR_PIPELINE_PYTHON del .env, el de la
+    descarga, el del PATH o el .venv del repo. En el escritorio la app corre con un .venv mínimo y el
+    pipeline está en el Python 3.11 de la Store."""
+    candidates = [env.get("TRAKTOR_PIPELINE_PYTHON"), sys.executable, shutil.which("python"),
+                  str(REPO_ROOT / ".venv" / "Scripts" / "python.exe"), str(REPO_ROOT / ".venv" / "bin" / "python")]
+    for candidate in dict.fromkeys(c for c in candidates if c):
+        try:
+            if subprocess.run([candidate, "-c", PIPELINE_MODULES], env=env, capture_output=True,
+                              timeout=180).returncode == 0:
+                return candidate
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+    return None
+
+
+def complete_metadata(files: list[Path], env: dict[str, str]) -> None:
+    """Beatport (género, sello, artistas, fecha) y la etiqueta Vocal en los temas de la playlist
+    (src/v4/pipeline/tag_downloads.py, las reglas de la biblioteca). Nunca corta el final de la descarga."""
+    if not files:
+        return
+    print("\n[metadata] Completando la metadata: Beatport y voces...", flush=True)
+    python = pipeline_python(env)
+    if python is None:
+        print("[metadata] Ningún Python de este ordenador tiene el pipeline (pandas, torch, transformers): la "
+              "metadata queda como la de Spotify. Pon su ruta en TRAKTOR_PIPELINE_PYTHON del .env.", flush=True)
+        return
+    try:
+        process = subprocess.Popen([python, "-u", str(TAG_DOWNLOADS), *map(str, files)], env=env,
+                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                                   encoding="utf-8", errors="replace")
+        assert process.stdout is not None
+        for line in process.stdout:
+            print(line.rstrip(), flush=True)
+        code = process.wait()
+    except OSError as exc:
+        print(f"[metadata] No se pudo completar la metadata ({exc}).", flush=True)
+        return
+    if code != 0:
+        print(f"[metadata] Terminó con código {code}: lo que faltó se completa en la próxima descarga.", flush=True)
 
 
 def give_back_spotify_output(runs_root: Path) -> None:

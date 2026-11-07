@@ -3,6 +3,10 @@
 PURPOSE: Record a Spotify playlist through Windows WASAPI loopback and split it.
 
 CHANGELOG:
+- 2026-11-07: Each recorded track is raised to a -1 dBFS peak (only up) when it is encoded: with Spotify's
+              volume normalization a track came out at -17 LUFS, peak -8.9 dBFS, against -6 to -10 LUFS
+              for the same playlist from Soulseek, and Traktor showed it smaller. Peak and gain go to the
+              checkpoint.
 - 2026-11-06: --output-device NAME records the loopback of that output (by name, e.g. "Voicemeeter Input")
               instead of the Windows default: Spotify alone is routed there (Windows volume mixer), so
               nothing sounds, the DJM stays free for Traktor and Windows sounds are not recorded. An output
@@ -82,6 +86,10 @@ FORMAT = pyaudio.paInt16
 CHANNELS = 2
 CHUNK = 1024
 MP3_BITRATE = "320k"
+# Each recorded track's peak is raised to this level (only up, never down): Spotify normalizes the volume
+# (-14 LUFS) and a club master came out ~9 dB below the same track from Soulseek (2026-11-07).
+RECORDED_PEAK_TARGET_DBFS = -1.0
+MAX_RECORDED_GAIN_DB = 24.0
 
 DEFAULT_SEARCH_BEFORE = 1.50
 DEFAULT_SEARCH_AFTER = 1.50
@@ -466,12 +474,45 @@ def write_metadata(
     apply_spotify_metadata(mp3_path, track_from_report(spotify))
 
 
+def segment_peak_dbfs(wav_path: Path, start_sec: float, end_sec: float) -> float | None:
+    """Sample peak (dBFS) of a stretch of the 16-bit capture; None if it is digital silence or cannot be read
+    (then nothing is raised: ffmpeg says what is wrong with the capture)."""
+    peak = 0
+    try:
+        with wave.open(str(wav_path), "rb") as w:
+            rate = w.getframerate()
+            first = max(0, int(start_sec * rate))
+            remaining = max(0, int(math.ceil(end_sec * rate)) - first)
+            w.setpos(min(first, w.getnframes()))
+            while remaining > 0:
+                data = w.readframes(min(remaining, rate * 10))
+                if not data:
+                    break
+                samples = np.frombuffer(data[: len(data) - len(data) % 2], dtype="<i2")
+                if len(samples):
+                    peak = max(peak, int(np.abs(samples.astype(np.int32)).max()))
+                remaining -= len(data) // (w.getsampwidth() * w.getnchannels())
+    except (OSError, EOFError, wave.Error):
+        return None
+    return 20.0 * math.log10(peak / 32768.0) if peak else None
+
+
+def recording_gain_db(peak_dbfs: float | None) -> float:
+    """Gain that brings a recorded track's peak up to RECORDED_PEAK_TARGET_DBFS. Only up: Spotify's volume
+    normalization (and a volume below 100 %) lowers the whole track evenly, so this gives back the level
+    of the master without touching its sound; a track already near full scale stays as it is."""
+    if peak_dbfs is None:
+        return 0.0
+    return round(min(MAX_RECORDED_GAIN_DB, max(0.0, RECORDED_PEAK_TARGET_DBFS - peak_dbfs)), 2)
+
+
 def encode_segment(
     ffmpeg: str,
     wav_path: Path,
     output_path: Path,
     start_sec: float,
     end_sec: float,
+    gain_db: float = 0.0,
 ) -> None:
     duration = end_sec - start_sec
     if duration <= 0:
@@ -494,6 +535,10 @@ def encode_segment(
         "-1",
         "-ac",
         "2",
+    ]
+    if gain_db >= 0.05:
+        cmd += ["-af", f"volume={gain_db:.2f}dB"]
+    cmd += [
         "-c:a",
         "libmp3lame",
         "-b:a",
@@ -672,7 +717,9 @@ def encode_and_checkpoint(
     progress: dict[str, Any],
     progress_path: Path,
 ) -> None:
-    encode_segment(ffmpeg, temp_wav, output_path, start_sec, end_sec)
+    peak = segment_peak_dbfs(temp_wav, start_sec, end_sec)
+    gain = recording_gain_db(peak)
+    encode_segment(ffmpeg, temp_wav, output_path, start_sec, end_sec, gain_db=gain)
     write_metadata(output_path, track)
 
     declared = duration_seconds(track)
@@ -688,14 +735,17 @@ def encode_and_checkpoint(
             "output": str(output_path),
             "attempt": progress["attempt"],
             "boundary": asdict(boundary),
+            "captured_peak_dbfs": None if peak is None else round(peak, 2),
+            "gain_db": gain,
         }
     )
     progress["completed_count"] = global_index + 1
     progress["completed_track_ids"].append(track_identity(track))
     progress["status"] = "recording"
     write_json_atomic(progress_path, progress)
+    level = f" (pico grabado {peak:.1f} dBFS, +{gain:.1f} dB)" if peak is not None and gain else ""
     print(
-        f"[{global_index + 1:03d}/{total_tracks:03d}] Guardado: {output_path.name}",
+        f"[{global_index + 1:03d}/{total_tracks:03d}] Guardado: {output_path.name}{level}",
         flush=True,
     )
 
