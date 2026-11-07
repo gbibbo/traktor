@@ -50,8 +50,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
 5. Recomendación en vivo (DECISIONS 11-06 p. 7-11, 11-07): parecidos hoy (`recomendador.py`, D#0+D0);
-   plan de playlists de dirección `docs/plans/recomendacion_playlists_plan.md` (etapa 1: escala de CLAP,
-   género blando, sets de History). GABRIEL: Kontrol D2; decidir fase 4 sin energía MIK. TIV aparte.
+   plan auditable de playlists de dirección `docs/plans/recomendacion_playlists_plan.md` (etapa 0-1).
+   GABRIEL: Kontrol D2; correo a 1001Tracklists; probar Favoritos (V1). TIV aparte.
 
 ## RUN RECIPES
 

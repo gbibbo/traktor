@@ -19,9 +19,9 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    - no depende necesariamente de la energía;
    - en general no tiene grandes saltos.
 3. **La energía de Mixed In Key no se usa** (Gabriel: prácticamente inútil). En los datos, el 83 % de
-   los 1424 temas que la tienen está en 5 o 6. Queda por decidir con Gabriel la fase 4 del pipeline,
-   que arranca cada playlist por el tema de menor energía de Mixed In Key: quitarlo cambia el orden de
-   las playlists ya exportadas.
+   los 1424 temas que la tienen está en 5 o 6. La fase 4 del pipeline, que arranca cada playlist por el
+   tema de menor energía de Mixed In Key, no se toca por ahora (Gabriel, 2026-11-07): quitarlo cambiaría
+   el orden de las playlists ya exportadas.
 4. **Pueden usarse las listas de sets de Kim et al.**, solo texto y sin audio (Gabriel).
    - Cómo (agente): el dataset público de ese grupo es djmix-dataset, en
      `artifacts/v4/dj_sets/djmix/`, fuera de Git. Viene de MixesDB, no de 1001Tracklists: 5040 sets,
@@ -39,6 +39,22 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    - El centro de ayuda de Beatport dice que su equipo de curación revisa y asigna el género, y que el
      del sello es un pedido. No se encontró una fuente sobre un clasificador automático.
    - La advertencia vale igual: es una señal entre otras.
+8. **El botón de sugerencias mantiene su gesto y refresca todas las playlists** (Gabriel). D0 en su
+   descripción; en la mezcla externa, D#0 + D0, punto 9 de 2026-11-06.
+   - Al apretarlo, refresca las playlists respecto del tema principal y abre la de parecidos.
+   - Las de trayectoria quedan al lado, en Favoritos de Traktor, y Gabriel las elige con el mouse.
+   - Al apretarlo otra vez, vuelve a la carpeta del navegador que estaba elegida antes de la primera
+     pulsación.
+   - Cómo (agente): todas las playlists de sugerencias tienen que contar como «dentro» para la vuelta.
+     Hoy `Toggle` reconoce una sola. Falta probar que Traktor relea desde Favoritos un `.nml`
+     reescrito.
+9. **Se usan sets largos de 1001Tracklists** (Gabriel). Preguntó de dónde sacarlos y si tiene que hacer
+   algo.
+   - Cómo (agente), 2026-11-07: 1001Tracklists no tiene API pública, y su `robots.txt` bloquea a los
+     scripts de Python. La ruta propuesta es que Gabriel pida acceso de investigación a
+     info@1001tracklists.com, como hizo el grupo de Kim. Mientras tanto, sets largos de MixesDB y los
+     suyos.
+   - Plan e informe para auditoría: `docs/plans/recomendacion_playlists_plan.md`.
 
 ## 2026-11-06
 
