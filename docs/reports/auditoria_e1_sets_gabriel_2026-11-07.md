@@ -107,7 +107,10 @@ si el siguiente saliera al azar del pool (con la tonalidad real del principal):
   número absoluto. HIPÓTESIS de que cambia poco; se mide con la fecha de alta del catálogo.
 - **Normalizar los componentes por consulta** (percentil o rango entre los candidatos) antes de pesar.
   HIPÓTESIS de que ordena mejor que la escala cruda; se decide en E1, un componente por vez, cuando se
-  fijen pesos (etapa 2).
+  fijen pesos (etapa 2). [REEMPLAZADO 2026-11-07 noche por la adenda del banco (CLAP en percentil,
+  commit 3e1aeec) y la adenda de esta auditoría: con la tonalidad como componente, la escala no es la
+  causa del retroceso; son los valores de la regla armónica. Normalizar sigue haciendo falta para que
+  los pesos sean comparables, pero no alcanza.]
 
 ## Afirmaciones
 
@@ -148,3 +151,60 @@ si el siguiente saliera al azar del pool (con la tonalidad real del principal):
    sus movimientos reales); o bajarlo a 0,55, que deja pasar 22 de 24 tonalidades, casi sin filtro; o
    pasar la tonalidad de filtro a componente con peso, con lo que los 227 temas sin tonalidad vuelven a
    ser sugeribles. Lo decide escuchando; el banco solo dice qué cuesta cada opción en D1.
+
+## Adenda de la auditoría (2026-11-07, noche): por qué la tonalidad como componente rinde peor
+
+La adenda del informe E1 (commit 3e1aeec) mide «CLAP% + tonalidad 0,25, sin filtro» en 7,4 % frente al
+9,3 % de CLAP con filtro, y lo atribuye como HIPÓTESIS a que D1 compara tonalidades originales y Gabriel
+transpone. Lo medido en esta sesión, sobre las mismas 539 transiciones y con los candidatos mezclados
+con la misma semilla en los tres perfiles:
+
+| Perfil | Aciertos en 30 |
+| :--- | --: |
+| A: CLAP crudo con filtro (lo actual) | 50 (9,3 %) |
+| B: CLAP percentil + `clave` 0,25, sin filtro, 0,05 por semitono (la adenda) | 40 (7,4 %) |
+| C: igual que B con penalización 0 (la tonalidad solo distingue relaciones) | 36 (6,7 %) |
+
+Qué pasa con los 50 aciertos de A en B: los que **no** necesitan transponer caen (32 → 11; puesto
+mediano en B, 52); los que necesitan transponer se quedan (16 → 14). Con penalización 0 (C) es peor. La
+hipótesis de la transposición predice lo contrario: perdería los transpuestos.
+
+**La causa está en los valores del componente.** El código no pone 0 a lo incompatible (la adenda lo
+dice, pero `compute` usa `best_key_shift` sin recorte): con penalización 0,05, todo tema con tonalidad
+vale entre 0,60 y 1,00. Y los valores de la regla armónica (`docs/HARMONIC_COMPATIBILITY.md`) van al
+revés de D1 en lo que más pesa. Relación del tema siguiente real frente a lo esperado al azar con las
+tonalidades del pool, dado el principal (507 pares con las dos tonalidades):
+
+| Relación del tema siguiente | Real | Esperado | Cociente | Valor del componente (pen. 0,05) |
+| :--- | --: | --: | --: | --: |
+| Misma, sin transponer | 86 | 42 | 2,0 | 1,00 |
+| Relativa, sin transponer | 15 | 8 | 1,8 | 0,90 |
+| Vecina (Camelot ±1), sin transponer | 120 | 79 | 1,5 | 0,70 |
+| Paralela, sin transponer | 10 | 9 | 1,2 | 0,60 |
+| Misma, transpuesta 1 o 2 semitonos | 100 | 131 | 0,76 | 0,95 / 0,90 |
+| Vecina, transpuesta | 97 | 129 | 0,75 | 0,65 / 0,60 |
+| Relativa, transpuesta | 23 | 30 | 0,76 | 0,85 / 0,80 |
+| Diagonal, sin transponer | 12 | 16 | 0,74 | 0,70 |
+| Relativa de la paralela | 22 | 34 | 0,65 | 0,60 |
+
+La vecina sin transponer es la relación más frecuente de Gabriel por encima del azar y el componente le
+da 0,70; la misma transpuesta un semitono ocurre por debajo del azar y recibe 0,95. En B, con peso 0,25
+sobre CLAP en percentil, esa diferencia de 0,25 en el componente son unos 100 puestos: los siguientes
+reales en tonalidad vecina salen de los 30. Con penalización 0 la misma transpuesta vale 1,00 y el daño
+crece (C). Además, los 227 temas sin tonalidad entran con el componente en None y `weighted` los puntúa
+solo por CLAP: ocupan 8,5 de los 30 puestos de B (son el 13 % de los candidatos; Gabriel va a uno de
+ellos el 1,7 % de las veces).
+
+| Afirmación | Etiqueta | Evidencia |
+| :--- | :--- | :--- |
+| En B se pierden los aciertos sin transponer y se conservan los transpuestos; con penalización 0 es peor | EVIDENCIA OBSERVADA | 32 → 11 y 16 → 14; C 36 de 539 |
+| El componente no vale 0 para lo incompatible: va de 0,60 a 1,00 | EVIDENCIA OBSERVADA | `compute` (commit 3e1aeec); valores para 12A frente a las 24 tonalidades |
+| Las relaciones sin transponer (misma, relativa, vecina) ocurren por encima del azar; todas las transpuestas, por debajo | EVIDENCIA OBSERVADA | Tabla; 507 pares |
+| El retroceso viene de que la regla da 0,70 a la vecina y 0,95 a la misma transpuesta | INFERENCIA | De las dos filas anteriores; el daño crece cuando la misma transpuesta sube a 1,00 (C) |
+| «D1 compara tonalidades originales y Gabriel transpone» explica el retroceso | HIPÓTESIS debilitada por D1 | Lo transpuesto aparece por debajo del azar (0,75-0,78×); D2 con la tonalidad que sonó lo decide |
+
+Propuestas: corregir en la adenda la descripción del componente; si la tonalidad va a puntuar, sus
+valores salen de datos (el cociente real/esperado por relación), no de la regla de ordenamiento, y
+ajustados en D1 solo orientan (E6): la prueba justa es en sets de otros DJs o dejando sets fuera; los
+temas sin tonalidad necesitan un valor explícito si el componente entra sin filtro. Para la decisión de
+Gabriel sobre el filtro no cambia nada: apagarlo no cuesta aciertos en D1.
