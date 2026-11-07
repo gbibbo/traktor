@@ -305,9 +305,13 @@ def test_semitones_between_keys():
 
 
 def test_options_and_percentiles():
-    assert rc.options_from(None) == {"filtro_clave": True, "clave_penalizacion": 0.15, "clap_escala": "crudo"}
-    o = rc.options_from({"filtro_clave": False, "clave_penalizacion": "0.05", "clap_escala": "percentil"})
-    assert o == {"filtro_clave": False, "clave_penalizacion": 0.05, "clap_escala": "percentil"}
+    assert rc.options_from(None) == {"filtro_clave": True, "clave_penalizacion": 0.15, "clap_escala": "crudo",
+                                     "clave_sin_tonalidad": None}
+    o = rc.options_from({"filtro_clave": False, "clave_penalizacion": "0.05", "clap_escala": "percentil",
+                         "clave_sin_tonalidad": "0.5"})
+    assert o == {"filtro_clave": False, "clave_penalizacion": 0.05, "clap_escala": "percentil",
+                 "clave_sin_tonalidad": 0.5}
+    assert rc.options_from({"clave_sin_tonalidad": 2})["clave_sin_tonalidad"] is None
     assert rc.options_from({"filtro_clave": "no", "clave_penalizacion": 3, "clap_escala": "x"}) == rc.DEFAULT_OPTIONS
     assert rc.percentiles([0.1, None, 0.3, 0.3]) == [0.0, None, 0.75, 0.75]
     assert rc.percentiles([0.5]) == [1.0]
@@ -339,3 +343,16 @@ def test_load_recommender_takes_the_saved_options(tmp_path):
     assert rec.options["filtro_clave"] is False and "Tonalidad: no filtra, 0.05 por semitono" in text
     rec, text = rc.load_recommender(entries_by_path(collection), index)
     assert rec.options == rc.DEFAULT_OPTIONS and "Tonalidad: filtra, 0.15 por semitono" in text
+
+
+def test_keyless_candidates_get_the_explicit_key_value_without_the_filter(tmp_path):
+    from tools.traktor_live.recomendador import Recommender, load_index
+    collection, index = make_library(tmp_path)
+    entries = entries_by_path(collection)
+    for value, expected in ((None, None), (0.0, 0.0)):
+        _, items = load_index(index)
+        rec = Recommender(items, entries, n=30, weights={"clap": 1, "clave": 1},
+                          options={"filtro_clave": False, "clave_sin_tonalidad": value})
+        tracks, info = rec.compute(principal())
+        comps = dict(zip((t.title for t in tracks), info["componentes"]["clave"]))
+        assert comps["e"] == expected                                   # «e» no tiene tonalidad

@@ -134,8 +134,10 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
         el key lock;
       - en D1, apagar el filtro no cambia el acierto (8,9 % frente a 9,3 %) y deja disponible el tema
         siguiente en el 97 % de las transiciones, contra el 74 %;
-      - sumar la tonalidad como componente empeora, probablemente porque D1 solo tiene tonalidades
-        originales;
+      - [REEMPLAZADO 2026-11-07 por la auditoría de E1: la causa son los valores de la regla armónica,
+        que ordenan al revés de D1 la vecina sin transponer y la misma tonalidad transpuesta. Los valores
+        tienen que salir de datos, evaluados fuera de muestra (plan, P7)] sumar la tonalidad como
+        componente empeora, probablemente porque D1 solo tiene tonalidades originales;
       - se repite con D2. Informe: `docs/reports/e1_sets_gabriel_2026-11-07.md`, adenda.
 
 ## 2026-11-06

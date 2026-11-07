@@ -159,7 +159,10 @@ flowchart LR
        sin tonalidad vuelven a ser sugeribles;
      - `"clave_penalizacion": 0.05`: lo que resta cada semitono transpuesto (por defecto 0.15);
      - `"clap_escala": "percentil"`: CLAP como percentil entre los candidatos, para pesarlo junto a los
-       demás componentes.
+       demás componentes;
+     - `"clave_sin_tonalidad": 0.5`: el valor del componente de tonalidad para un candidato sin
+       tonalidad (por defecto no cuenta; sin filtro, esos temas se puntúan solo por CLAP y se cuelan
+       entre los primeros).
 
      Por ejemplo, `"opciones": {"filtro_clave": false, "clave_penalizacion": 0.05}`. El aviso de
      arranque dice cuáles están activas.

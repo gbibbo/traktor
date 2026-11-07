@@ -138,7 +138,10 @@ transponer, apenas menos lo que pide 1 o 2 semitonos.
 - El recomendador tiene ahora las opciones `filtro_clave`, `clave_penalizacion` y `clap_escala`. Por
   defecto queda lo de antes.
 - Se probó una penalización de 0,05 por semitono: compatible sin transponer vale 1, a un semitono 0,95 y
-  a dos 0,90; lo incompatible vale 0.
+  a dos 0,90. [REFUTADO 2026-11-07 por la auditoría (adenda de
+  `auditoria_e1_sets_gabriel_2026-11-07.md`): con transposiciones de ±2 casi toda tonalidad encuentra
+  alguna relación, y con 0,05 por semitono todo tema con tonalidad vale entre 0,60 y 1,00, en ocho
+  valores; nada vale 0] Lo incompatible vale 0.
 - CLAP va en percentil entre los candidatos (`clap%`), para pesarlo junto a la tonalidad.
 - En todos los perfiles hay 539 transiciones en el pool.
 
@@ -156,5 +159,6 @@ transponer, apenas menos lo que pide 1 o 2 semitonos.
 | Con desempate al azar, BPM, tonalidad y género solos rinden parecido (4,1-4,5 %) y CLAP los supera también por sets | EVIDENCIA OBSERVADA | Primera tabla; los intervalos por sets de CLAP y de las líneas de base no se tocan |
 | Sacar el filtro de tonalidad no cambia el acierto en 30 y deja disponible el tema siguiente en el 97 % de las transiciones | EVIDENCIA OBSERVADA en D1 | 8,9 % frente a 9,3 %, p = 0,86; recuperación 0,970 frente a 0,738 |
 | Sumar la tonalidad como componente empeora el orden en D1 | EVIDENCIA OBSERVADA en D1; NO CONCLUYENTE como regla | 6,7-7,4 % frente a 9,3 %; el rango recíproco cae casi a la mitad |
-| Eso pasa porque D1 compara tonalidades originales y Gabriel transpone | HIPÓTESIS | La historia de Traktor no guarda el pitch. Desde 2026-11-07, el registro en vivo (D2) anota en «principal» y «tocado» la tonalidad original, la resultante y los semitonos; con eso se repite la prueba con la tonalidad que sonó |
+| Eso pasa porque D1 compara tonalidades originales y Gabriel transpone | [REEMPLAZADO 2026-11-07 por la auditoría: la causa son los valores de la regla armónica. En D1 la vecina sin transponer aparece 1,5 veces más que al azar y recibe 0,70; la misma tonalidad transpuesta aparece menos que al azar (0,76 veces) y recibe 0,95. Los aciertos de CLAP que no piden transponer caen (32 → 11) y los transpuestos se mantienen (16 → 14). La hipótesis queda debilitada por D1, y D2 la decide] HIPÓTESIS | La historia de Traktor no guarda el pitch. Desde 2026-11-07, el registro en vivo (D2) anota en «principal» y «tocado» la tonalidad original, la resultante y los semitonos; con eso se repite la prueba con la tonalidad que sonó |
+| Sin filtro, los temas sin tonalidad se cuelan entre los primeros | EVIDENCIA OBSERVADA (auditoría) | Con el componente en None, `weighted` los puntúa solo por CLAP: ocupan 8,5 de los 30 puestos (son el 13 % de los candidatos; Gabriel va a uno de ellos el 1,7 % de las veces). Necesitan un valor explícito: opción `clave_sin_tonalidad` (2026-11-07) |
 | Qué hacer con el filtro | Decisión de Gabriel, escuchando | Las opciones existen; en D1 apagar el filtro no cuesta aciertos y recupera sus elecciones |

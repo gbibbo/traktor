@@ -36,6 +36,9 @@ CHANGELOG:
                 2026-11-07: transponer 1 o 2 semitonos es habitual y no debe penalizar mucho, pero no
                 transponer es mejor) y "clap_escala" ("percentil": CLAP como percentil entre los
                 candidatos de la consulta, para pesar componentes de escalas distintas; auditoría de E1).
+  - 2026-11-07: Opción "clave_sin_tonalidad": el valor del componente clave para un candidato sin
+                tonalidad cuando el principal la tiene (por defecto None: no cuenta, y entonces sin filtro
+                esos temas se puntúan solo por CLAP y se cuelan entre los primeros; auditoría de E1).
 """
 from __future__ import annotations
 
@@ -70,7 +73,7 @@ KEY_MIN = 0.60                        # corte aprobado (HARMONIC_COMPATIBILITY.m
 COMPONENTS = ("clap", "bpm", "clave", "genero", "tiv")
 DEFAULT_WEIGHTS: Dict[str, float] = {"clap": 1.0, "bpm": 0.0, "clave": 0.0, "genero": 0.0, "tiv": 0.0}
 DEFAULT_OPTIONS: Dict[str, object] = {"filtro_clave": True, "clave_penalizacion": harmonic.SHIFT_PENALTY,
-                                      "clap_escala": "crudo"}
+                                      "clap_escala": "crudo", "clave_sin_tonalidad": None}
 MAJOR_CAMELOT = [8, 3, 10, 5, 12, 7, 2, 9, 4, 11, 6, 1]     # índice = semitono desde Do
 MINOR_CAMELOT = [5, 12, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10]
 _KEY_TEXT = re.compile(r"^\s*(\d{1,2})\s*([dmABab])\b")
@@ -185,6 +188,12 @@ def options_from(data) -> Dict[str, object]:
             pass
         if data.get("clap_escala") in ("crudo", "percentil"):
             out["clap_escala"] = data["clap_escala"]
+        try:
+            v = data.get("clave_sin_tonalidad")
+            if v is not None and 0.0 <= float(v) <= 1.0:
+                out["clave_sin_tonalidad"] = float(v)
+        except (TypeError, ValueError):
+            pass
     return out
 
 
@@ -333,7 +342,7 @@ class Recommender:
             comps = {
                 "clap": None if sim is None else min(1.0, max(0.0, sim)),
                 "bpm": None if bpm0 is None or it.bpm is None else max(0.0, 1.0 - abs(it.bpm - bpm0) / BPM_RANGE),
-                "clave": score if key0 != "?" and it.key != "?" else None,
+                "clave": (score if it.key != "?" else self.options["clave_sin_tonalidad"]) if key0 != "?" else None,
                 "genero": self.genre_score(main, it) if main is not None else None,
                 "tiv": None,
             }

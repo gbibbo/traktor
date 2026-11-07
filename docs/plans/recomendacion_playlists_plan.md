@@ -303,6 +303,7 @@ Traktor = plataforma en vivo.
 | P4 | La misma tonalidad original puntúa más que una que pide mover el pitch | DECISIONS 2026-11-06, punto 9 | Comp `clave` | — | — | Vigente (peso 0) |
 | P5 | Vector TIV de compatibilidad armónica | Rama `harmonic-tiv` (otra sesión) | Comp `tiv`; Tema | Esa rama | Aparte | En curso |
 | P6 | Pesos por componente y registro de componentes en cada lista | DECISIONS 2026-11-06, punto 9 | Perfil; Eval | — | — | Vigente |
+| P7 | Valores del componente de tonalidad aprendidos de sets: cuántas veces más que al azar aparece cada relación (misma, relativa, vecina, paralela; sin transponer o a 1-2 semitonos) en lugar de los valores de la regla armónica, que en D1 ordenan al revés la vecina sin transponer (1,5 veces el azar, vale 0,70) y la misma transpuesta (0,76 veces, vale 0,95). Valor explícito para los temas sin tonalidad. Evaluado fuera de muestra (otros DJs o dejando sets fuera), con D2 para la tonalidad que sonó (adenda 11-07) | Gabriel (DECISIONS 2026-11-07, punto 17); auditoría de E1 | Comp `clave` | D2 con sesiones; tonalidades de los temas de los sets | 2-3 | Pendiente |
 
 ### Género
 
