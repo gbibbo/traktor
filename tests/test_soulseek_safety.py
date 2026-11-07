@@ -672,6 +672,39 @@ def test_rejected_download_tries_the_next_candidate(tmp_path):
     assert [p.name for p in tmp_path.rglob("*.mp3")] == ["second.mp3"]  # el rechazado se borró
 
 
+def test_a_stalled_transfer_whose_file_stays_open_does_not_end_the_track(tmp_path):
+    # Gabriel, 2026-11-07 («Human Safari - Amor»): la transferencia se trabó, se canceló, y el daemon todavía
+    # tenía abierto el .incomplete; borrar la carpeta del intento dio WinError 32 y el tema se fue a grabar.
+    names, held = [], []
+
+    def run(cmd, incoming, expected_bytes, config, failure=None):
+        incoming = Path(next(s.split("=", 1)[1] for s in cmd if s.startswith("--output-dir=")))
+        remote = next(s for s in cmd if s.startswith("slsk://"))
+        names.append(remote)
+        if len(names) == 1:
+            partial = incoming / ".sockseek-staging" / "15-human_safari-amor.flac.incomplete"
+            partial.parent.mkdir(parents=True)
+            held.append(partial.open("wb"))  # como el daemon: sigue abierto
+            raise RuntimeError("la transferencia no avanzó en 45 s")
+        (incoming / Path(remote).name).write_bytes(b"audio")
+        return 0
+
+    cands = [candidate(filename="Music/15-human_safari-amor.flac"), candidate(filename="Music/Human Safari - Amor.mp3")]
+    try:
+        with mock.patch.object(D, "find_sockseek", return_value="sockseek"), mock.patch.object(
+            D, "_check_antivirus_ready"
+        ), mock.patch.object(D, "_write_sockseek_safe_config"), mock.patch.object(
+            D, "_validate_download"
+        ), mock.patch.object(D, "_run_sockseek_transfer", side_effect=run):
+            # En Windows el archivo abierto da el WinError 32 real al borrar la carpeta del intento.
+            files = D.download_with_sockseek(track(), tmp_path, availability=D.AvailabilityCheck("available", 2, cands))
+    finally:
+        for handle in held:
+            handle.close()
+    assert len(names) == 2  # siguió con el segundo archivo
+    assert len(files) == 1 and files[0].is_file() and "Amor.mp3" in files[0].name
+
+
 def test_transfers_per_track_are_bounded(tmp_path):
     names = []
     cands = [candidate(filename=f"Music/{i}.mp3") for i in range(6)]
@@ -865,6 +898,19 @@ def test_tracks_already_in_the_music_folder_or_downloaded_before_are_not_searche
     assert (tmp_path / "run" / "soulseek" / "Artista - Tema 2.mp3").is_file()  # traído a esta descarga
     assert queue.ids() == ["id3"] and code == 0
     assert "ya está en tu carpeta" in capsys.readouterr().out
+
+
+def test_the_music_folder_is_found_by_the_playlist_name_without_earlier_runs(tmp_path, monkeypatch, capsys):
+    # Gabriel, 2026-11-07: sin la descarga anterior (sus carpetas de trabajo borradas), una nueva buscó otra vez
+    # 9 temas ya guardados en «D:\nueva descarga\Workout Delft» y dos fueron a grabación.
+    folder = tmp_path / "lib" / "Lista"
+    mp3_320(folder / "Artista - Tema 1.mp3", "id1")
+    mp3_320(folder / "Artista - Tema 2.mp3", "id2")
+    code, events, queue, rows = run_downloader(tmp_path, monkeypatch, playlist(3), {"id3": ["missing"]},
+                                               extra=("--library-root", str(tmp_path / "lib")))
+    assert events == [("search", "id3")]
+    assert queue.ids() == ["id3"] and code == 0
+    assert "no se busca ni se baja" in capsys.readouterr().out
 
 
 def test_a_repeated_track_is_resolved_once(tmp_path, monkeypatch):

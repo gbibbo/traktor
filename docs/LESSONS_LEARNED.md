@@ -125,6 +125,21 @@ con pico de −8,9 dBFS; los de Soulseek de la misma playlist están entre −6 
 `ebur128`). Es una baja pareja, sin recortes: el grabador sube cada tema hasta un pico de −1 dBFS
 y recupera el nivel. Desactivar la normalización en Spotify evita perder resolución.
 
+### Una transferencia cancelada deja su archivo abierto un momento (WinError 32)
+
+Al cancelar en el daemon de sockseek una transferencia trabada, el `.incomplete` sigue abierto unos
+instantes. Borrar la carpeta del intento con `TemporaryDirectory` daba `PermissionError [WinError 32]`
+y esa excepción cortaba el tema entero, sin probar el siguiente archivo («Human Safari - Amor»,
+2026-11-07). Ahora la limpieza de cada intento tolera el error (`ignore_cleanup_errors=True`) y
+lo que queda se borra con la carpeta de staging al final, ya con el daemon cerrado.
+
+### Lo guardado se reconoce por la carpeta, no por la historia de corridas
+
+«Borrar archivos de trabajo» (o borrar `runs/` a mano) se lleva la corrida que recordaba dónde quedó
+la música de la playlist. La corrida siguiente buscó de nuevo 9 temas ya guardados y mandó dos a
+grabar (2026-11-07). La carpeta se encuentra también por el nombre de la playlist
+(`--library-root`), y un tema que ya está ahí no se graba aunque haya quedado en la cola.
+
 ### Beatport puede pedir la verificación anti-robots de Cloudflare
 
 El 2026-11-07, después de unos pocos pedidos seguidos (y de los reintentos de `BeatportClient`, que

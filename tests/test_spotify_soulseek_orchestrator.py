@@ -813,6 +813,8 @@ class TrackByTrackFlowTests(unittest.TestCase):
             progress["completed_track_ids"].append(t["spotify"]["spotify_id"])
             progress["tracks"].append({"playlist_position": t["playlist_position"], "output": str(mp3)})
 
+        captured = [False]
+
         def step():
             if not (out.parent.parent / "player_ready.json").exists():  # out = <run>/recordings/NN
                 return None  # como el real: sin Spotify sonando no hay nada que grabar
@@ -820,6 +822,9 @@ class TrackByTrackFlowTests(unittest.TestCase):
                 progress.update(status="stalled", last_error="Spotify dejó de producir audio.")
                 write_json(progress_path, progress)
                 return 75
+            if captured[0]:  # terminó de guardar el último MP3
+                self.events.append(("recorder-exit", out.name))
+                return 0
             op = ops.pop(0) if ops else "record"
             if op == "record":
                 record_one()
@@ -830,7 +835,11 @@ class TrackByTrackFlowTests(unittest.TestCase):
             elif op == "defer":  # la app pospone la grabación mientras graba
                 (out.parent.parent / ORCHESTRATOR.DEFER_SIGNAL).write_text("1", encoding="utf-8")
             write_json(progress_path, progress)
-            return 0 if progress["completed_count"] >= len(tracks) else None
+            if progress["completed_count"] >= len(tracks):
+                # Como el real: el último corte está hecho y avisa; todavía guarda el MP3 (unos 40 s).
+                captured[0] = True
+                write_json(arg("--ready-file"), {"status": "captured"})
+            return None
         return FakeProcess(step)
 
     def run_flow(self, root: Path, script=(), code=0, *, defer=False, recorder_ops=None, playlist_error=None,
@@ -1103,6 +1112,47 @@ class TrackByTrackFlowTests(unittest.TestCase):
             order = [e for e in self.events if e[0] in {"recorder", "pause"}]
             second = order.index(("recorder", "02", 0))
             self.assertIn(("pause", "dev1"), order[:second])
+
+    def test_spotify_is_paused_at_the_last_cut_not_after_the_mp3_is_saved(self) -> None:
+        # Gabriel, 2026-11-07: con la playlist en repetición, el tema volvía a empezar mientras el grabador
+        # guardaba el MP3 (unos 40 s) y parecía que grababa para siempre.
+        script = [[("availability", [1, 2]), ("download", 1), ("queue", 2), ("close", "finished")]]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            code, _, _, report, _ = self.run_flow(Path(temp_dir), script)
+            self.assertEqual((code, report["status"]), (0, "completed"))
+            order = [e for e in self.events if e[0] in {"pause", "recorder-exit"}]
+            self.assertEqual(order[:2], [("pause", "dev1"), ("recorder-exit", "01")])
+
+    def test_a_track_already_in_the_folder_is_not_recorded_even_if_it_is_queued(self) -> None:
+        # Gabriel, 2026-11-07: una corrida que no conocía la carpeta puso «Amor» y «Oye» en la cola; la
+        # siguiente los reconoció como guardados, pero igual empezó a grabarlos.
+        script = [[("availability", [1, 2, 3]), ("download", 1), ("queue", 2), ("queue", 3),
+                   ("close", "finished")]]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            folder = root / "lib" / "Lista"
+            folder.mkdir(parents=True)
+            ConsolidationTests.tagged_file(folder / "Artista - Tema 3.mp3", "id3")  # ya guardado antes
+            with mock.patch.object(ORCHESTRATOR, "playlist_music_folder", return_value=folder):
+                code, _, _, report, spotify = self.run_flow(root, script)
+            self.assertEqual((code, report["status"]), (0, "completed"))
+            self.assertEqual(spotify["playlists"], [["id2"]])  # solo el que no está
+            self.assertEqual(self.library(root), ["Artista - Tema 1.mp3", "Artista - Tema 2.mp3",
+                                                  "Artista - Tema 3.mp3"])
+
+    def test_an_unfinished_session_with_a_saved_track_is_redone_with_what_is_missing(self) -> None:
+        # La corrida de las 15:34 dejó la tanda 02 (Amor y Oye) sin terminar; los dos ya estaban en la carpeta.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run_dir = Path(temp_dir)
+            session = ORCHESTRATOR.create_session(run_dir, [self.entry(2), self.entry(3)])
+            self.assertTrue(ORCHESTRATOR.session_holds_saved(session, frozenset({"id3"})))
+            self.assertFalse(ORCHESTRATOR.session_holds_saved(session, frozenset({"id9"})))
+            self.assertFalse(ORCHESTRATOR.session_holds_saved(session, frozenset()))
+            with mock.patch.object(ORCHESTRATOR, "forget_session_playlist"):
+                ORCHESTRATOR.abandon_session(session)
+            queue = QUEUE.QueueState(tracks=[self.entry(2), self.entry(3)], end=None)
+            pending, unassigned = ORCHESTRATOR.recording_plan(run_dir, queue, frozenset({"id3"}))
+            self.assertEqual((pending, [ORCHESTRATOR.track_id(t) for t in unassigned]), ([], ["id2"]))
 
     def test_the_saved_tracks_get_their_metadata_completed(self) -> None:
         # Gabriel, 2026-11-07: los temas salían solo con la metadata de Spotify. Al guardar la playlist,

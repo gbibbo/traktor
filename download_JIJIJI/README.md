@@ -129,8 +129,9 @@ El orquestador va **tema a tema**, como cuando se busca a mano en Soulseek (2026
    tanda toma lo que haya en la cola (hasta 10 temas), crea una playlist privada de Spotify solo
    con esos temas, abre el grabador WASAPI loopback y reproduce la playlist **en repetición**:
    después del último tema Spotify sigue con el primero, así el final del último se corta igual
-   que los demás, y Spotify se pausa apenas la tanda queda grabada (sin repetición, Spotify se
-   detenía al final de la playlist y la tanda se daba por cortada). La primera tanda
+   que los demás, y Spotify se pausa apenas el grabador hace el último corte, antes de guardar el
+   MP3, que tarda unos 40 s (sin repetición, Spotify se detenía al final de la playlist y la tanda
+   se daba por cortada). La primera tanda
    empieza con el primer tema que haya que grabar, sin esperar al resto de la búsqueda;
 4. si la cola queda vacía y la búsqueda sigue, espera el próximo tema (Spotify se pausa, para
    que su reproducción automática no siga sonando); cuando entra uno, abre otra tanda. Antes de
@@ -220,7 +221,9 @@ Extended); el rango de cada tema lo aplica el descargador.
 
 Una descarga nueva de una playlist trabaja solo sobre lo que falta: lo que ya está en su
 carpeta de música (`--have-dir`, la que usó una descarga anterior dentro del destino
-actual) no se busca, no se baja y cuenta como guardado; y los MP3 terminados de una
+actual, o `<destino>\<nombre de la playlist>` aunque ya no quede ninguna descarga anterior:
+`--library-root`) no se busca, no se baja, no se graba aunque haya quedado en la cola, y cuenta
+como guardado; y los MP3 terminados de una
 descarga anterior que se cortó antes de guardar (`--reuse-dir`) se vuelven a verificar
 (320 kbps, Spotify Track ID, carátula) y se traen sin buscarlos, igual que los grabados de una
 descarga anterior que no se llegaron a guardar. Por eso «Continuar

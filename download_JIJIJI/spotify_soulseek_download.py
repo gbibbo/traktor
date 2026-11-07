@@ -6,6 +6,12 @@ spotify_soulseek_download.py
 PURPOSE: Reconcile a Spotify playlist against Soulseek and download matches.
 
 CHANGELOG:
+- 2026-11-07: --library-root: the playlist's music folder is also found by the playlist's name, not only
+              through an earlier run (with the earlier runs deleted, a new run searched 9 tracks already
+              saved, and two went to recording). A cancelled transfer whose .incomplete file the daemon
+              still holds (WinError 32 when its attempt folder is removed) no longer ends the track: the
+              next file is tried, and the leftovers go with the staging folder at the end. The Spotify
+              authorization also asks for the scopes DELETE /me/library needs (it answered 403).
 - 2026-11-06: A transfer a peer does not send is one readable line (who and why: blocked us, offline, queue
               full, cut the connection...); Sockseek's own lines go to sockseek_transferencias.log in the
               run. A peer that blocked us, is offline or cannot be reached is not asked again in the run.
@@ -165,7 +171,10 @@ TOKEN_URL = "https://accounts.spotify.com/api/token"
 API_ROOT = "https://api.spotify.com/v1"
 DEFAULT_REDIRECT = "http://127.0.0.1:48721/callback"
 AUTH_WAIT_S = 300                 # tiempo para autorizar, también copiando el enlace a otro navegador
-SCOPES = "playlist-read-private playlist-read-collaborative playlist-modify-private"
+# Borrar de tu biblioteca la playlist temporal de cada tanda (DELETE /me/library, desde febrero de 2026) pide
+# user-library-modify, user-follow-modify y playlist-modify-public (esquema OpenAPI de Spotify); sin ellos, 403.
+SCOPES = ("playlist-read-private playlist-read-collaborative playlist-modify-private "
+          "user-library-modify user-follow-modify playlist-modify-public")
 REQUIRED_SCOPES = set(SCOPES.split())
 DEFAULT_MISSING_PLAYLIST_BATCH_SIZE = 10
 DURATION_TOLERANCE_S = 8          # misma versión que Spotify (no Extended)
@@ -2089,8 +2098,10 @@ def download_with_sockseek(
         attempts += 1
         counts["attempts"] = attempts
         destination: Path | None = None
-        # Each attempt is isolated. Rejected and incomplete payloads are removed.
-        with tempfile.TemporaryDirectory(prefix="incoming_", dir=out_dir) as tmp:
+        # Each attempt is isolated. Rejected and incomplete payloads are removed. A cancelled transfer can
+        # still hold its .incomplete file open in the daemon for a moment (WinError 32, 2026-11-07): that must
+        # not end the track. What is left goes with the staging folder at the end, once the daemon stopped.
+        with tempfile.TemporaryDirectory(prefix="incoming_", dir=out_dir, ignore_cleanup_errors=True) as tmp:
             incoming = Path(tmp)
             safe_config = incoming / "sockseek.conf"
             session_args = _sockseek_session_args(incoming, bin_)
@@ -2911,6 +2922,14 @@ def main() -> int:
         ),
     )
     ap.add_argument(
+        "--library-root",
+        default=None,
+        help=(
+            "Destino de las playlists: si ahí ya está la carpeta de esta playlist (por su nombre), lo que tiene "
+            "cuenta como --have-dir"
+        ),
+    )
+    ap.add_argument(
         "--have-dir",
         action="append",
         default=[],
@@ -2958,6 +2977,16 @@ def main() -> int:
     if args.max:
         tracks = tracks[: args.max]
     print(f"Playlist: «{pl_name}» — {len(tracks)} temas")
+    if args.library_root:
+        # La carpeta de la música de esta playlist, por su nombre: también cuando no queda ninguna descarga
+        # anterior que la recuerde (Gabriel, 2026-11-07: se buscaron de nuevo 9 temas ya guardados).
+        from spotify_soulseek_orchestrator import safe_playlist_folder_name
+
+        folder = Path(args.library_root).expanduser().resolve() / safe_playlist_folder_name(pl_name)
+        known = {Path(d).expanduser().resolve() for d in args.have_dir}
+        if folder.is_dir() and folder not in known:
+            args.have_dir.append(str(folder))
+            print(f"Lo que ya está en «{folder}» no se busca ni se baja.", flush=True)
 
     try:
         find_sockseek()

@@ -3,6 +3,9 @@
 PURPOSE: Record a Spotify playlist through Windows WASAPI loopback and split it.
 
 CHANGELOG:
+- 2026-11-07: After the last cut the ready file says "captured", so the orchestrator pauses Spotify at
+              once instead of after the MP3 is saved (the session playlist plays on repeat and the track
+              started again for ~40 s; Gabriel took it for a recording that never ended).
 - 2026-11-07: Each recorded track is raised to a -1 dBFS peak (only up) when it is encoded: with Spotify's
               volume normalization a track came out at -17 LUFS, peak -8.9 dBFS, against -6 to -10 LUFS
               for the same playlist from Soulseek, and Traktor showed it smaller. Peak and gain go to the
@@ -1104,6 +1107,11 @@ def main() -> int:
             next_track_index += 1
             if next_track_index >= target_completed:
                 capture_finished = True
+                if args.ready_file is not None:
+                    # El último corte está hecho: Spotify ya se puede pausar (la playlist suena en repetición)
+                    # mientras se guarda el MP3, que tarda unos 40 s.
+                    write_json_atomic(args.ready_file.expanduser().resolve(),
+                                      {"status": "captured", "device": str(device["name"])})
                 break
 
             current_track_start = result.detected_sec

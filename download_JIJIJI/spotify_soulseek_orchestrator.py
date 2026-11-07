@@ -3,6 +3,10 @@
 PURPOSE: Run the complete Spotify -> Soulseek + loopback fallback workflow.
 
 CHANGELOG:
+- 2026-11-07: Spotify is paused as soon as the recorder says the last cut is made ("captured"), not when it
+              exits ~40 s later after saving the MP3. A queued track already in the playlist's music folder
+              is not recorded (the folder is looked up once, before the resume line), and the downloader
+              gets --library-root to find that folder by the playlist's name.
 - 2026-11-07: When the playlist is saved, its tracks get Beatport metadata (genre, label, artists, date)
               and the Vocal tag with the library's rules (src/v4/pipeline/tag_downloads.py), run with a
               Python that has the pipeline (pipeline_python). Gabriel: the downloads only had Spotify's
@@ -636,9 +640,12 @@ def session_finished(session_dir: Path) -> bool:
     return bool(session.get("abandoned")) or session_completed(session_dir) >= len(session_tracks(session))
 
 
-def recording_plan(run_dir: Path, queue: QueueState) -> tuple[list[Path], list[dict[str, Any]]]:
-    """(Unfinished sessions in order, queued tracks that no session holds yet)."""
-    assigned: set[str] = set()
+def recording_plan(run_dir: Path, queue: QueueState,
+                   saved: frozenset[str] = frozenset()) -> tuple[list[Path], list[dict[str, Any]]]:
+    """(Unfinished sessions in order, queued tracks that no session holds yet). A queued track already in the
+    playlist's music folder (`saved`, Spotify IDs) is not recorded again: a run queued it without knowing the
+    folder (Gabriel, 2026-11-07: «Amor» and «Oye» were going to be recorded while they were in the folder)."""
+    assigned: set[str] = set(saved)
     pending: list[Path] = []
     for session_dir in session_dirs(run_dir):
         session = read_session(session_dir)
@@ -651,9 +658,9 @@ def recording_plan(run_dir: Path, queue: QueueState) -> tuple[list[Path], list[d
     return pending, [t for t in queue.tracks if track_id(t) not in assigned]
 
 
-def pending_recordings(run_dir: Path, queue: QueueState) -> int:
+def pending_recordings(run_dir: Path, queue: QueueState, saved: frozenset[str] = frozenset()) -> int:
     """Tracks still to record: in the queue and not yet recorded by any session."""
-    pending, unassigned = recording_plan(run_dir, queue)
+    pending, unassigned = recording_plan(run_dir, queue, saved)
     return len(unassigned) + sum(
         len(session_tracks(read_session(d))) - session_completed(d) for d in pending
     )
@@ -707,6 +714,15 @@ def session_checkpoint_usable(session_dir: Path) -> bool:
         if not name or not (session_dir / name).is_file():
             return False
     return True
+
+
+def session_holds_saved(session_dir: Path, saved: frozenset[str]) -> bool:
+    """An unfinished session still to record a track that is already in the music folder: it is redone with
+    only what is missing (its playlist would play, and record, the saved one again)."""
+    if not saved:
+        return False
+    to_record = {track_id(t) for t in session_tracks(read_session(session_dir))} - set(session_recorded_ids(session_dir))
+    return bool(to_record & saved)
 
 
 def abandon_session(session_dir: Path) -> None:
@@ -940,14 +956,21 @@ class SessionRecorder:
             self.summary["recording_session"] = session_dir.name
             write_summary(self.summary_path, self.summary)
 
+            captured = False
             while self.recorder.poll() is None:
+                if not captured and (read_json_dict(recorder_ready) or {}).get("status") == "captured":
+                    # Último corte hecho: la playlist suena en repetición y el tema volvería a empezar mientras
+                    # el grabador guarda el MP3. Se pausa ya (antes, el reproductor y su vigilante).
+                    captured = True
+                    terminate_process(self.player)
+                    self.pause()
                 if self.defer_file.exists() and not deferred:
                     # Posponer corta la tanda ya: el grabador guarda lo completo y se detiene.
                     deferred = True
                     print("\n[grabación] Grabación pospuesta: se corta la tanda; lo grabado se conserva.", flush=True)
                     write_summary(playback_status, {"status": "stalled", "reason": "deferred",
                                                     "error": "Grabación pospuesta desde la app"})
-                player_code = self.player.poll()
+                player_code = None if captured else self.player.poll()  # cerrado a propósito al último corte
                 if player_code is not None and player_code not in {0, 75}:
                     write_summary(playback_status, {"status": "stalled",
                                                     "error": f"Spotify player exited with code {player_code}"})
@@ -1266,11 +1289,19 @@ def run_workflow(args: argparse.Namespace) -> int:
     queue_before = read_queue(queue_path)
     download_finished = resumed is not None and queue_before.closed
 
+    # La carpeta de la música de una descarga anterior de esta playlist: lo que ya está ahí no se busca, no se
+    # baja, no se graba (aunque haya quedado en la cola) y cuenta como guardado.
+    music_folder = playlist_music_folder(runs_root, playlist_id, playlists_root)
+    in_folder = saved_in_folder(music_folder) if music_folder is not None else set()
+    if in_folder:
+        previous_report["saved_spotify_ids"] = sorted(set(previous_report.get("saved_spotify_ids") or []) | in_folder)
+    already_saved = frozenset(previous_report.get("saved_spotify_ids") or [])
+
     print("\n=== FLUJO AUTOMÁTICO SPOTIFY / SOULSEEK ===")
     print(f"Playlist : {playlist_url}")
     print(f"Run      : {run_dir}")
     if resumed is not None:
-        waiting = pending_recordings(run_dir, queue_before)
+        waiting = pending_recordings(run_dir, queue_before, already_saved)
         if download_finished:
             print(f"Resume   : la descarga de Soulseek ya había terminado; {waiting} tema(s) por grabar")
         else:
@@ -1331,14 +1362,11 @@ def run_workflow(args: argparse.Namespace) -> int:
             # trae sin buscarlo.
             for folder in reusable_audio_dirs(runs_root, playlist_id, run_dir):
                 downloader_cmd += ["--reuse-dir", str(folder)]
+            # Y la carpeta de la música por el nombre de la playlist, aunque no quede ninguna descarga anterior.
+            downloader_cmd += ["--library-root", str(playlists_root)]
             # Lo que ya está en la carpeta de la música no se busca ni se baja, y cuenta como guardado.
-            music_folder = playlist_music_folder(runs_root, playlist_id, playlists_root)
             if music_folder is not None:
                 downloader_cmd += ["--have-dir", str(music_folder)]
-                summary["saved_spotify_ids"] = sorted(
-                    set(summary.get("saved_spotify_ids") or []) | saved_in_folder(music_folder)
-                )
-                write_summary(summary_path, summary)
             print("\n[1/3] Buscando en Soulseek tema a tema (lo que está se baja enseguida)...")
             downloader = subprocess.Popen(downloader_cmd, env=env)
             print("[2/3] Lo que no se consiga se graba de Spotify mientras sigue la búsqueda.", flush=True)
@@ -1369,7 +1397,7 @@ def run_workflow(args: argparse.Namespace) -> int:
             # Primero si el descargador terminó y después la cola: así no se pierde el último tema que agregó.
             downloader_done = downloader is None or downloader.poll() is not None
             queue = read_queue(queue_path)
-            pending, unassigned = recording_plan(run_dir, queue)
+            pending, unassigned = recording_plan(run_dir, queue, already_saved)
             can_record = blocked is None and not defer_file.exists() and time.monotonic() >= output_retry_at
             if can_record and (pending or unassigned):
                 idle_announced = False
@@ -1389,6 +1417,11 @@ def run_workflow(args: argparse.Namespace) -> int:
                 if not session_checkpoint_usable(session_dir):
                     print(f"La tanda {session_dir.name} no se puede retomar (faltan sus MP3): lo pendiente "
                           "vuelve a la cola.", flush=True)
+                    abandon_session(session_dir)
+                    continue
+                if session_holds_saved(session_dir, already_saved):
+                    print(f"La tanda {session_dir.name} tiene temas que ya están en tu carpeta: se rehace solo con "
+                          "lo que falta.", flush=True)
                     abandon_session(session_dir)
                     continue
                 try:
@@ -1445,7 +1478,7 @@ def run_workflow(args: argparse.Namespace) -> int:
                 "Revisa que la cuenta de Soulseek no esté abierta en otra PC y vuelve a intentar: lo ya "
                 "guardado no se busca de nuevo."
             )
-        waiting = pending_recordings(run_dir, queue)
+        waiting = pending_recordings(run_dir, queue, already_saved)
         if waiting:
             return finish_with_recording_pending(
                 run_dir=run_dir,
