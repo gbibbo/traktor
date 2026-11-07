@@ -303,8 +303,19 @@ después puedes pausar Spotify. Esto también comprueba que Spotify de escritori
 aparece como dispositivo y que la cuenta puede controlarse por API.
 
 **8b. Lectura de playlists.** Se pide sola en la primera descarga (paso 10): se
-abre el navegador y hay 3 minutos para aceptar. Si el navegador no se abre, la
+abre el navegador y hay 5 minutos para aceptar. Si el navegador no se abre, la
 consola muestra la URL para pegarla a mano.
+
+**8c. Borrar las playlists temporales de grabación.** Desde febrero de 2026 Spotify
+pide permisos extra para quitarlas de tu biblioteca. Sin ellos, la descarga baja y
+graba igual, y en el registro aparece «No se pudo borrar … (403)». Para darlos,
+con el navegador a mano (hay 5 minutos para aceptar):
+
+```powershell
+.venv\Scripts\python.exe download_JIJIJI\spotify_soulseek_download.py --authorize
+```
+
+Termina con «Autorizado.».
 
 No copies estos archivos de la otra PC: cada PC tiene que tener su propia
 autorización. Un token copiado puede dejar de valer cuando la otra PC lo renueva.

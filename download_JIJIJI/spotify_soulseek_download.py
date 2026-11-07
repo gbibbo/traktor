@@ -10,8 +10,9 @@ CHANGELOG:
               through an earlier run (with the earlier runs deleted, a new run searched 9 tracks already
               saved, and two went to recording). A cancelled transfer whose .incomplete file the daemon
               still holds (WinError 32 when its attempt folder is removed) no longer ends the track: the
-              next file is tried, and the leftovers go with the staging folder at the end. The Spotify
-              authorization also asks for the scopes DELETE /me/library needs (it answered 403).
+              next file is tried, and the leftovers go with the staging folder at the end. A new Spotify
+              authorization also asks for the scopes DELETE /me/library needs (it answered 403); they are
+              not required, so an older authorization keeps downloading. --authorize asks for them.
 - 2026-11-06: A transfer a peer does not send is one readable line (who and why: blocked us, offline, queue
               full, cut the connection...); Sockseek's own lines go to sockseek_transferencias.log in the
               run. A peer that blocked us, is offline or cannot be reached is not asked again in the run.
@@ -173,9 +174,11 @@ DEFAULT_REDIRECT = "http://127.0.0.1:48721/callback"
 AUTH_WAIT_S = 300                 # tiempo para autorizar, también copiando el enlace a otro navegador
 # Borrar de tu biblioteca la playlist temporal de cada tanda (DELETE /me/library, desde febrero de 2026) pide
 # user-library-modify, user-follow-modify y playlist-modify-public (esquema OpenAPI de Spotify); sin ellos, 403.
-SCOPES = ("playlist-read-private playlist-read-collaborative playlist-modify-private "
-          "user-library-modify user-follow-modify playlist-modify-public")
-REQUIRED_SCOPES = set(SCOPES.split())
+# Una autorización nueva los pide, pero no son obligatorios: con una vieja se sigue bajando y grabando (borrar
+# solo avisa), y nadie queda esperando el navegador al empezar una descarga. Para pedirlos: authorize_again().
+BASE_SCOPES = "playlist-read-private playlist-read-collaborative playlist-modify-private"
+SCOPES = BASE_SCOPES + " user-library-modify user-follow-modify playlist-modify-public"
+REQUIRED_SCOPES = set(BASE_SCOPES.split())
 DEFAULT_MISSING_PLAYLIST_BATCH_SIZE = 10
 DURATION_TOLERANCE_S = 8          # misma versión que Spotify (no Extended)
 MAX_CANDIDATE_TRANSFERS = 4       # archivos que se llegan a bajar por tema hasta que uno pase la verificación
@@ -846,6 +849,13 @@ class Spotify:
             return False
         granted = set(str(token.get("scope") or "").split())
         return REQUIRED_SCOPES.issubset(granted)
+
+    def authorize_again(self) -> set[str]:
+        """Abre el navegador para una autorización nueva con todos los SCOPES (los de borrar las playlists
+        temporales incluidos). Devuelve los permisos concedidos. Uso: python spotify_soulseek_download.py
+        --authorize."""
+        self._token = self._login()
+        return set(str(self._token.get("scope") or "").split())
 
     def token(self) -> str:
         tok = self._token or self._load()
@@ -2812,7 +2822,29 @@ def search_track(
 # Main
 # ---------------------------------------------------------------------------
 
+def authorize_cli() -> int:
+    """--authorize: una autorización nueva de Spotify en el navegador, con todos los permisos (también los de
+    borrar las playlists temporales de grabación)."""
+    from spotify_soulseek_orchestrator import load_environment  # el mismo .env que la descarga
+
+    load_environment()
+    client_id = os.environ.get("SPOTIFY_CLIENT_ID")
+    if not client_id:
+        print("Falta SPOTIFY_CLIENT_ID (en el .env).", file=sys.stderr)
+        return 2
+    try:
+        granted = Spotify(client_id).authorize_again()
+    except RuntimeError as exc:
+        print(f"No se completó: {exc}", file=sys.stderr)
+        return 1
+    missing = set(SCOPES.split()) - granted
+    print("Autorizado." if not missing else f"Autorizado, pero sin: {', '.join(sorted(missing))}.")
+    return 0 if not missing else 1
+
+
 def main() -> int:
+    if "--authorize" in sys.argv[1:]:
+        return authorize_cli()
     ap = argparse.ArgumentParser(
         description=(
             "Spotify playlist → tema a tema: búsqueda en Soulseek y, si está, descarga en el momento "

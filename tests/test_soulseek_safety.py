@@ -913,6 +913,20 @@ def test_the_music_folder_is_found_by_the_playlist_name_without_earlier_runs(tmp
     assert "no se busca ni se baja" in capsys.readouterr().out
 
 
+def test_an_older_spotify_authorization_still_downloads_and_authorize_asks_for_all(monkeypatch, capsys):
+    # Los permisos para borrar las playlists temporales (DELETE /me/library) se piden en una autorización
+    # nueva, pero una vieja sigue sirviendo: ninguna descarga queda esperando el navegador al empezar.
+    old = {"scope": "playlist-read-private playlist-read-collaborative playlist-modify-private"}
+    assert D.Spotify("cid")._has_required_scopes(old)
+    assert {"user-library-modify", "user-follow-modify", "playlist-modify-public"} <= set(D.SCOPES.split())
+    monkeypatch.setenv("SPOTIFY_CLIENT_ID", "cid")
+    monkeypatch.setattr(sys, "argv", ["spotify_soulseek_download.py", "--authorize"])
+    monkeypatch.setattr(D.Spotify, "_login", lambda self: {"access_token": "t", "scope": D.SCOPES})
+    with mock.patch("spotify_soulseek_orchestrator.load_environment"):
+        assert D.main() == 0
+    assert "Autorizado." in capsys.readouterr().out
+
+
 def test_a_repeated_track_is_resolved_once(tmp_path, monkeypatch):
     tracks = playlist(2)
     tracks.append(tracks[1])
