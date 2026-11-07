@@ -1689,6 +1689,41 @@ class EnvironmentSetupTests(unittest.TestCase):
         spotify.pause_playback.assert_not_called()
         spotify.repeat.assert_called_once_with(state="off", device_id="dev1")
 
+    def start(self, device: dict, transfer_error=None) -> mock.Mock:
+        spotify = mock.Mock()
+        if transfer_error is not None:
+            spotify.transfer_playback.side_effect = transfer_error
+        with mock.patch.object(PLAYER.spotipy, "Spotify", return_value=spotify), \
+                mock.patch.object(PLAYER, "SpotifyOAuth"), \
+                mock.patch.object(PLAYER, "open_spotify"), \
+                mock.patch.object(PLAYER, "wait_for_desktop_device", return_value=device), \
+                mock.patch.object(PLAYER.time, "sleep"), \
+                mock.patch.dict(os.environ, {"SPOTIFY_CLIENT_ID": "x", "SPOTIFY_CLIENT_SECRET": "x",
+                                             "SPOTIFY_REDIRECT_URI": "http://127.0.0.1:1/cb"}), \
+                mock.patch.object(sys, "argv", ["spotify_playlist.py", "https://open.spotify.com/playlist/abc",
+                                                "--start-only"]), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(PLAYER.main(), 0)
+        spotify.start_playback.assert_called_once()
+        self.assertEqual(spotify.start_playback.call_args.kwargs["device_id"], device["id"])
+        return spotify
+
+    def test_playback_starts_although_spotify_refuses_the_transfer(self) -> None:
+        # Gabriel's run of 2026-11-07 18:33: PUT /me/player answered 500 to the already active computer (shuffle and
+        # repeat on it answered 200), three starts failed and the recording paused.
+        error = PLAYER.SpotifyException(500, -1, "Server error.")
+        spotify = self.start({"id": "dev1", "name": "GABRIEL", "is_active": True}, transfer_error=error)
+        spotify.transfer_playback.assert_not_called()  # ya es el activo: no hace falta
+        self.assertEqual(spotify.shuffle.call_args_list[0], mock.call(state=False, device_id="dev1"))
+        spotify = self.start({"id": "dev1", "name": "GABRIEL", "is_active": False}, transfer_error=error)
+        spotify.transfer_playback.assert_called_once()
+        # sin la transferencia, aleatorio y repetición recién cuando el dispositivo ya suena
+        names = [c[0] for c in spotify.mock_calls if c[0] in ("shuffle", "repeat", "start_playback")]
+        self.assertEqual(names, ["start_playback", "shuffle", "repeat"])
+        spotify = self.start({"id": "dev1", "name": "GABRIEL", "is_active": False})
+        names = [c[0] for c in spotify.mock_calls if c[0] in ("transfer_playback", "shuffle", "repeat", "start_playback")]
+        self.assertEqual(names, ["transfer_playback", "shuffle", "repeat", "start_playback", "shuffle", "repeat"])
+
 
 if __name__ == "__main__":
     unittest.main()

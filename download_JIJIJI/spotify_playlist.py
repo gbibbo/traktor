@@ -2,6 +2,12 @@
 PURPOSE: Open a Spotify playlist in the Windows desktop client and start playback.
 
 CHANGELOG:
+- 2026-11-07: No playback transfer when this computer is already the active device, and a failed transfer
+              is not fatal (start_playback names the device). In Gabriel's run of 2026-11-07 18:33 the
+              Web API answered 500 to every PUT /me/player to the already active device (shuffle and
+              repeat on it answered 200): three starts failed and the recording paused.
+- 2026-11-07: The watchdog writes spotify_progress.csv next to its status file (each poll: wall clock, playing,
+              track, progress_ms), so a recording can be checked against where Spotify says it was.
 - 2026-11-07: The watchdog gives Spotify up to 30 s to start playing (and repeats the play order once
               after 8 s) before calling it stalled: it gave up after 1.5 s while Spotify was still starting.
 - 2026-11-07: The playlist plays on repeat while it is recorded: after its last track Spotify goes on to
@@ -34,6 +40,7 @@ import time
 from pathlib import Path
 
 import spotipy
+from spotipy.exceptions import SpotifyException
 from spotipy.oauth2 import SpotifyOAuth
 
 from dotenv import load_dotenv
@@ -154,6 +161,33 @@ def write_status(path: Path, payload: dict) -> None:
 
 START_TIMEOUT_S = 30.0   # Spotify recién abierto o con la PC ocupada puede tardar en empezar a sonar
 RESTART_AFTER_S = 8.0    # si todavía no suena, se le repite la orden una vez
+PROGRESS_LOG = "spotify_progress.csv"  # junto al archivo del watchdog: dónde decía Spotify que estaba
+
+
+class ProgressLog:
+    """Cada consulta del watchdog en spotify_progress.csv, para comparar la grabación (capture_timing.csv del
+    grabador) con la posición que informa Spotify. Si no se puede escribir, el watchdog sigue igual."""
+
+    def __init__(self, path: Path):
+        try:
+            new = not path.exists() or path.stat().st_size == 0
+            self.file = path.open("a", encoding="utf-8", newline="")
+            if new:
+                self.file.write("wall_unix,is_playing,track_id,progress_ms,spotify_timestamp_ms\n")
+        except OSError:
+            self.file = None
+
+    def write(self, state: dict | None) -> None:
+        if self.file is None:
+            return
+        state = state or {}
+        item = state.get("item") or {}
+        try:
+            self.file.write(f"{time.time():.3f},{int(bool(state.get('is_playing')))},{item.get('id') or ''},"
+                            f"{int(state.get('progress_ms') or 0)},{int(state.get('timestamp') or 0)}\n")
+            self.file.flush()
+        except OSError:
+            self.file = None
 
 
 def monitor_playback_health(sp, status_file: Path, grace_seconds: float, start_timeout: float = START_TIMEOUT_S,
@@ -170,9 +204,11 @@ def monitor_playback_health(sp, status_file: Path, grace_seconds: float, start_t
     last_playing: tuple[dict, int, float] | None = None  # (track, progress_ms, when it was seen)
     started_at = time.monotonic()
     restarted = False
+    progress_log = ProgressLog(status_file.with_name(PROGRESS_LOG))
     while True:
         state = sp.current_playback()
         now = time.monotonic()
+        progress_log.write(state)
         if state and state.get("is_playing"):
             stopped_since = None
             last_playing = (state.get("item") or {}, int(state.get("progress_ms") or 0), now)
@@ -379,27 +415,26 @@ def main() -> int:
     if args.route_output:
         route_to_recorded_output(args.route_output, args.route_state)
 
-    sp.transfer_playback(
-        device_id=device_id,
-        force_play=False
-    )
+    active = bool(device.get("is_active"))
+    if not active:
+        try:
+            sp.transfer_playback(device_id=device_id, force_play=False)
+            active = True
+        except SpotifyException as exc:  # start_playback below names the device too
+            print(f"Spotify did not take the playback transfer ({exc.http_status}); "
+                  f"starting on the device directly.", flush=True)
 
-    time.sleep(0.5)
+    def play_in_order() -> None:
+        # Shuffle off, and on repeat: after the last track Spotify goes on to the first one, so the recorder
+        # hears the end of the last track like any other cut. The orchestrator pauses Spotify once the
+        # session is recorded (and ``--pause`` turns repeat off).
+        sp.shuffle(state=False, device_id=device_id)
+        sp.repeat(state="context", device_id=device_id)
 
-    sp.shuffle(
-        state=False,
-        device_id=device_id
-    )
-
-    # On repeat: after the last track Spotify goes on to the first one, so the recorder hears the end
-    # of the last track like any other cut. The orchestrator pauses Spotify once the session is
-    # recorded (and ``--pause`` turns repeat off).
-    sp.repeat(
-        state="context",
-        device_id=device_id
-    )
-
-    time.sleep(0.5)
+    if active:  # before playing; an inactive device only takes them once it plays
+        time.sleep(0.5)
+        play_in_order()
+        time.sleep(0.5)
 
     sp.start_playback(
         device_id=device_id,
@@ -409,10 +444,10 @@ def main() -> int:
     )
 
     print(f"Playback started at playlist position {args.offset_position}.", flush=True)
-    try:  # a new context must not have reset it
-        sp.repeat(state="context", device_id=device_id)
+    try:  # a new context must not have reset them (the first track plays from the offset either way)
+        play_in_order()
     except Exception as exc:  # noqa: BLE001 (the watchdog still recognizes the end of the playlist)
-        print(f"Could not confirm repeat: {exc}", file=sys.stderr, flush=True)
+        print(f"Could not confirm shuffle off and repeat: {exc}", file=sys.stderr, flush=True)
 
     if args.ready_file is not None:
         write_status(
