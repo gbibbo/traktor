@@ -165,7 +165,7 @@ Los temas grabados suben a la sonoridad de los de Soulseek (−8 LUFS, solo sube
 limitador bajo −1 dBFS. Subir solo el pico no alcanzaba: la versión de Spotify tiene más rango dinámico.
 `playlist_loopback_recorder.py --raise-loudness MP3...` corrige grabados de antes, con sus tags. La
 tanda de grabación siguiente empieza en el último corte de la anterior, sin esperar a que se guarde su
-MP3. Al empezar y al terminar cada descarga se borran de Spotify las playlists «Grabar - …» que
+MP3. Una tanda que se corta (Spotify tardó en empezar, se detuvo) se reintenta sola hasta 2 veces. Al empezar y al terminar cada descarga se borran de Spotify las playlists «Grabar - …» que
 ninguna tanda pendiente usa.
 
 Soulseek bloquea la cuenta 30 minutos si se pasan 34 búsquedas cada 220 s. Como ahora cada

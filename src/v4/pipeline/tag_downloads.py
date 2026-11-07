@@ -360,6 +360,14 @@ def main() -> int:
                   beatport=None if args.no_beatport else Beatport(tools_root / "beatport_cache", args.offline),
                   models=None if args.no_vocal else Models(config), stamp=datetime.now().strftime("%Y%m%d_%H%M%S"))
 
+    try:  # CLAP ya bajado: sin consultar Hugging Face por actualizaciones (2026-11-07: lecturas que vencían)
+        from huggingface_hub import try_to_load_from_cache
+        from src.v4.pipeline.extract_representations import CLAP_NAME
+        if isinstance(try_to_load_from_cache(CLAP_NAME, "config.json"), str):
+            os.environ.setdefault("HF_HUB_OFFLINE", "1")
+    except Exception:  # noqa: BLE001 (sin caché: se baja la primera vez)
+        pass
+
     if args.watch:
         if args.done is None:
             parser.error("--watch necesita --done")

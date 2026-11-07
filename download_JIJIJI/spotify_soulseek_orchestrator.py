@@ -3,6 +3,8 @@
 PURPOSE: Run the complete Spotify -> Soulseek + loopback fallback workflow.
 
 CHANGELOG:
+- 2026-11-07: A session that is cut (Spotify slow to start, stopped) is retried on its own up to
+              SESSION_RETRIES times instead of leaving the whole run without recording until «Continuar».
 - 2026-11-07: The next session starts at the last cut of the previous one: its recorder keeps saving the
               last MP3 on its own (SessionRecorder.finishing, reap) instead of holding the queue ~15-70 s.
 - 2026-11-07: Metadata (Beatport, Vocal) and the clap_full embedding go track by track while the download
@@ -125,6 +127,8 @@ PLAYLIST_CREATE_PAUSES_S = (5.0, 15.0)  # reintentos al crear la playlist de una
 PLAYER_ATTEMPTS = 2                    # Spotify recién abierto puede tardar más que el tope en aparecer
 DEVICE_UNAVAILABLE_EXIT_CODE = 76      # playlist_loopback_recorder.py: la salida no se puede grabar
 DEVICE_RETRY_S = 30.0                  # con la salida ocupada, cada cuánto se vuelve a probar
+SESSION_RETRIES = 2                    # una tanda que se corta (Spotify tardó, se detuvo) se reintenta sola
+SESSION_RETRY_S = 10.0
 # Runs de antes del 2026-11-06 (preflight en lote): la app todavía los muestra.
 FAILED_JSON_NAME = "soulseek_failed.json"
 RECORDED_FAILED_DIR = "recorded_failed"
@@ -1457,6 +1461,7 @@ def run_workflow(args: argparse.Namespace) -> int:
 
         blocked: str | None = None
         idle_announced = False
+        session_failures: dict[str, int] = {}  # tanda -> veces que se cortó en esta descarga
         output_retry_at = 0.0  # con la salida ocupada: cuándo se vuelve a probar (time.monotonic)
         output_problem: str | None = None
 
@@ -1525,8 +1530,16 @@ def run_workflow(args: argparse.Namespace) -> int:
                         break
                     continue
                 except RecordingUnavailable as exc:
-                    blocked = str(exc)
                     sessions.pause()
+                    tries = session_failures[session_dir.name] = session_failures.get(session_dir.name, 0) + 1
+                    if tries <= SESSION_RETRIES:
+                        # Antes, un corte dejaba toda la descarga sin grabar hasta «Continuar» (Gabriel,
+                        # 2026-11-07: dos temas «Se grabará» y Spotify quieto). Se reintenta la tanda sola.
+                        print(f"\n[grabación] Se cortó la tanda {session_dir.name}: {exc} Vuelvo a intentarlo en "
+                              f"{SESSION_RETRY_S:.0f} s ({tries}/{SESSION_RETRIES}).", flush=True)
+                        time.sleep(SESSION_RETRY_S)
+                        continue
+                    blocked = str(exc)
                     summary["recording_blocked"] = blocked
                     write_summary(summary_path, summary)
                     print(f"\nLa grabación se detuvo: {blocked}", file=sys.stderr, flush=True)

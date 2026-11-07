@@ -2,6 +2,8 @@
 PURPOSE: Open a Spotify playlist in the Windows desktop client and start playback.
 
 CHANGELOG:
+- 2026-11-07: The watchdog gives Spotify up to 30 s to start playing (and repeats the play order once
+              after 8 s) before calling it stalled: it gave up after 1.5 s while Spotify was still starting.
 - 2026-11-07: The playlist plays on repeat while it is recorded: after its last track Spotify goes on to
               the first one, so the recorder hears the end of the last track like any other cut. With
               repeat off Spotify stopped there and went back to the first track (progress 0), and the
@@ -150,13 +152,24 @@ def write_status(path: Path, payload: dict) -> None:
     temporary.replace(path)
 
 
-def monitor_playback_health(sp, status_file: Path, grace_seconds: float) -> int:
+START_TIMEOUT_S = 30.0   # Spotify recién abierto o con la PC ocupada puede tardar en empezar a sonar
+RESTART_AFTER_S = 8.0    # si todavía no suena, se le repite la orden una vez
+
+
+def monitor_playback_health(sp, status_file: Path, grace_seconds: float, start_timeout: float = START_TIMEOUT_S,
+                            restart=None) -> int:
     """Return 75 if Spotify remains paused away from a natural track ending.
 
     The end of a playlist is a natural ending too, but there Spotify goes back to its first track
-    (progress 0): the end is also judged from the last state seen playing."""
+    (progress 0): the end is also judged from the last state seen playing.
+
+    Before Spotify is first seen playing, a stop is not a pause: it is still starting. It gets
+    start_timeout seconds (and `restart()` once after RESTART_AFTER_S). Gabriel, 2026-11-07: Spotify took
+    more than the 1.5 s grace to start, the recording was given up and the run stopped recording."""
     stopped_since: float | None = None
     last_playing: tuple[dict, int, float] | None = None  # (track, progress_ms, when it was seen)
+    started_at = time.monotonic()
+    restarted = False
     while True:
         state = sp.current_playback()
         now = time.monotonic()
@@ -165,6 +178,23 @@ def monitor_playback_health(sp, status_file: Path, grace_seconds: float) -> int:
             last_playing = (state.get("item") or {}, int(state.get("progress_ms") or 0), now)
             time.sleep(0.4)
             continue
+        if last_playing is None:  # todavía no empezó a sonar
+            waited = now - started_at
+            if restart is not None and not restarted and waited >= RESTART_AFTER_S:
+                restarted = True
+                print("Spotify todavía no suena: le repito la orden de reproducir.", flush=True)
+                try:
+                    restart()
+                except Exception as exc:  # noqa: BLE001
+                    print(f"No se pudo repetir la orden ({exc}).", file=sys.stderr, flush=True)
+            if waited < start_timeout:
+                time.sleep(0.4)
+                continue
+            write_status(status_file, {"status": "stalled", "track_id": None, "track_name": None,
+                                       "progress_ms": 0, "duration_ms": 0,
+                                       "reason": f"Spotify no empezó a sonar en {start_timeout:.0f} s"})
+            print(f"Spotify did not start playing within {start_timeout:.0f} s.", file=sys.stderr, flush=True)
+            return 75
 
         if stopped_since is None:
             stopped_since = now
@@ -399,6 +429,8 @@ def main() -> int:
             sp,
             args.watchdog_file.expanduser().resolve(),
             args.watchdog_grace,
+            restart=lambda: sp.start_playback(device_id=device_id, context_uri=playlist_uri,
+                                              offset={"position": args.offset_position}, position_ms=0),
         )
 
     if args.start_only:

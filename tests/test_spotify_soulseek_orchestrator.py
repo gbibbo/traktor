@@ -578,45 +578,67 @@ class ResumeTests(unittest.TestCase):
             self.assertTrue(mp3_path.is_file())
             self.assertGreater(mp3_path.stat().st_size, 1000)
 
-    def test_spotify_watchdog_marks_mid_track_pause_as_stalled(self) -> None:
-        spotify = self.FakeSpotify(
-            {
-                "is_playing": False,
-                "progress_ms": 30_000,
-                "item": {
-                    "id": "track-a",
-                    "name": "Example",
-                    "duration_ms": 90_000,
-                },
-            }
-        )
-        with tempfile.TemporaryDirectory() as temp_dir:
-            status_path = Path(temp_dir) / "status.json"
-            code = PLAYER.monitor_playback_health(spotify, status_path, 0.001)
-            status = json.loads(status_path.read_text(encoding="utf-8"))
+    PLAYING_30 = {"is_playing": True, "progress_ms": 29_600,
+                  "item": {"id": "track-a", "name": "Example", "duration_ms": 90_000}}
 
+    def test_spotify_watchdog_marks_mid_track_pause_as_stalled(self) -> None:
+        paused = {"is_playing": False, "progress_ms": 30_000,
+                  "item": {"id": "track-a", "name": "Example", "duration_ms": 90_000}}
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(PLAYER.time, "sleep"):
+            status_path = Path(temp_dir) / "status.json"
+            code = PLAYER.monitor_playback_health(self.ScriptedSpotify([self.PLAYING_30, paused]), status_path, 0.001)
+            status = json.loads(status_path.read_text(encoding="utf-8"))
         self.assertEqual(code, 75)
         self.assertEqual(status["status"], "stalled")
 
     def test_spotify_watchdog_allows_natural_track_end(self) -> None:
-        spotify = self.FakeSpotify(
-            {
-                "is_playing": False,
-                "progress_ms": 89_500,
-                "item": {
-                    "id": "track-a",
-                    "name": "Example",
-                    "duration_ms": 90_000,
-                },
-            }
-        )
-        with tempfile.TemporaryDirectory() as temp_dir:
+        ended = {"is_playing": False, "progress_ms": 89_500,
+                 "item": {"id": "track-a", "name": "Example", "duration_ms": 90_000}}
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(PLAYER.time, "sleep"):
             status_path = Path(temp_dir) / "status.json"
-            code = PLAYER.monitor_playback_health(spotify, status_path, 0.001)
+            code = PLAYER.monitor_playback_health(self.ScriptedSpotify([self.PLAYING_30, ended]), status_path, 0.001)
             status = json.loads(status_path.read_text(encoding="utf-8"))
-
         self.assertEqual(code, 0)
         self.assertEqual(status["status"], "natural_end")
+
+    class Clock:
+        """time.monotonic simulado: cada consulta avanza un segundo."""
+
+        def __init__(self):
+            self.now = 0.0
+
+        def __call__(self):
+            self.now += 1.0
+            return self.now
+
+    def test_spotify_that_is_still_starting_is_not_a_stall(self) -> None:
+        # Gabriel, 2026-11-07, 17:41: Spotify tardó más de 1,5 s en empezar, el vigilante lo dio por detenido
+        # (sin tema, progreso 0) y la descarga dejó de grabar. Antes de sonar por primera vez, se espera.
+        starting = {"is_playing": False, "progress_ms": 0, "item": None}
+        ended = {"is_playing": False, "progress_ms": 89_500,
+                 "item": {"id": "track-a", "name": "Example", "duration_ms": 90_000}}
+        restart = mock.Mock()
+        states = [starting] * 5 + [self.PLAYING_30, ended]
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(PLAYER.time, "sleep"), \
+                mock.patch.object(PLAYER.time, "monotonic", self.Clock()):
+            status_path = Path(temp_dir) / "status.json"
+            code = PLAYER.monitor_playback_health(self.ScriptedSpotify(states), status_path, 1.5, restart=restart)
+        self.assertEqual(code, 0)
+        restart.assert_not_called()  # empezó antes de los 8 s
+
+    def test_spotify_that_never_starts_gets_the_order_again_and_then_a_clear_reason(self) -> None:
+        starting = {"is_playing": False, "progress_ms": 0, "item": None}
+        restart = mock.Mock()
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(PLAYER.time, "sleep"), \
+                mock.patch.object(PLAYER.time, "monotonic", self.Clock()), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            status_path = Path(temp_dir) / "status.json"
+            code = PLAYER.monitor_playback_health(self.ScriptedSpotify([starting]), status_path, 1.5, restart=restart)
+            status = json.loads(status_path.read_text(encoding="utf-8"))
+        self.assertEqual(code, 75)
+        restart.assert_called_once()  # a los 8 s, una vez
+        self.assertEqual(status["status"], "stalled")
+        self.assertIn("no empezó a sonar", status["reason"])
 
     class ScriptedSpotify:
         """Spotify state polled in order; the last one repeats."""
@@ -895,7 +917,7 @@ class TrackByTrackFlowTests(unittest.TestCase):
         return FakeWorker
 
     def run_flow(self, root: Path, script=(), code=0, *, defer=False, recorder_ops=None, playlist_error=None,
-                 recorder_timeout=30.0, recording_output=""):
+                 recorder_timeout=30.0, recording_output="", session_retries=0):
         fake, calls = self.popen(script, code, dict(recorder_ops or {}))
         pauses: list[str] = []
         playlists: list[list[str]] = []
@@ -933,6 +955,7 @@ class TrackByTrackFlowTests(unittest.TestCase):
                                   side_effect=lambda files, env: self.events.append(
                                       ("metadata", sorted(p.name for p in files)))), \
                 mock.patch.object(ORCHESTRATOR, "DEVICE_RETRY_S", 0.0), \
+                mock.patch.object(ORCHESTRATOR, "SESSION_RETRIES", session_retries), \
                 mock.patch.object(ORCHESTRATOR, "pause_spotify",
                                   side_effect=lambda env, device: pauses.append(device) or self.events.append(("pause", device))), \
                 mock.patch.object(ORCHESTRATOR.time, "sleep"), \
@@ -1242,6 +1265,18 @@ class TrackByTrackFlowTests(unittest.TestCase):
             metadata = [e for e in self.events if e[0] == "metadata"]
             self.assertEqual(len(metadata), 1)
             self.assertEqual(metadata[0][1], self.library(root))
+
+    def test_a_cut_session_is_retried_instead_of_leaving_the_run_without_recording(self) -> None:
+        # Gabriel, 2026-11-07, 17:41: la tanda 01 se cortó (Spotify tardó en empezar) y la descarga terminó
+        # «En pausa» con 3 temas sin grabar y Spotify quieto. Ahora la tanda se reintenta sola.
+        script = [[("availability", [1, 2]), ("download", 1), ("queue", 2), ("close", "finished")]]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            code, _, _, report, _ = self.run_flow(root, script, recorder_ops={"01": ["stall"]}, session_retries=2)
+            self.assertEqual((code, report["status"]), (0, "completed"))
+            self.assertEqual(self.library(root), ["Artista - Tema 1.mp3", "Artista - Tema 2.mp3"])
+            self.assertEqual([e for e in self.events if e[0] == "recorder"],
+                             [("recorder", "01", 0), ("recorder", "01", 0)])
 
     def test_the_next_session_starts_while_the_previous_one_saves_its_last_mp3(self) -> None:
         # Gabriel, 2026-11-07: la tanda siguiente esperaba a que se guardara el MP3 de la anterior (15-70 s).

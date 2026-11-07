@@ -148,6 +148,14 @@ descarga. Windows reutiliza los PID: el 2026-11-07, al terminar una descarga de 
 cerraron `GoogleDriveFS.exe`, varios `msedgewebview2.exe` y el `crashpad_handler.exe` de Spotify. Un
 proceso entra ahora solo si su padre sigue siendo el mismo (misma hora de creación) y nació antes que él.
 
+### Spotify puede tardar en empezar a sonar: eso no es una pausa
+
+El vigilante de Spotify daba por detenida la reproducción si a los 1,5 s no sonaba. El 2026-11-07 a las
+17:41, con la PC cargando los modelos del postproceso, Spotify tardó más en arrancar: el vigilante
+informó «sin tema, progreso 0», el grabador se cortó y la descarga dejó de grabar con 3 temas en cola.
+Antes de verlo sonar por primera vez, el vigilante espera hasta 30 s (y repite la orden a los 8 s), y una
+tanda cortada se reintenta sola en vez de bloquear la grabación de toda la descarga.
+
 ### Igualar volumen es igualar sonoridad, no picos
 
 Subir los grabados a un pico de −1 dBFS los dejó en −8,4, −9,6 y −11,9 LUFS, contra −6,3 a −8,3 de los
