@@ -29,7 +29,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 - **Pendrive `D:\TRAKTOR ML` (copia en `C:\TRAKTOR ML`)** (DECISIONS 2026-10-30, 11-02): los 1760
   temas de `biblioteca` por playlist; `_organizacion.csv` da archivo y track_uid de cada uno
   (verificado en ambas el 11-04). Carátulas 1630/1760. Rekordbox: `Preparar Rekordbox.bat`.
-- **`download_JIJIJI/`**: Spotify por Soulseek; lo que falte se graba (Spotify solo a Voicemeeter);
+- **`download_JIJIJI/`**: Spotify por Soulseek; lo que falte se graba de a un tema, sin perder audio
+  (Voicemeeter; informe grilla 11-07);
   Beatport o modelo de género, Vocal y embedding tema por tema. Después: Traktor (Analyze) y «Agregar
   música nueva» (BPM/tonalidad de Traktor, género; DECISIONS 11-07 p. 18). Logs `runs/logs/`.
 - **Chequeo pre-commit** en `tools/git_hooks/` (audio, arrays, pesos, credenciales, archivos > 5 MB).

@@ -1,6 +1,9 @@
 """PURPOSE: Test Spotify/Soulseek synchronization, metadata and consolidation.
 
 CHANGELOG:
+- 2026-11-07: Capture tests: the loopback is captured in callback mode, in order, with reported losses counted,
+              and the first track starts 20 ms before its first sound after silence (or no data), not at
+              sound already playing at the opening.
 - 2026-11-06: Track by track: recording sessions start with the first queued track while the downloader
               goes on, an empty queue waits for the next track, postponing or Spotify stopping keep the
               download going, sessions resume from their checkpoint, a broken search saves a partial
@@ -1001,6 +1004,7 @@ class TrackByTrackFlowTests(unittest.TestCase):
             self.assertIn("--recording-queue", downloader)
             self.assertEqual(downloader[downloader.index("--parallel") + 1], "2")
 
+    @mock.patch.object(ORCHESTRATOR, "SESSION_SIZE", 10)  # tandas de varios temas (el valor anterior)
     def test_postponed_from_the_start_saves_soulseek_and_records_later(self) -> None:
         script = [[("availability", [1, 2, 3]), ("download", 1), ("queue", 2)], [("queue", 3), ("close", "finished")]]
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1018,6 +1022,7 @@ class TrackByTrackFlowTests(unittest.TestCase):
             self.assertEqual(spotify["playlists"], [["id2", "id3"]])
             self.assertEqual(self.library(root), self.ALL3)
 
+    @mock.patch.object(ORCHESTRATOR, "SESSION_SIZE", 10)  # tandas de varios temas (el valor anterior)
     def test_postponing_during_a_session_stops_it_and_keeps_what_was_recorded(self) -> None:
         script = [[("availability", [1, 2, 3]), ("download", 1), ("queue", 2), ("queue", 3)], [], [("close", "finished")]]
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1177,6 +1182,7 @@ class TrackByTrackFlowTests(unittest.TestCase):
             player = next(cmd for name, cmd in calls if name == "spotify_playlist.py")
             self.assertNotIn("--route-output", player)
 
+    @mock.patch.object(ORCHESTRATOR, "SESSION_SIZE", 10)  # tandas de varios temas (el valor anterior)
     def test_spotify_is_paused_before_the_next_session_starts_recording(self) -> None:
         # 12 en la cola: tanda de 10 y tanda de 2, una detrás de la otra. La reproducción automática que
         # sigue a la primera no puede ser lo que el grabador de la segunda toma como su comienzo.
@@ -1186,6 +1192,16 @@ class TrackByTrackFlowTests(unittest.TestCase):
             code, _, _, report, spotify = self.run_flow(Path(temp_dir), script)
             self.assertEqual((code, report["status"]), (0, "completed"))
             self.assertEqual([len(p) for p in spotify["playlists"]], [10, 2])
+
+    def test_each_track_is_recorded_in_its_own_session(self) -> None:
+        # Every track starts after silence, so its MP3 begins 20 ms before its first sound; in a longer session
+        # the next track started at "previous start + duration" and lost its first beat when the previous
+        # master had silence at its start (2026-11-07).
+        script = [[("availability", [1, 2, 3])] + [("queue", n) for n in (1, 2, 3)] + [("close", "finished")]]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            code, _, _, report, spotify = self.run_flow(Path(temp_dir), script)
+            self.assertEqual((code, report["status"]), (0, "completed"))
+            self.assertEqual(spotify["playlists"], [["id1"], ["id2"], ["id3"]])
             order = [e for e in self.events if e[0] in {"recorder", "pause"}]
             second = order.index(("recorder", "02", 0))
             self.assertIn(("pause", "dev1"), order[:second])
@@ -1362,6 +1378,7 @@ class TrackByTrackFlowTests(unittest.TestCase):
             self.assertEqual(self.library(root), ["Artista - Tema 1.mp3", "Artista - Tema 2.mp3"])
             self.assertFalse((run_dir / "recordings").exists())
 
+    @mock.patch.object(ORCHESTRATOR, "SESSION_SIZE", 10)  # tandas de varios temas (el valor anterior)
     def test_an_empty_session_folder_left_by_a_cut_does_not_block_the_run(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -1723,6 +1740,105 @@ class EnvironmentSetupTests(unittest.TestCase):
         spotify = self.start({"id": "dev1", "name": "GABRIEL", "is_active": False})
         names = [c[0] for c in spotify.mock_calls if c[0] in ("transfer_playback", "shuffle", "repeat", "start_playback")]
         self.assertEqual(names, ["transfer_playback", "shuffle", "repeat", "start_playback", "shuffle", "repeat"])
+
+
+class CaptureTests(unittest.TestCase):
+    """The capture does not lose audio silently and the first track starts where it starts (2026-11-07)."""
+
+    RATE = 48000
+
+    @staticmethod
+    def block(level: float, frames: int = 1024) -> "np.ndarray":
+        import numpy as np
+        return np.full((frames, 2), int(level * 32767), dtype=np.int16)
+
+    def feed(self, detector, rolling, seconds: float, level: float):
+        """Feed `seconds` of constant level in CHUNK blocks; the first onset returned, if any."""
+        for _ in range(int(round(seconds * self.RATE / RECORDER.CHUNK))):
+            arr = self.block(level)
+            rolling.append(arr)
+            onset = detector.feed(arr, rolling)
+            if onset is not None:
+                return onset
+        return None
+
+    def test_the_recorder_opens_the_loopback_in_callback_mode(self) -> None:
+        # Blocking reads held 42.7 ms: every longer pause of the loop lost audio without any error.
+        audio = OutputCheckTests.FakeAudio()
+        opened = {}
+        audio.open = lambda **kwargs: opened.update(kwargs) or mock.Mock()
+        capture = RECORDER.LoopbackCapture()
+        RECORDER.open_loopback(audio, "Voicemeeter Input", capture)
+        self.assertEqual(opened["stream_callback"], capture.callback)
+        opened.clear()
+        RECORDER.open_loopback(audio, "Voicemeeter Input")  # --check-device only opens and closes it
+        self.assertNotIn("stream_callback", opened)
+
+    def test_blocks_queue_in_order_and_a_reported_loss_is_counted(self) -> None:
+        capture = RECORDER.LoopbackCapture()
+        for n, status in ((1, 0), (2, RECORDER.pyaudio.paInputOverflow), (3, 0)):
+            self.assertEqual(capture.callback(bytes([n]) * 4096, 1024, {}, status)[1], RECORDER.pyaudio.paContinue)
+        self.assertEqual(capture.queued_frames, 3072)
+        got = [capture.next_block() for _ in range(4)]
+        self.assertEqual([g[0][:1] if g[0] else None for g in got], [b"\x01", b"\x02", b"\x03", None])
+        self.assertEqual([g[1] for g in got], [False, True, False, False])
+        self.assertEqual([g[2] for g in got], [2048, 1024, 0, 0])
+        with tempfile.TemporaryDirectory() as temp_dir:
+            timing = RECORDER.CaptureTiming(Path(temp_dir) / "t.csv", self.RATE)
+            for _, overflowed, backlog in got:
+                timing.poll(backlog, True, 0, overflowed)
+            self.assertEqual(timing.take_overruns(), 1)
+            self.assertEqual(timing.take_overruns(), 0)
+            timing.close()
+
+    def test_sound_already_playing_at_the_opening_is_not_the_start(self) -> None:
+        # Gabriel's run of 2026-11-07: 2.3 s of other audio, 2.9 s of silence, then the track; the recorder took
+        # 0.000 s as the start and the MP3 began and ended 5 s early.
+        rolling = RECORDER.RollingAudio(self.RATE, 2, 8.0)
+        detector = RECORDER.StartDetector(self.RATE)
+        self.assertIsNone(self.feed(detector, rolling, 2.3, 0.3))
+        self.assertIsNone(self.feed(detector, rolling, 2.9, 0.0))
+        sound = rolling.total_frames / self.RATE
+        onset = self.feed(detector, rolling, 1.0, 0.3)
+        self.assertAlmostEqual(onset, sound - RECORDER.START_LEAD_SEC, delta=0.001)
+
+    def test_the_start_is_a_fixed_lead_before_the_first_sound(self) -> None:
+        # 20 ms before the first sample that sounds, like a Soulseek file (median 30 ms, 31 % within 5 ms).
+        rolling = RECORDER.RollingAudio(self.RATE, 2, 8.0)
+        detector = RECORDER.StartDetector(self.RATE)
+        self.assertIsNone(self.feed(detector, rolling, 1.5, 0.0))
+        sound = rolling.total_frames / self.RATE
+        self.assertAlmostEqual(self.feed(detector, rolling, 1.0, 0.3), sound - 0.020, delta=0.001)
+
+    def test_the_lead_is_the_same_wherever_the_sound_starts_inside_a_block(self) -> None:
+        # Run B of 2026-11-07: «Oye» began 4 ms after a block boundary and the old detector fell back to that
+        # boundary (it asked for 60 ms of RMS windows with only 64 ms of sound): 4 ms of lead instead of 20, and
+        # a sound starting just before the boundary lost its first milliseconds.
+        import numpy as np
+        for silence_frames in (250880, 250880 - 300, 250880 + 4, 250880 + 517, 250880 + 1023):
+            sig = np.zeros((silence_frames + self.RATE, 2), dtype=np.int16)
+            sig[silence_frames:] = 9000
+            rolling = RECORDER.RollingAudio(self.RATE, 2, 8.0)
+            detector = RECORDER.StartDetector(self.RATE)
+            onset = None
+            for a in range(0, len(sig) - RECORDER.CHUNK, RECORDER.CHUNK):
+                block = sig[a:a + RECORDER.CHUNK]
+                rolling.append(block)
+                onset = detector.feed(block, rolling)
+                if onset is not None:
+                    break
+            self.assertAlmostEqual(onset, silence_frames / self.RATE - 0.020, delta=1 / self.RATE,
+                                   msg=f"sound at frame {silence_frames}")
+
+    def test_no_data_counts_as_silence_before_the_start(self) -> None:
+        # The loopback of a physical output delivers nothing while nothing plays.
+        rolling = RECORDER.RollingAudio(self.RATE, 2, 8.0)
+        detector = RECORDER.StartDetector(self.RATE)
+        self.assertIsNone(self.feed(detector, rolling, 0.1, 0.3))   # a short blip at the opening
+        detector.no_data(0.5, rolling.total_frames / self.RATE)
+        start = rolling.total_frames / self.RATE
+        # the lead cannot reach back past the gap: what came before it was not the track
+        self.assertAlmostEqual(self.feed(detector, rolling, 1.0, 0.3), start, delta=0.001)
 
 
 if __name__ == "__main__":

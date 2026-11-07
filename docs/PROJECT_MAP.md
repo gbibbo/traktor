@@ -201,8 +201,11 @@ por loopback (`playlist_loopback_recorder.py`) y los reportes JSON/TXT de una pr
 `spotify_soulseek_orchestrator.py` es el punto de entrada único: recibe una URL y va tema a tema
 (2026-11-06): el descargador busca cada tema en Soulseek y, si está, lo baja enseguida; lo que no se
 consigue entra en la cola de grabación (`recording_queue.py`, `recording_queue.jsonl` del run) y el
-orquestador lo graba de Spotify mientras sigue la búsqueda, en tandas de hasta 10 temas con su propia
-playlist privada (borrada al terminar la tanda) y su carpeta `recordings/NN/`. El descargador trabaja con
+orquestador lo graba de Spotify mientras sigue la búsqueda, en tandas de un tema (2026-11-07: cada uno
+empieza después de un silencio y su MP3 arranca 20 ms antes del primer sonido) con su propia
+playlist privada (borrada al terminar la tanda) y su carpeta `recordings/NN/`. El grabador captura el
+loopback en modo callback: con lecturas bloqueantes perdía audio en cada pausa de más de 42,7 ms y
+Traktor no encontraba una grilla fija (`docs/reports/grabaciones_spotify_grilla_2026-11-07.md`). El descargador trabaja con
 2 temas a la vez por una sola sesión de Soulseek (`SockseekDaemon`: el daemon de sockseek, con `--remote`).
 La playlist de cada tanda suena en repetición, para que el último tema se corte como los demás. Si se
 graba una salida concreta («Solo Spotify, sin que suene nada»: Voicemeeter), `spotify_output.py` manda
@@ -288,6 +291,19 @@ D7 y D8). Los datos van fuera de Git, en `--root` (en este PC, `D:\TRAKTOR ML da
 | `tools/traktor_live/mapeo_tsi.py` | Exporta un mapeo de controlador o de teclado de Traktor (de `Traktor Settings.tsi` u otro `.tsi`) a un `.tsi` con el formato de NI; `--detalle` muestra cada asignación (comando con nombre, modo, valor, condiciones de modificador), `--liberar "Ch15.Note.D0"` quita todas las de un control y `--quitar "Ch15.CC.021:211"` una sola; `--listar`, `--puertos`; no toca la configuración de Traktor |
 | `tools/traktor_live/mapeos/` | Mapeos de Gabriel para importar en otro ordenador: `Xone K2 - TRAKTOR ML (D0 libre).tsi` (125 asignaciones, sin la preescucha: Load Selected y Modifier #2 de D0 y el Seek del encoder derecho con M2) y `Teclado - TRAKTOR ML.tsi` (56); su README dice cómo importarlos y regenerarlos. También las dos configuraciones completas que usa Gabriel, `DJM + K2 (mezcla externa).tsi` y `XONE K2 + TECLADO (TEMPO) (mezcla interna).tsi`, sin los datos del servidor de transmisión (importarlas reemplaza los Favoritos) |
 | `PROMPT_LLM.md` | Prompt mínimo para que otro LLM guíe a una persona a replicar las sugerencias en vivo: fuentes, pasos con su comprobación, fallas conocidas y límites |
+
+## Auditoría de grabaciones (`tools/recording_audit/`)
+
+Diagnóstico de los temas grabados de Spotify (informe `docs/reports/grabaciones_spotify_grilla_2026-11-07.md`).
+Solo leen audio con ffmpeg; corren con el Python que tenga scipy.
+
+| Archivo | Descripción |
+| :--- | :--- |
+| `tools/recording_audit/beat_phase.py` | Fase de los bombos contra una grilla constante, ventana por ventana: BPM que mejor calza, deriva y saltos |
+| `tools/recording_audit/staircase.py` | Fase contra una grilla de BPM entero en tramos de 15 s, al lado del audio que perdió la captura en cada tramo (`capture_timing.csv`, `--offset` para un tema dentro de su sesión) |
+| `tools/recording_audit/explain.py` | Coherencia de la grilla y BPM con el eje de tiempo grabado y con el corregido por lo que perdió la captura: si las pérdidas son la causa, el corregido vuelve al tempo del original |
+| `tools/recording_audit/align.py` | Alinea una grabación con el original (Soulseek) segundo a segundo por correlación: cuánto audio falta y dónde |
+| `tools/recording_audit/lead_in.py` | Milisegundos antes del primer sonido y del primer bombo de cada archivo, con el AutoGrid y el BPM de la colección de Traktor (`TRAKTOR_NML` para otra colección) |
 
 ## Herramienta de feedback del DJ (`tools/dj_feedback/`)
 

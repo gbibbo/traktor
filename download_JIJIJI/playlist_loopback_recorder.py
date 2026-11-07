@@ -3,6 +3,20 @@
 PURPOSE: Record a Spotify playlist through Windows WASAPI loopback and split it.
 
 CHANGELOG:
+- 2026-11-07: The loopback is captured in callback mode (LoopbackCapture: PortAudio's own thread hands each
+              block to a queue) instead of blocking reads from the loop. The blocking buffer held 42.7 ms and
+              every longer pause of the loop dropped audio without any error (PortAudio does not flag it in
+              that mode): 100 ms of pause lost 56-78 ms, 1 s lost 957 ms (measured on Voicemeeter Input), so
+              the beats jumped and Traktor found no steady grid. A 2 s blocking buffer was not a way out: near
+              full it delivered 70,000 frames/s of a 48 kHz stream. The callback kept every frame through
+              6 s pauses; an overflow it still reports is counted per track ("capture_overruns") and said.
+- 2026-11-07: The first track starts at the first sustained sound after at least 0.3 s of silence (or of no
+              data): sound already playing when the recorder opens is not its start. Gabriel's runs took
+              0.000 s and 0.277 s as the start that way, and the MP3 began seconds before the track and ended
+              seconds before its end.
+- 2026-11-07: capture_timing.csv (one row per second: wall clock against audio received, the read backlog and
+              the longest pause of the capture loop), to audit why Traktor finds no steady grid in the
+              recordings. JIJIJI_KEEP_WAV=1 keeps the session WAV, like --keep-wav.
 - 2026-11-07: Each recorded track is raised to the loudness of what comes from Soulseek (-8 LUFS, only up)
               with a limiter under -1 dBFS, measured again after the limiter. Raising the peak alone left the
               recordings at -8.4, -9.6 and -11.9 LUFS against -6.3 to -8.3 from Soulseek. --raise-loudness
@@ -117,6 +131,12 @@ SILENCE_THRESHOLDS_DBFS = (-80.0, -72.0, -65.0)
 
 START_HISTORY_SEC = 1.0
 START_CONFIRM_MS = 60.0
+START_QUIET_SEC = 0.3   # the first track starts after this much silence (or no data): not what already sounded
+# The MP3 starts this long before the first sound, like a Soulseek file: of 70 Soulseek downloads, 31 % start
+# sounding within 5 ms and the median is 30 ms (the rest carry the master's own silence, up to 0.4 s, which a
+# recording cannot see: it merges with the silence before Spotify starts). Measured 2026-11-07.
+START_LEAD_SEC = 0.020
+FIRST_SOUND_LEVEL = 10  # |sample| (16 bit) that counts as sound: -70 dBFS, over Voicemeeter's silence (+-1)
 START_THRESHOLD_DBFS = -72.0
 START_ONSET_THRESHOLD_DBFS = -82.0
 STALL_THRESHOLD_DBFS = -90.0
@@ -125,6 +145,8 @@ DEFAULT_START_TIMEOUT = 180.0
 STALL_EXIT_CODE = 75
 DEVICE_UNAVAILABLE_EXIT_CODE = 76  # la salida predeterminada no se puede grabar (ocupada o desconectada)
 PROGRESS_FILENAME = "recording_progress.json"
+TIMING_FILENAME = "capture_timing.csv"
+KEEP_WAV_ENV = "JIJIJI_KEEP_WAV"
 
 
 @dataclass
@@ -138,6 +160,7 @@ class BoundaryResult:
     silence_start_sec: float | None = None
     silence_end_sec: float | None = None
     level_dbfs: float | None = None
+    capture_overruns: int = 0   # audio losses PortAudio reported while this track played
 
 
 class PlaybackStalled(RuntimeError):
@@ -188,9 +211,36 @@ def find_output_loopback(p: "pyaudio.PyAudio", name: str | None) -> dict[str, An
     raise LookupError(name)
 
 
-def open_loopback(p: "pyaudio.PyAudio", name: str | None = None) -> tuple[dict[str, Any], Any]:
-    """El loopback de la salida elegida (o la predeterminada), abierto para leer; DeviceUnavailable si no se
-    puede."""
+class LoopbackCapture:
+    """Los bloques del loopback, en orden, sin perder ninguno aunque el bucle se atrase: PortAudio los entrega
+    desde su propio hilo (modo callback) a una cola. Con lecturas bloqueantes desde el bucle, cada pausa de
+    más de 42.7 ms perdía audio sin aviso (2026-11-07).
+
+    El loopback solo entrega audio mientras algo suena por esa salida (Voicemeeter entrega silencio)."""
+
+    def __init__(self) -> None:
+        self.blocks: deque[tuple[bytes, int]] = deque()
+        self.queued_frames = 0
+
+    def callback(self, in_data: bytes | None, frame_count: int, time_info: Any, status: int):
+        if in_data:
+            self.blocks.append((in_data, int(status or 0)))
+            self.queued_frames += frame_count
+        return (None, pyaudio.paContinue)
+
+    def next_block(self) -> tuple[bytes | None, bool, int]:
+        """(el bloque más viejo o None, si PortAudio avisó que se perdió audio antes de él, frames en cola)."""
+        if not self.blocks:
+            return None, False, 0
+        data, status = self.blocks.popleft()
+        self.queued_frames -= len(data) // (CHANNELS * 2)
+        return data, bool(status & pyaudio.paInputOverflow), self.queued_frames
+
+
+def open_loopback(p: "pyaudio.PyAudio", name: str | None = None,
+                  capture: LoopbackCapture | None = None) -> tuple[dict[str, Any], Any]:
+    """El loopback de la salida elegida (o la predeterminada), abierto (con `capture`, entregándole sus
+    bloques); DeviceUnavailable si no se puede."""
     try:
         device = find_output_loopback(p, name)
     except (OSError, LookupError) as exc:
@@ -198,6 +248,7 @@ def open_loopback(p: "pyaudio.PyAudio", name: str | None = None) -> tuple[dict[s
     name = str(device.get("name") or "").replace(" [Loopback]", "")
     if int(device.get("maxInputChannels") or 0) < CHANNELS:
         raise DeviceUnavailable(device_problem(name, f"tiene {device.get('maxInputChannels')} canal(es), no estéreo"))
+    options: dict[str, Any] = {"stream_callback": capture.callback} if capture is not None else {}
     try:
         stream = p.open(
             format=FORMAT,
@@ -206,18 +257,123 @@ def open_loopback(p: "pyaudio.PyAudio", name: str | None = None) -> tuple[dict[s
             frames_per_buffer=CHUNK,
             input=True,
             input_device_index=device["index"],
+            **options,
         )
     except OSError as exc:
         raise DeviceUnavailable(device_problem(name, exc)) from exc
     return device, stream
 
 
-def read_available(stream: Any, frames: int = CHUNK) -> bytes | None:
-    """Un bloque del loopback si ya llegó; None si todavía no. El loopback solo entrega audio mientras algo
-    suena por esa salida: una lectura bloqueante esperaría para siempre."""
-    if stream.get_read_available() < frames:
-        return None
-    return stream.read(frames, exception_on_overflow=False)
+class CaptureTiming:
+    """Una fila por segundo en capture_timing.csv: reloj de pared contra audio recibido del loopback, la cola y
+    las pérdidas que avisa PortAudio.
+
+    Mientras suena, el audio recibido avanza igual que el reloj. Si se atrasa, se perdió audio en la captura o
+    la salida misma avanzó más lento; spotify_progress.csv (spotify_playlist.py) dice cuál de las dos."""
+
+    HEADER = "wall_unix,stream_s,reads,idle_polls,max_backlog_frames,max_loop_gap_ms,overruns\n"
+
+    def __init__(self, path: Path, rate: int):
+        self.rate = rate
+        new = not path.exists() or path.stat().st_size == 0
+        self.file = path.open("a", encoding="utf-8", newline="")
+        if new:
+            self.file.write(self.HEADER)
+        self.next_row = time.monotonic()
+        self.last_poll: float | None = None
+        self.overruns_since_take = 0
+        self._reset()
+
+    def _reset(self) -> None:
+        self.reads = 0
+        self.idle = 0
+        self.max_backlog = 0
+        self.max_gap = 0.0
+        self.overruns = 0
+
+    def poll(self, backlog: int, got_block: bool, total_frames: int, overflowed: bool = False) -> None:
+        now = time.monotonic()
+        if self.last_poll is not None:
+            self.max_gap = max(self.max_gap, now - self.last_poll)
+        self.last_poll = now
+        self.max_backlog = max(self.max_backlog, backlog)
+        if overflowed:
+            self.overruns += 1
+            self.overruns_since_take += 1
+        if got_block:
+            self.reads += 1
+        else:
+            self.idle += 1
+        if now >= self.next_row:
+            self.file.write(f"{time.time():.3f},{total_frames / self.rate:.4f},{self.reads},{self.idle},"
+                            f"{self.max_backlog},{self.max_gap * 1000:.1f},{self.overruns}\n")
+            self.file.flush()
+            self.next_row = now + 1.0
+            self._reset()
+
+    def take_overruns(self) -> int:
+        """Las pérdidas desde la última vez que se preguntó (el corte anterior)."""
+        count, self.overruns_since_take = self.overruns_since_take, 0
+        return count
+
+    def close(self) -> None:
+        self.file.close()
+
+
+class StartDetector:
+    """El comienzo del primer tema: START_LEAD_SEC antes del primer sonido que sigue a START_QUIET_SEC de
+    silencio (o sin datos: el loopback de una salida física no entrega nada mientras no suena), confirmado
+    cuando ya suena fuerte START_CONFIRM_MS. Lo que ya sonaba al abrir el grabador no es el comienzo
+    (2026-11-07: 2.3 s de otra cosa, 2.9 s de silencio y recién el tema; el grabador tomó 0.000 s y el MP3
+    empezó y terminó 5 s antes). El primer sonido se busca muestra a muestra desde el bloque en que terminó el
+    silencio: el detector anterior pedía 60 ms de ventanas RMS cuando apenas había 64 ms de sonido, casi
+    siempre no las encontraba y caía al borde del bloque (0 a 21 ms antes del sonido, o ya adentro)."""
+
+    def __init__(self, rate: int, confirm_threshold_dbfs: float = START_THRESHOLD_DBFS):
+        self.rate = rate
+        self.confirm_threshold_dbfs = confirm_threshold_dbfs
+        self.blocks_needed = max(1, math.ceil((START_CONFIRM_MS / 1000.0) * rate / CHUNK))
+        self.confirm_blocks = 0
+        self.quiet_since: float | None = None
+        self.armed_from: float | None = None  # dónde empezó el silencio que habilita el comienzo
+        self.sound_from: float | None = None  # el bloque en que terminó ese silencio
+
+    def no_data(self, waited_sec: float, now_sec: float) -> None:
+        """No llega nada desde hace waited_sec (reloj): cuenta como silencio que termina en now_sec."""
+        if waited_sec >= START_QUIET_SEC:
+            self.armed_from = now_sec
+            self.quiet_since = None
+            self.sound_from = None
+            self.confirm_blocks = 0
+
+    def feed(self, block: np.ndarray, rolling: "RollingAudio") -> float | None:
+        """El bloque recién agregado a rolling; el comienzo (segundos de captura) cuando se confirma."""
+        now = rolling.total_frames / self.rate
+        block_start = now - len(block) / self.rate
+        level = block_dbfs(block)
+        if level < START_ONSET_THRESHOLD_DBFS:
+            if self.quiet_since is None:
+                self.quiet_since = block_start
+            if now - self.quiet_since >= START_QUIET_SEC:
+                self.armed_from = self.quiet_since
+                self.sound_from = None  # cuenta el sonido que venga después de este silencio
+            self.confirm_blocks = 0
+            return None
+        self.quiet_since = None
+        if self.armed_from is None:
+            return None
+        if self.sound_from is None:
+            self.sound_from = block_start
+        self.confirm_blocks = self.confirm_blocks + 1 if level >= self.confirm_threshold_dbfs else 0
+        if self.confirm_blocks < self.blocks_needed:
+            return None
+        # Desde un bloque antes: el sonido pudo empezar al final del último bloque silencioso.
+        look_from = max(self.armed_from, self.sound_from - CHUNK / self.rate)
+        audio, audio_start = rolling.extract(look_from, now)
+        first = first_sound_sec(audio, audio_start, self.rate)
+        if first is None:
+            first = self.sound_from
+        return max(self.armed_from, first - START_LEAD_SEC)
 
 
 def check_device(name: str | None = None) -> dict[str, Any]:
@@ -438,36 +594,12 @@ def detect_boundary_in_window(
     )
 
 
-def find_playlist_start(
-    history: np.ndarray,
-    history_start_sec: float,
-    rate: int,
-    confirm_threshold_dbfs: float,
-) -> float | None:
-    """Find a sustained onset inside the recent history and return absolute seconds."""
-    if len(history) == 0:
+def first_sound_sec(audio: np.ndarray, audio_start_sec: float, rate: int) -> float | None:
+    """The first sample that sounds (|x| >= FIRST_SOUND_LEVEL), in absolute seconds; None if none does."""
+    if len(audio) == 0:
         return None
-
-    rel_times, dbfs = rms_dbfs_curve(history, rate)
-    if len(dbfs) == 0:
-        return None
-
-    needed = max(1, int(math.ceil(START_CONFIRM_MS / RMS_HOP_MS)))
-    active_runs = contiguous_runs(dbfs >= confirm_threshold_dbfs)
-    confirmed = [(a, b) for a, b in active_runs if b - a >= needed]
-    if not confirmed:
-        return None
-
-    confirmed_start = confirmed[0][0]
-
-    # Search slightly backwards for the first very quiet but real onset so a fade-in
-    # is not clipped merely because the confirmation threshold is higher.
-    pre = max(0, confirmed_start - int(round(0.35 / (RMS_HOP_MS / 1000.0))))
-    earlier = np.where(dbfs[pre : confirmed_start + 1] >= START_ONSET_THRESHOLD_DBFS)[0]
-    onset_i = pre + int(earlier[0]) if len(earlier) else confirmed_start
-
-    onset_sec = history_start_sec + float(rel_times[onset_i]) - RMS_WINDOW_MS / 2000.0
-    return max(history_start_sec, onset_sec)
+    loud = np.flatnonzero(np.max(np.abs(audio.astype(np.int32)), axis=1) >= FIRST_SOUND_LEVEL)
+    return audio_start_sec + int(loud[0]) / rate if len(loud) else None
 
 
 def duration_seconds(track: dict[str, Any]) -> float:
@@ -865,7 +997,8 @@ def main() -> int:
     parser.add_argument(
         "--keep-wav",
         action="store_true",
-        help="Keep the temporary full-session WAV after successful export",
+        default=os.environ.get(KEEP_WAV_ENV, "") not in ("", "0"),
+        help=f"Keep the temporary full-session WAV after successful export (also {KEEP_WAV_ENV}=1)",
     )
     parser.add_argument(
         "--ready-file",
@@ -980,6 +1113,7 @@ def main() -> int:
     p: pyaudio.PyAudio | None = None
     stream = None
     wav_file = None
+    timing: CaptureTiming | None = None
     executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="mp3-checkpoint")
     futures: list[Future[None]] = []
     exit_code = 0
@@ -988,7 +1122,8 @@ def main() -> int:
 
     try:
         p = pyaudio.PyAudio()
-        device, stream = open_loopback(p, args.output_device)
+        capture = LoopbackCapture()
+        device, stream = open_loopback(p, args.output_device, capture)
         rate = int(device["defaultSampleRate"])
 
         keep_seconds = args.search_before + args.search_after + START_HISTORY_SEC + 2.0
@@ -998,6 +1133,7 @@ def main() -> int:
         wav_file.setnchannels(CHANNELS)
         wav_file.setsampwidth(p.get_sample_size(FORMAT))
         wav_file.setframerate(rate)
+        timing = CaptureTiming(args.output_dir / TIMING_FILENAME, rate)
 
         print(f"Loopback : {device['name']}")
         print(f"Format   : {rate} Hz, stereo, PCM 16 bit")
@@ -1034,8 +1170,7 @@ def main() -> int:
             flush=True,
         )
 
-        start_confirm_blocks = 0
-        blocks_needed = max(1, math.ceil((START_CONFIRM_MS / 1000.0) * rate / CHUNK))
+        start_detector = StartDetector(rate, args.start_threshold_dbfs)
 
         last_audio = time.monotonic()
         while not capture_finished:
@@ -1045,7 +1180,8 @@ def main() -> int:
                 if future.done():
                     future.result()
 
-            raw = read_available(stream)
+            raw, overflowed, backlog = capture.next_block()
+            timing.poll(backlog, raw is not None, rolling.total_frames, overflowed)
             if raw is None:
                 # No llega nada: no suena nada por esa salida (todavía no empezó, Spotify se detuvo o sale
                 # por otra salida).
@@ -1059,6 +1195,8 @@ def main() -> int:
                     spotify = tracks[next_track_index].get("spotify") or {}
                     title = spotify.get("title") or f"Track {next_track_index + 1}"
                     raise PlaybackStalled(f"Spotify dejó de producir audio durante «{title}».")
+                if playlist_start is None:
+                    start_detector.no_data(waited, rolling.total_frames / rate)
                 time.sleep(0.005)
                 continue
             last_audio = time.monotonic()
@@ -1079,20 +1217,9 @@ def main() -> int:
                     raise PlaybackStalled(
                         "Spotify no inició la primera pista pendiente dentro del timeout." + hint
                     )
-                if block_dbfs(arr) >= START_THRESHOLD_DBFS:
-                    start_confirm_blocks += 1
-                else:
-                    start_confirm_blocks = 0
-
-                if start_confirm_blocks >= blocks_needed:
-                    hist_start = max(0.0, now_sec - START_HISTORY_SEC)
-                    history, actual_hist_start = rolling.extract(hist_start, now_sec)
-                    onset = find_playlist_start(
-                        history, actual_hist_start, rate, args.start_threshold_dbfs
-                    )
-                    if onset is None:
-                        onset = max(0.0, now_sec - start_confirm_blocks * CHUNK / rate)
-
+                onset = start_detector.feed(arr, rolling)
+                if onset is not None:
+                    timing.take_overruns()  # lo de antes del comienzo no es de ningún tema
                     playlist_start = onset
                     current_track_start = onset
                     expected_boundary = current_track_start + duration_seconds(
@@ -1138,6 +1265,7 @@ def main() -> int:
                 track_index=next_track_index,
                 playlist_position=position if isinstance(position, int) else None,
             )
+            result.capture_overruns = timing.take_overruns()
             boundaries.append(result)
 
             spotify = track.get("spotify") or {}
@@ -1146,6 +1274,10 @@ def main() -> int:
                 f"Cut {next_track_index + 1:03d}: {result.detected_sec:.3f} s  "
                 f"delta={result.correction_sec:+.3f} s  {result.method}  {title}"
             )
+            if result.capture_overruns:
+                print(f"AVISO: se perdió audio al grabar «{title}» (PortAudio avisó {result.capture_overruns} pérdida(s) "
+                      "en la captura): la grilla de Traktor puede no quedar fija; conviene grabarlo de nuevo.",
+                      flush=True)
 
             flush_wave_for_reader(wav_file)
             output_path = args.output_dir / output_filenames[next_track_index]
@@ -1212,6 +1344,12 @@ def main() -> int:
         if wav_file is not None:
             try:
                 wav_file.close()
+            except Exception:
+                pass
+
+        if timing is not None:
+            try:
+                timing.close()
             except Exception:
                 pass
 

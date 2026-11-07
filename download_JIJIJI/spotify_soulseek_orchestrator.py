@@ -3,6 +3,10 @@
 PURPOSE: Run the complete Spotify -> Soulseek + loopback fallback workflow.
 
 CHANGELOG:
+- 2026-11-07: One track per recording session (SESSION_SIZE 1): every track starts after silence, so its
+              MP3 begins 20 ms before its first sound, like a Soulseek file. In a longer session the next
+              track started at "previous start + duration", which cut its first beat whenever the previous
+              master had silence at its start (in the Soulseek downloads, a quarter have over 0.2 s).
 - 2026-11-07: A session that is cut (Spotify slow to start, stopped) is retried on its own up to
               SESSION_RETRIES times instead of leaving the whole run without recording until «Continuar».
 - 2026-11-07: The next session starts at the last cut of the previous one: its recorder keeps saving the
@@ -122,7 +126,7 @@ LAYOUT = 2                             # tema a tema (2026-11-06); los runs sin 
 RECORDINGS_DIR = "recordings"          # una carpeta por tanda grabada: recordings/01, recordings/02…
 SESSION_FILE = "session.json"          # la tanda: sus temas (manifiesto del grabador) y su playlist
 PROGRESS_FILE = "recording_progress.json"  # checkpoint del grabador (playlist_loopback_recorder.py)
-SESSION_SIZE = 10                      # temas por tanda, como las playlists de grabación de antes
+SESSION_SIZE = 1                       # un tema por tanda: cada uno empieza después de un silencio (ver CHANGELOG)
 PLAYLIST_CREATE_PAUSES_S = (5.0, 15.0)  # reintentos al crear la playlist de una tanda
 PLAYER_ATTEMPTS = 2                    # Spotify recién abierto puede tardar más que el tope en aparecer
 DEVICE_UNAVAILABLE_EXIT_CODE = 76      # playlist_loopback_recorder.py: la salida no se puede grabar

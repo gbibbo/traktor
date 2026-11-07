@@ -125,13 +125,13 @@ El orquestador va **tema a tema**, como cuando se busca a mano en Soulseek (2026
    parado, una y otra vez: eso era lo que parecía «trancado»;
 2. lo que no está en Soulseek, o está pero ningún archivo pasó la verificación, va a la **cola
    de grabación** (`recording_queue.jsonl`) apenas se sabe;
-3. mientras la búsqueda sigue, el orquestador graba esa cola de Spotify en **tandas**: cada
-   tanda toma lo que haya en la cola (hasta 10 temas), crea una playlist privada de Spotify solo
-   con esos temas, abre el grabador WASAPI loopback y reproduce la playlist **en repetición**:
-   después del último tema Spotify sigue con el primero, así el final del último se corta igual
-   que los demás, y Spotify se pausa apenas el grabador hace el último corte, antes de guardar el
-   MP3, que tarda unos 40 s (sin repetición, Spotify se detenía al final de la playlist y la tanda
-   se daba por cortada). La primera tanda
+3. mientras la búsqueda sigue, el orquestador graba esa cola de Spotify en **tandas de un tema**
+   (2026-11-07): cada tanda crea una playlist privada de Spotify con ese tema, abre el grabador WASAPI
+   loopback y reproduce la playlist **en repetición**, así el final se corta igual aunque Spotify vuelva
+   a empezar, y Spotify se pausa apenas el grabador hace el corte, antes de guardar el MP3. Como cada
+   tema empieza después de un silencio, el MP3 arranca 20 ms antes de su primer sonido, como un archivo
+   de Soulseek. Con varios temas por tanda, el siguiente empezaba en «comienzo del anterior + duración»
+   y perdía su primer beat si el master anterior traía silencio al principio. La primera tanda
    empieza con el primer tema que haya que grabar, sin esperar al resto de la búsqueda;
 4. si la cola queda vacía y la búsqueda sigue, espera el próximo tema (Spotify se pausa, para
    que su reproducción automática no siga sonando); cuando entra uno, abre otra tanda. Antes de
@@ -169,6 +169,15 @@ El orquestador va **tema a tema**, como cuando se busca a mano en Soulseek (2026
    600 MB). Si Beatport pide la verificación anti-robots, esos temas quedan en
    `artifacts/v4/download_tags/beatport_pending.txt` y se completan en la próxima descarga. Los
    respaldos de los tags anteriores quedan en `artifacts/v4/download_tags/` (`--revert`).
+
+**La grilla de Traktor en los temas grabados** (2026-11-07, `docs/reports/grabaciones_spotify_grilla_2026-11-07.md`):
+el grabador captura el loopback en modo callback (el hilo de PortAudio entrega cada bloque a una cola).
+Antes leía con lecturas bloqueantes desde su bucle, con un buffer de 42,7 ms: cada vez que la PC se
+ocupaba más que eso (el embedding, Soulseek, el MP3 anterior), se perdía audio sin aviso, los beats
+saltaban y Traktor no encontraba una grilla fija. Si PortAudio igual avisa una pérdida, el log lo dice
+(«AVISO: se perdió audio al grabar…») y conviene grabar ese tema de nuevo. Cada tanda deja
+`capture_timing.csv` (reloj contra audio recibido) y el run `spotify_progress.csv` (dónde decía Spotify
+que estaba), para auditar una grabación; `JIJIJI_KEEP_WAV=1` conserva el WAV de la sesión.
 
 Los temas grabados suben a la sonoridad de los de Soulseek (−8 LUFS, solo suben, hasta +10 dB) con un
 limitador bajo −1 dBFS. Subir solo el pico no alcanzaba: la versión de Spotify tiene más rango dinámico.

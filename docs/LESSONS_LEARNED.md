@@ -201,6 +201,25 @@ Con `--config=<archivo>`, sockseek usó igual la cuenta de la configuración glo
 qué, así que la configuración «segura» del descargador puede no aislarlo de esa configuración. Una
 contraseña que empieza con «-» tiene que ir como `--pass=-…`.
 
+### Leer el loopback con lecturas bloqueantes pierde audio en cada pausa, sin aviso
+
+PyAudio (PortAudio WASAPI) en modo bloqueante, con `frames_per_buffer=1024`, guarda 42,7 ms (dos bloques).
+Si el bucle que lee se atrasa más, porque la CPU está ocupada, lo que no entra se pierde, y PortAudio no lo
+avisa ni con `exception_on_overflow=True`. Medido el 2026-11-07 sobre Voicemeeter Input: una pausa de
+100 ms pierde de 56 a 78 ms, y una de 1 s pierde 957 ms. Agrandar el buffer no lo arregla: con 2 s, casi
+lleno, entregó unos 70.000 frames por segundo de un stream de 48 kHz y no se recuperó. El modo callback
+(`stream_callback` que pone cada bloque en una cola) no perdió nada con el bucle dormido 6 s. Síntoma en
+Traktor: un BPM no entero y una grilla que calza en un tramo y no en otro. Para encontrar dónde se perdió,
+comparar el reloj con el audio recibido (`capture_timing.csv`) y la fase de los bombos contra una grilla
+fija (`tools/recording_audit/`).
+
+### Spotify en otro dispositivo de la misma cuenta corta la grabación
+
+Spotify reproduce en un solo dispositivo por cuenta. El 2026-11-07, a las 18:43:48, la cuenta pasó a
+sonar un tema que no estaba en la playlist y se pausó; se cortaron dos intentos de grabación. Ninguna
+sesión del agente había llamado a Spotify en ese momento. Mientras graba, no usar Spotify en el teléfono
+ni en el televisor del comedor.
+
 ## Windows local
 
 ### El Python de la Microsoft Store virtualiza %APPDATA%
