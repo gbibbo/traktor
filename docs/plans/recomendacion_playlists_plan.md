@@ -3,6 +3,10 @@
 Fecha: 2026-11-07. Autor: agente de Claude Code (sesión traktor-github-3a), con las decisiones de Gabriel
 del 2026-11-06 y el 2026-11-07 (`docs/DECISIONS.md`).
 
+Auditado el 2026-11-07 (skill `auditar`, otra sesión): `docs/reports/auditoria_plan_playlists_2026-11-07.md`.
+Las correcciones están en su lugar, con `[REFUTADO …]` o `[REEMPLAZADO …]`; los refuerzos llevan la marca
+«(auditoría 11-07)». La estructura del plan no cambió.
+
 ## 0. Qué se pide auditar
 
 El auditor tiene que verificar tres cosas:
@@ -77,14 +81,25 @@ Gabriel lo llama D0. En la mezcla externa el gesto es D#0 + D0 (DECISIONS 2026-1
 | Escala de CLAP | Colección real, 40 temas principales | Entre el 1.º y el 30.º sugerido, CLAP va de 0.93 a 0.88. Con un peso de género de 0.5, las 30 sugerencias tras un Tech House son Tech House |
 | Género frente a CLAP | 60 temas principales | Correlación entre candidatos 0.22 (mediana). Los 106 estilos de Discogs de MAEST como vector: 0.35 con CLAP y 0.33 con la taxonomía. Solo 3 de los 30 primeros coinciden con los de CLAP |
 | Energía de Mixed In Key | `features/bpm_key.parquet` | 1424 de 1823 temas; el 83 % en 5 o 6 |
+| Cobertura de D1 en el índice (auditoría 11-07) | Historia 4.4.1 cruzada con `indice_recomendacion.json` | 562 de 592 temas al aire (95 %); 535 de 571 transiciones con los dos temas |
+| Representaciones guardadas de `musica` (auditoría 11-07) | `artifacts/v4/datasets/musica/representations/` | `clap_full` (512), `maesthf_full_l7` (768) y `maesthf_full_styles` (400), 1786 uids cada una. **No hay EffNet-Discogs ni MusiCNN guardados** |
+| Modelos de Essentia en disco (auditoría 11-07) | `models/essentia/` y el home de WSL | Solo los troncos `discogs-effnet` y `discogs-maest` y la cabeza `genre_discogs400`. Las cabezas de T3 (engagement, danceability, mood_*) no están bajadas; arousal/valencia no existe sobre EffNet, solo sobre MusiCNN y VGGish (essentia.upf.edu/models, 2026-11-07) |
 
 **Historia de Traktor (D1).**
-- Hay 29 sets con 8 o más temas al aire por 2 minutos o más, sumando las dos versiones. Hay al menos 2
-  repetidos entre 4.2.0 y 4.4.1.
-- Sets de 3 h o más (del primer al último tema al aire): 3 limpios (3,5 a 3,9 h) y uno de 130 temas.
-  Otros dos de 13 temas o menos dan unas 24 h por el horario: hay que tratar el cruce de medianoche y
-  las sesiones dejadas abiertas.
+- [REFUTADO 2026-11-07 por el md5 de los 12 archivos (auditoría): la carpeta `Traktor 4.2.0/History` es
+  copia byte a byte de 12 archivos de `4.4.1/History` y no suma ningún set] Hay 29 sets con 8 o más temas
+  al aire por 2 minutos o más, sumando las dos versiones. Hay al menos 2 repetidos entre 4.2.0 y 4.4.1.
+  Lo que vale: **21 sets** en 4.4.1 (36 archivos; 15 son pruebas de menos de 8 temas), 592 temas al aire
+  por 2 minutos o más y 571 transiciones.
+- Sets de 3 h o más (del primer al último tema al aire, leyendo `STARTDATE` + `STARTTIME`): 3 limpios
+  (3,4, 3,4 y 3,8 h) y uno de 130 temas (8,5 h). [REFUTADO 2026-11-07 por esa lectura: con `STARTDATE`
+  ningún set cruza mal la medianoche; las «24 h» salían de leer solo `STARTTIME`] Otros dos de 13 temas o
+  menos dan unas 24 h por el horario: hay que tratar el cruce de medianoche y las sesiones dejadas
+  abiertas.
 - Temas después de la segunda hora en esos sets: entre 60 y 150, según cómo se cuente el de 130 temas.
+- **Cobertura en el índice (auditoría 11-07)**: 562 de los 592 temas al aire (95 %) están en el índice de
+  recomendación (por nombre de archivo o por artista-título), y 535 de las 571 transiciones (94 %) tienen
+  los dos temas. E1 sobre D1 es viable; un set (2026-01-08, 22:59) tiene solo 17 de 37.
 
 **Sets públicos (D3).**
 - 5040 sets de MixesDB, con 102 932 apariciones de temas, 63 038 temas con ID de YouTube y 64 764
@@ -195,6 +210,11 @@ Lo calcula el lado en vivo desde D2:
 Es el mismo estado para todos los perfiles. El banco E1 lo reconstruye igual desde D1, D3 y D5 al
 repetir un set.
 
+**Sesión (auditoría 11-07).** El minuto del set y la pendiente necesitan saber cuándo empezó el set:
+empieza con el primer `tocado` de la sesión de Traktor y se reinicia si pasan más de 20 minutos sin
+nada al aire (Gabriel probando temas no es un set). El mismo criterio corta las sesiones de D1 dejadas
+abiertas. Los 20 minutos son un valor inicial: se miran contra los 21 sets de D1 antes de fijarlos.
+
 ### 3.6 Banco de evaluación único (E1)
 
 - **Qué hace.** Repite sets reales. En cada paso, el estado son los temas anteriores. Calcula los
@@ -203,6 +223,18 @@ repetir un set.
 - **Qué informa.** Cada componente por separado, cada perfil y las líneas de base: al azar, solo BPM y
   solo CLAP.
 - **Una regla.** Una sola variable por comparación, en los mismos sets.
+- **Medidas (auditoría 11-07).** La principal es el acierto en los 30 primeros (lo que Gabriel ve); además
+  el rango recíproco medio y el percentil del rango, porque el número de candidatos cambia con los
+  filtros. El tema que el DJ tocó y que los filtros de P3 dejaron fuera no tiene rango: se informa
+  aparte como «recuperación de los filtros», que es la medida de P3 en sí.
+- **Candidatos por fuente (auditoría 11-07).** En D1 y D2, el índice menos lo tocado, como en vivo. En
+  D3, D4 y D5 sin audio, los temas de esas fuentes con metadatos de Beatport (C1) menos lo tocado en el
+  set: el tema siguiente no está en la biblioteca, así que la biblioteca no sirve de pool ahí.
+- **Partición (auditoría 11-07).** Las estadísticas de T1, T2, G7 y M1 se calculan en sets de
+  entrenamiento y se miden en sets de otros DJs (D3 trae 1754 categorías de DJ como primera etiqueta):
+  partir por DJ, nunca solo por set, para que nada aprenda la identidad del DJ ni el set que ya vio.
+- **Línea de base adicional (auditoría 11-07).** En D3, D4 y D5, la popularidad (en cuántos sets aparece
+  el candidato): Vall et al. 2019 muestran que domina la predicción del siguiente tema.
 
 Qué se puede evaluar sobre qué fuente (INFERENCIA desde el cruce de la sección 2: con 25 transiciones con
 los dos temas en la biblioteca, lo que necesita audio no se mide en sets de otros DJs sin D6):
@@ -222,7 +254,8 @@ Hay tres puentes, uno por etapa:
 1. **Etapa 2: los metadatos de Beatport.** Con el género, BPM y tonalidad de cada tema de los sets, las
    estadísticas de transición y de fase se calculan por género y se aplican a cualquier tema de la
    biblioteca por su género.
-2. **Etapa 4: los 355 temas en común.**
+2. **Etapa 4: los temas en común** (355 con la normalización de la sección 2; 316 con otra más estricta,
+   auditoría 11-07: el número depende de cómo se normalicen artista y título).
    - Sirven de ancla para aprender a predecir el vector de sets (M1) desde CLAP (M2). Así los 1405
      temas restantes de la biblioteca reciben `set2vec`.
    - Sirven para comprobar que lo aprendido de los sets vale para la biblioteca.
@@ -239,6 +272,12 @@ Hay tres puentes, uno por etapa:
   - sobre D1 entra con peso menor, por el ruido.
 - **Resultado.** Ninguna idea se descarta por no haber sido elegida a mano: el ranker decide su aporte.
   Cada decisión se confirma escuchando.
+
+**Lo que esta combinación no valida (auditoría 11-07).** Etiquetar la dirección de cada transición real
+por el cambio de la coordenada (T3) hace que E1, en los perfiles de dirección, mida la coherencia con la
+coordenada, no si la coordenada es «energía». Eso lo deciden T4 y la escucha (E2). T4 con unos 20 pares
+puede tumbar una coordenada (16 o más aciertos de 20 la separan del azar con p < 0,01), no elegir entre
+dos razonables: entre las que sobreviven, decide Gabriel escuchando.
 
 ## 4. Inventario de ideas
 
@@ -279,7 +318,7 @@ Traktor = plataforma en vivo.
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | T1 | Transiciones dirigidas entre géneros: cuántas veces más que por azar se pasa de g a h; la taxonomía (G1) como respaldo donde hay pocos datos | Propuesta 2026-11-07 (no hay un estudio publicado) | Sets; Comp `transicion` | C1 sobre D3 y D5 | 2 | Pendiente |
 | T2 | Fase del set por tema y por género (apertura, pico, cierre, después de la 2.ª hora) | Propuesta 2026-11-07 | Sets; Tema; Comp `fase` | C1; D5 para sets largos | 2 | Pendiente |
-| T3 | Coordenada de energía sin Mixed In Key. Candidatos: arousal, engagement, danceability y estados de ánimo de Essentia (UPF); direcciones de texto en CLAP; la fase aprendida (T2) | Essentia; arXiv 2510.20759; T2 | Tema; Comp `energia_objetivo`, `texto_clap` | Extracción en WSL para Essentia; codificador de texto de CLAP | 3 | Pendiente |
+| T3 | Coordenada de energía sin Mixed In Key. Candidatos, en este orden (auditoría 11-07): direcciones de texto en CLAP (los embeddings ya existen); una coordenada sobre los 400 estilos de MAEST (`maesthf_full_styles`, ya extraído); la fase aprendida (T2); cabezas de Essentia sobre EffNet-Discogs (engagement, danceability, mood_*; arousal/valencia solo existe sobre MusiCNN o VGGish) | Essentia; arXiv 2510.20759; T2 | Tema; Comp `energia_objetivo`, `texto_clap` | Codificador de texto de CLAP (Windows). Para Essentia: bajar las cabezas (CC BY-NC-SA 4.0) y una pasada de audio en WSL (`extract_representations.py --models effnet`, venv `essentia-tf-venv`) con prueba chica (V6): no hay EffNet guardado de `musica` | 3 | Pendiente |
 | T4 | Validar las coordenadas con juicios por pares de Gabriel (unos 20 como mucho) | MusAV (ISMIR 2022); DECISIONS 2026-11-06, punto 10 | Eval | T3 | 3 | Pendiente |
 | T5 | Trayectoria en vivo: nivel y pendiente de los últimos temas tocados | Kell 2013 (el orden importa) | Estado de la trayectoria | D2; T3 | 3 | Pendiente |
 | T6 | Paso parejo: el nivel actual más un paso típico, medido en sets reales, no el tema más extremo | Kell 2013 (los pasos parejos se acercan más al orden real) | Comp `energia_objetivo`, `suavidad` | T3, T5; sets para el paso típico | 3 | Pendiente |
@@ -292,7 +331,7 @@ Traktor = plataforma en vivo.
 
 | Id | Idea | Origen | Contrato | Depende de | Etapa | Estado |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| M1 | Vector de cada tema aprendido de los sets (word2vec sobre tracklists), solo texto | Deej-AI; recomendación por playlists | Tema; Comp `set2vec` | Sets (D3, D5, D1) | 4 | Pendiente |
+| M1 | Vector de cada tema aprendido de los sets (word2vec sobre tracklists), solo texto. Condición (auditoría 11-07): en D3, 50 696 de los 63 038 temas aparecen una sola vez; 12 342 aparecen 2 o más veces, 4186 3 o más y 749 5 o más. Con `min_count` 3 el vector existe para unos 4200 temas: M1 se hace si D5 sube esos conteos o se acepta esa cobertura, y M2 se evalúa con validación cruzada sobre las anclas contra «el ancla más cercana por CLAP» | Deej-AI; recomendación por playlists | Tema; Comp `set2vec` | Sets (D3, D5, D1) | 4 | Pendiente |
 | M2 | Predecir el vector de sets desde CLAP, anclado en los 355 temas en común, para los temas que no aparecen en sets | Vall et al. (híbridos) | Tema; Comp `set2vec` | M1 | 4 | Pendiente |
 | M3 | Ranker aprendido sobre el vector de componentes, por perfil; el género y todo lo demás pasan a ser entradas | Propuesta 2026-11-07 | Perfil | E1; componentes de las etapas 1 a 3 | 4 | Pendiente |
 | M4 | Modelo de audio entrenado con pares «tema y el que vino después» (aprendizaje contrastivo, la receta de la UPF con playlists) | Alonso-Jiménez et al., ICASSP 2023 | Tema; Comp `aprendido` | D6; GPU y disco | 5 | Pendiente |
@@ -307,6 +346,8 @@ Traktor = plataforma en vivo.
 | E4 | D3 está cargado hacia House y Techno: informar los géneros chicos aparte | 2 |
 | E5 | Una sola variable por comparación, en los mismos sets | Siempre |
 | E6 | Todo resultado se informa sobre los sets de otros DJs y sobre los de Gabriel por separado | Siempre |
+| E7 | Partición por DJ entre entrenamiento y medida, con la popularidad como línea de base en D3, D4 y D5 (auditoría 11-07; sección 3.6) | 2 |
+| E8 | Medidas: acierto en los 30 primeros, rango recíproco medio, percentil del rango y recuperación de los filtros, por fuente (auditoría 11-07; sección 3.6) | 1 |
 
 ### Plataforma en vivo (Traktor)
 
@@ -316,6 +357,7 @@ Traktor = plataforma en vivo.
 | I2 | `Toggle`: todas las playlists de sugerencias cuentan como «dentro». Pulsar desde cualquiera vuelve a la carpeta guardada antes de la primera pulsación; pulsar desde fuera refresca y abre Parecidos | 1 |
 | I3 | Cada lista anota en el registro sus componentes, su perfil y su objetivo | 1 (ya existe para Parecidos) |
 | I4 | Costo en vivo con 5 perfiles por debajo de unos 300 ms; el cálculo sigue siendo antes de apretar y se rehace al apretar | 1 |
+| I5 | En cada `tocado`, el registro anota el vector de componentes de ese tema respecto del tema principal anterior y su rango entre los candidatos, estuviera o no entre los 30 (auditoría 11-07). Sin eso M3 y T9 no tienen la etiqueta de D2: hoy solo se anotan los componentes de los 30 primeros | 1 |
 
 ## 5. Etapas, dependencias y criterios de salida
 
@@ -347,9 +389,14 @@ Etapa 0 (verificaciones) ──► Etapa 1 (bases) ──► Etapa 2 (sets de ot
 | V2 | El cambio de `Toggle` (I2) | Test unitario con caminos de varias playlists | — |
 | V3 | El costo en vivo con 5 perfiles (I4) | Medir sobre la colección real | Precalcular más en el índice |
 | V4 | Acceso a sets largos de 1001Tracklists (D5) | Ver sección 6 | Sets largos de MixesDB y de Gabriel |
-| V5 | La lectura de la historia de Traktor | Sacar los repetidos entre 4.2.0 y 4.4.1 y tratar el horario (cruce de medianoche y sesiones dejadas abiertas); comparar a mano con 2 sets | — |
+| V5 | La lectura de la historia de Traktor | [REEMPLAZADO 2026-11-07 por la auditoría: hecho. La carpeta 4.2.0 es copia byte a byte de 12 archivos de 4.4.1 (md5), así que D1 son los 36 archivos de 4.4.1, 21 de ellos sets; con `STARTDATE` + `STARTTIME` no hay cruce de medianoche mal leído. Queda cortar las sesiones dejadas abiertas con la regla de la sección 3.5] Sacar los repetidos entre 4.2.0 y 4.4.1 y tratar el horario (cruce de medianoche y sesiones dejadas abiertas); comparar a mano con 2 sets | — |
+| V6 | Costo de la pasada de EffNet en WSL para T3 (auditoría 11-07) | `extract_representations.py --models effnet --folder "<subcarpeta>"` en `essentia-tf-venv`; tiempo por tema × 1786 | Empezar T3 por las direcciones de texto de CLAP y los estilos de MAEST, que ya están |
 
 ### Etapa 1: bases
+
+Aviso (auditoría 11-07): en esta etapa el único banco es D1, los sets de Gabriel. Por la regla E6, lo que
+E1 mida aquí (P2, G3, G4) orienta pero no fija pesos: los pesos esperan a la etapa 2, con D3 resuelto.
+I5 entra con I3, para que D2 guarde la etiqueta de M3 desde la primera sesión.
 
 1. Almacén de sets (3.2) con lector de D1 y de D2.
    - Sale: tabla en `artifacts/v4/dj_sets/`, con los conteos de la sección 2 reproducidos.
@@ -357,13 +404,19 @@ Etapa 0 (verificaciones) ──► Etapa 1 (bases) ──► Etapa 2 (sets de ot
    - Sale: tabla base.
 3. P2, G3 y G4 como componentes, medidos en E1 uno por vez.
 4. Índice versión 4 con campos opcionales (3.1) y registro de componentes con nombre (3.3).
-5. I1 a I4 con un perfil: Parecidos.
+5. I1 a I5 con un perfil: Parecidos.
    - Sale: la estructura de varias playlists funcionando en Traktor (con V1), sin perfiles de dirección
      todavía.
 
 ### Etapa 2: sets de otros DJs, solo texto
 
 1. C1: resolver los temas de D3 con Beatport (género, subgénero, BPM, tonalidad).
+   - Volumen medido (auditoría 11-07): 40 790 temas distintos en los sets de House, Techno y Tech House
+     (63 038 en total). A dos pedidos por tema (búsqueda y página) y 1,2 s entre pedidos
+     (`BeatportClient.min_interval`), unas 27 h para esos tres géneros y 42 h para todo. Orden: primero
+     los temas que aparecen 3 o más veces (4186), después los de 2 (12 342), y solo sets de 2010 en
+     adelante (4741 de 5040): los anteriores casi no están en Beatport. La muestra chica mide, además
+     del tiempo, cuántos títulos de D3 se resuelven.
    - Muestra chica y después completo, a una consulta por segundo con caché y `--low-priority`. Primero
      los sets de House, Techno y Tech House.
    - Con D5 también, si se consiguió.
@@ -373,11 +426,17 @@ Etapa 0 (verificaciones) ──► Etapa 1 (bases) ──► Etapa 2 (sets de ot
 ### Etapa 3: dirección e introspectiva
 
 1. T3: coordenadas candidatas.
+   - Orden (auditoría 11-07): primero las direcciones de texto de CLAP y una coordenada sobre los estilos
+     de MAEST, que no necesitan audio nuevo; las cabezas de Essentia después de V6.
    - Essentia corre en WSL (no tiene versión nativa para Windows); necesita embeddings EffNet-Discogs de
      la biblioteca, con una corrida chica antes.
    - Las direcciones de texto de CLAP corren en Windows.
 2. T4: hasta unos 20 juicios de Gabriel por pares.
 3. T5, T6, T7 y T8 como perfiles.
+   - Introspectiva (auditoría 11-07): hasta tener D5, `fase` para «después de la segunda hora» solo
+     tiene los 4 sets largos de Gabriel y, en D3, 13 sets con minutos que pasan de 120 (312 pasan de
+     90). El perfil arranca con `suavidad` y `clap` respecto de los últimos temas tocados; `fase` y
+     `texto_clap` toman peso cuando haya sets largos para medirlos.
    - Pesos con E1 sobre D1 y D5 (sets largos), más D3 para lo de texto.
    - Escucha a ciegas de Gabriel.
 4. Los perfiles de dirección en Traktor (I1).
@@ -391,8 +450,10 @@ Etapa 0 (verificaciones) ──► Etapa 1 (bases) ──► Etapa 2 (sets de ot
 ### Etapa 5: audio
 
 - D6: la fuente del audio se decide con Gabriel (DECISIONS 2026-09-12, punto 3).
-- Estimación de disco y GPU medida en una muestra. Orden de magnitud: 13 728 temas en avances de
-  2 minutos son unos 66 GB.
+- Estimación de disco y GPU medida en una muestra. Orden de magnitud [REEMPLAZADO 2026-11-07 por los
+  conteos de la auditoría: el 13 728 no tenía origen]: 63 038 temas de D3 (40 790 en House, Techno y Tech
+  House) en avances de 2 minutos a 320 kb/s son unos 300 GB (unos 200 GB para los tres géneros); los
+  4186 que aparecen 3 o más veces, unos 20 GB.
 - CLAP y coordenadas para los temas de los sets: E1 completo sobre sets de otros DJs.
 - M4 con GPU.
 - Se rehace E1 de todo.
@@ -401,12 +462,13 @@ Etapa 0 (verificaciones) ──► Etapa 1 (bases) ──► Etapa 2 (sets de ot
 
 | Id | Fuente | Acceso | Licencia y condiciones | Volumen |
 | :--- | :--- | :--- | :--- | :--- |
-| D1 | Historia de Traktor de Gabriel | Local | De Gabriel | 29 sets entre las dos versiones, con repetidos: 592 temas al aire en los 21 sets de 4.4.1 y 201 en las 12 sesiones de 4.2.0 |
+| D1 | Historia de Traktor de Gabriel | Local | De Gabriel | 21 sets (36 archivos en 4.4.1; la carpeta 4.2.0 repite 12 de ellos byte a byte), 592 temas al aire, 571 transiciones; 562 temas y 535 transiciones en el índice (auditoría 11-07) |
 | D2 | Registro en vivo | Local | De Gabriel | Crece con cada sesión |
 | D3 | djmix-dataset | Bajado (JSON, 11,6 MB) | Sin licencia publicada: uso de investigación, no se redistribuye | Sección 2 |
 | D4 | Raveform (Hugging Face `taejunkim/raveform`) | Sin bajar | Sin licencia publicada en la página | 4902 sets; 38 % con horarios; 1423 temas con género de Beatport puesto a mano |
 | D5 | 1001Tracklists, sets largos | Ver debajo | Ver debajo | A definir |
 | D6 | Audio de los temas de los sets | Decisión de Gabriel | Depende de la fuente | Etapa 5 |
+| C1 | Metadatos de Beatport para los temas de los sets (auditoría 11-07) | Web, `src/v4/common/beatport.py` (1,2 s entre pedidos, caché) | `robots.txt` (2026-11-07): `Allow: /` para todos, sin `Crawl-delay`; bloquea unos 35 robots de entrenamiento y declara `Content-Signal: search=yes, ai-train=no`. Es una señal de política, no una licencia: antes de que M3 o M4 entrenen con etiquetas de Beatport, lo decide Gabriel | 40 790 temas en House, Techno y Tech House; 63 038 en total |
 
 **1001Tracklists (D5).** Lo observado el 2026-11-07:
 - No tiene API pública.
@@ -450,16 +512,22 @@ Ruta propuesta:
 
 | Afirmación | Etiqueta | Evidencia |
 | :--- | :--- | :--- |
-| D3 tiene 5040 sets, 63 038 temas con ID, 64 764 transiciones y ninguno con minutos pasa de 150 min | EVIDENCIA OBSERVADA | `djmix-dataset.json`, conteo de esta sesión |
+| D3 tiene 5040 sets, 63 038 temas con ID, 64 764 transiciones y, salvo uno con una marca de 404 min (error probable del dato), ninguno con minutos pasa de 150 | EVIDENCIA OBSERVADA | `djmix-dataset.json`, conteo de esta sesión; reproducido en la auditoría 11-07 (13 sets pasan de 120 min, 312 de 90) |
 | 355 temas de la biblioteca aparecen en D3, y solo 25 transiciones tienen los dos | EVIDENCIA OBSERVADA | Cruce por artista y título normalizados (puede subestimar: remixes con otro nombre) |
 | Sin audio de los sets, los componentes de audio no se pueden medir en sets de otros DJs | INFERENCIA | De la fila anterior |
-| Gabriel tiene 3 o 4 sets de 3 h o más | EVIDENCIA OBSERVADA, con reservas | Historia de Traktor; horarios con cruce de medianoche sin limpiar (V5) |
+| Gabriel tiene 4 sets de 3 h o más (3,4, 3,4, 3,8 y 8,5 h) y 21 sets en total | EVIDENCIA OBSERVADA | Historia 4.4.1 con `STARTDATE` + `STARTTIME` (auditoría 11-07); la carpeta 4.2.0 es copia byte a byte |
 | El `Toggle` actual no trata varias playlists como «dentro» | EVIDENCIA OBSERVADA | `sugerencias_vivo.py`, clase `Toggle`, método `at_target` |
 | Traktor relee en Favoritos un `.nml` del Explorer | HIPÓTESIS | V1 |
 | 1001Tracklists bloquea los scripts de Python y no tiene API pública | EVIDENCIA OBSERVADA | Su `robots.txt` y su sitio, 2026-11-07 |
 | El acceso de investigación a 1001Tracklists se consigue pidiéndolo | HIPÓTESIS | Kim et al. lo obtuvieron así; se decide con el correo de Gabriel |
 | CLAP varía unos 0.05 entre los 30 primeros | EVIDENCIA OBSERVADA | Colección real, 40 temas principales |
 | El género (taxonomía y estilos de Discogs) aporta información que CLAP no tiene | EVIDENCIA OBSERVADA (correlaciones 0.22 y 0.35); que eso mejore las listas es NO CONCLUYENTE | Falta E1 y la escucha |
+| 562 de 592 temas al aire de D1 y 535 de 571 transiciones están en el índice | EVIDENCIA OBSERVADA | Cruce de la historia 4.4.1 con `indice_recomendacion.json` por archivo o artista-título (auditoría 11-07) |
+| El cruce D3-biblioteca depende de la normalización: 355/851/696/25 con la de la sección 2, 316/777/636/17 con otra más estricta | EVIDENCIA OBSERVADA | Dos cruces independientes (auditoría 11-07); las conclusiones de 3.6 y 3.7 valen con los dos |
+| En D3, 50 696 de 63 038 temas aparecen una sola vez; 4186 aparecen 3 o más veces | EVIDENCIA OBSERVADA | Conteo de `djmix-dataset.json` (auditoría 11-07); condiciona M1 y M2 |
+| Las cabezas de Essentia para T3 no están en disco, y arousal/valencia no existe sobre EffNet | EVIDENCIA OBSERVADA | `models/essentia/`, home de WSL y essentia.upf.edu/models (auditoría 11-07) |
+| El lado en vivo usa solo la biblioteca estándar | EVIDENCIA OBSERVADA | Importaciones de `recomendador.py`, `sugerencias_vivo.py`, `tema_principal.py` y de los módulos de `src/v4/common` que usan (auditoría 11-07) |
+| El índice se carga en 0,02 s y se decodifica en 0,01 s: los campos de la versión 4 no comprometen I4 | EVIDENCIA OBSERVADA | Medido sobre `indice_recomendacion.json`, 1760 temas, 5,8 MB (auditoría 11-07) |
 
 ## 9. Fuentes
 

@@ -30,7 +30,9 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
      y, si se decide, 1001Tracklists propiamente dicho.
 5. **Los sets pasados de Gabriel en este PC sirven de referencia, con ruido** (Gabriel: «no me
    considero muy buen DJ»). Están en la historia de Traktor: 21 sets reales en 4.4.1 (592 temas al
-   aire) y 12 sesiones en 4.2.0. Toda medida se informa también sobre sets de otros DJs.
+   aire) y 12 sesiones en 4.2.0 [REFUTADO 2026-11-07 por el md5 de los 12 archivos (auditoría del plan):
+   la carpeta 4.2.0 es copia byte a byte de 12 archivos de 4.4.1; D1 son los 21 sets de 4.4.1, 562 de
+   sus 592 temas al aire están en el índice]. Toda medida se informa también sobre sets de otros DJs.
 6. **GPU y disco los consigue Gabriel cuando hagan falta**: en la etapa con audio, con una estimación
    medida antes. Mientras se trabaje solo con texto, no hacen falta.
 7. **El género de Beatport es una decisión editorial por lanzamiento** (agente, sobre una observación
