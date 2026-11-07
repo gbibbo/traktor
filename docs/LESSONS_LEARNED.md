@@ -140,6 +140,21 @@ la música de la playlist. La corrida siguiente buscó de nuevo 9 temas ya guard
 grabar (2026-11-07). La carpeta se encuentra también por el nombre de la playlist
 (`--library-root`), y un tema que ya está ahí no se graba aunque haya quedado en la cola.
 
+### Un PID que ya terminó puede ser de otro programa: no adoptar a sus hijos
+
+La app de descargas recordaba todos los procesos «hijos» de la descarga y al final cerraba los que
+seguían vivos. Tomaba como hijo a cualquiera cuyo padre tuviera un PID que alguna vez fue de la
+descarga. Windows reutiliza los PID: el 2026-11-07, al terminar una descarga de 23 minutos, se
+cerraron `GoogleDriveFS.exe`, varios `msedgewebview2.exe` y el `crashpad_handler.exe` de Spotify. Un
+proceso entra ahora solo si su padre sigue siendo el mismo (misma hora de creación) y nació antes que él.
+
+### Igualar volumen es igualar sonoridad, no picos
+
+Subir los grabados a un pico de −1 dBFS los dejó en −8,4, −9,6 y −11,9 LUFS, contra −6,3 a −8,3 de los
+mismos temas bajados de Soulseek. La versión de Spotify tiene más rango dinámico y toca el techo con
+menos sonoridad. Lo que iguala es medir la sonoridad integrada (ffmpeg `ebur128`, 0,5 s por tema) y
+subirla con un limitador; el limitador se come parte de la ganancia, así que se mide de nuevo después.
+
 ### Beatport puede pedir la verificación anti-robots de Cloudflare
 
 El 2026-11-07, después de unos pocos pedidos seguidos (y de los reintentos de `BeatportClient`, que

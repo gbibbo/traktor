@@ -3,6 +3,11 @@
 PURPOSE: Run the complete Spotify -> Soulseek + loopback fallback workflow.
 
 CHANGELOG:
+- 2026-11-07: The next session starts at the last cut of the previous one: its recorder keeps saving the
+              last MP3 on its own (SessionRecorder.finishing, reap) instead of holding the queue ~15-70 s.
+- 2026-11-07: Metadata (Beatport, Vocal) and the clap_full embedding go track by track while the download
+              goes on (PostProcessWorker: tag_downloads.py --watch fed with each finished track); the
+              files are moved to the folder after it ends, and only what it missed is done at the end.
 - 2026-11-07: At the start and end of a run, the temporary «Grabar - …» playlists that no pending session
               holds are deleted (a stopped run started again from scratch left its own).
 - 2026-11-07: Spotify is paused as soon as the recorder says the last cut is made ("captured"), not when it
@@ -84,6 +89,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -642,8 +648,8 @@ def session_finished(session_dir: Path) -> bool:
     return bool(session.get("abandoned")) or session_completed(session_dir) >= len(session_tracks(session))
 
 
-def recording_plan(run_dir: Path, queue: QueueState,
-                   saved: frozenset[str] = frozenset()) -> tuple[list[Path], list[dict[str, Any]]]:
+def recording_plan(run_dir: Path, queue: QueueState, saved: frozenset[str] = frozenset(),
+                   busy: frozenset[str] = frozenset()) -> tuple[list[Path], list[dict[str, Any]]]:
     """(Unfinished sessions in order, queued tracks that no session holds yet). A queued track already in the
     playlist's music folder (`saved`, Spotify IDs) is not recorded again: a run queued it without knowing the
     folder (Gabriel, 2026-11-07: «Amor» and «Oye» were going to be recorded while they were in the folder)."""
@@ -655,7 +661,7 @@ def recording_plan(run_dir: Path, queue: QueueState,
             assigned |= set(session_recorded_ids(session_dir))
             continue
         assigned |= {track_id(t) for t in session_tracks(session)}
-        if not session_finished(session_dir):
+        if not session_finished(session_dir) and session_dir.name not in busy:  # busy: guardando su último MP3
             pending.append(session_dir)
     return pending, [t for t in queue.tracks if track_id(t) not in assigned]
 
@@ -906,6 +912,8 @@ class SessionRecorder:
         self.spotify_playing = False
         self.recorder: subprocess.Popen[Any] | None = None
         self.player: subprocess.Popen[Any] | None = None
+        # Tandas cuyo grabador ya hizo el último corte y está guardando el MP3: (tanda, proceso, temas, nombre).
+        self.finishing: list[tuple[Path, subprocess.Popen[Any], int, str]] = []
 
     def pause(self) -> None:
         if self.spotify_playing:
@@ -916,6 +924,39 @@ class SessionRecorder:
         terminate_process(self.player)
         terminate_process(self.recorder)
         self.player = self.recorder = None
+
+    def busy(self) -> frozenset[str]:
+        return frozenset(session_dir.name for session_dir, *_ in self.finishing)
+
+    def reap(self) -> list[tuple[Path, bool]]:
+        """Las tandas que terminaron de guardar su último MP3: (tanda, grabada entera)."""
+        ended = []
+        for item in list(self.finishing):
+            session_dir, process, total, label = item
+            code = process.poll()
+            if code is None:
+                continue
+            self.finishing.remove(item)
+            complete = code == 0 and session_completed(session_dir) >= total
+            if complete:
+                print(f"Tanda {session_dir.name} grabada: {total} tema(s).", flush=True)
+            else:
+                print(f"La {label} terminó con código {code} al guardar: lo que falte se graba de nuevo.", flush=True)
+            ended.append((session_dir, complete))
+        return ended
+
+    def wait_finishing(self) -> list[tuple[Path, bool]]:
+        ended = []
+        while self.finishing:
+            ended += self.reap()
+            if self.finishing:
+                time.sleep(0.5)
+        return ended
+
+    def stop_finishing(self) -> None:
+        for _, process, _, _ in self.finishing:
+            terminate_process(process)
+        self.finishing.clear()
 
     def record(self, session_dir: Path, url: str) -> str:
         """Graba lo que falta de la tanda. "completed", o "deferred" si se pospuso durante la tanda;
@@ -994,10 +1035,14 @@ class SessionRecorder:
             while self.recorder.poll() is None:
                 if not captured and (read_json_dict(recorder_ready) or {}).get("status") == "captured":
                     # Último corte hecho: la playlist suena en repetición y el tema volvería a empezar mientras
-                    # el grabador guarda el MP3. Se pausa ya (antes, el reproductor y su vigilante).
+                    # el grabador guarda el MP3. Se pausa ya (antes, el reproductor y su vigilante), y la tanda
+                    # siguiente puede empezar mientras este grabador termina de guardar (reap).
                     captured = True
                     terminate_process(self.player)
                     self.pause()
+                    self.finishing.append((session_dir, self.recorder, total, label))
+                    self.recorder = None
+                    return "captured"
                 if self.defer_file.exists() and not deferred:
                     # Posponer corta la tanda ya: el grabador guarda lo completo y se detiene.
                     deferred = True
@@ -1366,10 +1411,13 @@ def run_workflow(args: argparse.Namespace) -> int:
     write_summary(summary_path, summary)
 
     downloader: subprocess.Popen[Any] | None = None
+    # La metadata y el embedding, tema por tema mientras la descarga sigue (si se va a grabar o bajar algo).
+    worker = PostProcessWorker(run_dir, env, soulseek_report, recordings_dir)
     sessions = SessionRecorder(run_dir=run_dir, env=env, args=args, summary=summary, summary_path=summary_path,
                                defer_file=defer_file)
 
     def partial(reason: str) -> int:
+        worker.finish()  # antes de mover lo terminado a la carpeta
         return finish_partial(
             run_dir=run_dir,
             audio_dirs=(soulseek_dir, recordings_dir),
@@ -1381,6 +1429,7 @@ def run_workflow(args: argparse.Namespace) -> int:
         )
 
     try:
+        worker.start()
         if not download_finished:
             downloader_cmd = [
                 sys.executable,
@@ -1428,11 +1477,17 @@ def run_workflow(args: argparse.Namespace) -> int:
                 print(f"[grabación] Se graba lo que suena por «{detail}».", flush=True)
             else:
                 output_busy(detail)
+        def settle(ended: list[tuple[Path, bool]]) -> None:
+            for done_dir, complete in ended:
+                if complete:  # grabada: la playlist temporal ya no hace falta
+                    forget_session_playlist(done_dir)
+
         while True:
             # Primero si el descargador terminó y después la cola: así no se pierde el último tema que agregó.
             downloader_done = downloader is None or downloader.poll() is not None
+            settle(sessions.reap())
             queue = read_queue(queue_path)
-            pending, unassigned = recording_plan(run_dir, queue, already_saved)
+            pending, unassigned = recording_plan(run_dir, queue, already_saved, sessions.busy())
             can_record = blocked is None and not defer_file.exists() and time.monotonic() >= output_retry_at
             if can_record and (pending or unassigned):
                 idle_announced = False
@@ -1481,6 +1536,8 @@ def run_workflow(args: argparse.Namespace) -> int:
                     continue
                 if outcome == "deferred":
                     sessions.pause()
+                elif outcome == "captured":
+                    pass  # su grabador termina de guardar solo; la playlist se borra en settle()
                 elif outcome == "completed":
                     # Grabada: Spotify (la playlist suena en repetición) se pausa ya, y después se borra la
                     # playlist temporal, que no hace falta más.
@@ -1490,12 +1547,16 @@ def run_workflow(args: argparse.Namespace) -> int:
             # Nada para grabar ahora: Spotify no sigue sonando por su cuenta.
             sessions.pause()
             if downloader_done:
+                if sessions.finishing:  # que terminen de guardar y se vuelve a mirar (pudo fallar uno)
+                    settle(sessions.wait_finishing())
+                    continue
                 break
             if can_record and not idle_announced and not (pending or unassigned):
                 print("[grabación] Cola vacía: espero el próximo tema que haya que grabar.", flush=True)
                 idle_announced = True
             time.sleep(IDLE_POLL_SECONDS)
 
+        settle(sessions.wait_finishing())  # también al salir por la salida de audio ocupada o una pausa
         downloader_code = downloader.returncode if downloader is not None else None
         if downloader_code is not None:
             summary["soulseek_returncode"] = int(downloader_code)
@@ -1515,6 +1576,7 @@ def run_workflow(args: argparse.Namespace) -> int:
             )
         waiting = pending_recordings(run_dir, queue, already_saved)
         if waiting:
+            worker.finish()  # antes de mover lo terminado a la carpeta
             return finish_with_recording_pending(
                 run_dir=run_dir,
                 soulseek_dir=soulseek_dir,
@@ -1538,6 +1600,7 @@ def run_workflow(args: argparse.Namespace) -> int:
         summary.pop("reason", None)
         summary.pop("pending_recordings", None)
         write_summary(summary_path, summary)
+        postprocessed = {_same_path_key(p) for p in worker.finish()}  # antes de mover los temas a la carpeta
         discard_unfinished_recordings(run_dir)
         target_folder = playlists_root / safe_playlist_folder_name(playlist_name)
         # Ya en la carpeta: al posponer la grabación, en una descarga anterior o en un guardado que se cortó.
@@ -1558,8 +1621,10 @@ def run_workflow(args: argparse.Namespace) -> int:
         consolidation_path = run_dir / "consolidation_report.json"
         write_summary(consolidation_path, consolidation)
         write_playlist_m3u8(playlist_dir, run_dir)
+        # Lo que el postproceso tema por tema no alcanzó (o temas guardados en una descarga anterior).
         complete_metadata([Path(str(row["destination"])) for row in consolidation["tracks"]
-                           if row.get("destination") and Path(str(row["destination"])).is_file()], env)
+                           if row.get("destination") and Path(str(row["destination"])).is_file()
+                           and _same_path_key(str(row.get("source") or "")) not in postprocessed], env)
 
         summary.pop("soulseek_output", None)
         summary.pop("recorded_output", None)
@@ -1581,6 +1646,8 @@ def run_workflow(args: argparse.Namespace) -> int:
         print(f"Reporte  : {summary_path}")
         return 0
     except KeyboardInterrupt:
+        worker.stop()
+        sessions.stop_finishing()
         sessions.stop_processes()
         sessions.pause()
         summary.pop("recording_session", None)
@@ -1594,6 +1661,8 @@ def run_workflow(args: argparse.Namespace) -> int:
             write_summary(summary_path, summary)
         raise
     finally:
+        worker.stop()
+        sessions.stop_finishing()
         sessions.stop_processes()
         terminate_process(downloader)
         stop_leftover_daemon(run_dir)
@@ -1619,6 +1688,133 @@ def pipeline_python(env: dict[str, str]) -> str | None:
         except (OSError, subprocess.TimeoutExpired):
             continue
     return None
+
+
+POSTPROCESS_QUEUE = "postprocess_queue.jsonl"
+POSTPROCESS_DONE = "postprocess_done.jsonl"
+_WORKER_NOISE = re.compile(r"^\[(tags|INFO)\]|Xet Storage|symlink|warnings\.warn|[Dd]eveloper [Mm]ode|hf_xet")
+
+
+def finished_files(soulseek_report: Path, recordings_dir: Path) -> list[Path]:
+    """Los temas ya terminados de esta descarga: bajados (el informe del descargador) y grabados (el checkpoint
+    de cada tanda). Los dos se escriben recién con el MP3 completo y sus tags."""
+    from spotify_soulseek_download import DOWNLOADED_STATUSES
+
+    found: list[Path] = []
+    for row in (read_json_dict(soulseek_report) or {}).get("tracks") or []:
+        if isinstance(row, dict) and row.get("status") in DOWNLOADED_STATUSES and row.get("output"):
+            found.append(Path(str(row["output"])))
+    for progress in sorted(recordings_dir.glob(f"*/{PROGRESS_FILE}")):
+        for row in (read_json_dict(progress) or {}).get("tracks") or []:
+            if isinstance(row, dict) and row.get("output"):
+                found.append(Path(str(row["output"])))
+    return [p for p in dict.fromkeys(found) if p.is_file()]
+
+
+class PostProcessWorker:
+    """La metadata (Beatport, Vocal) y el embedding tema por tema, mientras la descarga sigue: un proceso de
+    tag_downloads.py --watch con los modelos cargados una vez, alimentado por un hilo que cada 2 s mira qué
+    temas terminaron. Antes de mover los temas a la carpeta, finish() espera a que termine. Gabriel,
+    2026-11-07: el postproceso iba recién al final (casi 5 minutos para 10 temas)."""
+
+    FEED_EVERY_S = 2.0
+
+    def __init__(self, run_dir: Path, env: dict[str, str], soulseek_report: Path, recordings_dir: Path):
+        self.queue = run_dir / POSTPROCESS_QUEUE
+        self.done = run_dir / POSTPROCESS_DONE
+        self.env = env
+        self.sources = (soulseek_report, recordings_dir)
+        self.sent = {str(item.get("path")) for item in _read_jsonl(self.queue) if item.get("path")}
+        self.process: subprocess.Popen[str] | None = None
+        self.stopping = threading.Event()
+        self.threads: list[threading.Thread] = []
+
+    def start(self) -> None:
+        self.queue.parent.mkdir(parents=True, exist_ok=True)
+        self.threads = [threading.Thread(target=self._run, daemon=True), threading.Thread(target=self._feed, daemon=True)]
+        for thread in self.threads:
+            thread.start()
+
+    def _run(self) -> None:
+        python = pipeline_python(self.env)  # unos segundos (importa torch): en este hilo, no frena la descarga
+        if python is None:
+            print("[metadata] Ningún Python de este ordenador tiene el pipeline (pandas, torch, transformers): la "
+                  "metadata queda como la de Spotify. Pon su ruta en TRAKTOR_PIPELINE_PYTHON del .env.", flush=True)
+            return
+        if self.stopping.is_set():
+            return
+        print("[metadata] Metadata y embedding tema por tema, mientras sigue la descarga.", flush=True)
+        try:
+            self.process = subprocess.Popen([python, "-u", str(TAG_DOWNLOADS), "--watch", str(self.queue),
+                                             "--done", str(self.done)], env=self.env, stdout=subprocess.PIPE,
+                                            stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
+        except OSError as exc:
+            print(f"[metadata] No se pudo empezar el postproceso ({exc}).", flush=True)
+            return
+        assert self.process.stdout is not None
+        for line in self.process.stdout:
+            if line.strip() and not _WORKER_NOISE.search(line):
+                print(line.rstrip(), flush=True)
+
+    def _feed(self) -> None:
+        while not self.stopping.wait(self.FEED_EVERY_S):
+            self.feed_now()
+
+    def feed_now(self) -> None:
+        new = [str(p) for p in finished_files(*self.sources) if str(p) not in self.sent]
+        if not new:
+            return
+        with self.queue.open("a", encoding="utf-8") as handle:
+            for path in new:
+                handle.write(json.dumps({"path": path}, ensure_ascii=False) + "\n")
+        self.sent.update(new)
+
+    def finish(self) -> set[str]:
+        """Pasa lo último, cierra la cola y espera. Devuelve los temas que el postproceso ya completó."""
+        self.stopping.set()
+        if self.threads:
+            self.threads[1].join(timeout=10)
+        self.feed_now()
+        with self.queue.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"end": True}) + "\n")
+        done = {str(item.get("path")) for item in _read_jsonl(self.done)}
+        left = len(self.sent - done)
+        if self.threads and self.threads[0].is_alive():
+            if left:
+                print(f"[metadata] Terminando el postproceso: {left} tema(s)…", flush=True)
+            self.threads[0].join()
+        return {str(item.get("path")) for item in _read_jsonl(self.done)}
+
+    def stop(self) -> None:
+        """Al detener: el tema en curso termina de escribirse (unos segundos) y no se empieza otro."""
+        self.stopping.set()
+        if self.process is not None and self.process.poll() is None:
+            with self.queue.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps({"end": True}) + "\n")
+            try:
+                self.process.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                terminate_process(self.process)
+
+
+def _same_path_key(path: str) -> str:
+    return os.path.normcase(os.path.abspath(path)) if path else ""
+
+
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        return []
+    out = []
+    for line in raw.split(b"\n")[:-1]:
+        try:
+            item = json.loads(line.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError):
+            continue
+        if isinstance(item, dict):
+            out.append(item)
+    return out
 
 
 def complete_metadata(files: list[Path], env: dict[str, str]) -> None:

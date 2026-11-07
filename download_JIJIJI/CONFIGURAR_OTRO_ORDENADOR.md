@@ -157,9 +157,11 @@ SPOTIFY_REDIRECT_URI=http://127.0.0.1:8888/callback
 # TRAKTOR_PIPELINE_PYTHON=C:/Users/<tú>/AppData/Local/Microsoft/WindowsApps/python3.11.exe
 ```
 
-Al terminar cada descarga, los temas reciben la metadata de la biblioteca: género, sello,
-artistas y fecha de Beatport, y la etiqueta Vocal (README, «Cómo funciona», paso 7). La primera
-vez se baja el modelo CLAP de Hugging Face (unos 600 MB). Para que lo grabado de Spotify salga
+Mientras se descarga, cada tema recibe la metadata de la biblioteca: género, sello, artistas y
+fecha de Beatport, la etiqueta Vocal y el embedding CLAP (README, «Cómo funciona», paso 7). La
+primera vez se baja el modelo CLAP de Hugging Face (unos 600 MB). Traktor no relee un archivo que
+ya cargó: si cambiaste sus etiquetas o su volumen después, clic derecho en el tema → **Reload from
+File** y **Analyze**. Para que lo grabado de Spotify salga
 con su nivel original, en Spotify de escritorio desactiva **Configuración → Reproducción →
 Normalizar volumen**. Si no, el grabador igual lo sube, pero con algo menos de resolución.
 

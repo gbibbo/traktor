@@ -143,11 +143,17 @@ El orquestador va **tema a tema**, como cuando se busca a mano en Soulseek (2026
 6. cuando la búsqueda terminó y no queda nada por grabar, mueve todos los MP3 a
    `Playlists_DOWNLOAD/<nombre de playlist>/`, elimina duplicados por Spotify Track ID, escribe
    `<playlist>.m3u8` y limpia los intermedios del run;
-7. **completa la metadata** de los temas de la carpeta con las reglas de la biblioteca
-   (`src/v4/pipeline/tag_downloads.py`, DECISIONS 2026-11-07, punto 14):
+7. **deja cada tema listo para la colección**, tema por tema apenas está bajado o grabado, mientras
+   sigue el resto (`src/v4/pipeline/tag_downloads.py --watch`, con prioridad baja; DECISIONS
+   2026-11-07, puntos 14 y 16):
    - de Beatport: género, sello, artistas, remixers y fecha, si Beatport confirma el tema;
    - la etiqueta Vocal en el comentario, si al menos el 5 % del tema tiene voz (CLAP);
+   - el embedding CLAP `clap_full` dentro del archivo, como en el pendrive, y en la caché del dataset
+     `musica`, que «Agregar música» reutiliza;
    - ni BPM ni tonalidad.
+
+   Los temas se mueven a la carpeta recién cuando el postproceso terminó; al final solo se completa lo
+   que no alcanzó.
 
    Corre con un Python que tenga el pipeline (pandas, torch, transformers): el de la descarga, el del
    PATH, el `.venv` o `TRAKTOR_PIPELINE_PYTHON` del `.env`. La primera vez baja el modelo CLAP (unos
@@ -155,8 +161,12 @@ El orquestador va **tema a tema**, como cuando se busca a mano en Soulseek (2026
    `artifacts/v4/download_tags/beatport_pending.txt` y se completan en la próxima descarga. Los
    respaldos de los tags anteriores quedan en `artifacts/v4/download_tags/` (`--revert`).
 
-Los temas grabados suben a un pico de −1 dBFS al guardarse (solo suben). La normalización de volumen
-de Spotify los dejaba unos 9 dB por debajo de los de Soulseek y en Traktor se veían más chicos.
+Los temas grabados suben a la sonoridad de los de Soulseek (−8 LUFS, solo suben, hasta +10 dB) con un
+limitador bajo −1 dBFS. Subir solo el pico no alcanzaba: la versión de Spotify tiene más rango dinámico.
+`playlist_loopback_recorder.py --raise-loudness MP3...` corrige grabados de antes, con sus tags. La
+tanda de grabación siguiente empieza en el último corte de la anterior, sin esperar a que se guarde su
+MP3. Al empezar y al terminar cada descarga se borran de Spotify las playlists «Grabar - …» que
+ninguna tanda pendiente usa.
 
 Soulseek bloquea la cuenta 30 minutos si se pasan 34 búsquedas cada 220 s. Como ahora cada
 búsqueda es un proceso, la cuenta la lleva el descargador en

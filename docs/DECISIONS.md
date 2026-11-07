@@ -89,6 +89,7 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
     - Dan el orden, el límite y la identidad de cada tema. Con su audio, los componentes de audio se
       miden sobre sets de otros DJs desde la etapa 2 del plan.
 14. **Los temas descargados llevan la metadata de la biblioteca, sola, al terminar cada descarga**
+    [REEMPLAZADO 2026-11-07 por el punto 16: tema por tema mientras la descarga sigue, y con el embedding]
     (Gabriel: salían solo con la de Spotify). Se usan las reglas de Beatport (2026-09-29) y de Vocal
     (2026-10-05). **Sin BPM ni tonalidad** (Gabriel).
     - Cómo (agente): `src/v4/pipeline/tag_downloads.py` reutiliza `beatport_lookup`,
@@ -102,7 +103,22 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
       están entre −6 y −10 LUFS.
     - Cómo (agente): el grabador sube cada tema hasta un pico de −1 dBFS. Solo sube, nunca baja: la
       normalización de Spotify baja el tema entero por igual, así que esto le devuelve el nivel sin
-      cambiar el sonido.
+      cambiar el sonido. [REFUTADO 2026-11-07 por la medición de la carpeta (Gabriel: «no lograste que
+      todas las pistas tengan el mismo volumen»): con la normalización apagada, los grabados quedaron en
+      −8,4, −9,6 y −11,9 LUFS contra −6,3 a −8,3 de Soulseek; la versión de Spotify tiene más rango
+      dinámico y llega al techo de pico con menos sonoridad. Ahora se sube la sonoridad a −8 LUFS con un
+      limitador bajo −1 dBFS (solo sube, hasta +10 dB); quedaron en −8,4 y −8,5.]
+16. **Que todo el proceso dure lo menos posible, en paralelo donde se pueda, y que la música quede lista
+    para la colección y las playlists** (Gabriel). Cómo (agente):
+    - la metadata (Beatport, Vocal) y el **embedding CLAP** (`clap_full`, el de la biblioteca) se hacen
+      tema por tema apenas cada uno está bajado o grabado, mientras sigue el resto
+      (`tag_downloads.py --watch`, con prioridad baja). El embedding queda dentro del archivo, como en
+      el pendrive, y en la caché del dataset `musica`. Antes iba todo al final: casi 5 minutos para 10
+      temas;
+    - la tanda de grabación siguiente empieza en el último corte de la anterior, sin esperar a que se
+      guarde su MP3; ese MP3 se codifica con LAME `-q 2` (14 s contra 45 s por tema de 5 minutos).
+    - Sigue sin modelo de género: lo que Beatport no encuentra queda sin género. El clasificador de la
+      biblioteca necesita además MAEST; se puede sumar si Gabriel lo pide.
 
 ## 2026-11-06
 

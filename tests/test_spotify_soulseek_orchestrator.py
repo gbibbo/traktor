@@ -841,18 +841,21 @@ class TrackByTrackFlowTests(unittest.TestCase):
             progress["completed_track_ids"].append(t["spotify"]["spotify_id"])
             progress["tracks"].append({"playlist_position": t["playlist_position"], "output": str(mp3)})
 
-        captured = [False]
+        saving = [0]  # consultas que tarda en guardar el último MP3 después del último corte
 
         def step():
+            if saving[0]:  # como el real: después del último corte solo guarda, no mira Spotify
+                saving[0] -= 1
+                if saving[0]:
+                    return None
+                self.events.append(("recorder-exit", out.name))
+                return 0
             if not (out.parent.parent / "player_ready.json").exists():  # out = <run>/recordings/NN
                 return None  # como el real: sin Spotify sonando no hay nada que grabar
             if watchdog.exists() and "stalled" in watchdog.read_text(encoding="utf-8"):
                 progress.update(status="stalled", last_error="Spotify dejó de producir audio.")
                 write_json(progress_path, progress)
                 return 75
-            if captured[0]:  # terminó de guardar el último MP3
-                self.events.append(("recorder-exit", out.name))
-                return 0
             op = ops.pop(0) if ops else "record"
             if op == "record":
                 record_one()
@@ -864,11 +867,32 @@ class TrackByTrackFlowTests(unittest.TestCase):
                 (out.parent.parent / ORCHESTRATOR.DEFER_SIGNAL).write_text("1", encoding="utf-8")
             write_json(progress_path, progress)
             if progress["completed_count"] >= len(tracks):
-                # Como el real: el último corte está hecho y avisa; todavía guarda el MP3 (unos 40 s).
-                captured[0] = True
+                # Como el real: el último corte está hecho y avisa; todavía guarda el MP3 (unos 15 s).
+                saving[0] = 3
                 write_json(arg("--ready-file"), {"status": "captured"})
             return None
         return FakeProcess(step)
+
+    def fake_worker(self):
+        """El postproceso tema por tema, simulado: al terminar dice qué temas terminados (los reales del run)
+        ya completó, según self.worker_claims (por defecto ninguno)."""
+        test = self
+
+        class FakeWorker:
+            def __init__(self, run_dir, env, soulseek_report, recordings_dir):
+                self.sources = (soulseek_report, recordings_dir)
+
+            def start(self):
+                test.events.append(("worker", "start"))
+
+            def finish(self):
+                files = ORCHESTRATOR.finished_files(*self.sources)
+                test.events.append(("worker", "finish", sorted(p.name for p in files)))
+                return {str(p) for p in files if p.name in getattr(test, "worker_claims", ())}
+
+            def stop(self):
+                pass
+        return FakeWorker
 
     def run_flow(self, root: Path, script=(), code=0, *, defer=False, recorder_ops=None, playlist_error=None,
                  recorder_timeout=30.0, recording_output=""):
@@ -904,6 +928,7 @@ class TrackByTrackFlowTests(unittest.TestCase):
                                   or self.events.append(("delete", playlist["id"]))), \
                 mock.patch.object(ORCHESTRATOR, "check_recording_device", side_effect=check_output), \
                 mock.patch.object(ORCHESTRATOR, "sweep_orphan_recording_playlists"), \
+                mock.patch.object(ORCHESTRATOR, "PostProcessWorker", self.fake_worker()), \
                 mock.patch.object(ORCHESTRATOR, "complete_metadata",
                                   side_effect=lambda files, env: self.events.append(
                                       ("metadata", sorted(p.name for p in files)))), \
@@ -1217,6 +1242,51 @@ class TrackByTrackFlowTests(unittest.TestCase):
             metadata = [e for e in self.events if e[0] == "metadata"]
             self.assertEqual(len(metadata), 1)
             self.assertEqual(metadata[0][1], self.library(root))
+
+    def test_the_next_session_starts_while_the_previous_one_saves_its_last_mp3(self) -> None:
+        # Gabriel, 2026-11-07: la tanda siguiente esperaba a que se guardara el MP3 de la anterior (15-70 s).
+        script = [[("availability", [1, 2]), ("queue", 1)], [], [("queue", 2)], [], [], [], [],
+                  [("close", "finished")]]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            code, _, _, report, spotify = self.run_flow(root, script)
+            self.assertEqual((code, report["status"]), (0, "completed"))
+            order = [e[:2] for e in self.events if e[0] in {"recorder", "recorder-exit"}]
+            self.assertLess(order.index(("recorder", "02")), order.index(("recorder-exit", "01")))
+            self.assertEqual(sorted(spotify["deleted"]), ["s1", "s2"])  # las dos playlists, al terminar de guardar
+            self.assertEqual(self.library(root), ["Artista - Tema 1.mp3", "Artista - Tema 2.mp3"])
+
+    def test_what_the_track_by_track_postprocess_did_is_not_repeated_at_the_end(self) -> None:
+        # El grabado lo completó el postproceso mientras la descarga seguía: al final solo queda el resto, y la
+        # carpeta se arma recién después de que el postproceso terminó.
+        script = [[("availability", [1, 2]), ("download", 1), ("queue", 2), ("close", "finished")]]
+        self.worker_claims = {"Artista - Tema 2.mp3"}
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            code, _, _, report, _ = self.run_flow(root, script)
+            self.assertEqual((code, report["status"]), (0, "completed"))
+            finish = next(e for e in self.events if e[:2] == ("worker", "finish"))
+            self.assertIn("Artista - Tema 2.mp3", finish[2])  # el grabado le llegó al postproceso
+            metadata = [e for e in self.events if e[0] == "metadata"]
+            self.assertEqual(metadata, [("metadata", ["Artista - Tema 1.mp3"])])
+            self.assertLess(self.events.index(finish), self.events.index(metadata[0]))
+
+    def test_finished_files_are_the_downloaded_and_recorded_ones(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            done = root / "soulseek" / "A.mp3"
+            done.parent.mkdir()
+            done.write_bytes(b"x")
+            write_json(root / "report.json", {"tracks": [
+                {"status": "finalized", "output": str(done)},
+                {"status": "failed", "output": str(root / "soulseek" / "B.mp3")},
+                {"status": "finalized", "output": str(root / "soulseek" / "gone.mp3")}]})
+            rec = root / "recordings" / "01"
+            rec.mkdir(parents=True)
+            (rec / "C.mp3").write_bytes(b"x")
+            write_json(rec / ORCHESTRATOR.PROGRESS_FILE, {"tracks": [{"output": str(rec / "C.mp3")}]})
+            files = ORCHESTRATOR.finished_files(root / "report.json", root / "recordings")
+            self.assertEqual([p.name for p in files], ["A.mp3", "C.mp3"])
 
     def test_without_a_pipeline_python_the_download_still_ends_well(self) -> None:
         out = io.StringIO()
