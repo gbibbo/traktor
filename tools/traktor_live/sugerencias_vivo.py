@@ -34,6 +34,8 @@ CHANGELOG:
   - 2026-11-06: run_session() (la usa también el servicio automático, sugerencias_servicio.py) y
                 MidiWatcher: si el controlador aparece tarde o se desenchufa y vuelve, se reabre solo.
                 Los avisos van por say(nivel, texto).
+  - 2026-11-07: Toggle: cualquier playlist de la carpeta de sugerencias cuenta como dentro, para volver
+                desde las playlists de dirección que el DJ abre con el mouse (DECISIONS 2026-11-07, p. 8).
   - 2026-11-06: Tema principal (tema_principal.py): cada evento de Traktor y los faders de la DJM (otro
                 MidiWatcher, en su hilo; que falte no es un aviso) deciden el tema principal y lo tocado,
                 que quedan en el registro de la sesión ("principal", "tocado", "fader", "mezcla"). El
@@ -196,7 +198,10 @@ def same_path(a: List[str], b: List[str]) -> bool:
 class Toggle:
     """Qué hace cada pulsación: ir a las sugerencias (guardando dónde estaba) o volver. La playlist se
     reconoce por su camino o, si Traktor la muestra por otro, por sus dos últimos nombres (carpeta y
-    playlist): ese camino nuevo pasa a ser el destino y se avisa a on_learn para guardarlo."""
+    playlist): ese camino nuevo pasa a ser el destino y se avisa a on_learn para guardarlo.
+    Cualquier playlist de la carpeta de sugerencias cuenta como «dentro» (DECISIONS 2026-11-07, punto 8):
+    el DJ pasa con el mouse de Parecidos a las de dirección, y desde cualquiera la pulsación vuelve al
+    lugar guardado antes de la primera."""
 
     def __init__(self, target: List[str], on_learn: Optional[Callable[[List[str]], None]] = None):
         self.target = list(target)
@@ -220,6 +225,12 @@ class Toggle:
             return True
         return False
 
+    def inside(self, cur: List[str]) -> bool:
+        """En la playlist de sugerencias o en otra playlist de su misma carpeta."""
+        if self.at_target(cur):
+            return True
+        return len(cur) == len(self.target) and same_path(cur[:-1], self.target[:-1])
+
     def decide(self, path: str, index: int) -> Tuple[str, List[str], int]:
         cur = [p for p in path.split(" | ") if p]
         if self.retry is not None:
@@ -227,7 +238,7 @@ class Toggle:
             if not (retry[0] == "sugerencias" and self.at_target(cur)):
                 return retry if retry[0] == "volver" else ("sugerencias", self.target, 0)
             # el DJ llegó a mano a las sugerencias después de un intento fallido: sigue como siempre
-        if self.at_target(cur):
+        if self.inside(cur):
             if self.saved is not None:
                 saved, self.saved = self.saved, None
                 return "volver", saved[0], saved[1]

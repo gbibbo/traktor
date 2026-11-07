@@ -113,6 +113,11 @@ flowchart LR
 
    Al apretarlo otra vez, vuelve a la carpeta guardada, y Traktor conserva el tema que estaba elegido
    en ella. Si una ida o una vuelta falla, el siguiente apretón la repite.
+
+   Cualquier playlist de la carpeta de sugerencias cuenta como «dentro» (2026-11-07). Si desde la de
+   parecidos el DJ pasó con el mouse a otra de esa carpeta (las de dirección, en Favoritos), apretar
+   el botón también vuelve a la carpeta guardada. Traktor relee una de esas playlists al llegar a
+   ella desde otra, pero no al volver a tocar su favorito si ya está abierta.
 6. **El tema principal** (`tema_principal.py`; reglas en `docs/DECISIONS.md`, 2026-11-06, puntos 6 y 7).
    Con cada aviso de Traktor y cada movimiento de un fader, el programa decide qué tema manda:
    - si el MASTER de Traktor es un deck, el tema cargado en ese deck;

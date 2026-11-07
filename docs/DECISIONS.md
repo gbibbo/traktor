@@ -48,8 +48,10 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    - Al apretarlo otra vez, vuelve a la carpeta del navegador que estaba elegida antes de la primera
      pulsación.
    - Cómo (agente): todas las playlists de sugerencias tienen que contar como «dentro» para la vuelta.
-     Hoy `Toggle` reconoce una sola. Falta probar que Traktor relea desde Favoritos un `.nml`
-     reescrito.
+     [REEMPLAZADO 2026-11-07 por `Toggle.inside` y la prueba V1: cualquier playlist de la carpeta de
+     sugerencias cuenta como dentro, y Traktor relee desde Favoritos un `.nml` reescrito al llegar
+     desde otra playlist, no al volver a tocar el que está abierto] Hoy `Toggle` reconoce una sola.
+     Falta probar que Traktor relea desde Favoritos un `.nml` reescrito.
 9. **Se usan sets largos de 1001Tracklists** (Gabriel). Preguntó de dónde sacarlos y si tiene que hacer
    algo.
    - Cómo (agente), 2026-11-07: 1001Tracklists no tiene API pública, y su `robots.txt` bloquea a los

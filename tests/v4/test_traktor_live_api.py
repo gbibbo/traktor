@@ -314,6 +314,21 @@ def test_toggle_goes_to_suggestions_and_back_to_the_saved_place():
         ["Browser", "Explorer", "C:", "Música", "#1 BIBO"], 2)
 
 
+def test_toggle_returns_from_any_playlist_of_the_suggestions_folder():
+    target = ["Browser", "Explorer", "C:", "Sug", "Sug NML"]
+    tg = sv.Toggle(target)
+    assert tg.decide("Browser | Playlist | Cluster_02", 7) == ("sugerencias", target, 0)
+    # el DJ pasó con el mouse a una playlist de dirección de la misma carpeta: la pulsación vuelve
+    assert tg.decide("Browser | Explorer | C: | Sug | Mantener", 4) == (
+        "volver", ["Browser", "Playlist", "Cluster_02"], 7)
+    # sin lugar guardado, desde una de dirección: refresca y abre Parecidos
+    assert tg.decide("Browser | Explorer | C: | Sug | Más energía", 0) == ("sugerencias", target, 0)
+    # una carpeta cualquiera que se llame igual a una playlist no cuenta: se guarda como lugar
+    assert tg.decide("Browser | Explorer | C: | Otra | Mantener", 1)[0] == "sugerencias"
+    assert tg.decide("Browser | Explorer | C: | Sug | Sug NML", 0) == (
+        "volver", ["Browser", "Explorer", "C:", "Otra", "Mantener"], 1)
+
+
 def _fake_collection(tmp_path, n=12):
     music = tmp_path / "music"
     music.mkdir()
