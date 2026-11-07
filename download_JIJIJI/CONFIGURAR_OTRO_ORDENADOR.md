@@ -228,11 +228,14 @@ Decidido por Gabriel el 2026-11-06 (`docs/DECISIONS.md`). Pasos, una sola vez po
    `spotify_output.py` (la salida de antes queda en
    `runs/spotify_output_restore.json` hasta devolverla; con Spotify cerrado, se
    devuelve al terminar la próxima descarga).
-6. **Decirle a la app qué grabar**: en «Descargar playlists», abajo a la derecha
-   (Salida de audio) → **Grabar desde** → «Voicemeeter Input (VB-Audio Voicemeeter
-   VAIO)». Para la terminal (y como valor inicial de la app), la línea
-   `SPOTIFY_RECORDING_OUTPUT=Voicemeeter Input` del `.env` (paso 6a).
-7. **Comprobar**, en ese mismo panel: **Probar sonido** tiene que decir «Sonó por
+6. **Decirle a la app qué grabar**: en «Descargar playlists», al darle **Descargar**
+   (o **Continuar grabación**), el cuadro que se abre pregunta **Cómo se graba
+   Spotify** → **Solo Spotify, sin que suene nada**. Queda elegido para las próximas.
+   También se cambia en el botón del parlante, abajo a la derecha, arriba de todo
+   («Grabar Spotify»); ese botón dice «Graba solo Spotify». Para la terminal (y como
+   valor inicial de la app), la línea `SPOTIFY_RECORDING_OUTPUT=Voicemeeter Input`
+   del `.env` (paso 6a).
+7. **Comprobar**, en el botón del parlante: **Probar sonido** tiene que decir «Sonó por
    «Voicemeeter Input…» y se grabó bien… No se oye». Si dice «No se grabó nada»,
    revisa que Voicemeeter esté abierto (paso 4). En la primera descarga, el registro
    dice «Spotify sale por «Voicemeeter Input…» mientras se graba» y, al final,
@@ -250,8 +253,8 @@ Decidido por Gabriel el 2026-11-06 (`docs/DECISIONS.md`). Pasos, una sola vez po
    Para devolver uno: marca esa opción, clic derecho → **Habilitar**. Después,
    **Probar sonido** en la app (paso 7) tiene que seguir saliendo bien.
 
-Para volver a grabar lo que suena por la salida predeterminada: **Grabar desde** →
-«Lo que suena por la salida predeterminada» (así Spotify ya no se cambia de salida).
+Para volver a grabar lo que suena por la salida predeterminada: **Cómo se graba
+Spotify** → «Lo que suena por la salida de Windows» (así Spotify ya no se cambia de salida).
 
 Si algo falla, el registro de la descarga lo dice:
 

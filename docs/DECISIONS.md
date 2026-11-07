@@ -57,7 +57,8 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    - Plan e informe para auditoría: `docs/plans/recomendacion_playlists_plan.md`.
 10. **Al grabar, Spotify va solo a Voicemeeter y después vuelve a su salida, sin que Gabriel lo note**
     (Gabriel). Cómo (agente):
-    - antes de darle play, el reproductor manda Spotify a la salida de «Grabar desde»;
+    - antes de darle play, el reproductor manda Spotify a la salida elegida para grabar («Solo Spotify,
+      sin que suene nada», en el cuadro que se abre al darle Descargar o Continuar);
     - al terminar la descarga (bien, pausada, detenida o con error), Spotify recupera la salida que
       tenía. Si se la cambió a mano mientras tanto, queda la suya;
     - `spotify_output.py` y `app/audio_devices.ps1 -App/-SetApp`. Es la interfaz no documentada que

@@ -199,9 +199,9 @@ consigue entra en la cola de grabación (`recording_queue.py`, `recording_queue.
 orquestador lo graba de Spotify mientras sigue la búsqueda, en tandas de hasta 10 temas con su propia
 playlist privada (borrada al terminar la tanda) y su carpeta `recordings/NN/`. El descargador trabaja con
 2 temas a la vez por una sola sesión de Soulseek (`SockseekDaemon`: el daemon de sockseek, con `--remote`).
-La playlist de cada tanda suena en repetición, para que el último tema se corte como los demás. Con
-«Grabar desde» en una salida concreta (Voicemeeter), `spotify_output.py` manda solo Spotify ahí antes
-de darle play y le devuelve su salida al terminar la descarga. Reúne los resultados bajo
+La playlist de cada tanda suena en repetición, para que el último tema se corte como los demás. Si se
+graba una salida concreta («Solo Spotify, sin que suene nada»: Voicemeeter), `spotify_output.py` manda
+solo Spotify ahí antes de darle play y le devuelve su salida al terminar la descarga. Reúne los resultados bajo
 `download_JIJIJI/runs/` (git-ignorado). `download_JIJIJI/README.md` documenta la
 configuración inicial y el uso; `download_JIJIJI/CONFIGURAR_OTRO_ORDENADOR.md`, la instalación
 paso a paso en otra PC (claves de Spotify y Soulseek, `sockseek.exe` en `tools/sockseek/`,

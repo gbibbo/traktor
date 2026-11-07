@@ -306,7 +306,8 @@ button.chip { cursor: pointer; } button.chip:hover { background: rgba(255,255,25
 
 /* ---------- popovers, cajones, modales ---------- */
 .pop { position: fixed; z-index: 30; width: 340px; background: var(--elev2); border-radius: 8px; padding: 16px;
-  box-shadow: 0 16px 40px rgba(0,0,0,.6); display: none; }
+  box-shadow: 0 16px 40px rgba(0,0,0,.6); display: none; overflow-y: auto; }
+.pop h4.divide { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
 .pop.open { display: block; animation: popin .14s ease-out; }
 @keyframes popin { from { opacity: 0; transform: translateY(6px); } }
 .pop h4 { margin: 0 0 4px; font-size: 16px; font-weight: 800; }
@@ -322,6 +323,9 @@ button.chip { cursor: pointer; } button.chip:hover { background: rgba(255,255,25
 .devrow .ico { width: 26px; height: 26px; stroke-width: 1.6; color: var(--muted); }
 .devrow .dn { font-size: 14px; font-weight: 600; }
 .devrow .dd { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.devlist.compact .devrow { padding: 6px 8px; gap: 10px; }
+.devlist.compact .devrow .ico { width: 20px; height: 20px; }
+.devlist.compact .devrow .dn { font-size: 13px; }
 .devrow.cur .ico, .devrow.cur .dn { color: var(--green); }
 .devrow.cur .dd { color: var(--green); }
 .meter { height: 8px; border-radius: 8px; background: #3e3e3e; overflow: hidden; margin: 10px 0 6px; }
@@ -356,7 +360,7 @@ details summary::before { content: "▸ "; } details[open] summary::before { con
 .modal-bg { position: fixed; z-index: 50; inset: 0; background: rgba(0,0,0,.7); display: none; place-items: center; padding: 16px; }
 .modal-bg.open { display: grid; animation: fade .15s ease-out; }
 @keyframes fade { from { opacity: 0; } }
-.modal { width: 520px; max-width: 100%; background: var(--elev2); border-radius: 10px; padding: 26px; box-shadow: 0 24px 60px rgba(0,0,0,.6); }
+.modal { width: 520px; max-width: 100%; max-height: calc(100vh - 32px); overflow-y: auto; background: var(--elev2); border-radius: 10px; padding: 26px; box-shadow: 0 24px 60px rgba(0,0,0,.6); }
 .modal h3 { margin: 0 0 6px; font-size: 22px; font-weight: 800; letter-spacing: -.01em; }
 .modal .lead { color: var(--muted); margin: 0 0 18px; line-height: 1.5; }
 .sumrow { display: flex; gap: 14px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
@@ -372,6 +376,9 @@ details summary::before { content: "▸ "; } details[open] summary::before { con
 .choice label:has(input:checked) { border-color: var(--green); }
 .choice input { accent-color: var(--green); margin-top: 2px; }
 .choice b { display: block; font-size: 14px; } .choice span { font-size: 12px; color: var(--muted); }
+.choice.stack { flex-direction: column; gap: 6px; }
+.choice.stack label { padding: 10px 12px; }
+.choice label.off { opacity: .55; cursor: default; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
 
 .toasts { position: fixed; z-index: 60; left: 50%; bottom: 100px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; align-items: center; }
@@ -497,13 +504,10 @@ details summary::before { content: "▸ "; } details[open] summary::before { con
 </section>
 
 <div class="pop" id="pop-dev">
-  <h4>Salida de audio</h4>
-  <div class="sub">La salida predeterminada de Windows: por ahí suena todo lo que no tenga otra elegida.</div>
-  <div class="devlist" id="devlist"><div class="small">Buscando salidas…</div></div>
-  <h4>Grabar desde</h4>
-  <div class="sub">Lo que se graba de Spotify. Con «Voicemeeter Input», al grabar se manda Spotify ahí solo y al terminar vuelve a su salida: se graba solo Spotify, no suena nada y el DJM queda libre para Traktor. Guía: <code>CONFIGURAR_OTRO_ORDENADOR.md</code>, «Grabar sin que suene nada».</div>
-  <div class="devlist" id="reclist"></div>
-  <div class="btnrow">
+  <h4>Grabar Spotify</h4>
+  <div class="sub">Qué se graba cuando un tema no está en Soulseek.</div>
+  <div id="recmode"></div>
+  <div class="btnrow" style="margin-top:10px">
     <button class="pill green small" id="btn-test"><svg class="ico sm fill"><use href="#i-play"/></svg>Probar sonido</button>
     <button class="pill ghost small" id="btn-meter">Medir lo que suena</button>
   </div>
@@ -512,6 +516,9 @@ details summary::before { content: "▸ "; } details[open] summary::before { con
     <div class="small" id="meter-txt">Dale play en Spotify: la barra tiene que moverse.</div>
   </div>
   <div id="test-result"></div>
+  <h4 class="divide">Salida de Windows</h4>
+  <div class="sub">Por donde suena todo lo demás (avisos, el navegador).</div>
+  <div class="devlist compact" id="devlist"><div class="small">Buscando salidas…</div></div>
   <div class="small" id="dev-busy" hidden style="margin-top:10px;color:var(--amber)"></div>
 </div>
 
@@ -589,8 +596,8 @@ details summary::before { content: "▸ "; } details[open] summary::before { con
     <div class="choice" id="m-defer-row"><label><input type="checkbox" id="m-defer"><div><b>Grabar después</b><span>Ahora solo busca y baja de Soulseek, y eso va a la carpeta. Lo que haya que grabar queda pendiente hasta que pulses «Grabar ahora».</span></div></label></div>
     <div class="note amber" id="m-spotify" hidden style="margin:10px 0 0;padding:12px 14px"><div><b>Spotify de escritorio está cerrado</b><p>Ábrelo con tu cuenta Premium antes de que empiece a grabar (justo después de la búsqueda), o marca «Grabar después».</p></div></div>
     <div class="sumrow"><svg class="ico"><use href="#i-folder"/></svg><div><div class="k">Se guarda en</div><div class="v" id="m-dest"></div></div><button class="pill ghost small" id="m-change-dest">Cambiar</button></div>
-    <div class="sumrow"><svg class="ico"><use href="#i-speaker"/></svg><div><div class="k">Se graba lo que sale por</div><div class="v" id="m-dev"></div></div><button class="pill ghost small" id="m-change-dev">Cambiar</button></div>
-    <div class="tips"><b>Mientras graba:</b> activa No molestar (Windows + N), no reproduzcas nada más y no toques Spotify. Todo lo que suene por esa salida queda grabado. Mantén Spotify de escritorio abierto con tu cuenta Premium.</div>
+    <div class="sumrow" style="align-items:flex-start"><svg class="ico"><use href="#i-speaker"/></svg><div style="flex:1;min-width:0"><div class="k">Cómo se graba Spotify</div><div id="m-rec"></div></div></div>
+    <div class="tips" id="m-tips"></div>
     <div class="modal-actions">
       <button class="pill ghost" data-close="modal-start">Cancelar</button>
       <button class="pill green" id="m-go"><svg class="ico sm"><use href="#i-download"/></svg><span id="m-go-label">Empezar</span></button>
@@ -1063,7 +1070,8 @@ function renderPlayer() {
   if ($("#now").innerHTML !== now) $("#now").innerHTML = now;
   if ($("#center").innerHTML !== center) $("#center").innerHTML = center;
   const dev = S.devices.find((d) => d.default);
-  $("#dev-name").textContent = recOutput() ? `Graba: ${recOutput()}` : dev ? dev.name : "Salida de audio";
+  $("#dev-name").textContent = recordsVoicemeeter() ? "Graba solo Spotify" : recOutput() ? `Graba: ${recOutput()}`
+    : dev ? dev.name : "Salida de audio";
   $("#btn-dev").classList.toggle("green", Boolean(ownLive || (S.st && S.st.external)));
   const lib = S.st ? S.st.settings.library_root : "";
   $("#folder-name").textContent = lib ? lib.split(/[\\/]/).filter(Boolean).pop() : "Destino";
@@ -1350,7 +1358,8 @@ function openStartModal(fresh, queue = false) {
   const meta = v.meta || {};
   $("#m-name").textContent = meta.name || (v.run && v.run.name) || "la playlist";
   $("#m-dest").textContent = S.st.settings.library_root;
-  $("#m-dev").textContent = recordedName();
+  renderStartRec();
+  loadDevices().then(renderStartRec);  // por si Voicemeeter apareció o cambió la salida de Windows
   const deferred = v.run && v.run.status === "deferred";
   const resumable = v.run && (v.run.status === "paused" || deferred);
   $("#m-choice").innerHTML = resumable ? `<div class="choice">
@@ -1415,23 +1424,44 @@ async function loadDevices() {
 }
 
 const recOutput = () => (S.st && S.st.settings && S.st.settings.recording_output) || "";
-function recordedName() {
-  const r = recOutput();
-  if (r) return r;
-  const dev = S.devices.find((d) => d.default);
-  return dev ? dev.name : "la salida predeterminada de Windows";
+// «Voicemeeter Input» (no AUX ni VAIO3): Spotify va ahí solo mientras graba (spotify_output.py).
+const VOICEMEETER = "Voicemeeter Input";
+const VM_RE = /voicemeeter input/i;
+const vmDevice = () => S.devices.find((d) => VM_RE.test(d.name));
+const recordsVoicemeeter = () => VM_RE.test(recOutput());
+
+// Cómo se graba Spotify: solo Spotify por Voicemeeter, o lo que suena por la salida de Windows (y la que
+// estuviera elegida, si es otra). La misma elección en el panel de audio y en la ventana de inicio.
+function recModeHtml(group, busy) {
+  const rec = recOutput();
+  const vm = vmDevice();
+  const def = S.devices.find((d) => d.default);
+  const opts = [
+    { value: VOICEMEETER, on: recordsVoicemeeter(), off: !vm && !recordsVoicemeeter(),
+      title: "Solo Spotify, sin que suene nada",
+      sub: vm ? "Por Voicemeeter: Spotify va ahí solo mientras graba y después vuelve. Traktor puede usar el DJM."
+        : recordsVoicemeeter() ? "Voicemeeter no aparece ahora: ¿está instalado y abierto?"
+        : "Hace falta Voicemeeter (CONFIGURAR_OTRO_ORDENADOR.md, paso 7b)." },
+    { value: "", on: !rec, off: false, title: "Lo que suena por la salida de Windows",
+      sub: `Se graba todo lo que suena por ${def ? `«${def.name}»` : "la salida predeterminada"}, avisos incluidos.` },
+  ];
+  if (rec && !recordsVoicemeeter()) opts.push({ value: rec, on: true, off: false, title: `Lo que sale por «${rec}»`, sub: "Elegida antes" });
+  return `<div class="choice stack">${opts.map((o) => `<label class="${o.off ? "off" : ""}"><input type="radio" name="${group}"
+    value="${esc(o.value)}" data-rec-mode="1" ${o.on ? "checked" : ""} ${o.off || busy ? "disabled" : ""}><div><b>${esc(o.title)}</b><span>${esc(o.sub)}</span></div></label>`).join("")}</div>`;
+}
+
+function renderStartRec() {
+  $("#m-rec").innerHTML = recModeHtml("m-rec-mode", false);
+  $("#m-tips").innerHTML = recordsVoicemeeter()
+    ? "<b>Mientras graba:</b> no toques Spotify y déjalo abierto con tu cuenta Premium. No suena nada: puedes seguir usando la PC y Traktor."
+    : "<b>Mientras graba:</b> activa No molestar (Windows + N), no reproduzcas nada más y no toques Spotify. Todo lo que suene por esa salida queda grabado. Mantén Spotify de escritorio abierto con tu cuenta Premium.";
 }
 
 function renderDevices(busy) {
-  const rec = recOutput();
+  $("#recmode").innerHTML = recModeHtml("rec-mode", busy);
   $("#devlist").innerHTML = S.devices.map((d) => `<button class="devrow ${d.default ? "cur" : ""}" data-dev="${esc(d.id)}" ${busy ? "disabled" : ""}>
-    ${icon(DEV_ICON(d.name))}<div><div class="dn">${esc(d.name)}</div><div class="dd">${d.default ? (rec ? "Suena por aquí" : "Suena y se graba por aquí") : "Usar esta salida"}</div></div></button>`).join("")
+    ${icon(DEV_ICON(d.name))}<div><div class="dn">${esc(d.name)}</div>${d.default ? `<div class="dd">Suena por aquí</div>` : ""}</div></button>`).join("")
     || `<div class="small">No hay salidas de audio activas.</div>`;
-  const choices = [{ name: "", label: "Lo que suena por la salida predeterminada", sub: "Se graba todo lo que suena por la de arriba" },
-    ...S.devices.map((d) => ({ name: d.name, label: d.name, sub: "Se graba solo lo que salga por aquí" }))];
-  if (rec && !S.devices.some((d) => d.name === rec)) choices.push({ name: rec, label: rec, sub: "No está ahora: ¿Voicemeeter instalado y abierto?" });
-  $("#reclist").innerHTML = choices.map((c) => `<button class="devrow ${c.name === rec ? "cur" : ""}" data-rec="${esc(c.name)}" data-rec-pick="1" ${busy ? "disabled" : ""}>
-    ${icon(c.name ? DEV_ICON(c.name) : "speaker")}<div><div class="dn">${esc(c.label)}</div><div class="dd">${c.name === rec ? "Se graba esta" : esc(c.sub)}</div></div></button>`).join("");
   $("#dev-busy").hidden = !busy;
   $("#dev-busy").textContent = busy ? `${busy} No se puede cambiar ni probar la salida hasta que termine.` : "";
   $("#btn-test").disabled = Boolean(busy);
@@ -1454,9 +1484,11 @@ async function setRecordingOutput(name) {
     const r = await api("/api/settings", { recording_output: name });
     S.st.settings = r.settings;
     renderDevices(null);
+    renderStartRec();
     renderPlayer();
     $("#test-result").innerHTML = "";
-    toast(name ? `Se grabará lo que salga por «${name}». Pruébalo con «Probar sonido».` : "Se grabará lo que suena por la salida predeterminada.");
+    toast(VM_RE.test(name) ? "Se grabará solo Spotify, por Voicemeeter."
+      : name ? `Se grabará lo que salga por «${name}».` : "Se grabará lo que suena por la salida de Windows.");
   } catch (e) { fail(e); }
 }
 
@@ -1800,7 +1832,9 @@ async function refreshStartInfo() {
 // ---------------------------------------------------------------- popovers
 function placePop(pop, anchor) {
   const r = anchor.getBoundingClientRect();
+  pop.style.maxHeight = "";
   pop.classList.add("open");
+  if (pop.offsetHeight > r.top - 18) pop.style.maxHeight = `${Math.max(160, r.top - 18)}px`;
   const w = pop.offsetWidth, h = pop.offsetHeight;
   pop.style.left = `${Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w))}px`;
   pop.style.top = `${Math.max(8, r.top - h - 10)}px`;
@@ -2009,7 +2043,6 @@ document.addEventListener("click", (e) => {
     return;
   }
   if (t.dataset.dev) { setDevice(t.dataset.dev); return; }
-  if (t.dataset.recPick) { setRecordingOutput(t.dataset.rec || ""); return; }
   if (t.hasAttribute("data-open-active")) {
     const a = S.active;
     if (a && a.url) openPlaylist(a.url);
@@ -2033,7 +2066,6 @@ document.addEventListener("click", (e) => {
     case "pl-stop": stopDownload(); break;
     case "m-go": startDownload(); break;
     case "m-change-dest": $("#modal-start").classList.remove("open"); togglePop("#pop-folder", $("#btn-folder"), renderFolder); break;
-    case "m-change-dev": $("#modal-start").classList.remove("open"); togglePop("#pop-dev", $("#btn-dev"), loadDevices); break;
     case "btn-dev": togglePop("#pop-dev", t, loadDevices); break;
     case "btn-folder": togglePop("#pop-folder", t, renderFolder); break;
     case "btn-test": testDevice(); break;
@@ -2069,6 +2101,8 @@ document.addEventListener("change", (e) => {
     api("/api/defer", { on: t.checked })
       .then(() => { toast(t.checked ? "Grabación pospuesta: se baja lo de Soulseek y la grabación queda pendiente." : "La grabación sigue en esta descarga."); tick(true); })
       .catch((err) => { t.checked = !t.checked; fail(err); });
+  } else if (t.dataset.recMode) {
+    setRecordingOutput(t.value);
   } else if (t.id === "m-defer") {
     updateStartWarning();
   } else if (t.id === "tr-auto") {
