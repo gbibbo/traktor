@@ -391,7 +391,7 @@ Etapa 0 (verificaciones) ──► Etapa 1 (bases) ──► Etapa 2 (sets de ot
 
 | Id | Qué | Cómo | Si falla |
 | :--- | :--- | :--- | :--- |
-| V1 | Traktor acepta en Favoritos un `.nml` de la carpeta de sugerencias y lo relee al elegirlo con el mouse | Dos playlists de prueba; Gabriel las pone en Favoritos y cambia entre ellas después de reescribirlas | Una playlist por carpeta, o Favoritos de carpetas (HIPÓTESIS: hoy Traktor relee un `.nml` del Explorer al entrar desde otra carpeta, según `sugerencias_vivo.py`) |
+| V1 | Traktor acepta en Favoritos un `.nml` de la carpeta de sugerencias y lo relee al elegirlo con el mouse | [REEMPLAZADO 2026-11-07 por la prueba de Gabriel: hecho] Dos playlists de prueba; Gabriel las pone en Favoritos y cambia entre ellas después de reescribirlas. Resultado: Traktor las acepta en Favoritos y las relee al elegirlas viniendo de otra playlist o carpeta. Volver a tocar el favorito de la playlist que ya está abierta no la relee (como en LESSONS_LEARNED, prueba del 2026-11-04). Cambiar entre las playlists de sugerencias con el mouse muestra siempre la versión nueva. Con una playlist de dirección abierta, ver una lista nueva pide pasar por otra | Una playlist por carpeta, o Favoritos de carpetas |
 | V2 | El cambio de `Toggle` (I2) | Test unitario con caminos de varias playlists | — |
 | V3 | El costo en vivo con 5 perfiles (I4) | Medir sobre la colección real | Precalcular más en el índice |
 | V4 | Acceso a sets largos de 1001Tracklists (D5) | Ver sección 6 | Sets largos de MixesDB y de Gabriel |
@@ -570,7 +570,7 @@ alternativa a 1001Tracklists (DECISIONS 2026-11-07, puntos 12 y 13). Se suman do
 | Sin audio de los sets, los componentes de audio no se pueden medir en sets de otros DJs | INFERENCIA | De la fila anterior |
 | Gabriel tiene 4 sets de 3 h o más (3,4, 3,4, 3,8 y 8,5 h) y 21 sets en total | EVIDENCIA OBSERVADA | Historia 4.4.1 con `STARTDATE` + `STARTTIME` (auditoría 11-07); la carpeta 4.2.0 es copia byte a byte |
 | El `Toggle` actual no trata varias playlists como «dentro» | EVIDENCIA OBSERVADA | `sugerencias_vivo.py`, clase `Toggle`, método `at_target` |
-| Traktor relee en Favoritos un `.nml` del Explorer | HIPÓTESIS | V1 |
+| Traktor relee en Favoritos un `.nml` del Explorer al llegar desde otra playlist, no al volver a tocar el que está abierto | EVIDENCIA OBSERVADA | Prueba de Gabriel con «Prueba Favoritos A y B», 2026-11-07 (V1) |
 | 1001Tracklists bloquea los scripts de Python y no tiene API pública | EVIDENCIA OBSERVADA | Su `robots.txt` y su sitio, 2026-11-07 |
 | El acceso de investigación a 1001Tracklists se consigue pidiéndolo | HIPÓTESIS | Kim et al. lo obtuvieron así; se decide con el correo de Gabriel |
 | CLAP varía unos 0.05 entre los 30 primeros | EVIDENCIA OBSERVADA | Colección real, 40 temas principales |

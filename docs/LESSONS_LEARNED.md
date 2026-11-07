@@ -278,6 +278,12 @@ sonda y el módulo están en los QML de Traktor, que no cambian; lo que se pierd
 configuración que se cargue tiene que tener el D2 en el Controller Manager: se agrega una vez y se
 vuelve a exportar.
 
+También reemplaza los Favoritos del navegador (2026-11-07). Se guardan en la entrada `Browser.Shortcuts`
+del `.tsi`. La configuración externa traía unos Favoritos sin «TRAKTOR ML Sugerencias», y con una
+carpeta de otro usuario de Windows (`C:\Users\usuario\...`). Después de importarla, el favorito de las
+sugerencias ya no estaba. Lo mismo vale para el Controller Manager: dejar los Favoritos como se quieren y
+volver a exportar.
+
 ### Dos sesiones en el mismo árbol: subir solo los bloques propios con contexto y verificar
 
 Dos sesiones de agentes compartían el árbol y el índice de Git. Para subir solo sus bloques de un

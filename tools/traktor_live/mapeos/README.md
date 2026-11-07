@@ -22,8 +22,29 @@ de Traktor 4.4.1 de Gabriel del 2026-11-05, y los exportó `tools/traktor_live/m
   Expand/Collapse" del árbol.
 - Puertos: `XONE:K2 MIDI`, que es como lo ve Windows MIDI Services.
 
-El mapeo que vino antes es `XONE K2 + TECLADO (TEMPO).tsi`. Es una exportación completa de la
-configuración de Traktor, con audio y ruteo, así que no se sube al repo.
+[REEMPLAZADO 2026-11-07 por pedido de Gabriel: las dos configuraciones completas que usa se suben, sin
+los datos del servidor de transmisión; ver «Configuraciones completas»] El mapeo que vino antes es
+`XONE K2 + TECLADO (TEMPO).tsi`. Es una exportación completa de la configuración de Traktor, con audio
+y ruteo, así que no se sube al repo.
+
+## Configuraciones completas (las que usa Gabriel)
+
+Son exportaciones completas de Traktor 4.4.1: preferencias, audio, ruteo, dispositivos y Favoritos.
+Gabriel cambia entre ellas con Traktor abierto (DECISIONS 2026-11-06, puntos 7 y 8). Copias de los
+archivos «NUEVO» de su carpeta de descargas, del 2026-11-06.
+
+| Archivo | Mezcla | Dispositivos |
+| --- | --- | --- |
+| `DJM + K2 (mezcla externa).tsi` | Externa, con la DJM-750MK2 | 4 Generic MIDI y la Kontrol D2 |
+| `XONE K2 + TECLADO (TEMPO) (mezcla interna).tsi` | Interna | 1 Generic MIDI y la Kontrol D2 |
+
+- **Sin los datos de transmisión.** En la externa se dejaron vacíos la dirección, el punto de montaje,
+  la URL y la contraseña del servidor de transmisión (Broadcast/Icecast). Es lo único que cambia
+  respecto del original. Si Gabriel transmite, los vuelve a cargar en Preferences > Broadcasting.
+- **Importar una reemplaza los Favoritos del navegador** por los que trae guardados (2026-11-07): la
+  externa trae unos Favoritos sin «TRAKTOR ML Sugerencias». Después de dejar los Favoritos como se
+  quieren, volver a exportar la configuración para que la próxima importación los conserve.
+- **Las dos traen la Kontrol D2**, que hace falta para las sugerencias en vivo.
 
 ## Importar
 

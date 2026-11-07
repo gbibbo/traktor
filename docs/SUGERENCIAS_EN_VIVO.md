@@ -305,7 +305,7 @@ carpeta personal.
 | `Sugerencias en vivo.bat` / `.command` | Lanzadores de doble clic, con ventana. |
 | `tools/traktor_live/sugerencias_servicio.py` | El servicio automático: arranca con Traktor, sin ventana, y avisa con notificaciones. |
 | `Activar sugerencias automaticas.bat` / `.command` | Dejan activo el inicio automático (una vez). |
-| `tools/traktor_live/mapeos/` | Mapeos de Gabriel para importar: Xone K2 con D0 libre y teclado. |
+| `tools/traktor_live/mapeos/` | Mapeos de Gabriel para importar: Xone K2 con D0 libre y teclado; y sus dos configuraciones completas (mezcla externa con la DJM y mezcla interna), sin los datos de transmisión. Importar una configuración completa reemplaza los Favoritos. |
 | `tools/traktor_live/mapeo_tsi.py` | Exporta un mapeo de Traktor a `.tsi` y libera botones (`--liberar`). |
 | `PROMPT_LLM.md` | Prompt para que otro LLM guíe a una persona a replicar esto. |
 | `tests/v4/test_traktor_live_api.py`, `test_traktor_live_platforms.py` | Tests. Corren en Windows, macOS y Linux. |
