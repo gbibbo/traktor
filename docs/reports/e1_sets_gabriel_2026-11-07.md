@@ -2,18 +2,28 @@
 
 Plan: `docs/plans/recomendacion_playlists_plan.md`, etapa 1, puntos 1 y 2 (almacén de sets con D1 y E1
 con líneas de base). Por la regla E6, lo medido sobre los sets de Gabriel orienta y no fija pesos.
+Auditado el 2026-11-07 (skill `auditar`, la sesión que auditó el plan):
+`docs/reports/auditoria_e1_sets_gabriel_2026-11-07.md`. Las marcas «(auditoría E1)» son suyas.
 
 ## Veredicto
 
 - **CLAP es, de lejos, el mejor componente solo.** El tema que Gabriel tocó después queda entre los 30
   primeros en el 9,3 % de las transiciones. Al azar es el 2,0 %, con solo BPM el 4,3 % y con solo
-  tonalidad el 2,6 %. Sumar BPM a CLAP lo lleva a 10,2 %.
+  tonalidad el 2,6 % [REEMPLAZADO 2026-11-07 por la auditoría E1: esos perfiles empatan a cientos de
+  candidatos (el grupo del puesto 30 tiene de 102 a 149 temas) y el banco desempata por el orden del
+  índice; con desempate al azar, 5 semillas: BPM 4,6 %, tonalidad 4,2 %, género 5,0 %; CLAP y
+  CLAP + BPM no cambian]. Sumar BPM a CLAP lo lleva a 10,2 % (auditoría E1: 29 frente a 34
+  transiciones discordantes, p = 0,61; no se distingue de CLAP solo).
 - **El filtro de tonalidad deja fuera el 22 % de las transiciones reales de Gabriel.** En 119 de 535
   transiciones, el tema siguiente tiene una tonalidad que la regla armónica considera incompatible
   (puntaje menor a 0,60), aunque el mejor ajuste siempre queda a ±2 semitonos. El filtro de BPM ±20
   deja fuera solo el 1,7 %.
 - **NO CONCLUYENTE para fijar pesos:** son los sets de un solo DJ, con ruido (E6). Falta E1 sobre sets
   de otros DJs (D7).
+- **(auditoría E1)** CLAP también supera a la popularidad (los temas que Gabriel repite entre sets:
+  4,8 %; 46 frente a 23 discordantes, p = 0,008) y sus aciertos no son duplicados: 48 de 50 son entre
+  artistas distintos. La regla de tonalidad deja pasar al azar el 69 % de los pares y el 76 % de las
+  transiciones reales: saca el 31 % del pool al precio del 23,5 % de los movimientos reales.
 
 ## D1: los sets
 
@@ -96,3 +106,5 @@ En todas las transiciones con las dos tonalidades, el mejor ajuste está entre �
 | El filtro de tonalidad deja fuera el 22 % de las transiciones reales | EVIDENCIA OBSERVADA | 119 de 535 |
 | Parte de ese 22 % son tonalidades mal estimadas o temas tocados con el pitch movido | HIPÓTESIS | Se decide con la tonalidad de Traktor analizada para todos (hoy 231 de 1717 sugeribles tienen la de Traktor) y con el pitch del registro en vivo (D2) |
 | La regla de tonalidad hay que cambiarla | Decisión de Gabriel, no del agente | El dato está; la regla (P3, DECISIONS 2026-11-06, punto 7) es suya. Kell y Tzanetakis 2013 no encontraron efecto de la tonalidad en el orden de los DJs |
+| CLAP supera a la popularidad y sus aciertos no son el mismo artista ni el mismo título | EVIDENCIA OBSERVADA (auditoría E1) | 46 frente a 23 discordantes, p = 0,008; 48 de 50 aciertos entre artistas distintos, 0 con el mismo título |
+| El filtro de tonalidad pasa el 69 % de los pares al azar y el 76 % de las transiciones reales; los ±1 semitono ocurren a la tasa del azar y la misma tonalidad al doble | EVIDENCIA OBSERVADA (auditoría E1) | 387 de 506 frente a 349,5 esperadas; 165 frente a 185; 86 frente a 42 |

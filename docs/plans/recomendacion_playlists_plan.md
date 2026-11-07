@@ -201,6 +201,14 @@ Un perfil son los filtros comunes, un objetivo y pesos sobre los mismos componen
 Los pesos de cada perfil salen de E1 y de la escucha; en la etapa 4, del ranker aprendido (M3). Añadir
 una playlist es añadir un perfil, no un camino nuevo.
 
+**Escala de los componentes (auditoría E1, 11-07).** Entre los candidatos de una consulta, los
+componentes se dispersan distinto (desvío mediano en D1: `clap` 0,08, `bpm` 0,15, `clave` 0,12,
+`genero` 0,24): un peso igual no es igual importancia, y `clap+bpm` con pesos 1 y 1 pesa más el BPM.
+Antes de fijar pesos (etapa 2), o se normaliza cada componente por consulta (percentil o rango entre
+los candidatos) o se declara que los pesos van sobre la escala cruda. Los perfiles de un solo
+componente con pocos valores distintos (`bpm`, `clave`, `genero`) necesitan desempate al azar en E1;
+hoy el banco desempata por el orden del índice.
+
 ### 3.5 Estado de la trayectoria
 
 Lo calcula el lado en vivo desde D2:
@@ -353,7 +361,7 @@ Traktor = plataforma en vivo.
 | E5 | Una sola variable por comparación, en los mismos sets | Siempre |
 | E6 | Todo resultado se informa sobre los sets de otros DJs y sobre los de Gabriel por separado | Siempre |
 | E7 | Partición por DJ entre entrenamiento y medida, con la popularidad como línea de base en D3, D4 y D5 (auditoría 11-07; sección 3.6) | 2 |
-| E8 | Medidas: acierto en los 30 primeros, rango recíproco medio, percentil del rango y recuperación de los filtros, por fuente (auditoría 11-07; sección 3.6) | 1 |
+| E8 | Medidas: acierto en los 30 primeros, rango recíproco medio, percentil del rango y recuperación de los filtros, por fuente (auditoría 11-07; sección 3.6); desempate al azar donde el puntaje empata, y el acierto por set además del total (auditoría E1, 11-07) | 1 |
 
 ### Plataforma en vivo (Traktor)
 
@@ -412,7 +420,10 @@ I5 entra con I3, para que D2 guarde la etiqueta de M3 desde la primera sesión.
 2. E1 (3.6) sobre D1, con líneas de base al azar, solo BPM y solo CLAP.
    - Sale: tabla base.
    - HECHO 2026-11-07: `src/v4/evaluation/banco_sets.py`, informe `docs/reports/e1_sets_gabriel_2026-11-07.md`.
-     - Acierto en 30: azar 2,0 %, BPM 4,3 %, CLAP 9,3 %, CLAP + BPM 10,2 %.
+     - Acierto en 30: azar 2,0 %, BPM 4,3 %, CLAP 9,3 %, CLAP + BPM 10,2 %. Auditoría E1
+       (`docs/reports/auditoria_e1_sets_gabriel_2026-11-07.md`): con desempate al azar, BPM 4,6 %,
+       tonalidad 4,2 %, género 5,0 %, popularidad 4,8 %; CLAP frente a CLAP + BPM no se distingue
+       (p = 0,61); 48 de los 50 aciertos de CLAP son entre artistas distintos.
      - El filtro de tonalidad deja fuera el 22 % de las transiciones reales de Gabriel; se le consulta
        (P3 es su regla).
 3. P2, G3 y G4 como componentes, medidos en E1 uno por vez.
@@ -602,6 +613,8 @@ alternativa a 1001Tracklists (DECISIONS 2026-11-07, puntos 12 y 13). Se suman do
 | MusicBrainz tiene 26 438 grupos `DJ-mix` que no son radio, 4817 de ellos con etiqueta techno, tech house, progressive o deep house, y 49 de John Digweed | EVIDENCIA OBSERVADA | Consultas a la API de búsqueda de MusicBrainz, 2026-11-07 (adenda) |
 | En las tiendas, el álbum de una mezcla lleva «(DJ Mix)» y cada tema «(Mixed)» | EVIDENCIA OBSERVADA para los distribuidores (RouteNote, Label Worx) y ejemplos de Apple Music y Deezer; no verificada como regla de Spotify | Fuentes de la adenda |
 | Los tramos de un tema «(Mixed)» o de un set crudo caen cerca del mismo tema de la biblioteca | [REEMPLAZADO 2026-11-07 por el piloto de Digweed] HIPÓTESIS. Lo medido: EVIDENCIA OBSERVADA. Por tema, el original sale primero en el 79-86 % entre los de su disco. Bloque a bloque y contra toda la biblioteca, en el 26-34 % | `docs/reports/piloto_trayectorias_digweed_2026-11-07.md` |
+| En D1, CLAP solo acierta en 30 el 9,3 % y supera a azar, BPM, género y popularidad con prueba apareada; CLAP + BPM no se distingue de CLAP | EVIDENCIA OBSERVADA | `banco_sets.py` y la auditoría E1 (539 transiciones, 22 sets) |
+| La regla de tonalidad (P3) deja fuera el 23,5 % de las transiciones reales de Gabriel y deja pasar el 69 % de los pares al azar; los ±1 semitono ocurren a la tasa del azar | EVIDENCIA OBSERVADA | Auditoría E1: 387 de 506 frente a 349,5 esperadas; decide Gabriel |
 
 ## 9. Fuentes
 
