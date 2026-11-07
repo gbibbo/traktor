@@ -75,3 +75,36 @@ def test_stream_blocks_reads_whole_blocks_and_keeps_a_long_tail(tmp_path):
     blocks = list(cb.stream_blocks(wav, sr))
     assert sr == 8000 and round(dur) == 75
     assert [t for t, _ in blocks] == [0.0, 30.0, 60.0] and len(blocks[-1][1]) == 15 * 8000
+
+
+def test_youtube_playlists_are_validated_by_durations_against_musicbrainz():
+    from tools.dj_sets.youtube_buscar import match_tracks_by_duration, validate
+    rel = {"media": [{"pistas": [{"ms": 300000}, {"ms": 420000}, {"ms": 360000}]},
+                     {"pistas": [{"ms": 500000}, {"ms": 280000}]}]}
+    # cortada por tema (con un video de más al principio y una duración a 2 s)
+    per_track = [{"duration": 60}, {"duration": 301}, {"duration": 418}, {"duration": 360},
+                 {"duration": 500}, {"duration": 282}]
+    v = validate(rel, per_track)
+    assert v["tipo"] == "por_tema" and v["cobertura_temas"] == 1.0 and v["archivo_por_pista"] == [1, 2, 3, 4, 5]
+    # mezcla continua por disco: 1080 s y 780 s
+    v = validate(rel, [{"duration": 1085}, {"duration": 779}, {"duration": 410}])
+    assert v["tipo"] == "continua" and v["archivo_por_disco"] == [0, 1] and v["diferencia_por_disco_s"] == [5.0, -1.0]
+    # un disco de otro DJ que dura 15 s más no cuenta (los CD duran casi todos lo mismo)
+    assert validate(rel, [{"duration": 1095}, {"duration": 795}])["tipo"] is None
+    # otra cosa: nada coincide
+    assert validate(rel, [{"duration": 100}, {"duration": 200}])["tipo"] is None
+    # dos pistas de la misma duración: se respeta el orden de la playlist
+    assert match_tracks_by_duration([300, 300], [300, 301]) == [0, 1]
+
+
+def test_traktor_history_dates_and_sets_split_after_20_minutes_off_air():
+    import datetime as dt
+    from tools.dj_sets.sets_traktor import split_sets, start_of
+    assert start_of("132778520", "8989") == dt.datetime(2026, 10, 24, 2, 29, 49)
+    assert start_of("x", "1") is None
+    t = dt.datetime(2026, 2, 4, 20, 0)
+    rows = [{"inicio": t, "segundos_al_aire": 300},
+            {"inicio": t + dt.timedelta(minutes=4), "segundos_al_aire": 400},
+            {"inicio": t + dt.timedelta(minutes=30), "segundos_al_aire": 300},    # 19,3 min sin nada: sigue
+            {"inicio": t + dt.timedelta(minutes=56), "segundos_al_aire": 300}]    # 21 min sin nada: set nuevo
+    assert [len(s) for s in split_sets(rows)] == [3, 1]

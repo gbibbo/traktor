@@ -65,6 +65,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `metrics.py` | ARI, NMI, Recall@k, MRR, NDCG, pairwise_auc, transition_score, noise_rate |
 | `eval_runner.py` | Loop de evaluación: carga artifacts, calcula métricas, guarda JSON |
 | `triplet_evidence.py` | Carga respuestas de tripletas del DJ, resuelve a track_uid, baselines clave/BPM |
+| `banco_sets.py` | Banco E1: repite sets reales (`sets/d1.csv`) con el recomendador en vivo y mide dónde queda el tema que el DJ tocó después (acierto en 30, rango recíproco, percentil, recuperación de los filtros) por perfil de pesos y al azar (informe `docs/reports/e1_sets_gabriel_2026-11-07.md`) |
 | `genre_evidence.py` | Evidencia por género de Beatport (solo temas con género de Beatport): BPM, estilos de Discogs de MAEST, subgéneros, centroides y vecinos CLAP (con lift), géneros que Beatport mezcla entre versiones y un borrador de similitud → features/genre_evidence/ |
 | `vocal_eval.py` | Evaluación de detectores de voz (protocolo `docs/plans/20260929_deteccion_voz.md`): Electrobyte por segundo (umbral en valid, métricas en test con IC bootstrap) y MTG-Jamendo `voice_instrumental` por tema (`--fetch-jamendo`, `--track-level`); detectores clap, ast y hdemucs; puntajes en artifacts/v4/vocal_eval/ |
 | `representation_eval.py` | Instrumento de evaluación de representaciones: accuracy de tripletas por fuente con bootstrap pareado vs BPM, coherencia vs carpetas de v1 (fase 1 del plan) |
@@ -104,7 +105,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_triplet_evidence.py` | Unit tests de triplet_evidence (dedup, resolución, baselines) |
 | `test_tags_catalog.py` | Unit tests de tags.py y del catálogo recursivo (hash estable al escribir tags, dedup) |
 | `test_beatport.py` | Unit tests sin red de beatport.py y de las consultas de beatport_lookup (niveles A-D, alias de artista, sellos, convención de tags, caché, subgénero y género completo de la página de un tema) |
-| `test_dj_sets.py` | Emparejamiento de títulos de MusicBrainz con YouTube (también con el artista en otro alfabeto), límites por duración acumulada, novedad y picos, precisión/recuperación/F de cortes, resumen de MusicBrainz y lectura en bloques de `clap_blocks` |
+| `test_dj_sets.py` | Emparejamiento de títulos de MusicBrainz con YouTube (también con el artista en otro alfabeto), límites por duración acumulada, novedad y picos, precisión/recuperación/F de cortes, resumen de MusicBrainz, lectura en bloques de `clap_blocks`, validación de playlists por duraciones y fechas y cortes de sets de la historia de Traktor |
 | `test_genre_taxonomy.py` | Similitud por el árbol de familias, relaciones de género y de subgénero, subgénero faltante, matriz simétrica, validación de forma, `compare` con alias y la taxonomía en uso validada contra los géneros de Beatport |
 | `test_genre_model.py` | Unit tests de genre_model.py (gate, etiquetas confirmadas alineadas por track_uids, validación cruzada) |
 | `test_write_beatport_tags.py` | Unit tests de write_beatport_tags.py (reglas del plan, escritura real en MP3 ID3 2.3 y FLAC, hash estable, reversión) |
@@ -240,6 +241,8 @@ D7 y D8). Los datos van fuera de Git, en `--root` (en este PC, `D:\TRAKTOR ML da
 | `tools/dj_sets/musicbrainz_mixes.py` | Compilaciones mezcladas (`DJ-mix`, sin radio) en MusicBrainz: `buscar --artista`, `bajar --release` (orden, disco y duración de cada pista → `musicbrainz/<id>.json`), `artistas --lista` (por cada artista de `config/dj_sets/artistas_spotify.txt`) |
 | `tools/dj_sets/youtube_audio.py` | Baja una playlist o un video de YouTube con yt-dlp, sin recodificar, a `audio/<id>/` con `manifest.json`; lo ya bajado no se repite |
 | `tools/dj_sets/clap_blocks.py` | CLAP por bloques de 30 s (el mismo modelo y preprocesado que `clap_full`, en streaming con ffmpeg) → `clap/<carpeta>/<archivo>.npz`; en temas de hasta 20 min, también el embedding como en la biblioteca. `--verificar N` compara con `clap_full`; `--low-priority` |
+| `tools/dj_sets/youtube_buscar.py` | Busca en YouTube las compilaciones `DJ-mix` de los artistas y valida cada playlist por duraciones contra MusicBrainz: `por_tema` (cada pista con un archivo de la misma duración, ±3 s) o `continua` (un archivo por disco, ±8 s) → `youtube/busqueda.json` con el emparejamiento pista-archivo |
+| `tools/dj_sets/sets_traktor.py` | D1: los sets de Gabriel desde la historia de Traktor (al aire = `PLAYEDPUBLIC` 1 y 2 min o más; set nuevo tras 20 min sin nada al aire; 8 temas o más), reconocidos en el índice por ruta o artista-título → `sets/d1.csv` |
 | `tools/dj_sets/piloto.py` | Análisis del piloto: identificación del original, separación en temas, trayectoria por tema y por bloque, y por hora del set → `piloto/resultados.json` (informe `docs/reports/piloto_trayectorias_digweed_2026-11-07.md`) |
 | `config/dj_sets/artistas_spotify.txt` | Los 92 artistas que Gabriel sigue en Spotify, punto de partida para buscar sets y compilaciones |
 

@@ -406,8 +406,15 @@ I5 entra con I3, para que D2 guarde la etiqueta de M3 desde la primera sesión.
 
 1. Almacén de sets (3.2) con lector de D1 y de D2.
    - Sale: tabla en `artifacts/v4/dj_sets/`, con los conteos de la sección 2 reproducidos.
+   - D1 HECHO 2026-11-07: `tools/dj_sets/sets_traktor.py` → `d1.csv`. Por archivo reproduce los 21 sets y
+     592 temas de la auditoría; con la regla de 20 minutos son 22 sets, 602 temas y 543 transiciones con
+     los dos temas en el índice. Falta el lector de D2.
 2. E1 (3.6) sobre D1, con líneas de base al azar, solo BPM y solo CLAP.
    - Sale: tabla base.
+   - HECHO 2026-11-07: `src/v4/evaluation/banco_sets.py`, informe `docs/reports/e1_sets_gabriel_2026-11-07.md`.
+     - Acierto en 30: azar 2,0 %, BPM 4,3 %, CLAP 9,3 %, CLAP + BPM 10,2 %.
+     - El filtro de tonalidad deja fuera el 22 % de las transiciones reales de Gabriel; se le consulta
+       (P3 es su regla).
 3. P2, G3 y G4 como componentes, medidos en E1 uno por vez.
 4. Índice versión 4 con campos opcionales (3.1) y registro de componentes con nombre (3.3).
 5. I1 a I5 con un perfil: Parecidos.
