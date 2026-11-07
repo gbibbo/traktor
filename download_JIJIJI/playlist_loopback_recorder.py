@@ -3,6 +3,10 @@
 PURPOSE: Record a Spotify playlist through Windows WASAPI loopback and split it.
 
 CHANGELOG:
+- 2026-11-07: Each recorded track is raised to the loudness of what comes from Soulseek (-8 LUFS, only up)
+              with a limiter under -1 dBFS, measured again after the limiter. Raising the peak alone left the
+              recordings at -8.4, -9.6 and -11.9 LUFS against -6.3 to -8.3 from Soulseek. --raise-loudness
+              MP3... fixes tracks recorded before (tags kept, originals backed up).
 - 2026-11-07: MP3 with LAME -q 2 (compression_level 2) instead of 0: a 5-minute track is saved in ~14 s
               instead of ~45 s, and the next queued track was waiting for it.
 - 2026-11-07: After the last cut the ready file says "captured", so the orchestrator pauses Spotify at
@@ -52,6 +56,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -74,6 +79,7 @@ for _stream in (sys.stdout, sys.stderr):
 
 import numpy as np
 import pyaudiowpatch as pyaudio
+from mutagen.mp3 import MP3
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -91,10 +97,14 @@ FORMAT = pyaudio.paInt16
 CHANNELS = 2
 CHUNK = 1024
 MP3_BITRATE = "320k"
-# Each recorded track's peak is raised to this level (only up, never down): Spotify normalizes the volume
-# (-14 LUFS) and a club master came out ~9 dB below the same track from Soulseek (2026-11-07).
-RECORDED_PEAK_TARGET_DBFS = -1.0
-MAX_RECORDED_GAIN_DB = 24.0
+# Each recorded track is raised to the loudness of what comes from Soulseek (only up, never down), with a
+# transparent limiter so its peaks stay under -1 dBFS. Raising the peak alone was not enough (2026-11-07): the
+# Spotify versions have more dynamic range and stayed at -8.4, -9.6 and -11.9 LUFS while the Soulseek tracks of
+# the same playlist were at -6.3 to -8.3 (median -7.7).
+RECORDED_LOUDNESS_TARGET_LUFS = -8.0
+RECORDED_LOUDNESS_TOLERANCE_LU = 0.5
+RECORDED_LIMIT_CEILING = 0.891       # -1 dBFS
+MAX_RECORDED_GAIN_DB = 10.0
 
 DEFAULT_SEARCH_BEFORE = 1.50
 DEFAULT_SEARCH_AFTER = 1.50
@@ -479,36 +489,46 @@ def write_metadata(
     apply_spotify_metadata(mp3_path, track_from_report(spotify))
 
 
-def segment_peak_dbfs(wav_path: Path, start_sec: float, end_sec: float) -> float | None:
-    """Sample peak (dBFS) of a stretch of the 16-bit capture; None if it is digital silence or cannot be read
-    (then nothing is raised: ffmpeg says what is wrong with the capture)."""
-    peak = 0
+def gain_filter(gain_db: float) -> str:
+    """Gain plus a look-ahead limiter (alimiter, no auto level) that keeps the peaks under -1 dBFS."""
+    return (f"volume={gain_db:.2f}dB,alimiter=limit={RECORDED_LIMIT_CEILING}:attack=5:release=50:level=0")
+
+
+def segment_loudness_lufs(ffmpeg: str, audio: Path, start_sec: float, end_sec: float,
+                          gain_db: float = 0.0) -> float | None:
+    """Integrated loudness (EBU R128, ffmpeg ebur128) of a stretch, optionally after gain_filter(gain_db);
+    None if it cannot be measured or it is silence. About 0.5 s for 5 minutes."""
+    chain = (gain_filter(gain_db) + "," if gain_db >= 0.05 else "") + "ebur128"
+    cmd = [ffmpeg, "-hide_banner", "-nostats", "-ss", f"{max(0.0, start_sec):.3f}", "-t",
+           f"{max(0.1, end_sec - start_sec):.3f}", "-i", str(audio), "-af", chain, "-f", "null", "-"]
     try:
-        with wave.open(str(wav_path), "rb") as w:
-            rate = w.getframerate()
-            first = max(0, int(start_sec * rate))
-            remaining = max(0, int(math.ceil(end_sec * rate)) - first)
-            w.setpos(min(first, w.getnframes()))
-            while remaining > 0:
-                data = w.readframes(min(remaining, rate * 10))
-                if not data:
-                    break
-                samples = np.frombuffer(data[: len(data) - len(data) % 2], dtype="<i2")
-                if len(samples):
-                    peak = max(peak, int(np.abs(samples.astype(np.int32)).max()))
-                remaining -= len(data) // (w.getsampwidth() * w.getnchannels())
-    except (OSError, EOFError, wave.Error):
+        out = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                             timeout=600).stderr
+    except (OSError, subprocess.TimeoutExpired):
         return None
-    return 20.0 * math.log10(peak / 32768.0) if peak else None
+    match = re.search(r"I:\s+(-?[\d.]+) LUFS", out[out.rfind("Summary:"):])
+    loudness = float(match.group(1)) if match else None
+    return loudness if loudness is not None and loudness > -60.0 else None
 
 
-def recording_gain_db(peak_dbfs: float | None) -> float:
-    """Gain that brings a recorded track's peak up to RECORDED_PEAK_TARGET_DBFS. Only up: Spotify's volume
-    normalization (and a volume below 100 %) lowers the whole track evenly, so this gives back the level
-    of the master without touching its sound; a track already near full scale stays as it is."""
-    if peak_dbfs is None:
-        return 0.0
-    return round(min(MAX_RECORDED_GAIN_DB, max(0.0, RECORDED_PEAK_TARGET_DBFS - peak_dbfs)), 2)
+def recording_gain_db(ffmpeg: str, audio: Path, start_sec: float, end_sec: float) -> tuple[float | None, float]:
+    """(loudness as recorded, gain to apply). Only up, to RECORDED_LOUDNESS_TARGET_LUFS: the limiter eats part
+    of the gain, so the result is measured again after it (up to 3 times, ~0.5 s each) and the gain corrected;
+    it stops within RECORDED_LOUDNESS_TOLERANCE_LU or at MAX_RECORDED_GAIN_DB, so a very dynamic track is
+    not crushed to reach the target."""
+    before = segment_loudness_lufs(ffmpeg, audio, start_sec, end_sec)
+    if before is None or before >= RECORDED_LOUDNESS_TARGET_LUFS - RECORDED_LOUDNESS_TOLERANCE_LU:
+        return before, 0.0
+    gain = min(MAX_RECORDED_GAIN_DB, RECORDED_LOUDNESS_TARGET_LUFS - before)
+    for _ in range(3):
+        after = segment_loudness_lufs(ffmpeg, audio, start_sec, end_sec, gain)
+        if after is None or abs(RECORDED_LOUDNESS_TARGET_LUFS - after) <= RECORDED_LOUDNESS_TOLERANCE_LU:
+            break
+        corrected = min(MAX_RECORDED_GAIN_DB, max(0.0, gain + RECORDED_LOUDNESS_TARGET_LUFS - after))
+        if abs(corrected - gain) < 0.05:
+            break
+        gain = corrected
+    return before, round(gain, 2)
 
 
 def encode_segment(
@@ -542,7 +562,7 @@ def encode_segment(
         "2",
     ]
     if gain_db >= 0.05:
-        cmd += ["-af", f"volume={gain_db:.2f}dB"]
+        cmd += ["-af", gain_filter(gain_db)]
     cmd += [
         "-c:a",
         "libmp3lame",
@@ -724,8 +744,7 @@ def encode_and_checkpoint(
     progress: dict[str, Any],
     progress_path: Path,
 ) -> None:
-    peak = segment_peak_dbfs(temp_wav, start_sec, end_sec)
-    gain = recording_gain_db(peak)
+    loudness, gain = recording_gain_db(ffmpeg, temp_wav, start_sec, end_sec)
     encode_segment(ffmpeg, temp_wav, output_path, start_sec, end_sec, gain_db=gain)
     write_metadata(output_path, track)
 
@@ -742,7 +761,7 @@ def encode_and_checkpoint(
             "output": str(output_path),
             "attempt": progress["attempt"],
             "boundary": asdict(boundary),
-            "captured_peak_dbfs": None if peak is None else round(peak, 2),
+            "captured_loudness_lufs": loudness,
             "gain_db": gain,
         }
     )
@@ -750,11 +769,33 @@ def encode_and_checkpoint(
     progress["completed_track_ids"].append(track_identity(track))
     progress["status"] = "recording"
     write_json_atomic(progress_path, progress)
-    level = f" (pico grabado {peak:.1f} dBFS, +{gain:.1f} dB)" if peak is not None and gain else ""
+    level = f" (grabado a {loudness:.1f} LUFS, +{gain:.1f} dB)" if loudness is not None and gain else ""
     print(
         f"[{global_index + 1:03d}/{total_tracks:03d}] Guardado: {output_path.name}{level}",
         flush=True,
     )
+
+
+def raise_recorded_mp3(ffmpeg: str, mp3: Path, backup_dir: Path) -> tuple[float | None, float]:
+    """A track recorded before the loudness match: same gain and limiter, its tags (cover, Spotify IDs,
+    Beatport, Vocal) copied as they are, the original kept in backup_dir. One more MP3 generation at 320 kbps."""
+    from mutagen.id3 import ID3
+
+    length = float(MP3(str(mp3)).info.length)
+    loudness, gain = recording_gain_db(ffmpeg, mp3, 0.0, length)
+    if gain < 0.05:
+        return loudness, 0.0
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    backup = backup_dir / mp3.name
+    if not backup.exists():
+        shutil.copy2(mp3, backup)
+    tmp = mp3.with_name(mp3.stem + ".loudness.tmp.mp3")
+    subprocess.run([ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", str(backup), "-map", "0:a:0",
+                    "-vn", "-map_metadata", "-1", "-ac", "2", "-af", gain_filter(gain), "-c:a", "libmp3lame",
+                    "-b:a", MP3_BITRATE, "-compression_level", "2", str(tmp)], check=True)
+    ID3(str(backup)).save(str(tmp), v2_version=3)
+    os.replace(tmp, mp3)
+    return loudness, gain
 
 
 def make_output_filename(track: dict[str, Any], fallback_index: int) -> str:
@@ -803,6 +844,15 @@ def main() -> int:
         help="Only check that the default output can be recorded; print one JSON line and exit "
              f"0 (yes) or {DEVICE_UNAVAILABLE_EXIT_CODE} (no)",
     )
+    parser.add_argument(
+        "--raise-loudness",
+        type=Path,
+        nargs="+",
+        default=None,
+        metavar="MP3",
+        help="Raise already recorded MP3s to the recordings' loudness (tags kept; originals to --backup-dir)",
+    )
+    parser.add_argument("--backup-dir", type=Path, default=None, help="Where --raise-loudness keeps the originals")
     parser.add_argument("-o", "--output-dir", type=Path, default=Path("recorded_tracks"))
     parser.add_argument("--search-before", type=float, default=DEFAULT_SEARCH_BEFORE)
     parser.add_argument("--search-after", type=float, default=DEFAULT_SEARCH_AFTER)
@@ -867,6 +917,15 @@ def main() -> int:
         result = check_device(args.output_device)
         print(json.dumps(result, ensure_ascii=False), flush=True)
         return 0 if result["ok"] else DEVICE_UNAVAILABLE_EXIT_CODE
+    if args.raise_loudness:
+        ffmpeg = check_ffmpeg()
+        backup = args.backup_dir or Path(tempfile.gettempdir()) / "grabados_antes_de_subir_volumen"
+        for mp3 in args.raise_loudness:
+            before, gain = raise_recorded_mp3(ffmpeg, mp3, backup)
+            after = segment_loudness_lufs(ffmpeg, mp3, 0.0, float(MP3(str(mp3)).info.length))
+            print(f"{mp3.name}: {before} LUFS -> {after} LUFS (+{gain} dB)", flush=True)
+        print(f"Originales en: {backup}", flush=True)
+        return 0
     if args.json_file is None:
         parser.error("the playlist JSON manifest is required")
     if args.search_before <= 0 or args.search_after <= 0:

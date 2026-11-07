@@ -3,6 +3,8 @@
 PURPOSE: Run the complete Spotify -> Soulseek + loopback fallback workflow.
 
 CHANGELOG:
+- 2026-11-07: At the start and end of a run, the temporary «Grabar - …» playlists that no pending session
+              holds are deleted (a stopped run started again from scratch left its own).
 - 2026-11-07: Spotify is paused as soon as the recorder says the last cut is made ("captured"), not when it
               exits ~40 s later after saving the MP3. A queued track already in the playlist's music folder
               is not recorded (the folder is looked up once, before the resume line), and the downloader
@@ -761,7 +763,7 @@ def ensure_session_playlist(session_dir: Path, playlist_name: str) -> str:
     url = (session.get("playlist") or {}).get("url")
     if url:
         return str(url)
-    name = f"Grabar - {playlist_name} - {datetime.now():%Y-%m-%d %H%M} [{session_dir.name}]"
+    name = f"{RECORDING_PLAYLIST_PREFIX}{playlist_name} - {datetime.now():%Y-%m-%d %H%M} [{session_dir.name}]"
     last_error = "Spotify no devolvió la playlist"
     for attempt in range(len(PLAYLIST_CREATE_PAUSES_S) + 1):
         if attempt:
@@ -805,6 +807,38 @@ def forget_session_playlist(session_dir: Path) -> None:
         session.pop("playlist_delete_error", None)
         print(f"Playlist temporal borrada de tu Spotify: «{playlist.get('name')}».", flush=True)
     write_summary(session_dir / SESSION_FILE, session)
+
+
+RECORDING_PLAYLIST_PREFIX = "Grabar - "
+
+
+def sweep_orphan_recording_playlists(runs_root: Path) -> None:
+    """Borra de tu Spotify las playlists temporales «Grabar - …» que ya no son de ninguna tanda pendiente de los
+    runs que quedan. Una descarga detenida en plena tanda guarda su playlist para retomarla, pero si después
+    se empieza de cero (o se borran sus carpetas de trabajo) nadie la reclama (2026-11-07: «Grabar - Workout
+    Delft - 2026-11-07 1625 [03]»). Nunca corta la descarga."""
+    keep: set[str] = set()
+    for session_file in runs_root.glob(f"*/{RECORDINGS_DIR}/*/{SESSION_FILE}"):
+        session = read_json_dict(session_file) or {}
+        playlist_id = (session.get("playlist") or {}).get("id")
+        if playlist_id and not session.get("playlist_deleted"):
+            keep.add(str(playlist_id))
+    try:
+        from spotify_soulseek_download import Spotify
+
+        mine = Spotify(os.environ.get("SPOTIFY_CLIENT_ID", "")).own_playlists()
+    except Exception:  # noqa: BLE001 (sin red o sin autorización: queda para la próxima)
+        return
+    for playlist in mine:
+        name = str(playlist.get("name") or "")
+        if not name.startswith(RECORDING_PLAYLIST_PREFIX) or not playlist.get("id") or str(playlist["id"]) in keep:
+            continue
+        try:
+            delete_spotify_playlist(playlist)
+        except Exception as exc:  # noqa: BLE001
+            print(f"No se pudo borrar de tu Spotify la playlist temporal «{name}» ({exc}).", flush=True)
+        else:
+            print(f"Playlist temporal que había quedado, borrada de tu Spotify: «{name}».", flush=True)
 
 
 def stop_leftover_daemon(run_dir: Path) -> None:
@@ -1287,6 +1321,7 @@ def run_workflow(args: argparse.Namespace) -> int:
         defer_file.unlink(missing_ok=True)
 
     queue_before = read_queue(queue_path)
+    sweep_orphan_recording_playlists(runs_root)  # las que dejó una descarga abandonada
     download_finished = resumed is not None and queue_before.closed
 
     # La carpeta de la música de una descarga anterior de esta playlist: lo que ya está ahí no se busca, no se
@@ -1563,6 +1598,7 @@ def run_workflow(args: argparse.Namespace) -> int:
         terminate_process(downloader)
         stop_leftover_daemon(run_dir)
         give_back_spotify_output(runs_root)
+        sweep_orphan_recording_playlists(runs_root)
 
 
 PIPELINE_MODULES = "import pandas, torch, transformers, mutagen"

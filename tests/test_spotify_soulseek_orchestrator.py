@@ -471,42 +471,70 @@ class ResumeTests(unittest.TestCase):
             w.setframerate(rate)
             w.writeframes(samples.tobytes())
 
-    def test_a_quiet_recording_is_raised_to_a_minus_one_dbfs_peak_and_a_loud_one_is_left(self) -> None:
-        # Gabriel, 2026-11-07: con la normalización de Spotify, un tema grabado quedó en -17 LUFS (pico
-        # -8,9 dBFS) contra -6 a -10 LUFS de los mismos de Soulseek. Solo se sube, nunca se baja.
+    @staticmethod
+    def write_noise_wav(path: Path, level_dbfs: float, seconds: float = 12.0, rate: int = 44100) -> None:
+        """Ruido de banda ancha (como música densa): su sonoridad sigue al nivel."""
+        import numpy as np
+        rng = np.random.default_rng(7)
+        samples = rng.standard_normal((int(rate * seconds), 2)) * (10 ** (level_dbfs / 20) * 32768 / 4)
+        with wave.open(str(path), "wb") as w:
+            w.setnchannels(2)
+            w.setsampwidth(2)
+            w.setframerate(rate)
+            w.writeframes(np.clip(samples, -32768, 32767).astype("<i2").tobytes())
+
+    def ffmpeg_or_skip(self) -> str:
+        try:
+            return str(ORCHESTRATOR.find_required_program("ffmpeg"))
+        except ORCHESTRATOR.WorkflowError:
+            self.skipTest("ffmpeg is not installed")
+
+    def test_a_quiet_recording_is_raised_to_the_soulseek_loudness_and_a_loud_one_is_left(self) -> None:
+        # Gabriel, 2026-11-07: subir solo el pico dejó los grabados en -8.4, -9.6 y -11.9 LUFS contra -6.3 a
+        # -8.3 de Soulseek. Ahora se lleva la sonoridad a -8 LUFS, con un limitador; solo se sube.
+        ffmpeg = self.ffmpeg_or_skip()
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            self.write_sine_wav(root / "quiet.wav", amplitude=int(32768 * 10 ** (-9 / 20)))
-            self.write_sine_wav(root / "loud.wav", amplitude=int(32768 * 10 ** (-0.5 / 20)))
-            self.write_sine_wav(root / "silent.wav", amplitude=0)
-            quiet = RECORDER.segment_peak_dbfs(root / "quiet.wav", 0.5, 1.5)
-            self.assertAlmostEqual(quiet, -9.0, delta=0.05)
-            self.assertAlmostEqual(RECORDER.recording_gain_db(quiet), 8.0, delta=0.05)
-            self.assertEqual(RECORDER.recording_gain_db(RECORDER.segment_peak_dbfs(root / "loud.wav", 0, 2)), 0.0)
-            self.assertIsNone(RECORDER.segment_peak_dbfs(root / "silent.wav", 0, 2))
-            self.assertEqual(RECORDER.recording_gain_db(None), 0.0)
-            self.assertIsNone(RECORDER.segment_peak_dbfs(root / "missing.wav", 0, 2))
+            self.write_noise_wav(root / "quiet.wav", -11)
+            self.write_noise_wav(root / "loud.wav", 0)  # ~-6 LUFS, más fuerte que el objetivo
+            self.write_noise_wav(root / "silent.wav", -200)
+            before, gain = RECORDER.recording_gain_db(ffmpeg, root / "quiet.wav", 0.0, 12.0)
+            self.assertLess(before, -12.0)  # ~-17 LUFS: dentro del tope de +10 dB
+            self.assertGreater(gain, 3.0)
+            RECORDER.encode_segment(ffmpeg, root / "quiet.wav", root / "out.mp3", 0.0, 12.0, gain_db=gain)
+            after = RECORDER.segment_loudness_lufs(ffmpeg, root / "out.mp3", 0.0, 12.0)
+            self.assertAlmostEqual(after, RECORDER.RECORDED_LOUDNESS_TARGET_LUFS, delta=1.0)
+            self.assertEqual(RECORDER.recording_gain_db(ffmpeg, root / "loud.wav", 0.0, 12.0)[1], 0.0)  # no se baja
+            self.assertEqual(RECORDER.recording_gain_db(ffmpeg, root / "silent.wav", 0.0, 12.0), (None, 0.0))
+            self.assertEqual(RECORDER.recording_gain_db(ffmpeg, root / "missing.wav", 0.0, 12.0), (None, 0.0))
+
+    def test_the_gain_goes_with_a_limiter_and_none_without_gain(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
             with mock.patch.object(RECORDER.subprocess, "run") as run:
                 RECORDER.encode_segment("ffmpeg", root / "quiet.wav", root / "q.mp3", 0.0, 1.0, gain_db=8.0)
                 RECORDER.encode_segment("ffmpeg", root / "loud.wav", root / "l.mp3", 0.0, 1.0, gain_db=0.0)
             raised, untouched = run.call_args_list[0].args[0], run.call_args_list[1].args[0]
-            self.assertEqual(raised[raised.index("-af") + 1], "volume=8.00dB")
+            chain = raised[raised.index("-af") + 1]
+            self.assertTrue(chain.startswith("volume=8.00dB,alimiter=limit=0.891"))
             self.assertNotIn("-af", untouched)
 
-    def test_the_raised_recording_really_peaks_near_minus_one_dbfs(self) -> None:
-        try:
-            ffmpeg = ORCHESTRATOR.find_required_program("ffmpeg")
-        except ORCHESTRATOR.WorkflowError:
-            self.skipTest("ffmpeg is not installed")
+    def test_a_track_recorded_before_is_raised_keeping_its_tags(self) -> None:
+        ffmpeg = self.ffmpeg_or_skip()
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            self.write_sine_wav(root / "quiet.wav", amplitude=int(32768 * 10 ** (-12 / 20)), rate=44100)
-            gain = RECORDER.recording_gain_db(RECORDER.segment_peak_dbfs(root / "quiet.wav", 0.0, 2.0))
-            RECORDER.encode_segment(str(ffmpeg), root / "quiet.wav", root / "out.mp3", 0.0, 2.0, gain_db=gain)
-            import subprocess
-            subprocess.run([str(ffmpeg), "-hide_banner", "-loglevel", "error", "-y", "-i", str(root / "out.mp3"),
-                            "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le", str(root / "back.wav")], check=True)
-            self.assertAlmostEqual(RECORDER.segment_peak_dbfs(root / "back.wav", 0.2, 1.8), -1.0, delta=0.5)
+            self.write_noise_wav(root / "quiet.wav", -11)
+            mp3 = root / "Human Safari - Oye.mp3"
+            RECORDER.encode_segment(ffmpeg, root / "quiet.wav", mp3, 0.0, 12.0)
+            tags = ID3()
+            tags.add(TXXX(encoding=3, desc="Spotify Track ID", text=["id-oye"]))
+            tags.save(str(mp3))
+            before, gain = RECORDER.raise_recorded_mp3(ffmpeg, mp3, root / "originales")
+            self.assertGreater(gain, 3.0)
+            self.assertEqual(ID3(str(mp3)).getall("TXXX:Spotify Track ID")[0].text, ["id-oye"])
+            self.assertTrue((root / "originales" / mp3.name).is_file())
+            after = RECORDER.segment_loudness_lufs(ffmpeg, mp3, 0.0, 12.0)
+            self.assertAlmostEqual(after, RECORDER.RECORDED_LOUDNESS_TARGET_LUFS, delta=1.0)
 
     def test_ffmpeg_can_encode_a_flushed_prefix_while_capture_remains_open(self) -> None:
         try:
@@ -875,6 +903,7 @@ class TrackByTrackFlowTests(unittest.TestCase):
                                   side_effect=lambda playlist: deleted.append(playlist["id"])
                                   or self.events.append(("delete", playlist["id"]))), \
                 mock.patch.object(ORCHESTRATOR, "check_recording_device", side_effect=check_output), \
+                mock.patch.object(ORCHESTRATOR, "sweep_orphan_recording_playlists"), \
                 mock.patch.object(ORCHESTRATOR, "complete_metadata",
                                   side_effect=lambda files, env: self.events.append(
                                       ("metadata", sorted(p.name for p in files)))), \
@@ -1153,6 +1182,29 @@ class TrackByTrackFlowTests(unittest.TestCase):
             queue = QUEUE.QueueState(tracks=[self.entry(2), self.entry(3)], end=None)
             pending, unassigned = ORCHESTRATOR.recording_plan(run_dir, queue, frozenset({"id3"}))
             self.assertEqual((pending, [ORCHESTRATOR.track_id(t) for t in unassigned]), ([], ["id2"]))
+
+    def test_orphan_recording_playlists_are_swept_and_pending_ones_kept(self) -> None:
+        # Gabriel, 2026-11-07: «Grabar - … [03]» quedó en su Spotify: la descarga se detuvo en esa tanda y la
+        # siguiente empezó de cero. Se borran las «Grabar - …» que ninguna tanda pendiente tiene; nada más.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runs = Path(temp_dir)
+            pending = ORCHESTRATOR.create_session(runs / "20261107-170000_PL1", [self.entry(1)])
+            session = json.loads((pending / ORCHESTRATOR.SESSION_FILE).read_text(encoding="utf-8"))
+            session["playlist"] = {"id": "keep1", "name": "Grabar - Lista - 2026-11-07 1700 [01]"}
+            write_json(pending / ORCHESTRATOR.SESSION_FILE, session)
+            client = mock.Mock()
+            client.own_playlists.return_value = [
+                {"id": "keep1", "name": "Grabar - Lista - 2026-11-07 1700 [01]"},
+                {"id": "orphan", "name": "Grabar - Workout Delft - 2026-11-07 1625 [03]"},
+                {"id": "mine", "name": "Mi playlist de techno"},
+            ]
+            deleted = []
+            with mock.patch("spotify_soulseek_download.Spotify", return_value=client), \
+                    mock.patch.object(ORCHESTRATOR, "delete_spotify_playlist",
+                                      side_effect=lambda pl: deleted.append(pl["id"])), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                ORCHESTRATOR.sweep_orphan_recording_playlists(runs)
+            self.assertEqual(deleted, ["orphan"])
 
     def test_the_saved_tracks_get_their_metadata_completed(self) -> None:
         # Gabriel, 2026-11-07: los temas salían solo con la metadata de Spotify. Al guardar la playlist,
