@@ -39,6 +39,9 @@ CHANGELOG:
                 con ella, después de la tarea en curso).
   - 2026-11-02: Si al Python de la app le falta el pipeline, la Organización prueba con el del PATH, y el
                 aviso dice lo que falta de verdad (la música organizada, no solo paquetes).
+  - 2026-11-07: ProcessTree ya no adopta procesos ajenos por PID reutilizado: al terminar una descarga se
+                cerraron Google Drive (GoogleDriveFS.exe) y varios msedgewebview2.exe. Solo entra un proceso
+                cuyo padre sigue siendo el mismo de la descarga, y no se sigue dentro de Spotify.
   - 2026-11-06: «Grabar desde»: la salida que se graba (p. ej. «Voicemeeter Input», por donde sale solo Spotify)
                 en vez de la predeterminada; también para la prueba de sonido y el medidor, y escuchar ya no
                 se bloquea si lo que suena no va a la grabación. En ajustes como recording_output
@@ -719,12 +722,30 @@ def terminate_pid(pid: int) -> bool:
 
 
 class ProcessTree:
-    """Recuerda los descendientes de la descarga (orquestador, descargador, grabador, sockseek, ffmpeg)."""
+    """Recuerda los descendientes de la descarga (orquestador, descargador, grabador, sockseek, ffmpeg).
 
-    def __init__(self, root_pid: int):
+    Windows reutiliza los PID: el de un proceso de la descarga que terminó (ffmpeg, sockseek, un Python de
+    paso) puede pasar a un programa del usuario. Un proceso entra solo si su padre sigue siendo el mismo de la
+    descarga (misma hora de creación) y nació después que él; si no, los hijos de ese otro programa se
+    cerraban al terminar (2026-11-07: Google Drive y varios msedgewebview2). Dentro de lo que se conserva
+    (`keep`: Spotify) no se sigue: lo suyo también se conserva."""
+
+    def __init__(self, root_pid: int, keep: Callable[[str], bool] | None = None):
         self.root = root_pid
+        self.root_created = process_created(root_pid)
+        self.keep = keep or (lambda name: False)
         self.seen: dict[int, tuple[str, int | None]] = {}
         self.lock = threading.Lock()
+
+    def _parent_is_ours(self, ppid: int, child_created: int | None) -> bool:
+        if ppid == self.root:
+            created = self.root_created
+        else:
+            name, created = self.seen[ppid]
+            if self.keep(name):
+                return False
+        return (created is not None and child_created is not None and child_created >= created
+                and process_created(ppid) == created)
 
     def scan(self) -> None:
         table = process_table()
@@ -735,8 +756,11 @@ class ProcessTree:
                 grew = False
                 for pid, (ppid, name) in table.items():
                     if ppid in family and pid not in family and pid != ppid:
+                        created = process_created(pid)
+                        if not self._parent_is_ours(ppid, created):
+                            continue
                         family.add(pid)
-                        self.seen[pid] = (name, process_created(pid))
+                        self.seen[pid] = (name, created)
                         grew = True
 
     def kill_leftovers(self, keep: Callable[[str], bool]) -> list[str]:
@@ -1059,7 +1083,7 @@ class DownloadJob:
             self._log(f"No se pudo lanzar la descarga: {type(exc).__name__}: {exc}")
             self._close_log()
             raise
-        self.tree = ProcessTree(self.proc.pid)
+        self.tree = ProcessTree(self.proc.pid, keep_spotify)
         threading.Thread(target=self._read, daemon=True).start()
         threading.Thread(target=self._watch_tree, daemon=True).start()
 

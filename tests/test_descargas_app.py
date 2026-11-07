@@ -670,6 +670,27 @@ def test_process_tree_closes_orphans():
     assert APP.keep_spotify("Spotify.exe") and not APP.keep_spotify("sockseek.exe")
 
 
+def test_process_tree_does_not_adopt_other_programs_through_a_reused_pid(monkeypatch):
+    # Gabriel, 2026-11-07: al terminar una descarga se cerraron GoogleDriveFS.exe y varios msedgewebview2.exe.
+    # El PID de un proceso de la descarga que terminó pasó a otro programa, y sus hijos entraban al árbol.
+    table = {200: (100, "ffmpeg.exe"), 400: (100, "Spotify.exe"), 401: (400, "crashpad_handler.exe")}
+    created = {100: 1, 200: 5, 400: 6, 401: 7}
+    monkeypatch.setattr(APP, "process_table", lambda: dict(table))
+    monkeypatch.setattr(APP, "process_created", lambda pid: created.get(pid))
+    tree = APP.ProcessTree(100, APP.keep_spotify)
+    tree.scan()
+    assert set(tree.seen) == {200, 400}  # lo de Spotify (su crashpad_handler) no es de la descarga
+    # ffmpeg (200) termina y Windows le da su PID a Google Drive, que abre su propio hijo.
+    table = {200: (9, "GoogleDriveFS.exe"), 300: (200, "msedgewebview2.exe")}
+    created.update({200: 50, 300: 60})
+    tree.scan()
+    assert 300 not in tree.seen
+    killed = []
+    monkeypatch.setattr(APP, "terminate_pid", lambda pid: killed.append(pid) or True)
+    tree.kill_leftovers(APP.keep_spotify)
+    assert killed == []  # ni Google Drive (PID reutilizado) ni su hijo, ni Spotify
+
+
 def test_search_failed_for_every_track(tmp_path):
     run = make_run(tmp_path, status="resumable")
     write(run / "soulseek_availability.json", {"playlist": {"name": "Larga"}, "tracks": [
