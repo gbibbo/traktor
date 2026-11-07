@@ -1,0 +1,97 @@
+# Artistas que Gabriel sigue en Spotify (lista que pasó el 2026-11-07), para buscar sets y compilaciones
+# mezcladas de DJs que le gustan (docs/plans/recomendacion_playlists_plan.md, fuentes D7 y D8).
+# Al copiarla: se sacaron los repetidos (Sam Goku y BLR estaban dos veces) y «Peter Kruderv» pasó a
+# «Peter Kruder». Un artista por línea; las líneas con # son notas.
+
+Red Axes
+Claude VonStroke
+Purple Disco Machine
+TYGAPAW
+Satoshi Fumi
+Vladimir Dubyshkin
+Patrice Bäumel
+The Rhythm Odyssey
+Alberto Ruiz
+Quivver
+Doctor Dru
+Jamie Jones
+Harvey McKay
+Julian Jeweil
+Kaiserdisco
+Kolombo
+Offer Nissim
+Adrian Hour
+Pavel Petrov
+YOTTO
+Marc Romboy
+BLR
+Sam Goku
+Paco Osuna
+Carl Cox
+Nicole Moudaber
+Harry Romero
+Andrea Oliva
+Catz 'n Dogz
+Patrik Soderbom
+Dennis Cruz
+Raxon
+Dubfire
+Sasha
+M.A.N.D.Y.
+Andrew Meller
+Dosem
+ARTBAT
+MEDUZA
+Malandra Jr.
+Richard Dorfmeister
+Peter Kruder
+Hernán Cattáneo
+Nick Warren
+Ben Klock
+John Digweed
+Kellerkind
+John Talabot
+Talaboman
+Paul Kalkbrenner
+Worakls
+DWIG
+Andre Rizo
+VSY
+Recondite
+nthng
+Audiofly
+Mathame
+Oliver Lieb
+Josh Wink
+Baiuca
+Jay Lumen
+Soulwax
+Argy
+Pig&Dan
+BOg
+Darius Syrossian
+Longstocking
+Frankyeffe
+Mr. G
+Storken
+Daniele Baldelli
+Carlo Lio
+Llewellyn
+Matt Petrone
+Tini Gessler
+Danny Serrano
+MEEN
+JAMIIE
+CASSIMM
+Human Safari
+Adam Holt
+Rrose
+Jamie xx
+Hector Couto
+Dos Locos
+Fabique
+Juanito State
+ÅMRTÜM
+Dance Spirit
+Andreas Henneberg
+DreamKiller
