@@ -71,6 +71,21 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
     con el progreso en 0, y el vigilante lo tomaba por una pausa. En repetición, el último tema se
     corta como los demás y Spotify se pausa apenas la tanda queda grabada. El vigilante también
     reconoce ese final.
+12. **Para aprender trayectorias de DJs se puede bajar audio de YouTube** (Gabriel: «para esta
+    aplicación está totalmente perfecto descargar de YouTube»).
+    - La propuesta es de Gabriel: sets de DJs que él elige, analizados en bloques de unos 30 s con CLAP,
+      para aprender las trayectorias de DJs profesionales sin entrenar otro modelo de representaciones.
+    - Cómo (agente): el audio queda fuera de Git y se borra después de sacar los embeddings. Antes de
+      escalar, un piloto en CPU con unos 5 sets (`docs/plans/recomendacion_playlists_plan.md`,
+      sección 10).
+13. **Las compilaciones mezcladas son una fuente de sets** (Gabriel). Por ejemplo, discos de John
+    Digweed: los temas están subidos uno por uno como «Mixed» y, escuchados en orden, son un set
+    mezclado con transiciones suaves en el que cada tema conserva su identidad.
+    - Cómo (agente): en las tiendas el álbum lleva «(DJ Mix)» y cada tema «(Mixed)». MusicBrainz las
+      marca con el tipo `DJ-mix`: 26 438 que no son emisiones de radio, 4817 con etiquetas de techno o
+      house, 49 de Digweed.
+    - Dan el orden, el límite y la identidad de cada tema. Con su audio, los componentes de audio se
+      miden sobre sets de otros DJs desde la etapa 2 del plan.
 
 ## 2026-11-06
 

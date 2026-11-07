@@ -185,6 +185,7 @@ se use por defecto.
 | `texto_clap` | T3, T7 | Proyección en direcciones de texto de CLAP |
 | `set2vec` | M1, M2 | Vector de sets del tema (o el predicho desde CLAP) |
 | `aprendido` | M4 | Embedding del modelo de audio entrenado con transiciones |
+| `siguiente` (adenda 11-07) | T13 | Punto del espacio CLAP que predice el modelo de trayectorias a partir de lo tocado |
 
 ### 3.4 Perfiles de playlist
 
@@ -326,6 +327,11 @@ Traktor = plataforma en vivo.
 | T8 | Más y menos energía: un paso en T3 dentro del vecindario CLAP, con T1 según la dirección | Propuesta 2026-11-07 | Perfiles Más y Menos | T1, T3, T6 | 3 | Pendiente |
 | T9 | Modelo que aprende durante la sesión qué transiciones le gustan a Gabriel | DJ-MC, Liebman et al. 2015 | Perfil (ajuste en vivo) | D2 con sesiones; M3 | 4 | Pendiente |
 | T10 | La dirección se aprende de sets de DJ, no de playlists de oyentes, donde el orden casi no ayuda | Vall et al. 2019 frente a Kell 2013 y DJ-MC | Criterio para las fuentes | — | — | Vigente |
+| T11 | Trayectorias en el espacio CLAP de sets profesionales: un punto por tema en D7 (los límites vienen dados) y uno cada 30 s en D8. Es la misma unidad que la biblioteca: tramos de 30 s en ventanas de 10 s (`extract_representations.py`). Da el paso típico (T6), la deriva y la dispersión por hora del set, incluida la parte después de la segunda hora (T7) (adenda 11-07) | Gabriel, 2026-11-07 | Sets (filas con embedding); Comp `suavidad`, `fase` | D7 o D8; CLAP en CPU con prueba chica | 2 | Pendiente |
+| T12 | Separar en temas los sets crudos de D8 (cambios en la secuencia CLAP), comprobado contra las tracklists cuando existan (D5, MixesDB, descripciones). En D7 no hace falta (adenda 11-07) | Kim et al. 2020 (alineación set-tema); adenda 11-07 | Sets | D8 | 2 | Pendiente |
+| T13 | Predictor del paso siguiente en el espacio CLAP, entrenado con lo que el DJ puso después (autosupervisado, sin reentrenar CLAP). En vivo da el punto hacia donde iría un profesional; los perfiles de dirección corren ese punto en la dirección elegida (adenda 11-07) | Gabriel, 2026-11-07; DJ-MC (transiciones) | Comp `siguiente` (nuevo, en 3.3) | T11; E1 con D7 | 3 | Pendiente |
+| T14 | Fases del set detectadas sin etiquetas (por ejemplo, un modelo de estados ocultos sobre la secuencia CLAP): apertura, pico, introspectiva. Alimenta `fase` (adenda 11-07) | Adenda 11-07 | Sets; Comp `fase` | T11; sets largos de D7 y D8 | 3 | Pendiente |
+| T15 | Direcciones de energía e introspección aprendidas de las trayectorias profesionales (hacia dónde se mueve CLAP en el pico y después de la segunda hora), como candidatas de T3 sin etiquetas (adenda 11-07) | Adenda 11-07 | Tema; Comp `energia_objetivo`, `texto_clap` | T11, T14 | 3 | Pendiente |
 
 ### Representación aprendida de sets
 
@@ -422,6 +428,17 @@ I5 entra con I3, para que D2 guarde la etiqueta de M3 desde la primera sesión.
    - Con D5 también, si se consiguió.
 2. T1, T2, G6, G7 y G2 medidos en E1 sobre D3 (lo que se puede medir sin audio, 3.6) y sobre D1.
 3. Cuando un resultado venga de D3 y se aplique a la biblioteca, comprobarlo en los 355 temas en común.
+4. Piloto de audio con D7 y D8 (adenda 11-07). Unas 5 compilaciones y unos 5 sets crudos, al menos 2 de
+   3 h o más, en CPU con `--low-priority`. Mide:
+   - el tiempo de CLAP por hora de audio;
+   - el disco temporal;
+   - si los tramos de un tema «(Mixed)» o de un set crudo caen cerca del mismo tema de la biblioteca
+     (temas en común);
+   - qué tan bien T12 separa los temas.
+
+   Con eso se decide la escala y si hace falta GPU.
+5. Con D7 a escala: T11, y E1 con los componentes de audio sobre sets de otros DJs (adenda 11-07, ver
+   sección 10).
 
 ### Etapa 3: dirección e introspectiva
 
@@ -468,6 +485,8 @@ I5 entra con I3, para que D2 guarde la etiqueta de M3 desde la primera sesión.
 | D4 | Raveform (Hugging Face `taejunkim/raveform`) | Sin bajar | Sin licencia publicada en la página | 4902 sets; 38 % con horarios; 1423 temas con género de Beatport puesto a mano |
 | D5 | 1001Tracklists, sets largos | Ver debajo | Ver debajo | A definir |
 | D6 | Audio de los temas de los sets | Decisión de Gabriel | Depende de la fuente | Etapa 5 |
+| D7 | Compilaciones mezcladas: álbumes «(DJ Mix)» con un tema por pista, titulado «(Mixed)» (adenda 11-07, idea de Gabriel) | Lista y orden: MusicBrainz (tipo `DJ-mix`, sin `Broadcast`; API con 1,2 s entre pedidos). Audio: YouTube, con el OK de Gabriel (DECISIONS 2026-11-07, punto 12) | De Gabriel para este uso; el audio queda fuera de Git y se borra después de sacar los embeddings | 26 438 grupos `DJ-mix` que no son radio; 4817 con etiqueta techno, tech house, progressive o deep house; 49 de John Digweed (Global Underground, Renaissance, «Live in Tokyo», «Last Night at Output») |
+| D8 | Sets crudos de YouTube de DJs que elige Gabriel (adenda 11-07) | YouTube (`yt-dlp`), con el OK de Gabriel | Igual que D7 | Unos 2 KB por cada 30 s de embedding; un set de 4 h, alrededor de 1 MB |
 | C1 | Metadatos de Beatport para los temas de los sets (auditoría 11-07) | Web, `src/v4/common/beatport.py` (1,2 s entre pedidos, caché) | `robots.txt` (2026-11-07): `Allow: /` para todos, sin `Crawl-delay`; bloquea unos 35 robots de entrenamiento y declara `Content-Signal: search=yes, ai-train=no`. Es una señal de política, no una licencia: antes de que M3 o M4 entrenen con etiquetas de Beatport, lo decide Gabriel | 40 790 temas en House, Techno y Tech House; 63 038 en total |
 
 **1001Tracklists (D5).** Lo observado el 2026-11-07:
@@ -507,6 +526,40 @@ Ruta propuesta:
 8. ¿Las invariantes de `AGENTS.md` (`track_uid`, nada de datos en Git, CPU primero, prueba chica antes
    de una corrida larga) se cumplen en cada etapa?
 9. ¿El lado en vivo sigue sin dependencias fuera de la biblioteca estándar?
+10. ¿La adenda de la sección 10 entra por los contratos de la sección 3, sin abrir un camino propio?
+
+## 10. Adenda posterior a la auditoría (2026-11-07)
+
+Gabriel autorizó bajar de YouTube para esta aplicación y propuso las compilaciones mezcladas como
+alternativa a 1001Tracklists (DECISIONS 2026-11-07, puntos 12 y 13). Se suman dos fuentes:
+
+- **D7, compilaciones mezcladas.** Discos de un DJ subidos tema por tema: el álbum se titula
+  «(DJ Mix)» y cada tema «(Mixed)». Es la convención que piden los distribuidores (RouteNote, Label
+  Worx). Se oye el set mezclado, con transiciones cortas, y cada tema conserva su identidad.
+- **D8, sets crudos de YouTube** de DJs que elige Gabriel.
+
+**Qué cambia en la arquitectura** (los contratos son los mismos):
+- **Almacén de sets.** D7 y D8 son fuentes nuevas. D7 trae el límite y la identidad de cada tema
+  (MusicBrainz). D8 trae el minuto exacto, y sus temas salen de T12.
+- **Un componente nuevo**, `siguiente` (T13): la cercanía del candidato al punto que predice el modelo.
+  Se agrega a la tabla de 3.3.
+- **Lo que se puede evaluar (3.6).** Con D7, los componentes de audio (`clap`, `suavidad`, `texto_clap`,
+  `energia_objetivo` de audio, `siguiente`) se miden sobre sets de otros DJs desde la etapa 2. Ya no hace
+  falta esperar a la etapa 5 ni a los avances de Beatport.
+- **El candidato que se busca en E1**, en D7 y D8, es el tema que el DJ puso después, con su CLAP. Los
+  candidatos son los temas de esas fuentes con audio, menos lo ya tocado. En los temas en común se
+  comprueba que todo cae en el mismo espacio que la biblioteca.
+- **Puentes (3.7).** El puente 3 (el audio de los sets) pasa de la etapa 5 a la etapa 2 para D7 y D8. M4
+  y los avances de Beatport (D6) quedan para lo que D7 y D8 no cubran.
+
+**Riesgos** (HIPÓTESIS hasta el piloto, etapa 2, punto 4):
+- **Audio de un set frente a tema limpio.** Hay encimados, ecualización, efectos y público. Se mide con
+  los temas en común antes de usar D8 para nada fino.
+- **Compilaciones frente a sets en vivo.** Las compilaciones son mezclas de estudio de 70 a 80 minutos
+  por disco, y pueden no mostrar la parte tardía de un set largo. Para eso cuentan las de varios discos
+  («Last Night at Output», los «Live in…») y D8.
+- **Muchos «DJ-mix» de MusicBrainz son emisiones de radio en un solo bloque** (por ejemplo, los
+  Essential Mix). Se filtran por tipo y por cantidad de pistas.
 
 ## 8. Afirmaciones
 
@@ -528,6 +581,9 @@ Ruta propuesta:
 | Las cabezas de Essentia para T3 no están en disco, y arousal/valencia no existe sobre EffNet | EVIDENCIA OBSERVADA | `models/essentia/`, home de WSL y essentia.upf.edu/models (auditoría 11-07) |
 | El lado en vivo usa solo la biblioteca estándar | EVIDENCIA OBSERVADA | Importaciones de `recomendador.py`, `sugerencias_vivo.py`, `tema_principal.py` y de los módulos de `src/v4/common` que usan (auditoría 11-07) |
 | El índice se carga en 0,02 s y se decodifica en 0,01 s: los campos de la versión 4 no comprometen I4 | EVIDENCIA OBSERVADA | Medido sobre `indice_recomendacion.json`, 1760 temas, 5,8 MB (auditoría 11-07) |
+| MusicBrainz tiene 26 438 grupos `DJ-mix` que no son radio, 4817 de ellos con etiqueta techno, tech house, progressive o deep house, y 49 de John Digweed | EVIDENCIA OBSERVADA | Consultas a la API de búsqueda de MusicBrainz, 2026-11-07 (adenda) |
+| En las tiendas, el álbum de una mezcla lleva «(DJ Mix)» y cada tema «(Mixed)» | EVIDENCIA OBSERVADA para los distribuidores (RouteNote, Label Worx) y ejemplos de Apple Music y Deezer; no verificada como regla de Spotify | Fuentes de la adenda |
+| Los tramos de un tema «(Mixed)» o de un set crudo caen cerca del mismo tema de la biblioteca | HIPÓTESIS | Piloto de la etapa 2, punto 4 |
 
 ## 9. Fuentes
 
@@ -559,3 +615,6 @@ Ruta propuesta:
 - Centro de ayuda de Beatport: el equipo de curación revisa y asigna el género.
 - `robots.txt` de 1001tracklists.com y de mixesdb.com, y la página de privacidad de 1001Tracklists,
   leídos el 2026-11-07.
+- Adenda: MusicBrainz, tipo de grupo de lanzamiento «DJ-mix» y su API de búsqueda; RouteNote, «How do I
+  format a DJ mix release»; Label Worx, «How do I create a Mixed Compilation Album»; Wikipedia, «Category:DJ
+  mix album series».
