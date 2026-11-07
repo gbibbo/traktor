@@ -120,6 +120,24 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
     - Sigue sin modelo de género: lo que Beatport no encuentra queda sin género. El clasificador de la
       biblioteca necesita además MAEST; se puede sumar si Gabriel lo pide.
 
+17. **La tonalidad se prueba como componente del puntaje, no solo como filtro, y lo tocado registra la
+    transposición** (Gabriel).
+    - Gabriel cambia a menudo la tonalidad en sus sets; a veces toca 3 o 4 temas seguidos transpuestos
+      un semitono.
+    - Lo compatible sin transponer puntúa más (como ya decía el punto 9 de 2026-11-06). Transponer 1 o
+      2 semitonos no debe penalizar mucho, pero no transponer es deseable.
+    - El registro de lo tocado anota si el tema se transpuso y cuánto.
+    - Cómo (agente):
+      - opciones del recomendador `filtro_clave`, `clave_penalizacion` y `clap_escala`, que por
+        defecto dejan lo de antes;
+      - «principal» y «tocado» anotan la tonalidad original, la resultante, los semitonos, el tempo y
+        el key lock;
+      - en D1, apagar el filtro no cambia el acierto (8,9 % frente a 9,3 %) y deja disponible el tema
+        siguiente en el 97 % de las transiciones, contra el 74 %;
+      - sumar la tonalidad como componente empeora, probablemente porque D1 solo tiene tonalidades
+        originales;
+      - se repite con D2. Informe: `docs/reports/e1_sets_gabriel_2026-11-07.md`, adenda.
+
 ## 2026-11-06
 
 1. **Descargas de Soulseek tema a tema, grabando mientras sigue la búsqueda** (Gabriel). Con muchos

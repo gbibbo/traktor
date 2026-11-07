@@ -219,3 +219,16 @@ def test_a_missing_mixer_is_logged_without_a_notification():
     k2.poll()
     assert [level for level, _ in said] == ["info", "aviso"]
     assert said[0][1].startswith("No veo el mezclador «DJM»") and said[1][1].startswith("No veo el controlador «K2»")
+
+
+def test_played_and_main_tracks_log_the_transposition():
+    tr = tp.Tracker()
+    tr.on_event("deckLoaded", "A", {"filePath": "C:\\M\\x.mp3", "title": "x", "artist": "y", "trackLength": 300,
+                                    "elapsedTime": 0, "isPlaying": False, "tempo": 1.0, "bpm": 124,
+                                    "key": "1m", "resultingKey": "8m", "isKeyLockOn": True}, now=0.0)
+    t = tr.decks["A"].transposition()
+    assert t == {"clave_original": "8A", "clave_resultante": "3A", "semitonos": 1, "tempo": 1.0, "key_lock": True}
+    tr.on_event("updateDeck", "A", {"resultingKey": "1m"}, now=1.0)       # vuelve a la tonalidad original
+    assert tr.decks["A"].transposition()["semitonos"] == 0
+    tr.on_event("updateDeck", "A", {"resultingKey": ""}, now=2.0)
+    assert tr.decks["A"].transposition()["semitonos"] is None

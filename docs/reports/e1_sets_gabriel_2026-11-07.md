@@ -108,3 +108,53 @@ En todas las transiciones con las dos tonalidades, el mejor ajuste está entre �
 | La regla de tonalidad hay que cambiarla | Decisión de Gabriel, no del agente | El dato está; la regla (P3, DECISIONS 2026-11-06, punto 7) es suya. Kell y Tzanetakis 2013 no encontraron efecto de la tonalidad en el orden de los DJs |
 | CLAP supera a la popularidad y sus aciertos no son el mismo artista ni el mismo título | EVIDENCIA OBSERVADA (auditoría E1) | 46 frente a 23 discordantes, p = 0,008; 48 de 50 aciertos entre artistas distintos, 0 con el mismo título |
 | El filtro de tonalidad pasa el 69 % de los pares al azar y el 76 % de las transiciones reales; los ±1 semitono ocurren a la tasa del azar y la misma tonalidad al doble | EVIDENCIA OBSERVADA (auditoría E1) | 387 de 506 frente a 349,5 esperadas; 165 frente a 185; 86 frente a 42 |
+
+## Adenda: desempate al azar y tonalidad como componente (2026-11-07, noche)
+
+Después de la auditoría (`docs/reports/auditoria_e1_sets_gabriel_2026-11-07.md`), el banco ya no depende
+del orden del índice.
+- **Desempate al azar.** Antes de cada consulta se mezcla el orden de los candidatos con una semilla, y se
+  repite con 5 semillas.
+- **Intervalo por sets.** Además, un intervalo del 95 % remuestreando sets enteros.
+- **Aciertos por transición.** Se guarda el acierto de cada transición, para las comparaciones apareadas.
+
+Los resultados están en `D:\TRAKTOR ML datos\dj_sets\sets\d1_e1.json` y `d1_e1_clave.json`.
+
+**Líneas de base con desempate al azar** (acierto en 30; media y rango de 5 semillas; intervalo por sets
+con la semilla 0):
+
+| Perfil | Media | Rango | Intervalo por sets |
+| :--- | --: | --: | --: |
+| Azar | 2,2 % | 1,3-3,3 % | 0,6-2,3 % |
+| BPM | 4,1 % | 3,5-4,6 % | 2,2-5,5 % |
+| Tonalidad | 4,3 % | 3,7-4,6 % | 2,9-5,8 % |
+| Género | 4,5 % | 4,1-5,2 % | 2,5-5,9 % |
+| CLAP | 9,3 % | sin empates | 6,3-11,5 % |
+| CLAP + BPM | 10,2 % | sin empates | 6,9-13,3 % |
+
+**La tonalidad como componente.** Gabriel, 2026-11-07: transpone a menudo, a veces secuencias de 3 o 4
+temas un semitono. Pide que la tonalidad puntúe en vez de filtrar: más alto lo compatible sin
+transponer, apenas menos lo que pide 1 o 2 semitonos.
+- El recomendador tiene ahora las opciones `filtro_clave`, `clave_penalizacion` y `clap_escala`. Por
+  defecto queda lo de antes.
+- Se probó una penalización de 0,05 por semitono: compatible sin transponer vale 1, a un semitono 0,95 y
+  a dos 0,90; lo incompatible vale 0.
+- CLAP va en percentil entre los candidatos (`clap%`), para pesarlo junto a la tonalidad.
+- En todos los perfiles hay 539 transiciones en el pool.
+
+| Perfil | Acierto en 30 | Recuperación | Percentil mediano | Rango recíproco | Frente a CLAP con filtro (solo uno / solo otro, p) |
+| :--- | --: | --: | --: | --: | :--- |
+| CLAP con filtro (lo actual) | 9,3 % | 0,738 | 0,232 | 0,0208 | — |
+| CLAP sin filtro | 8,9 % | 0,970 | 0,207 | 0,0219 | 17 / 15, p = 0,86 |
+| CLAP% + tonalidad 0,25, sin filtro | 7,4 % | 0,970 | 0,211 | 0,0119 | 23 / 13, p = 0,13 |
+| CLAP% + tonalidad 0,5, sin filtro | 6,7 % | 0,970 | 0,212 | 0,0126 | 30 / 16, p = 0,054 |
+| CLAP% + tonalidad 1, sin filtro | 7,3 % | 0,970 | 0,214 | 0,0130 | 33 / 23, p = 0,23 |
+| CLAP% + tonalidad 0,5, con filtro | 9,1 % | 0,738 | 0,237 | 0,0200 | 22 / 21, p = 1,0 |
+
+| Afirmación | Etiqueta | Evidencia |
+| :--- | :--- | :--- |
+| Con desempate al azar, BPM, tonalidad y género solos rinden parecido (4,1-4,5 %) y CLAP los supera también por sets | EVIDENCIA OBSERVADA | Primera tabla; los intervalos por sets de CLAP y de las líneas de base no se tocan |
+| Sacar el filtro de tonalidad no cambia el acierto en 30 y deja disponible el tema siguiente en el 97 % de las transiciones | EVIDENCIA OBSERVADA en D1 | 8,9 % frente a 9,3 %, p = 0,86; recuperación 0,970 frente a 0,738 |
+| Sumar la tonalidad como componente empeora el orden en D1 | EVIDENCIA OBSERVADA en D1; NO CONCLUYENTE como regla | 6,7-7,4 % frente a 9,3 %; el rango recíproco cae casi a la mitad |
+| Eso pasa porque D1 compara tonalidades originales y Gabriel transpone | HIPÓTESIS | La historia de Traktor no guarda el pitch. Desde 2026-11-07, el registro en vivo (D2) anota en «principal» y «tocado» la tonalidad original, la resultante y los semitonos; con eso se repite la prueba con la tonalidad que sonó |
+| Qué hacer con el filtro | Decisión de Gabriel, escuchando | Las opciones existen; en D1 apagar el filtro no cuesta aciertos y recupera sus elecciones |

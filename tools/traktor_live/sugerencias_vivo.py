@@ -48,6 +48,8 @@ CHANGELOG:
                 así que por defecto las sugerencias se abren manteniendo D#0 y apretando D0, en las dos
                 mezclas ("modificador" en los ajustes; null = sin modificador). --aprender aprende los dos.
                 Pesos del puntaje en "pesos" (recomendador.py).
+  - 2026-11-07: "opciones" de los ajustes van al recomendador (filtro_clave, clave_penalizacion,
+                clap_escala), para probar la tonalidad como componente en vivo (DECISIONS 2026-11-07, p. 17).
 """
 from __future__ import annotations
 
@@ -500,7 +502,8 @@ def run_session(settings_path: Path, stop: threading.Event, say: Say = console_s
         return 1
     say("info", f"Colección: {collection} ({len(sugg.tracks)} {sugg.pool} para las listas al azar)")
     index_path = Path(settings.get("indice") or rc.DEFAULT_INDEX)
-    rec, rec_text = rc.load_recommender(sugg.by_path, index_path, n, settings.get("pesos"))
+    rec, rec_text = rc.load_recommender(sugg.by_path, index_path, n, settings.get("pesos"),
+                                        options=settings.get("opciones"))
     # sin índice es lo normal en otro ordenador (las listas salen al azar); viejo o ilegible, un aviso
     say("aviso" if "VIEJO" in rec_text or (rec is None and index_path.exists()) else "info", rec_text)
     sugg.recommender = rec

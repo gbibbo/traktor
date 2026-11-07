@@ -154,6 +154,19 @@ flowchart LR
      `sugerencias_vivo.json`, por ejemplo `{"clap": 1, "bpm": 0.5}`; por defecto, solo CLAP. Cada
      lista queda en el registro con sus componentes, para ajustar los pesos después.
 
+     Las opciones van en `"opciones"` del mismo archivo (2026-11-07). Por defecto queda lo de antes:
+     - `"filtro_clave": false`: la tonalidad deja de filtrar y queda solo como componente; los temas
+       sin tonalidad vuelven a ser sugeribles;
+     - `"clave_penalizacion": 0.05`: lo que resta cada semitono transpuesto (por defecto 0.15);
+     - `"clap_escala": "percentil"`: CLAP como percentil entre los candidatos, para pesarlo junto a los
+       demás componentes.
+
+     Por ejemplo, `"opciones": {"filtro_clave": false, "clave_penalizacion": 0.05}`. El aviso de
+     arranque dice cuáles están activas.
+
+     Cada «principal» y cada «tocado» del registro anota la tonalidad original del tema, la que sonó,
+     los semitonos de transposición, el tempo y el key lock.
+
    Hace falta el índice de la biblioteca, una vez y otra cada vez que cambie la biblioteca, con el
    Python del pipeline (numpy y pandas):
 

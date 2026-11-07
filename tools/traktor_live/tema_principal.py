@@ -23,6 +23,9 @@ CHANGELOG:
   - 2026-11-06: Creación (etapa de recomendación, unidad 1: tema principal y registro).
   - 2026-11-06: El cambio de tema principal lleva BPM, tempo y tonalidad resultante del deck;
                 Live.on_tocado (las sugerencias se recalculan sin lo recién tocado).
+  - 2026-11-07: «principal» y «tocado» anotan la tonalidad original del tema, la que suena y la
+                transposición en semitonos (Gabriel: suele transponer secuencias enteras), más el tempo
+                y el key lock.
 """
 from __future__ import annotations
 
@@ -38,6 +41,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
+from src.v4.common import harmonic  # noqa: E402
 from tools.traktor_live import traktor_estado as te  # noqa: E402
 from tools.traktor_live.midi_monitor import decode  # noqa: E402
 
@@ -76,6 +80,16 @@ class Deck:
     bpm: float = 0.0                          # BPM del tema (sin el tempo)
     key: str = ""                             # tonalidad resultante de Traktor
     started: float = 0.0                      # instante del último play
+    key_original: str = ""                    # tonalidad del tema, sin transponer (Open Key de Traktor)
+    key_lock: Optional[bool] = None
+
+    def transposition(self) -> Dict[str, object]:
+        """Tonalidad original y resultante (Camelot) y los semitonos de transposición, si se conocen."""
+        from tools.traktor_live.recomendador import deck_key
+        o, r = deck_key(self.key_original), deck_key(self.key)
+        return {"clave_original": o, "clave_resultante": r,
+                "semitonos": harmonic.semitones_between(o, r) if o != "?" and r != "?" else None,
+                "tempo": round(self.tempo, 4), "key_lock": self.key_lock}
 
     def position(self, now: float) -> Optional[float]:
         """Fracción del tema (0 a 1), estimada desde el último aviso si está sonando."""
@@ -144,7 +158,9 @@ class Tracker:
                 artist=str(data.get("artist") or ""), length=_num(data.get("trackLength")),
                 elapsed=_num(data.get("elapsedTime")), t_elapsed=now, playing=playing,
                 tempo=_num(data.get("tempo"), 1.0) or 1.0, bpm=_num(data.get("bpm")),
-                key=str(data.get("resultingKey") or ""), started=now if playing else 0.0)
+                key=str(data.get("resultingKey") or ""), started=now if playing else 0.0,
+                key_original=str(data.get("key") or ""),
+                key_lock=data.get("isKeyLockOn") if isinstance(data.get("isKeyLockOn"), bool) else None)
         elif kind == "updateDeck" and target in self.decks:
             d = self.decks[target]
             if "elapsedTime" in data:
@@ -158,6 +174,10 @@ class Tracker:
                 d.tempo = _num(data["tempo"], 1.0) or 1.0
             if "resultingKey" in data:
                 d.key = str(data["resultingKey"] or "")
+            if "key" in data:
+                d.key_original = str(data["key"] or "")
+            if isinstance(data.get("isKeyLockOn"), bool):
+                d.key_lock = data["isKeyLockOn"]
         elif kind == "updateChannel":
             deck = DECKS[int(target) - 1] if target in ("1", "2", "3", "4") else None
             if deck is None or "onAirLevel" not in data:
@@ -200,7 +220,7 @@ class Tracker:
                     self._played_set.add(d.path)
                     self.played.append(d.path)
                     out.append(("tocado", {"deck": name, "path": d.path, "title": d.title, "artist": d.artist,
-                                           "segundos": round(self.on_air_s[d.path], 1)}))
+                                           "segundos": round(self.on_air_s[d.path], 1), **d.transposition()}))
         self._last = now if self._last is None else max(self._last, now)
         return out
 
@@ -255,7 +275,7 @@ class Tracker:
         pos = d.position(now)
         return [("principal", {
             "deck": deck, "path": d.path, "title": d.title, "artist": d.artist, "modo": mode, "motivo": why,
-            "bpm": d.bpm, "tempo": d.tempo, "key": d.key,
+            "bpm": d.bpm, "tempo": d.tempo, "key": d.key, **d.transposition(),
             "seccion": d.section(now), "posicion": None if pos is None else round(pos, 3),
             "fader": round(self.level(deck), 3), "mezcla": self.mixer,
             "al_aire": {x: {"seccion": self.decks[x].section(now), "fader": round(self.level(x), 3)} for x in on_air},

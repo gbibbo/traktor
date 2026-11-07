@@ -30,6 +30,12 @@ CHANGELOG:
   - 2026-11-06: Puntaje como promedio pesado de componentes (clap, bpm, clave, genero, tiv) y género en
                 el índice.
   - 2026-11-06: El componente genero sale de la taxonomía de géneros (con subgénero, índice versión 3).
+  - 2026-11-07: Opciones (por defecto, lo de siempre): "filtro_clave" (apagado, la tonalidad deja de
+                filtrar y queda solo como componente; los temas sin tonalidad vuelven a ser sugeribles),
+                "clave_penalizacion" (lo que resta al componente cada semitono transpuesto; Gabriel,
+                2026-11-07: transponer 1 o 2 semitonos es habitual y no debe penalizar mucho, pero no
+                transponer es mejor) y "clap_escala" ("percentil": CLAP como percentil entre los
+                candidatos de la consulta, para pesar componentes de escalas distintas; auditoría de E1).
 """
 from __future__ import annotations
 
@@ -63,6 +69,8 @@ BPM_RANGE = 20.0
 KEY_MIN = 0.60                        # corte aprobado (HARMONIC_COMPATIBILITY.md)
 COMPONENTS = ("clap", "bpm", "clave", "genero", "tiv")
 DEFAULT_WEIGHTS: Dict[str, float] = {"clap": 1.0, "bpm": 0.0, "clave": 0.0, "genero": 0.0, "tiv": 0.0}
+DEFAULT_OPTIONS: Dict[str, object] = {"filtro_clave": True, "clave_penalizacion": harmonic.SHIFT_PENALTY,
+                                      "clap_escala": "crudo"}
 MAJOR_CAMELOT = [8, 3, 10, 5, 12, 7, 2, 9, 4, 11, 6, 1]     # índice = semitono desde Do
 MINOR_CAMELOT = [5, 12, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10]
 _KEY_TEXT = re.compile(r"^\s*(\d{1,2})\s*([dmABab])\b")
@@ -163,6 +171,39 @@ def weights_from(data) -> Dict[str, float]:
     return out
 
 
+def options_from(data) -> Dict[str, object]:
+    """Opciones guardadas sobre las de por defecto; los valores que no sirven se ignoran."""
+    out = dict(DEFAULT_OPTIONS)
+    if isinstance(data, dict):
+        if isinstance(data.get("filtro_clave"), bool):
+            out["filtro_clave"] = data["filtro_clave"]
+        try:
+            v = float(data.get("clave_penalizacion"))
+            if 0.0 <= v <= 1.0:
+                out["clave_penalizacion"] = v
+        except (TypeError, ValueError):
+            pass
+        if data.get("clap_escala") in ("crudo", "percentil"):
+            out["clap_escala"] = data["clap_escala"]
+    return out
+
+
+def percentiles(values: List[Optional[float]]) -> List[Optional[float]]:
+    """Percentil de cada valor entre los conocidos (0 el menor, 1 el mayor; empates, el promedio)."""
+    known = sorted(v for v in values if v is not None)
+    n = len(known)
+    if n == 0:
+        return list(values)
+    if n == 1:
+        return [None if v is None else 1.0 for v in values]
+    first: Dict[float, int] = {}
+    last: Dict[float, int] = {}
+    for i, v in enumerate(known):
+        first.setdefault(v, i)
+        last[v] = i
+    return [None if v is None else (first[v] + last[v]) / 2 / (n - 1) for v in values]
+
+
 def weighted(components: Dict[str, Optional[float]], weights: Dict[str, float]) -> Optional[float]:
     """Promedio pesado de los componentes conocidos con peso > 0 (None si no queda ninguno)."""
     num = den = 0.0
@@ -196,9 +237,11 @@ class Recommender:
     calcula la lista para un tema principal; snapshot() la entrega al botón."""
 
     def __init__(self, items: List[Item], entries: Dict[str, ET.Element], n: int = DEFAULT_N,
-                 weights: Optional[Dict[str, float]] = None, taxonomy: Optional[Taxonomy] = None):
+                 weights: Optional[Dict[str, float]] = None, taxonomy: Optional[Taxonomy] = None,
+                 options: Optional[Dict[str, object]] = None):
         self.n = n
         self.weights = weights_from(weights)
+        self.options = options_from(options)
         self.taxonomy = taxonomy
         by_norm = {norm(k): e for k, e in entries.items()}
         self.root = package_root(items, by_norm.keys())
@@ -267,6 +310,8 @@ class Recommender:
         weights = dict(self.weights)
         if not use_clap and sum(w for k, w in weights.items() if k != "clap") == 0:
             weights = {"bpm": 1.0}                      # sin CLAP y sin otros pesos: el BPM más cercano
+        key_filter = bool(self.options["filtro_clave"])
+        penalty = float(self.options["clave_penalizacion"])
         rows = []
         no_key = 0
         for it in self.candidates:
@@ -274,13 +319,14 @@ class Recommender:
                 continue
             if bpm0 is not None and (it.bpm is None or abs(it.bpm - bpm0) > BPM_RANGE):
                 continue
-            score, shift, _rel = harmonic.best_key_shift(key0, it.key)
-            if key0 != "?":
-                if it.key == "?":
-                    no_key += 1
+            if key0 != "?" and it.key == "?":
+                no_key += 1
+                if key_filter:
                     continue
-                if score < KEY_MIN:
+            if key_filter and key0 != "?":
+                if harmonic.best_key_shift(key0, it.key)[0] < KEY_MIN:      # la regla aprobada (P3)
                     continue
+            score, shift, _rel = harmonic.best_key_shift(key0, it.key, shift_penalty=penalty)
             if use_clap and it.vec is None:
                 continue
             sim = dot(main.vec, it.vec) if use_clap else None
@@ -291,8 +337,13 @@ class Recommender:
                 "genero": self.genre_score(main, it) if main is not None else None,
                 "tiv": None,
             }
-            final = weighted(comps, weights)
-            rows.append((it, sim, shift, comps, -1.0 if final is None else final))
+            rows.append([it, sim, shift, comps, 0.0])
+        if self.options["clap_escala"] == "percentil":
+            for r, p in zip(rows, percentiles([r[3]["clap"] for r in rows])):
+                r[3]["clap"] = p
+        for r in rows:
+            final = weighted(r[3], weights)
+            r[4] = -1.0 if final is None else final
         rows.sort(key=lambda r: -r[4])
         top = rows[: self.n]
         info = {"modo": "clap" if use_clap else "sin_clap",
@@ -300,7 +351,8 @@ class Recommender:
                               "bpm": None if bpm0 is None else round(bpm0, 2), "clave": key0,
                               "genero": main.genre if main else None,
                               "subgenero": main.subgenre if main else None},
-                "pesos": weights, "candidatos": len(rows), "sin_tonalidad": no_key, "excluidos": len(excluded),
+                "pesos": weights, "opciones": dict(self.options), "candidatos": len(rows), "sin_tonalidad": no_key,
+                "excluidos": len(excluded),
                 "uids": [r[0].uid for r in top],
                 "puntaje": [round(r[4], 4) for r in top],
                 "componentes": {k: [None if r[3][k] is None else round(r[3][k], 4) for r in top]
@@ -337,7 +389,8 @@ def load_taxonomy(path: Path = DEFAULT_TAXONOMY) -> Tuple[Optional[Taxonomy], st
 
 def load_recommender(entries: Dict[str, ET.Element], index_path: Path = DEFAULT_INDEX,
                      n: int = DEFAULT_N, weights: Optional[Dict[str, float]] = None,
-                     taxonomy_path: Path = DEFAULT_TAXONOMY) -> Tuple[Optional[Recommender], str]:
+                     taxonomy_path: Path = DEFAULT_TAXONOMY,
+                     options: Optional[Dict[str, object]] = None) -> Tuple[Optional[Recommender], str]:
     """(Recommender, texto para el aviso). None si no hay índice o no se puede leer."""
     if not Path(index_path).exists():
         return None, (f"No hay índice de recomendación ({index_path}): las sugerencias son al azar. Armarlo una "
@@ -347,7 +400,7 @@ def load_recommender(entries: Dict[str, ET.Element], index_path: Path = DEFAULT_
     except (OSError, ValueError, KeyError) as exc:
         return None, f"No pude leer el índice {index_path}: {type(exc).__name__}: {exc}"
     taxonomy, tax_text = load_taxonomy(taxonomy_path)
-    rec = Recommender(items, entries, n, weights, taxonomy)
+    rec = Recommender(items, entries, n, weights, taxonomy, options)
     if not rec.candidates:
         return None, (f"Ningún tema del índice está en la colección de Traktor: las sugerencias son al azar "
                       f"(¿Traktor tiene la carpeta del paquete en su colección?)")
@@ -360,4 +413,7 @@ def load_recommender(entries: Dict[str, ET.Element], index_path: Path = DEFAULT_
     except (OSError, ValueError, KeyError):
         pass
     pesos = ", ".join(f"{k} {w:g}" for k, w in rec.weights.items() if w > 0)
-    return rec, f"Recomendación por {data.get('rep', '?')}: {rec.summary()}. Pesos: {pesos}.{tax_text}{stale}"
+    o = rec.options
+    opts = (f" Tonalidad: {'filtra' if o['filtro_clave'] else 'no filtra'}, {o['clave_penalizacion']:g} por semitono;"
+            f" CLAP {o['clap_escala']}.")
+    return rec, f"Recomendación por {data.get('rep', '?')}: {rec.summary()}. Pesos: {pesos}.{opts}{tax_text}{stale}"

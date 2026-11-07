@@ -108,3 +108,26 @@ def test_traktor_history_dates_and_sets_split_after_20_minutes_off_air():
             {"inicio": t + dt.timedelta(minutes=30), "segundos_al_aire": 300},    # 19,3 min sin nada: sigue
             {"inicio": t + dt.timedelta(minutes=56), "segundos_al_aire": 300}]    # 21 min sin nada: set nuevo
     assert [len(s) for s in split_sets(rows)] == [3, 1]
+
+
+def test_bench_breaks_ties_at_random_and_resamples_whole_sets():
+    from types import SimpleNamespace as NS
+    from src.v4.evaluation import banco_sets as bs
+
+    class FakeRec:                                   # todos empatados: el orden es el de los candidatos
+        def __init__(self, uids):
+            self.candidates = [NS(uid=u) for u in uids]
+            self.weights = None
+
+        def compute(self, principal, played):
+            return [], {"uids": [c.uid for c in self.candidates]}
+
+    uids = [f"t{i}" for i in range(100)]
+    rec = FakeRec(uids)
+    items = {u: NS(path=None, original=u, rel=u, bpm=120.0) for u in uids}
+    sets = {"s1": [{"track_uid": "t0", "posicion": "0"}, {"track_uid": "t99", "posicion": "1"}]}
+    ranks = {bs.evaluate(rec, items, sets, {"clap": 1}, seed=s)["rr_medio"] for s in range(10)}
+    assert len(ranks) > 1                            # sin desempate al azar, t99 quedaría siempre 100.º
+    assert [c.uid for c in rec.candidates] == uids    # el orden original se restituye
+    lo, hi = bs.bootstrap_sets({"a": [1, 1, 0], "b": [0, 0, 0, 0], "c": []}, n=200)
+    assert 0.0 <= lo <= hi <= 1.0

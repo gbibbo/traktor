@@ -96,6 +96,18 @@ def shift_camelot(camelot: str, semitones: int) -> str:
     return f"{_wrap(num + 7 * semitones)}{mode}"
 
 
+def semitones_between(original: str, resulting: str) -> Optional[int]:
+    """Semitonos de transposición que llevan `original` a `resulting` (Camelot, el mismo modo), entre -6 y
+    +6; el menor en valor absoluto (-6 ante el tritono). None si alguna no se conoce o cambia el modo."""
+    a, b = _split(original), _split(resulting)
+    if a is None or b is None or a[1] != b[1]:
+        return None
+    for s in sorted(range(-6, 7), key=abs):
+        if shift_camelot(original, s) == f"{b[0]}{b[1]}":
+            return s
+    return None
+
+
 def key_relation(anchor: str, candidate: str) -> Optional[str]:
     """Nombre de la relación armónica entre dos tonalidades sin transponer, o None."""
     a, b = _split(anchor), _split(candidate)

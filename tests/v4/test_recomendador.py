@@ -294,3 +294,48 @@ def test_genre_comes_from_beatport_or_a_confident_classifier():
     assert ir.genre_of(None, "Deep House", "classifier", 0.59) is None
     assert ir.genre_of(None, "Jazz (Discogs)", "gate_discogs", 0.9) is None
     assert ir.genre_of(float("nan"), None, "classifier", None) is None
+
+
+def test_semitones_between_keys():
+    from src.v4.common import harmonic
+    assert harmonic.semitones_between("8A", "8A") == 0
+    assert harmonic.semitones_between("8A", "3A") == 1 and harmonic.semitones_between("8A", "1A") == -1
+    assert harmonic.semitones_between("8A", "10A") == 2 and harmonic.semitones_between("8A", "8B") is None
+    assert harmonic.semitones_between("?", "8A") is None
+
+
+def test_options_and_percentiles():
+    assert rc.options_from(None) == {"filtro_clave": True, "clave_penalizacion": 0.15, "clap_escala": "crudo"}
+    o = rc.options_from({"filtro_clave": False, "clave_penalizacion": "0.05", "clap_escala": "percentil"})
+    assert o == {"filtro_clave": False, "clave_penalizacion": 0.05, "clap_escala": "percentil"}
+    assert rc.options_from({"filtro_clave": "no", "clave_penalizacion": 3, "clap_escala": "x"}) == rc.DEFAULT_OPTIONS
+    assert rc.percentiles([0.1, None, 0.3, 0.3]) == [0.0, None, 0.75, 0.75]
+    assert rc.percentiles([0.5]) == [1.0]
+
+
+def test_without_the_key_filter_incompatible_and_keyless_tracks_come_back(tmp_path):
+    from tools.traktor_live.recomendador import Recommender, load_index
+    collection, index = make_library(tmp_path)
+    entries = entries_by_path(collection)
+    _, items = load_index(index)
+    on = Recommender(items, entries, n=30)
+    tracks, _ = on.compute(principal())
+    assert {t.title for t in tracks} == {"a", "b", "f", "g"}
+    _, items = load_index(index)
+    off = Recommender(items, entries, n=30, options={"filtro_clave": False, "clave_penalizacion": 0.05})
+    tracks, info = off.compute(principal())
+    assert {"d", "e"} <= {t.title for t in tracks}                      # 2B incompatible y sin tonalidad
+    assert info["opciones"]["filtro_clave"] is False and info["sin_tonalidad"] == 1
+    _, items = load_index(index)
+    pct = Recommender(items, entries, n=30, options={"clap_escala": "percentil"})
+    _, info = pct.compute(principal())
+    assert max(info["componentes"]["clap"]) == 1.0 and min(info["componentes"]["clap"]) == 0.0
+
+
+def test_load_recommender_takes_the_saved_options(tmp_path):
+    collection, index = make_library(tmp_path)
+    rec, text = rc.load_recommender(entries_by_path(collection), index,
+                                    options={"filtro_clave": False, "clave_penalizacion": 0.05})
+    assert rec.options["filtro_clave"] is False and "Tonalidad: no filtra, 0.05 por semitono" in text
+    rec, text = rc.load_recommender(entries_by_path(collection), index)
+    assert rec.options == rc.DEFAULT_OPTIONS and "Tonalidad: filtra, 0.15 por semitono" in text
