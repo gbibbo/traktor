@@ -273,6 +273,14 @@ Collection y escribir las playlists en `collection.nml` con Traktor cerrado (`tr
 Traktor a veces queda abierto sin ventana al cerrarse y sin "LOG CLOSE" en `Logs/Traktor.log`: una
 vez no guardó la colección; otra la guardó y siguió colgado. Mirar la hora de `collection.nml`.
 
+El análisis (BPM, grilla, tonalidad) queda en memoria hasta que Traktor guarda `collection.nml`, al
+cerrarse. El 2026-11-06 analizó unos 1495 temas (17:33 a 20:08; las stripes en `Stripes/` sí se
+escribieron), quedó abierto y Windows reinició al día siguiente con Traktor abierto: no hubo ningún
+guardado y la colección siguió con 231 de 1717 temas de `C:\TRAKTOR ML` con BPM. Las sugerencias en
+vivo copian las entradas de ese archivo y salieron con BPM 0.00. Después de analizar, cerrar Traktor y
+comprobar la hora de `collection.nml`. Contar como analizado el `TEMPO` con atributo `BPM`: los temas
+importados traen un `TEMPO` vacío (solo `BPM_QUALITY`).
+
 ### Preparar Traktor reconoce los temas por su nombre y carpeta originales
 
 `traktor_prepare.ps1` busca en la colección local de Traktor cada tema del paquete por `nombre_original` y
