@@ -469,6 +469,17 @@ I5 entra con I3, para que D2 guarde la etiqueta de M3 desde la primera sesión.
      D8 queda en el nivel de bloque hasta que T12 funcione (alineación contra los originales).
    - Entre temas consecutivos, CLAP casi no muestra el orden dentro de la noche (0,16 frente a 0,18 al
      azar del mismo disco). Para las playlists de dirección pesan T3 y T13.
+   - HECHO 2026-11-07 (T11 y E1 con D7): `docs/reports/trayectorias_d7_2026-11-07.md`. Fueron 83
+     compilaciones de Sasha, Carl Cox, Nick Warren y Hernán Cattáneo: 118 h, 1119 temas con vector en 94
+     discos. Los vectores salen del audio mezclado: estas compilaciones no traen los originales.
+     - Dentro del disco, CLAP elige el siguiente el 26 % de las veces (17 % al azar). El siguiente
+       queda a 0,114 y uno al azar del mismo disco a 0,131.
+     - Lo que más agrupa es la compilación (sus discos a 0,034), no el DJ ni la época (0,098-0,118).
+       E1 sobre D7 se mide entonces dentro del disco.
+     - Extrapolar el último paso empeora: T13 tiene que superar a CLAP dentro del disco con discos fuera
+       de la muestra.
+     - D7 no informa sobre la parte después de la segunda hora (discos de 75 min): T7 sale de D8 y de
+       los sets largos de Gabriel.
 
 ### Etapa 3: dirección e introspectiva
 

@@ -144,3 +144,30 @@ def test_d7_download_keeps_only_files_that_still_match_by_duration():
     per_track = {"youtube": {"tipo": "por_tema", "archivo_por_pista": [2, 3, 4]}}
     assert [(w["id"], w["disco"], w["pista"]) for w in wanted(per_track, release, entries)] == [
         ("c", 1, 1), ("d", 1, 2), ("e", 2, 1)]
+
+
+def test_d7_track_vectors_skip_the_transition_zones():
+    from tools.dj_sets.trayectorias_d7 import select_blocks
+    starts = np.arange(0, 600, 30.0)                         # 20 bloques en 10 minutos
+    idx, reduced = select_blocks(starts, 600.0, 120.0, 420.0, 60.0)
+    assert not reduced and starts[idx].min() >= 180 and starts[idx].max() + 30 <= 360
+    idx, reduced = select_blocks(starts, 600.0, 120.0, 200.0, 60.0)   # tema corto: el borde se reduce
+    assert reduced and list(starts[idx]) == [120.0, 150.0, 180.0]          # centros 135, 165 y 195
+
+
+def test_d7_bench_counts_repeated_tracks_once_and_the_disc_pool_is_what_is_left():
+    from tools.dj_sets.trayectorias_d7 import e1, identity
+    def row(f, sid, pos, art, tit, grupo="g1"):
+        return {"fila": f, "set_id": sid, "grupo": grupo, "posicion": pos, "artista": art, "titulo": tit,
+                "recording": f"r{f}"}
+    rows = [row(0, "s1", 1, "A", "Uno"), row(1, "s1", 2, "B", "Dos"), row(2, "s1", 3, "C", "Tres"),
+            row(3, "s2", 1, "B", "Dos (Mixed)", "g2"), row(4, "s2", 2, "D", "Cuatro", "g2")]
+    assert identity(rows[1]) == identity(rows[3])            # la versión «(Mixed)» es el mismo tema
+    e = np.eye(4)
+    V = np.stack([e[0], e[1], e[2], 0.9 * e[0] + 0.436 * e[1], e[3]])
+    V = V / np.linalg.norm(V, axis=1, keepdims=True)
+    r = e1(rows, V, "d7", "clap")
+    # s1: tras «Uno» el más parecido es «Dos (Mixed)» de s2, que es el mismo tema que la respuesta: acierto
+    assert r["transiciones"] == 3 and r["acierto_1"] >= 2 / 3
+    r = e1(rows, V, "disco", "clap")
+    assert r["transiciones"] == 1        # con un solo candidato (último de cada disco) no se consulta
