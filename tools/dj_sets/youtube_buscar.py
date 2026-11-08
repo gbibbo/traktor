@@ -9,8 +9,13 @@ PURPOSE: Busca en YouTube las compilaciones mezcladas (DJ-mix) de los artistas d
                       tema (la de MusicBrainz, por la posición);
            continua   la playlist trae la mezcla de cada disco entera: un archivo dura lo mismo que un
                       disco (±8 s: con Cattáneo, los aciertos difieren en 0 a 7 s y los discos de otro DJ
-                      en 10 a 23 s, porque los CD duran casi todos 74 a 80 min). El límite de cada tema sale de las duraciones del CD,
-                      como en el piloto con Digweed; si además hay originales sueltos, mejor.
+                      en 10 a 23 s, porque los CD duran casi todos 74 a 80 min) [REFUTADO 2026-11-07 por
+                      validar_d7.py: en playlists de colección con decenas de sets, otro set dura lo mismo
+                      por azar; 53 de 96 archivos no eran la compilación. Desde la versión 4, el archivo
+                      además tiene que pasar validar_d7.title_check]. El límite de cada tema sale de las
+                      duraciones del CD, como en el piloto con Digweed; si además hay originales sueltos, mejor.
+         En las «por_tema», desde la versión 4, el 80 % de las pistas emparejadas tiene que coincidir también
+         por artista y título (piloto.pair_score).
          Escribe <root>/youtube/busqueda.json (grupo, lanzamiento elegido, playlist, tipo, cobertura y el
          emparejamiento pista-archivo) y guarda cada lanzamiento en <root>/musicbrainz/<id>.json. No baja
          audio: eso lo hace youtube_audio.py con la playlist elegida.
@@ -18,6 +23,8 @@ PURPOSE: Busca en YouTube las compilaciones mezcladas (DJ-mix) de los artistas d
 CHANGELOG:
   - 2026-11-07: Creación (escalar D7 después del piloto con Digweed). Validación por duraciones contra
                 MusicBrainz en lugar de los títulos; discos a ±8 s (no 1 %), con la diferencia anotada.
+  - 2026-11-07: Versión 4: duración y además título (validar_d7.title_check para los discos enteros, títulos
+                de las pistas para las «por_tema»), porque la duración sola dejó pasar sets ajenos.
 """
 from __future__ import annotations
 
@@ -28,14 +35,15 @@ import sys
 import time
 import urllib.parse
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
 import src.v4.common  # noqa: E402,F401  (salida UTF-8 en consolas cp1252)
 from tools.dj_sets.musicbrainz_mixes import MB, release_summary  # noqa: E402
-from tools.dj_sets.piloto import norm  # noqa: E402
+from tools.dj_sets.piloto import norm, pair_score  # noqa: E402
+from tools.dj_sets.validar_d7 import PAIR_MIN, TRACK_SHARE, series_words, title_check  # noqa: E402
 from tools.dj_sets.youtube_audio import list_playlist, ytdlp  # noqa: E402
 from tools.genre_taxonomy.referencias import Fetcher  # noqa: E402
 
@@ -44,6 +52,7 @@ PLAYLIST_FILTER = "EgIQAw%3D%3D"
 TRACK_TOL_S = 3.0
 DISC_TOL_S = 8.0
 MIN_TRACK_COVERAGE = 0.6
+VERSION = 4                    # 3: solo duraciones; 4: duraciones y títulos
 
 
 def match_tracks_by_duration(tracks_s: Sequence[float], entries_s: Sequence[Optional[float]],
@@ -63,11 +72,14 @@ def match_tracks_by_duration(tracks_s: Sequence[float], entries_s: Sequence[Opti
     return out
 
 
-def match_discs(discs_s: Sequence[float], entries_s: Sequence[Optional[float]]) -> List[Optional[int]]:
-    """Para cada disco, un archivo que dure lo mismo (±DISC_TOL_S)."""
+def match_discs(discs_s: Sequence[float], entries_s: Sequence[Optional[float]],
+                allowed: Optional[Callable[[int, int], bool]] = None) -> List[Optional[int]]:
+    """Para cada disco, un archivo que dure lo mismo (±DISC_TOL_S) y que `allowed(disco, archivo)` acepte
+    (el título, desde la versión 4)."""
     used, out = set(), []
-    for t in discs_s:
-        cands = [j for j, d in enumerate(entries_s) if d and j not in used and abs(d - t) <= DISC_TOL_S]
+    for k, t in enumerate(discs_s):
+        cands = [j for j, d in enumerate(entries_s) if d and j not in used and abs(d - t) <= DISC_TOL_S
+                 and (allowed is None or allowed(k, j))]
         j = min(cands, key=lambda j: abs(entries_s[j] - t)) if cands else None
         if j is not None:
             used.add(j)
@@ -75,21 +87,35 @@ def match_discs(discs_s: Sequence[float], entries_s: Sequence[Optional[float]]) 
     return out
 
 
-def validate(release: Dict, entries: Sequence[Dict]) -> Dict:
-    """Tipo y cobertura de una playlist de YouTube frente a un lanzamiento de MusicBrainz (release_summary)."""
+def validate(release: Dict, entries: Sequence[Dict], artist: Optional[str] = None,
+             series: Optional[Set[str]] = None) -> Dict:
+    """Tipo y cobertura de una playlist de YouTube frente a un lanzamiento de MusicBrainz (release_summary).
+    Con `artist`, además de la duración se exige el título (versión 4)."""
     tracks = [t for m in release["media"] for t in m["pistas"]]
     t_s = [(t["ms"] or 0) / 1000 for t in tracks]
     d_s = [sum((t["ms"] or 0) for t in m["pistas"]) / 1000 for m in release["media"]]
     e_s = [e.get("duration") for e in entries]
+    allowed = None
+    if artist is not None:
+        def allowed(k: int, j: int) -> bool:
+            return title_check(artist, release.get("titulo") or "", k + 1, len(d_s), entries[j].get("title") or "",
+                               series or set())[0]
     by_track = match_tracks_by_duration(t_s, e_s) if all(t_s) else [None] * len(t_s)
-    by_disc = match_discs(d_s, e_s) if all(d_s) else [None] * len(d_s)
+    by_disc = match_discs(d_s, e_s, allowed) if all(d_s) else [None] * len(d_s)
+    titles_ok = None
+    if artist is not None:
+        pairs = [(t, entries[j]) for t, j in zip(tracks, by_track) if j is not None]
+        titles_ok = sum(pair_score(t, e.get("title") or "") >= PAIR_MIN for t, e in pairs) / len(pairs) if pairs else 0.0
+        if titles_ok < TRACK_SHARE:
+            by_track = [None] * len(by_track)
     cov_t = sum(j is not None for j in by_track) / len(by_track) if by_track else 0.0
     cov_d = sum(j is not None for j in by_disc) / len(by_disc) if by_disc else 0.0
     kind = "continua" if cov_d >= 0.5 else ("por_tema" if cov_t >= MIN_TRACK_COVERAGE else None)
     return {"tipo": kind, "cobertura_temas": round(cov_t, 3), "cobertura_discos": round(cov_d, 3),
             "pistas": len(tracks), "discos": len(d_s), "horas": round(sum(d_s) / 3600, 2),
             "archivo_por_pista": by_track, "archivo_por_disco": by_disc,
-            "diferencia_por_disco_s": [None if j is None else round(e_s[j] - t, 1) for j, t in zip(by_disc, d_s)]}
+            "diferencia_por_disco_s": [None if j is None else round(e_s[j] - t, 1) for j, t in zip(by_disc, d_s)],
+            "titulos_de_pistas_ok": None if titles_ok is None else round(titles_ok, 3)}
 
 
 def title_score(artist: str, title: str, candidate: str) -> float:
@@ -119,7 +145,8 @@ def releases_of(f: Fetcher, root: Path, group_id: str) -> List[Dict]:
     return rels
 
 
-def best_for(f: Fetcher, root: Path, artist: str, group: Dict, pause: float, max_lists: int = 5) -> Dict:
+def best_for(f: Fetcher, root: Path, artist: str, group: Dict, pause: float, max_lists: int = 5,
+             series: Optional[Set[str]] = None) -> Dict:
     rels = [r for r in releases_of(f, root, group["id"]) if r["media"] and all(m["pistas"] for m in r["media"])]
     if not rels:
         return {"estado": "sin lanzamiento con pistas en MusicBrainz"}
@@ -140,7 +167,7 @@ def best_for(f: Fetcher, root: Path, artist: str, group: Dict, pause: float, max
         time.sleep(pause)
         entries = [e for e in d.get("entries") or [] if e.get("id")]
         for r in rels:
-            v = validate(r, entries)
+            v = validate(r, entries, artist, series)
             rank = (v["tipo"] == "continua", v["tipo"] == "por_tema", v["cobertura_discos"], v["cobertura_temas"])
             if v["tipo"] and (best is None or rank > best["_rank"]):
                 best = {"_rank": rank, "playlist": c["id"], "titulo": d.get("title"),
@@ -168,12 +195,14 @@ def main() -> int:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     done = json.loads(out_path.read_text(encoding="utf-8")) if out_path.exists() and not args.rehacer else {}
     f = Fetcher(pause=1.5)
+    all_groups = json.loads((root / "musicbrainz" / "artistas.json").read_text(encoding="utf-8"))
+    series = series_words(g["titulo"] for a in all_groups for g in a["grupos"])
     for a in groups:
         for g in a["grupos"]:
-            if g["id"] in done and done[g["id"]].get("version") == 3:
+            if g["id"] in done and done[g["id"]].get("version") == VERSION:
                 continue
-            res = best_for(f, root, a["artista"], g, args.pausa)
-            done[g["id"]] = {"version": 3, "artista": a["artista"], "grupo": g, "youtube": res}
+            res = best_for(f, root, a["artista"], g, args.pausa, series=series)
+            done[g["id"]] = {"version": VERSION, "artista": a["artista"], "grupo": g, "youtube": res}
             tag = res["estado"] if res["estado"] != "ok" else (
                 f"{res['tipo']}, {res['horas']} h, temas {res['cobertura_temas']:.0%}, discos {res['cobertura_discos']:.0%} "
                 f"({res['titulo']} | {res['canal']})")

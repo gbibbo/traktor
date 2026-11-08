@@ -106,7 +106,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_triplet_evidence.py` | Unit tests de triplet_evidence (dedup, resolución, baselines) |
 | `test_tags_catalog.py` | Unit tests de tags.py y del catálogo recursivo (hash estable al escribir tags, dedup) |
 | `test_beatport.py` | Unit tests sin red de beatport.py y de las consultas de beatport_lookup (niveles A-D, alias de artista, sellos, convención de tags, caché, subgénero y género completo de la página de un tema) |
-| `test_dj_sets.py` | Emparejamiento de títulos de MusicBrainz con YouTube (también con el artista en otro alfabeto), límites por duración acumulada, novedad y picos, precisión/recuperación/F de cortes, resumen de MusicBrainz, lectura en bloques de `clap_blocks`, validación de playlists por duraciones y fechas, cortes de sets de la historia de Traktor y vectores y banco E1 de D7 |
+| `test_dj_sets.py` | Emparejamiento de títulos de MusicBrainz con YouTube (también con el artista en otro alfabeto), límites por duración acumulada, novedad y picos, precisión/recuperación/F de cortes, resumen de MusicBrainz, lectura en bloques de `clap_blocks`, validación de playlists por duraciones y fechas, cortes de sets de la historia de Traktor, vectores y banco E1 de D7, validación por título y límites falsos |
 | `test_genre_taxonomy.py` | Similitud por el árbol de familias, relaciones de género y de subgénero, subgénero faltante, matriz simétrica, validación de forma, `compare` con alias y la taxonomía en uso validada contra los géneros de Beatport |
 | `test_genre_model.py` | Unit tests de genre_model.py (gate, etiquetas confirmadas alineadas por track_uids, validación cruzada) |
 | `test_write_beatport_tags.py` | Unit tests de write_beatport_tags.py (reglas del plan, escritura real en MP3 ID3 2.3 y FLAC, hash estable, reversión) |
@@ -253,6 +253,7 @@ D7 y D8). Los datos van fuera de Git, en `--root` (en este PC, `D:\TRAKTOR ML da
 | `tools/dj_sets/sets_traktor.py` | D1: los sets de Gabriel desde la historia de Traktor (al aire = `PLAYEDPUBLIC` 1 y 2 min o más; set nuevo tras 20 min sin nada al aire; 8 temas o más), reconocidos en el índice por ruta o artista-título → `sets/d1.csv` |
 | `tools/dj_sets/piloto.py` | Análisis del piloto: identificación del original, separación en temas, trayectoria por tema y por bloque, y por hora del set → `piloto/resultados.json` (informe `docs/reports/piloto_trayectorias_digweed_2026-11-07.md`) |
 | `tools/dj_sets/trayectorias_d7.py` | Almacén de sets D7 (un tema por fila con el vector CLAP del tramo mezclado, sin los bordes) → `sets/d7_temas.csv` y `d7_clap.npz`; T11 (paso entre vecinos frente al azar, entre discos por DJ y época) y E1 dentro del disco y en todo D7 → `sets/d7_trayectorias.json` (informe `docs/reports/trayectorias_d7_2026-11-07.md`) |
+| `tools/dj_sets/validar_d7.py` | Revisa que cada archivo D7 sea la compilación: título de YouTube frente a MusicBrainz (decide) y novedad CLAP en los límites con desfase (dice si los límites sirven tema a tema) → `sets/d7_validacion.json`, que usa `trayectorias_d7.py` |
 | `config/dj_sets/artistas_spotify.txt` | Los 92 artistas que Gabriel sigue en Spotify, punto de partida para buscar sets y compilaciones |
 
 ## Taxonomía de géneros (`tools/genre_taxonomy/`)

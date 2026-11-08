@@ -4,7 +4,8 @@ PURPOSE: Baja el audio de las compilaciones mezcladas (D7) que youtube_buscar.py
          «por_tema»), a <root>/audio/d7_<grupo>/ con un manifest.json que dice qué disco o qué pista de
          MusicBrainz es cada archivo. Antes de bajar vuelve a listar la playlist y comprueba otra vez la
          duración de cada archivo (por si la playlist cambió de orden). Lo ya bajado no se repite. Después,
-         clap_blocks.py --carpeta d7_<grupo> saca los embeddings.
+         clap_blocks.py --carpeta d7_<grupo> saca los embeddings, y validar_d7.py revisa por título que cada
+         archivo sea la compilación (la versión 3 de la búsqueda solo miraba duraciones).
            python tools/dj_sets/bajar_d7.py --root D:/... [--limite N] [--artista "Sasha"]
 CHANGELOG:
   - 2026-11-07: Creación (escalar D7 después del piloto con Digweed).
@@ -81,7 +82,7 @@ def main() -> int:
     args = ap.parse_args()
     root = Path(args.root)
     found = json.loads((root / "youtube" / "busqueda.json").read_text(encoding="utf-8"))
-    groups = [(gid, g) for gid, g in found.items() if g.get("version") == 3 and g["youtube"].get("estado") == "ok"]
+    groups = [(gid, g) for gid, g in found.items() if g.get("version") in (3, 4) and g["youtube"].get("estado") == "ok"]
     if args.artista:
         wanted_artists = {a.casefold() for a in args.artista}
         groups = [(gid, g) for gid, g in groups if g["artista"].casefold() in wanted_artists]

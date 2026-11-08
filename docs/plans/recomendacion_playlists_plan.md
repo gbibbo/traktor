@@ -472,10 +472,23 @@ I5 entra con I3, para que D2 guarde la etiqueta de M3 desde la primera sesión.
    - HECHO 2026-11-07 (T11 y E1 con D7): `docs/reports/trayectorias_d7_2026-11-07.md`. Fueron 83
      compilaciones de Sasha, Carl Cox, Nick Warren y Hernán Cattáneo: 118 h, 1119 temas con vector en 94
      discos. Los vectores salen del audio mezclado: estas compilaciones no traen los originales.
-     - Dentro del disco, CLAP elige el siguiente el 26 % de las veces (17 % al azar). El siguiente
-       queda a 0,114 y uno al azar del mismo disco a 0,131.
-     - Lo que más agrupa es la compilación (sus discos a 0,034), no el DJ ni la época (0,098-0,118).
-       E1 sobre D7 se mide entonces dentro del disco.
+     - [REEMPLAZADO 2026-11-07 por la revalidación (`validar_d7.py`, el mismo informe): 53 de 96
+       archivos de discos enteros no eran la compilación, y sobre audio mezclado los límites falsos dan un
+       «siguiente» más parecido que los reales (24,0 % contra 35,6-46,4 %). Con pistas en archivos
+       separados (las «por_tema» validadas), CLAP no supera al azar: 17,9 % contra 15,3 %, 123
+       transiciones] Dentro del disco, CLAP elige el siguiente el 26 % de las veces (17 % al azar). El
+       siguiente queda a 0,114 y uno al azar del mismo disco a 0,131.
+     - [REEMPLAZADO 2026-11-07 por la revalidación: la compilación sigue agrupando (sus discos a 0,049;
+       14,5 % de los 30 primeros contra 3,0 % de los candidatos); DJ frente a época queda NO CONCLUYENTE
+       con 32 discos] Lo que más agrupa es la compilación (sus discos a 0,034), no el DJ ni la época
+       (0,098-0,118). E1 sobre D7 se mide entonces dentro del disco.
+     - Desde la revalidación:
+       - el «siguiente» (T13, E1 tema a tema) se mide con vectores de archivos separados: las «por_tema»
+         validadas, los originales y las compilaciones con originales sueltos;
+       - los discos enteros sirven para centroides, deriva a nivel de bloque y el pool «d7» con la
+         compilación controlada;
+       - toda medida de orden sobre audio mezclado va con el control de límites falsos;
+       - `youtube_buscar.py` versión 4 exige el título además de la duración.
      - Extrapolar el último paso empeora: T13 tiene que superar a CLAP dentro del disco con discos fuera
        de la muestra. [REFUTADO 2026-11-07 noche, adenda de la auditoría D7: parte del audio continua es otra
        mezcla, y con límites falsos el «siguiente» gana más que con los reales; el 26 % dentro del disco es

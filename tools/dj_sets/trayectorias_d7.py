@@ -21,17 +21,37 @@ PURPOSE: Trayectorias tema a tema en las compilaciones mezcladas (D7) y banco E1
               misma compilación). Los temas repetidos entre compilaciones cuentan una vez (identidad:
               artista principal y título sin paréntesis). Perfiles: azar, clap (el tema actual),
               historia (los últimos 3, con pesos 1, 0,5 y 0,25) y momento (el actual más el último paso).
-         Escribe <root>/sets/d7_temas.csv, d7_clap.npz (vectores por borde, alineados con «fila») y
-         d7_trayectorias.json.
+           6. Control de límites falsos (auditoría D7, P6): sobre el mismo audio de los discos enteros
+              validados, el banco dentro del disco con los límites reales de MusicBrainz, desplazados media
+              pista, en partes iguales y con cortes al azar. Si los falsos empatan o ganan, lo que se mide
+              es la continuidad de la mezcla, no la elección del DJ. Aparte, el banco solo con las «por_tema»
+              (cada pista es un archivo).
+           5. Comparación de bordes (auditoría D7, P1 y P2): CLAP dentro del disco con borde 0, 30, 60 y
+              90 s y con los 3 bloques más centrales, sobre las mismas transiciones y los mismos candidatos
+              (los temas que en todas las variantes tienen bloques enteros sin reducir el borde). Cada uno
+              con el azar exacto (media de 1 sobre los candidatos), la prueba apareada contra ese azar, los
+              discos que lo superan y la prueba de McNemar contra el borde de 60 s; y los perfiles dentro
+              del disco apareados contra CLAP.
+         Solo usa los archivos que validó tools/dj_sets/validar_d7.py (--validacion limites, por defecto:
+         son la compilación y sus límites sirven tema a tema; «titulo»: son la compilación; «todo»: sin
+         validar, que es como se corrió el 2026-11-07 antes de encontrar los discos ajenos).
+         Escribe <root>/sets/d7_temas.csv, d7_clap.npz (vectores por variante, alineados con «fila») y
+         d7_trayectorias.json (con «titulo» o «todo», con ese sufijo).
            python tools/dj_sets/trayectorias_d7.py --root "D:/TRAKTOR ML datos/dj_sets"
 CHANGELOG:
   - 2026-11-07: Creación.
+  - 2026-11-07: Solo los archivos validados (validar_d7.py): muchos discos enteros eran otra mezcla.
+  - 2026-11-07: Control de límites falsos y banco solo con las «por_tema» (auditoría D7, adenda, P6).
+  - 2026-11-07: Azar exacto, prueba apareada por disco y McNemar; bordes comparados con la misma cantidad
+                de bloques y sin borde reducido (propuestas P1 y P2 de
+                docs/reports/auditoria_trayectorias_d7_2026-11-07.md).
 """
 from __future__ import annotations
 
 import argparse
 import csv
 import json
+import math
 import statistics as st
 import sys
 from pathlib import Path
@@ -51,6 +71,7 @@ from tools.traktor_live import recomendador as rc  # noqa: E402
 DEFAULT_ROOT = REPO_ROOT / "artifacts" / "v4" / "dj_sets"
 BLOCK_S = 30.0
 EDGES = (30, 60, 90)
+VARIANTS = ("0", "30", "60", "90", "c3")     # bordes en s; «c3»: los 3 bloques enteros más centrales
 PROFILES = ("azar", "clap", "historia", "momento")
 
 
@@ -63,6 +84,26 @@ def select_blocks(starts: np.ndarray, dur: float, a: float, b: float, edge: floa
         return np.where(core)[0], False
     mid = (starts + ends) / 2
     return np.where((mid >= a) & (mid < b))[0], True
+
+
+def central_blocks(starts: np.ndarray, dur: float, a: float, b: float, n: int = 3) -> Tuple[np.ndarray, bool]:
+    """Los n bloques enteros dentro de [a, b] más cerca del centro del tema; si hay menos, se marca reducido
+    y se usan los que haya (o los que tienen el centro dentro)."""
+    ends = np.minimum(starts + BLOCK_S, dur)
+    full = np.where((starts >= a) & (ends <= b))[0]
+    if len(full) >= n:
+        mid = (a + b) / 2
+        order = np.argsort(np.abs((starts[full] + ends[full]) / 2 - mid), kind="stable")
+        return np.sort(full[order[:n]]), False
+    if len(full):
+        return full, True
+    return select_blocks(starts, dur, a, b, 0.0)[0], True
+
+
+def select_variant(starts: np.ndarray, dur: float, a: float, b: float, variant: str) -> Tuple[np.ndarray, bool]:
+    if variant == "c3":
+        return central_blocks(starts, dur, a, b)
+    return select_blocks(starts, dur, a, b, float(variant))
 
 
 def track_vector(blocks: np.ndarray, idx: np.ndarray) -> Optional[np.ndarray]:
@@ -93,10 +134,23 @@ def library_matcher(items: Sequence[rc.Item]):
     return match
 
 
-def build_store(root: Path, match) -> Tuple[List[Dict], Dict[int, np.ndarray]]:
-    """Filas del almacén D7 y sus vectores por borde ({borde: matriz con NaN donde no hay vector})."""
+def accepted(validation: Optional[Dict], folder: str, archivo: str, mode: str) -> bool:
+    """Si el archivo entra según validar_d7.py: «limites» (es la compilación y sus límites sirven tema a
+    tema; por defecto), «titulo» (es la compilación) o «todo» (sin validar, como antes del 2026-11-07)."""
+    if mode == "todo":
+        return True
+    f = ((validation or {}).get("compilaciones", {}).get(folder, {}).get("archivos", {})).get(archivo)
+    if f is None:
+        return False
+    return bool(f["valido"] and (mode == "titulo" or f.get("limites_usables")))
+
+
+def build_store(root: Path, match, validation: Optional[Dict] = None,
+                mode: str = "todo") -> Tuple[List[Dict], Dict[str, np.ndarray]]:
+    """Filas del almacén D7 y sus vectores por variante ({"60": matriz con NaN donde no hay vector}). Los
+    archivos que no pasan la validación quedan sin vector."""
     rows: List[Dict] = []
-    vecs: Dict[int, List[Optional[np.ndarray]]] = {e: [] for e in EDGES}
+    vecs: Dict[str, List[Optional[np.ndarray]]] = {v: [] for v in VARIANTS}
     for man_path in sorted((root / "audio").glob("d7_*/manifest.json")):
         man = json.loads(man_path.read_text(encoding="utf-8"))
         folder = man_path.parent.name
@@ -106,7 +160,7 @@ def build_store(root: Path, match) -> Tuple[List[Dict], Dict[int, np.ndarray]]:
         for disc in mb["media"]:
             n, tracks = disc["disco"], disc["pistas"]
             if man["forma"] == "continua":
-                e = next((x for x in files if x["disco"] == n), None)
+                e = next((x for x in files if x["disco"] == n and accepted(validation, folder, x["archivo"], mode)), None)
                 p = root / "clap" / folder / (Path(e["archivo"]).stem + ".npz") if e else None
                 z = np.load(p) if p is not None and p.exists() else None
                 spans = bounds([t["ms"] for t in tracks])
@@ -114,7 +168,8 @@ def build_store(root: Path, match) -> Tuple[List[Dict], Dict[int, np.ndarray]]:
             else:
                 per_track = []
                 for t in tracks:
-                    e = next((x for x in files if x["disco"] == n and x["pista"] == t["posicion"]), None)
+                    e = next((x for x in files if x["disco"] == n and x["pista"] == t["posicion"]
+                              and accepted(validation, folder, x["archivo"], mode)), None)
                     p = root / "clap" / folder / (Path(e["archivo"]).stem + ".npz") if e else None
                     if p is not None and p.exists():
                         z = np.load(p)
@@ -131,20 +186,91 @@ def build_store(root: Path, match) -> Tuple[List[Dict], Dict[int, np.ndarray]]:
                        "artista": t.get("artista") or "", "titulo": t.get("titulo") or "",
                        "recording": t.get("recording") or "", "forma": man["forma"],
                        "track_uid": match(t.get("artista") or "", t.get("titulo") or "")}
-                for edge in EDGES:
+                for var in VARIANTS:
                     v, nb, reduced = None, 0, False
                     if src is not None:
                         z, a, b = src
-                        idx, reduced = select_blocks(z["starts"], float(z["dur"]), a, b, edge)
+                        idx, reduced = select_variant(z["starts"], float(z["dur"]), a, b, var)
                         v, nb = track_vector(z["blocks"], idx), len(idx)
-                    vecs[edge].append(v)
-                    row[f"bloques_{edge}"] = nb
-                    row[f"borde_reducido_{edge}"] = int(reduced)
+                    vecs[var].append(v)
+                    row[f"bloques_{var}"] = nb
+                    row[f"borde_reducido_{var}"] = int(reduced)
                 rows.append(row)
                 start += dur
             pos_global += len(tracks)
     mats = {e: np.stack([v if v is not None else np.full(512, np.nan) for v in vs]) for e, vs in vecs.items()}
     return rows, mats
+
+
+FAKES = ("reales", "desplazados", "iguales", "azar")
+
+
+def fake_spans(real: Sequence[Tuple[float, float]], kind: str, rng: np.random.Generator) -> List[Tuple[float, float]]:
+    """Otra segmentación del mismo disco con la misma cantidad de tramos: los límites reales, desplazados
+    media pista (la media del disco), en partes iguales o con cortes al azar."""
+    n, total = len(real), real[-1][1]
+    if kind == "reales":
+        return list(real)
+    if kind == "iguales":
+        cuts = [total * k / n for k in range(1, n)]
+    elif kind == "desplazados":
+        half = total / n / 2
+        cuts = sorted(min(total - 1.0, b + half) for _, b in real[:-1])
+    else:
+        cuts = sorted(rng.uniform(0, total, n - 1).tolist())
+    edges = [0.0, *cuts, total]
+    return [(edges[i], edges[i + 1]) for i in range(n)]
+
+
+def fake_store(root: Path, validation: Optional[Dict], mode: str, kind: str, edge: float = 60.0,
+               seed: int = 0) -> Tuple[List[Dict], np.ndarray]:
+    """Filas y vectores de los discos enteros validados (3 tramos o más) con la segmentación `kind`."""
+    rng = np.random.default_rng(seed)
+    rows: List[Dict] = []
+    vecs: List[np.ndarray] = []
+    for man_path in sorted((root / "audio").glob("d7_*/manifest.json")):
+        man = json.loads(man_path.read_text(encoding="utf-8"))
+        if man["forma"] != "continua":
+            continue
+        folder = man_path.parent.name
+        mb = json.loads((root / "musicbrainz" / f"{man['release']}.json").read_text(encoding="utf-8"))
+        for disc in mb["media"]:
+            e = next((x for x in man["entradas"] if x.get("archivo") and x["disco"] == disc["disco"]
+                      and accepted(validation, folder, x["archivo"], mode)), None)
+            p = root / "clap" / folder / (Path(e["archivo"]).stem + ".npz") if e else None
+            if p is None or not p.exists() or len(disc["pistas"]) < 3:
+                continue
+            z = np.load(p)
+            spans = fake_spans(bounds([t["ms"] for t in disc["pistas"]]), kind, rng)
+            for i, (a, b) in enumerate(spans):
+                idx, _ = select_blocks(z["starts"], float(z["dur"]), a, b, edge)
+                v = track_vector(z["blocks"], idx)
+                rows.append({"fila": len(rows), "set_id": f"D7_{man['grupo'][:8]}_d{disc['disco']}",
+                             "grupo": man["grupo"], "posicion": i + 1, "artista": f"tramo {len(rows)}",
+                             "titulo": kind, "recording": ""})
+                vecs.append(v if v is not None else np.full(512, np.nan))
+    return rows, np.stack(vecs) if vecs else np.zeros((0, 512))
+
+
+def fake_control(root: Path, validation: Optional[Dict], mode: str, seeds: int = 3) -> Dict:
+    out = {}
+    for kind in FAKES:
+        runs = []
+        for sd in range(seeds if kind == "azar" else 1):
+            rows, V = fake_store(root, validation, mode, kind, seed=sd)
+            runs.append(public(e1(rows, V, "disco", "clap")))
+        r = runs[0]
+        out[kind] = {"transiciones": r["transiciones"], "sets": r["sets"],
+                     "acierto_1": [x["acierto_1"] for x in runs],
+                     "acierto_1_azar_exacto": r.get("acierto_1_azar_exacto"),
+                     "z": [x.get("contra_el_azar_exacto", {}).get("z") for x in runs]}
+    return out
+
+
+def only_forma(rows: Sequence[Dict], V: np.ndarray, forma: str) -> np.ndarray:
+    W = V.copy()
+    W[np.asarray([r["forma"] != forma for r in rows])] = np.nan
+    return W
 
 
 def sets_of(rows: Sequence[Dict]) -> Dict[str, List[int]]:
@@ -261,6 +387,23 @@ def bridge(rows: Sequence[Dict], V: np.ndarray, items: Sequence[rc.Item]) -> Dic
             "mediana_del_puesto": float(np.median(ranks)) if ranks else None}
 
 
+def binom_two_sided(k: int, n: int) -> float:
+    """p exacto de dos colas de k éxitos en n con probabilidad 1/2."""
+    if n == 0:
+        return 1.0
+    pmf = [math.comb(n, i) / 2 ** n for i in range(n + 1)]
+    return round(min(1.0, sum(q for q in pmf if q <= pmf[k] + 1e-15)), 4)
+
+
+def mcnemar(h1: Dict[Tuple[int, int], int], h2: Dict[Tuple[int, int], int]) -> Dict:
+    """Transiciones discordantes entre dos perfiles sobre las mismas transiciones (prueba exacta)."""
+    common = h1.keys() & h2.keys()
+    only1 = sum(1 for t in common if h1[t] and not h2[t])
+    only2 = sum(1 for t in common if h2[t] and not h1[t])
+    return {"transiciones": len(common), "solo_el_primero": only1, "solo_el_segundo": only2,
+            "p": binom_two_sided(only1, only1 + only2)}
+
+
 def query(V: np.ndarray, played: Sequence[int], profile: str) -> np.ndarray:
     a = V[played[-1]]
     if profile == "historia":
@@ -278,8 +421,11 @@ def e1(rows: Sequence[Dict], V: np.ndarray, pool: str, profile: str, seed: int =
     ids = [identity(r) for r in rows]
     grp = np.asarray([r["grupo"] for r in rows])
     allowed = np.where(ok)[0]
-    ranks, pcts, same_comp_share, base_share = [], [], [], []
+    ranks, pcts, same_comp_share, base_share, chance = [], [], [], [], []
     repeated = 0
+    hits1: Dict[Tuple[int, int], int] = {}
+    disc_obs: Dict[str, float] = {}
+    disc_exp: Dict[str, float] = {}
     per_set: Dict[str, List[int]] = {}
     per_set_1: Dict[str, List[int]] = {}
     for sid, f in sets_of(rows).items():
@@ -310,6 +456,10 @@ def e1(rows: Sequence[Dict], V: np.ndarray, pool: str, profile: str, seed: int =
             pcts.append((k - 1) / max(1, len(best) - 1))
             per_set.setdefault(sid, []).append(int(k <= 30))
             per_set_1.setdefault(sid, []).append(int(k <= 1))
+            hits1[(int(a), int(b))] = int(k <= 1)
+            chance.append(1.0 / len(best))
+            disc_obs[sid] = disc_obs.get(sid, 0.0) + int(k <= 1)
+            disc_exp[sid] = disc_exp.get(sid, 0.0) + 1.0 / len(best)
             if pool == "d7":
                 order = sorted(best.values(), reverse=True)[:30]
                 same_comp_share.append(np.mean([grp[x] == grp[b] for _, x in order]))
@@ -324,7 +474,50 @@ def e1(rows: Sequence[Dict], V: np.ndarray, pool: str, profile: str, seed: int =
     if same_comp_share:
         out["de_la_misma_compilacion_en_los_30"] = round(float(np.mean(same_comp_share)), 3)
         out["de_la_misma_compilacion_entre_los_candidatos"] = round(float(np.mean(base_share)), 4)
+    if chance:
+        pr = np.asarray(chance)
+        hits = sum(hits1.values())
+        above = sum(1 for d in disc_obs if disc_obs[d] > disc_exp[d])
+        below = sum(1 for d in disc_obs if disc_obs[d] < disc_exp[d])
+        out["acierto_1_azar_exacto"] = round(float(pr.mean()), 4)
+        out["contra_el_azar_exacto"] = {
+            "aciertos": hits, "esperados": round(float(pr.sum()), 1),
+            "z": round(float((hits - pr.sum()) / math.sqrt(max(1e-12, float((pr * (1 - pr)).sum())))), 2),
+            "discos_por_encima": above, "discos_por_debajo": below,
+            "p_discos": binom_two_sided(above, above + below)}
+    out["_aciertos_1"] = hits1
     return out
+
+
+NPZ_NAME = {"0": "borde_0", "30": "borde_30", "60": "borde_60", "90": "borde_90", "c3": "centro_3"}
+
+
+def public(r: Dict) -> Dict:
+    return {k: v for k, v in r.items() if not k.startswith("_")}
+
+
+def compare_variants(rows: Sequence[Dict], mats: Dict[str, np.ndarray]) -> Dict:
+    """CLAP dentro del disco con cada variante, sobre los mismos temas: los que tienen vector sin reducir
+    el borde en todas (auditoría D7, P2); McNemar contra el borde de 60 s."""
+    common = np.ones(len(rows), dtype=bool)
+    for var in VARIANTS:
+        common &= ~np.isnan(mats[var][:, 0])
+        common &= np.asarray([not r[f"borde_reducido_{var}"] for r in rows])
+    out = {"temas_comunes": int(common.sum())}
+    runs = {}
+    for var in VARIANTS:
+        V = mats[var].astype(np.float64).copy()
+        V[~common] = np.nan
+        runs[var] = e1(rows, V, "disco", "clap")
+    for var, r in runs.items():
+        out[var] = {**public(r), "contra_borde_60": mcnemar(r["_aciertos_1"], runs["60"]["_aciertos_1"])}
+    return out
+
+
+def paired_profiles(rows: Sequence[Dict], V: np.ndarray) -> Dict:
+    """Dentro del disco, cada perfil contra CLAP del tema actual en las mismas transiciones (P3)."""
+    base = e1(rows, V, "disco", "clap")["_aciertos_1"]
+    return {prof: mcnemar(e1(rows, V, "disco", prof)["_aciertos_1"], base) for prof in ("historia", "momento")}
 
 
 def main() -> int:
@@ -332,23 +525,31 @@ def main() -> int:
     ap.add_argument("--root", default=str(DEFAULT_ROOT))
     ap.add_argument("--indice", default=str(rc.DEFAULT_INDEX))
     ap.add_argument("--semillas", type=int, default=5, help="Semillas para el perfil azar")
+    ap.add_argument("--validacion", choices=["limites", "titulo", "todo"], default="limites",
+                    help="Qué archivos entran según sets/d7_validacion.json (validar_d7.py)")
     args = ap.parse_args()
     root = Path(args.root)
     _, items = rc.load_index(Path(args.indice))
     items = [it for it in items if it.vec]
-    rows, mats = build_store(root, library_matcher(items))
     dest = root / "sets"
+    vpath = dest / "d7_validacion.json"
+    if args.validacion != "todo" and not vpath.exists():
+        print(f"[ERROR] Falta {vpath}: correr antes tools/dj_sets/validar_d7.py")
+        return 1
+    validation = json.loads(vpath.read_text(encoding="utf-8")) if vpath.exists() else None
+    rows, mats = build_store(root, library_matcher(items), validation, args.validacion)
+    suffix = "" if args.validacion == "limites" else f"_{args.validacion}"
     dest.mkdir(parents=True, exist_ok=True)
-    with (dest / "d7_temas.csv").open("w", encoding="utf-8", newline="") as fh:
+    with (dest / f"d7_temas{suffix}.csv").open("w", encoding="utf-8", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=list(rows[0]))
         w.writeheader()
         w.writerows(rows)
-    np.savez_compressed(dest / "d7_clap.npz", **{f"borde_{e}": m.astype(np.float32) for e, m in mats.items()})
+    np.savez_compressed(dest / f"d7_clap{suffix}.npz", **{NPZ_NAME[v]: m.astype(np.float32) for v, m in mats.items()})
     lib = np.asarray([it.vec for it in items], dtype=np.float64)
-    res = {"temas": len(rows), "sets": len(sets_of(rows)), "compilaciones": len({r["grupo"] for r in rows}),
+    res = {"validacion": args.validacion, "temas": len(rows), "sets": len(sets_of(rows)), "compilaciones": len({r["grupo"] for r in rows}),
            "temas_con_track_uid": sum(1 for r in rows if r["track_uid"]), "por_borde": {}}
-    for edge, V in mats.items():
-        V = V.astype(np.float64)
+    for edge in (str(e) for e in EDGES):
+        V = mats[edge].astype(np.float64)
         rng = np.random.default_rng(0)
         block = {"trayectoria": trajectory(rows, V, lib, rng), "entre_discos": between_sets(rows, V),
                  "puente_biblioteca": bridge(rows, V, items),
@@ -356,12 +557,13 @@ def main() -> int:
         for pool in ("disco", "d7"):
             for prof in PROFILES:
                 if prof == "azar":
-                    runs = [e1(rows, V, pool, prof, seed=s) for s in range(args.semillas)]
+                    runs = [public(e1(rows, V, pool, prof, seed=s)) for s in range(args.semillas)]
                     keys = [k for k, v in runs[0].items() if isinstance(v, float)]
                     block["e1"][f"{pool}/{prof}"] = {**runs[0], **{k: round(float(np.mean([x[k] for x in runs])), 4) for k in keys}}
                 else:
-                    block["e1"][f"{pool}/{prof}"] = e1(rows, V, pool, prof)
-        res["por_borde"][str(edge)] = block
+                    block["e1"][f"{pool}/{prof}"] = public(e1(rows, V, pool, prof))
+        block["perfiles_apareados_en_el_disco"] = paired_profiles(rows, V)
+        res["por_borde"][edge] = block
         t = block["trayectoria"]
         print(f"borde {edge} s: vecinos {t['vecinos'].get('mediana')} | a dos {t['a_dos_puestos'].get('mediana')} | "
               f"azar disco {t['azar_mismo_disco_no_vecinos'].get('mediana')} | otro dj {t['azar_otro_dj'].get('mediana')}",
@@ -369,11 +571,30 @@ def main() -> int:
         for k, v in block["e1"].items():
             print(f"  {k}: acierto_1 {v['acierto_1']} acierto_30 {v['acierto_30']} rr {v['rr_medio']} "
                   f"pct {v['percentil_mediano']}", flush=True)
-    (dest / "d7_trayectorias.json").write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
-    print(f"[OK] {res['temas']} temas en {res['sets']} sets ({res['compilaciones']} compilaciones), "
+        print(f"  apareados en el disco: {block['perfiles_apareados_en_el_disco']}", flush=True)
+    res["control_limites_falsos"] = fake_control(root, validation, args.validacion)
+    for kind, v in res["control_limites_falsos"].items():
+        print(f"  límites {kind}: acierto_1 {v['acierto_1']} (azar {v['acierto_1_azar_exacto']}, z {v['z']}, "
+              f"{v['transiciones']} transiciones en {v['sets']} discos)", flush=True)
+    V60 = mats["60"].astype(np.float64)
+    res["solo_por_tema"] = {pool: public(e1(rows, only_forma(rows, V60, "por_tema"), pool, "clap"))
+                            for pool in ("disco", "d7")}
+    pt = res["solo_por_tema"]["disco"]
+    print(f"  solo por_tema, dentro del disco: acierto_1 {pt['acierto_1']} (azar {pt.get('acierto_1_azar_exacto')}, "
+          f"{pt.get('contra_el_azar_exacto')}), {pt['transiciones']} transiciones", flush=True)
+    res["comparacion_bordes"] = compare_variants(rows, mats)
+    c = res["comparacion_bordes"]
+    print(f"comparación de bordes ({c['temas_comunes']} temas comunes):", flush=True)
+    for var in VARIANTS:
+        v = c[var]
+        print(f"  {var}: acierto_1 {v['acierto_1']} (azar {v.get('acierto_1_azar_exacto')}, "
+              f"z {v.get('contra_el_azar_exacto', {}).get('z')}) vs 60: {v['contra_borde_60']}", flush=True)
+    (dest / f"d7_trayectorias{suffix}.json").write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
+    n_vec = int((~np.isnan(mats["60"][:, 0])).sum())
+    print(f"[OK] validación «{args.validacion}»: {n_vec} temas con vector; {res['temas']} temas en {res['sets']} sets "
+          f"({res['compilaciones']} compilaciones), "
           f"{res['temas_con_track_uid']} en la biblioteca -> {dest}")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

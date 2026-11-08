@@ -52,7 +52,7 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    fases 3 a 5).
 5. Recomendación en vivo (DECISIONS 11-06 p. 7-11, 11-07): parecidos (`recomendador.py`, D#0+D0);
    plan de dirección `docs/plans/recomendacion_playlists_plan.md` (auditado). Hechos: piloto y
-   T11/E1 en 83 compilaciones (`tools/dj_sets/`). GABRIEL: correo a 1001Tracklists. TIV aparte.
+   T11/E1 en D7 validado (`tools/dj_sets/`). GABRIEL: correo a 1001Tracklists. TIV aparte.
 
 ## RUN RECIPES
 

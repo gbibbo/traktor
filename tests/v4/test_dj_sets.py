@@ -171,3 +171,67 @@ def test_d7_bench_counts_repeated_tracks_once_and_the_disc_pool_is_what_is_left(
     assert r["transiciones"] == 3 and r["acierto_1"] >= 2 / 3
     r = e1(rows, V, "disco", "clap")
     assert r["transiciones"] == 1        # con un solo candidato (último de cada disco) no se consulta
+
+
+def test_d7_central_blocks_exact_chance_and_paired_tests():
+    from tools.dj_sets.trayectorias_d7 import binom_two_sided, central_blocks, e1, mcnemar
+    starts = np.arange(0, 600, 30.0)
+    idx, reduced = central_blocks(starts, 600.0, 0.0, 600.0)
+    assert not reduced and list(starts[idx]) == [240.0, 270.0, 300.0]   # centro en 300 s
+    idx, reduced = central_blocks(starts, 600.0, 100.0, 170.0)         # cabe un solo bloque entero
+    assert reduced and list(starts[idx]) == [120.0]
+    assert binom_two_sided(5, 10) == 1.0 and binom_two_sided(0, 10) < 0.01
+    m = mcnemar({(0, 1): 1, (1, 2): 0, (2, 3): 1}, {(0, 1): 0, (1, 2): 0, (2, 3): 1})
+    assert (m["solo_el_primero"], m["solo_el_segundo"], m["transiciones"]) == (1, 0, 3)
+    rows = [{"fila": f, "set_id": "s1", "grupo": "g", "posicion": f + 1, "artista": f"A{f}", "titulo": "t",
+             "recording": ""} for f in range(4)]
+    V = np.eye(4)
+    r = e1(rows, V, "disco", "clap")
+    # dos consultas (3 y 2 candidatos): azar exacto (1/3 + 1/2) / 2
+    assert r["transiciones"] == 2 and abs(r["acierto_1_azar_exacto"] - (1 / 3 + 1 / 2) / 2) < 1e-3
+    assert r["contra_el_azar_exacto"]["esperados"] == round(1 / 3 + 1 / 2, 1)
+
+
+def test_d7_title_check_rejects_other_mixes_of_the_same_duration():
+    from tools.dj_sets.validar_d7 import clean, title_check
+    series = {"global", "underground", "renaissance", "masters", "balance"}
+    ok = [("Nick Warren", "Global Underground 030: Nick Warren in Paris", 1, 2, "Global Underground 030: Paris (CD1)"),
+          ("Carl Cox", "Essential Selection ’98", 2, 2, "Essential Selection '98 (CD2)"),
+          ("Sasha", "Bedroom Mix October 1989", 1, 1, "Sasha.Bedroom.Mix.Oct.89.A"),
+          ("Nick Warren", "Global Underground 024: Nick Warren in Reykjavik", 2, 2,
+           "Nick Warren - Global Underground Reykjavik CD 2 FULL")]
+    bad = [("Sasha", "Global Underground 013: Sasha in Ibiza", 2, 2, "John Digweed - GU 019 Los Angeles CD1"),
+           ("Nick Warren", "Global Underground 035: Nick Warren in Lima", 2, 2,
+            "Nick Warren - Global Underground Reykjavik CD 2 FULL"),
+           ("Nick Warren", "Global Underground 008: Nick Warren in Brazil", 2, 2,
+            "Nick Warren -- Global Underground 008: Brazil (CD1)"),
+           ("Nick Warren", "Renaissance: The Masters Series, Part 18", 2, 2,
+            "Nick Warren - Renaissance - The Masters Series (Part 19) FULL HD"),
+           ("Carl Cox", "Pure Intec 3", 1, 1, "Mad Mickey 2 After Workout (Best EDM Minimal Party Mix)")]
+    for case in ok:
+        assert title_check(*case, series)[0], case
+    for case in bad:
+        assert not title_check(*case, series)[0], case
+    assert clean("Carl Cox - F.A.C.T. CD-2") == "carl cox fact cd 2"
+
+
+def test_youtube_validation_v4_needs_the_title_besides_the_duration():
+    from tools.dj_sets.youtube_buscar import validate
+    release = {"titulo": "Global Underground 030: Nick Warren in Paris",
+               "media": [{"disco": 1, "pistas": [{"ms": 2400000, "posicion": 1, "artista": "A", "titulo": "x"},
+                                                 {"ms": 2100000, "posicion": 2, "artista": "B", "titulo": "y"}]}]}
+    entries = [{"id": "a", "duration": 4501, "title": "Sasha - Global Underground 013: Ibiza (CD1)"},
+               {"id": "b", "duration": 4506, "title": "Global Underground 030: Paris (CD1)"}]
+    assert validate(release, entries)["archivo_por_disco"] == [0]          # solo duración: gana el ajeno
+    assert validate(release, entries, "Nick Warren", {"global", "underground"})["archivo_por_disco"] == [1]
+
+
+def test_d7_fake_segmentations_cover_the_disc():
+    from tools.dj_sets.trayectorias_d7 import fake_spans
+    rng = np.random.default_rng(0)
+    real = [(0.0, 300.0), (300.0, 700.0), (700.0, 1000.0)]
+    for kind in ("reales", "desplazados", "iguales", "azar"):
+        sp = fake_spans(real, kind, rng)
+        assert len(sp) == 3 and abs(sum(b - a for a, b in sp) - 1000.0) < 1e-6, kind
+    assert fake_spans(real, "iguales", rng)[1] == (1000 / 3, 2000 / 3)
+    assert fake_spans(real, "desplazados", rng)[0][0] == 0.0               # el primero arranca en 0

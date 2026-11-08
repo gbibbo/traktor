@@ -6,17 +6,152 @@ Datos fuera de Git, en `D:\TRAKTOR ML datos\dj_sets\sets\` (`d7_temas.csv`, `d7_
 `d7_trayectorias.json`).
 Auditado el 2026-11-07 (skill `auditar`): `docs/reports/auditoria_trayectorias_d7_2026-11-07.md`. Las marcas
 «(auditoría D7)» son suyas.
+Adenda de la auditoría (noche): las marcas «(auditoría D7)» sobre el top-1 dentro del disco y sobre los
+límites quedan refutadas en `auditoria_trayectorias_d7_2026-11-07.md`:
+- sobre el mismo audio, límites falsos (desplazados, iguales, al azar) dan un «siguiente» más parecido
+  (34,6-41,5 %) que los reales (27,1 %);
+- el 26 % es continuidad de la mezcla, no elección del DJ;
+- la verificación de los límites era circular;
+- con pistas como archivos separados (por_tema), CLAP no supera al azar: 18,4 frente a 17,9 %.
 
-## Veredicto
+## Revalidación: solo los archivos que son la compilación (2026-11-07, después de la auditoría)
+
+**Qué pasó.** Muchos discos enteros («continua») eran otra mezcla. `youtube_buscar.py` daba por buena una
+playlist si la mitad de los discos tenía un archivo de la misma duración (±8 s). En una playlist de
+colección, con decenas de sets de unos 75 minutos, eso pasa por azar. Algunos ejemplos:
+- el disco 2 de Sasha «GU013 Ibiza» era «John Digweed - GU 019 Los Angeles CD1»;
+- el disco 1 de Nick Warren «GU035 Lima» era «GU 018 Amsterdam (CD2)»;
+- Carl Cox «at the Roundhouse» era «EXIT 2023 Mind Against»;
+- «Pure Intec 3» era «Mad Mickey 2 After Workout»;
+- en «GU008 Brazil», los dos discos duran lo mismo y quedaron cruzados.
+
+`tools/dj_sets/validar_d7.py` revisa cada archivo con dos pruebas:
+- **el título**, que decide si el archivo es la compilación;
+- **los límites con el audio**, que dicen si se pueden usar para separar los temas.
+
+Resultado:
+- de los 96 archivos de discos enteros, 43 son la compilación y 35 tienen límites usables;
+- de las 12 compilaciones bajadas tema por tema, 7 pasan.
+
+`trayectorias_d7.py` usa ahora solo lo validado. Con límites usables quedan 531 temas con vector y 440
+transiciones en 32 discos. Aceptando todo lo que pasa el título (`--validacion titulo`), 634 temas y 526
+transiciones en 40 discos.
+
+### Veredicto nuevo
+
+**Con audio mezclado, D7 no mide qué tema elige el DJ después.** Sobre el mismo audio de los discos
+enteros validados (24 discos con límites usables, unas 317 transiciones), el más parecido es el tramo
+siguiente:
+
+| Límites | Acierto | Azar exacto | z |
+| :--- | --: | --: | --: |
+| Reales (MusicBrainz) | 24,0 % | 16,7 % | 3,7 |
+| Desplazados media pista | 42,4 % | 16,7 % | 13,0 |
+| En partes iguales | 35,6 % | 16,7 % | 9,6 |
+| Al azar (3 semillas) | 40,3-46,4 % | 17,5 % | 11,0-13,4 |
+
+- Los límites falsos ganan más que los reales: lo que se mide es la continuidad de la mezcla. Con límites
+  falsos, dos tramos vecinos suelen ser partes del mismo tema.
+- Lo mismo con todo lo que pasa el título: reales 25,7 %; falsos 36,9-45,5 %.
+- Coincide con la adenda de la auditoría, que lo midió sobre los 76 discos sin validar.
+
+**Con las pistas en archivos separados, CLAP no supera al azar.** Solo las «por_tema» validadas: 17,9 %
+frente a 15,3 % (22 aciertos frente a 18,9 esperados, z = 0,8; 8 discos, 123 transiciones). Es poco, pero
+coincide con el piloto con originales: 0,16 frente a 0,18 entre vecinos y al azar del mismo disco.
+
+[REEMPLAZADO 2026-11-07 por el control de límites falsos, arriba: estos números son ciertos, pero miden la
+continuidad de la mezcla y no la elección del DJ] **CLAP dentro del disco sigue superando al azar, pero
+menos de lo que se informó.**
+- Con borde 60: 22,5 % de aciertos frente a 16,5 % de azar exacto.
+- Prueba apareada: 99 aciertos frente a 72,7 esperados (z = 3,6). Supera al azar en 22 de 32 discos
+  (p = 0,05).
+- Aceptando todo lo que pasa el título: 24,0 % frente a 17,0 % (z = 4,6; 29 de 40 discos, p = 0,006).
+
+**La ventaja sale casi toda del audio cerca de las transiciones** (con los límites reales; el control de
+arriba dice que ni eso es la elección del DJ). Comparación sobre los mismos 388 temas
+y las mismas 242 transiciones (azar 20,0 %):
+
+| Bloques usados | Acierto | z contra el azar |
+| :--- | --: | --: |
+| Borde 0 | 30,2 % | 4,2 |
+| Borde 30 | 27,3 % | 3,0 |
+| Borde 60 | 23,6 % | 1,5 |
+| Borde 90 | 23,1 % | 1,3 |
+| Los 3 bloques centrales | 20,7 % | 0,3 |
+
+- Bordes 0 y 30 superan a borde 60 en la prueba apareada (p = 0,004 y 0,02).
+- Aceptando todo lo que pasa el título (483 temas, 316 transiciones), los 3 bloques centrales dan 23,7 %
+  (z = 1,7; 22 de 40 discos por encima, p = 0,64).
+- Lectura (INFERENCIA): el centro de un tema mezclado casi no dice cuál viene después; lo que lo dice es
+  lo que suena junto al cambio.
+- Con audio mezclado no se puede separar la mezcla en sí (las dos pistas suenan a la vez) de que el DJ
+  elija un tema cuyo comienzo combina con el final del anterior. Eso se decide con originales, en los
+  sets de Gabriel (D1): el CLAP del tema entero contra el del final del actual frente al comienzo del
+  candidato.
+
+**La compilación sigue agrupando.**
+- Entre los 30 primeros de todo D7, el 14,5 % es de la misma compilación, contra el 3,0 % entre los
+  candidatos (4,8 veces).
+- Los dos discos de una misma compilación quedan a 0,049 (8 pares).
+- **DJ frente a época: NO CONCLUYENTE.** Con 32 discos no hay un orden:
+  - mismo DJ: 0,108, 0,071 y 0,101 con 0-1, 2-5 y 6 años o más de diferencia (n = 15, 32 y 94 pares);
+  - otro DJ: 0,080, 0,101 y 0,108 (n = 37, 97 y 213).
+
+**Los perfiles siguen sin distinguirse de CLAP dentro del disco.**
+- «Historia»: 21 frente a 18 discordantes, p = 0,75.
+- «Momento»: 28 frente a 29, p = 1,0.
+- Con todo D7 como pool, «momento» empeora: 31,8 % frente a 44,7 % entre los 30 primeros.
+
+**Composición.** De los 531 temas, Carl Cox aporta 299 (17 discos), Nick Warren 100, Sasha 81 y Cattáneo
+51. Lo de D7 habla sobre todo de Carl Cox.
+
+**Puente con la biblioteca.** Quedan 6 temas en común con vector: NO CONCLUYENTE.
+
+| Afirmación | Etiqueta | Evidencia |
+|---|---|---|
+| 53 de los 96 archivos de discos enteros no son la compilación, y 5 de las 12 compilaciones tema por tema tienen títulos que no coinciden con las pistas | EVIDENCIA OBSERVADA | `sets/d7_validacion.json`. Ejemplos en el texto. En las tema por tema: «Mind Over Machine» 0/19, «Never Say Never» 0/12, «Invol2ver» 2/9 |
+| La prueba de los límites separa poco | EVIDENCIA OBSERVADA | p mediano 0,31 en los que pasan el título y 0,52 en los rechazados. Hay discos con el título correcto y p de 0,95 a 1,0 («Communicate» disco 2, «Funky Deep ’n’ Tribal»). Por eso decide el título y los límites solo se usan cuando p ≤ 0,5 |
+| Dentro del disco, CLAP supera al azar [REEMPLAZADO 2026-11-07 por el control de límites falsos: es continuidad de la mezcla, no elección del DJ] | EVIDENCIA OBSERVADA | `d7_trayectorias.json`, `e1/disco/clap`, borde 60: 99 frente a 72,7 esperados, z = 3,6. `d7_trayectorias_titulo.json`: 126 frente a 89,2, z = 4,6 |
+| Esa ventaja está en el audio cerca de los cambios | EVIDENCIA OBSERVADA | `comparacion_bordes`, sobre los mismos temas y candidatos: borde 0 30,2 %, 3 bloques centrales 20,7 %, azar 20,0 %. McNemar borde 0 frente a 60: 22 contra 6, p = 0,004 |
+| Que eso venga de la mezcla o de que el DJ elige comienzos que combinan con el final | HIPÓTESIS | Se decide en D1 con los originales: CLAP del final del tema actual frente al comienzo del candidato, contra el tema entero, en E1. Con audio mezclado no se decide |
+| Sobre audio mezclado, límites falsos dan un «siguiente» más parecido que los reales | EVIDENCIA OBSERVADA | `control_limites_falsos`, borde 60, discos validados: reales 24,0 %, desplazados 42,4 %, iguales 35,6 %, al azar 40,3-46,4 % |
+| Con pistas en archivos separados, CLAP no supera al azar dentro del disco | NO CONCLUYENTE | `solo_por_tema`: 17,9 % frente a 15,3 %, z = 0,8, con 8 discos y 123 transiciones. No alcanza para descartar un efecto chico |
+| Vecinos 0,133, a dos puestos 0,142, al azar del mismo disco 0,143 (borde 60) | EVIDENCIA OBSERVADA | `trayectoria`; n = 483, 448 y 1162. Solo el vecino inmediato queda más cerca |
+| La misma compilación agrupa: 4,8 veces más temas suyos entre los 30 primeros que entre los candidatos | EVIDENCIA OBSERVADA | `e1/d7/clap`: 14,5 % contra 3,05 % |
+
+### Qué cambia (además de «Qué cambia en el plan», abajo)
+
+1. **El banco D7 se corre solo con lo validado.** Es el valor por defecto de `trayectorias_d7.py`.
+   `youtube_buscar.py` (versión 4) ya exige el título además de la duración.
+2. **Toda medida de orden sobre audio mezclado va con el control de límites falsos** (auditoría,
+   adenda P6). Si los falsos empatan o ganan, lo medido es la continuidad de la mezcla.
+3. **El «siguiente» (T13 y E1 tema a tema) se mide con vectores por tema de archivos separados:**
+   - las «por_tema» validadas;
+   - los originales de la biblioteca;
+   - compilaciones que traigan los originales sueltos.
+
+   Los discos enteros validados sirven para otras cosas: centroides de compilación, deriva por hora a
+   nivel de bloque (como D8) y el pool «d7» con la compilación controlada.
+4. **Línea nueva: comienzos y finales.** Medir en D1, con originales, si el final del tema actual y el
+   comienzo del candidato predicen mejor que el tema entero.
+
+## Veredicto de la primera corrida (sin validar los archivos)
+
+[REEMPLAZADO 2026-11-07 por la revalidación de arriba: este veredicto y la tabla «Datos» se midieron con
+los 96 archivos de discos enteros, y 53 no eran la compilación. Los números válidos son los de arriba.]
 
 **Dentro de un disco, CLAP ayuda a elegir el tema siguiente, pero poco.** Entre los temas que quedan
 del disco, el más parecido al actual es el que el DJ puso después el 26-27 % de las veces. Al azar es
 el 17 %, y los intervalos por remuestreo de discos no se tocan. El tema siguiente queda apenas más cerca
 que uno al azar del mismo disco: 0,114 contra 0,131 de distancia coseno, con el de dos puestos más allá
-en el medio (0,124). Esa ventaja no cambia al sacar 30, 60 o 90 s de cada borde. La trayectoria es
+en el medio (0,124). [REFUTADO 2026-11-07 por la auditoría D7 y la revalidación: con los mismos temas, la
+ventaja cae al agrandar el borde y casi desaparece con los 3 bloques centrales] Esa ventaja no cambia al
+sacar 30, 60 o 90 s de cada borde. La trayectoria es
 entonces una deriva lenta dentro de una zona, no una sucesión de saltos.
 
-**La señal más grande de D7 es la compilación misma, no el DJ ni la época.**
+**La señal más grande de D7 es la compilación misma, no el DJ ni la época.** [REEMPLAZADO 2026-11-07
+por la revalidación: la compilación sigue agrupando, pero DJ frente a época queda NO CONCLUYENTE con los 32
+discos validados]
 - Distancia entre centroides de discos: los dos discos de una misma compilación quedan a 0,034. Dos
   compilaciones del mismo DJ con 0-1 años de diferencia quedan a 0,100, y dos de distinto DJ con 0-1
   años, a 0,098.
@@ -67,7 +202,7 @@ con la biblioteca: solo 14 de los 1572 temas coinciden por artista y título.
 | D7 no informa sobre la parte después de la segunda hora | NO CONCLUYENTE | Los discos duran 75 min de media y cada uno es una mezcla aparte. Hace falta D8 (sets crudos de 3 h o más) o los sets largos de Gabriel |
 | Puente con la biblioteca: 12 temas en común con vector, original de la biblioteca primero en 2 (mediana del puesto 66 de 1760) | NO CONCLUYENTE | `puente_biblioteca`, borde 60. n = 12 es muy poco. El piloto, con más temas en común, encontró el original en el 79-86 % por tema dentro del disco |
 | 16 transiciones se saltaron porque el siguiente ya había sonado en el disco con el mismo nombre (otra versión) | EVIDENCIA OBSERVADA | `e1`, `repetidas_saltadas`. Los temas repetidos entre compilaciones cuentan una vez (artista principal y título sin paréntesis) |
-| (auditoría D7) Los límites de MusicBrainz caen donde cambia el audio | EVIDENCIA OBSERVADA | En los 76 discos «continua» con audio, la suma de las duraciones de MusicBrainz y la del archivo difieren 1,3 s de mediana y 8,8 s como máximo; la novedad CLAP en el bloque del límite está en el percentil 0,77 de la del disco (819 límites) |
+| (auditoría D7) Los límites de MusicBrainz caen donde cambia el audio [REEMPLAZADO 2026-11-07 por `validar_d7.py`: el percentil 0,77 promedia discos de la compilación con discos ajenos; disco por disco, 53 de 96 archivos no son la compilación] | EVIDENCIA OBSERVADA | En los 76 discos «continua» con audio, la suma de las duraciones de MusicBrainz y la del archivo difieren 1,3 s de mediana y 8,8 s como máximo; la novedad CLAP en el bloque del límite está en el percentil 0,77 de la del disco (819 límites) |
 | (auditoría D7) Dentro del disco, el exceso de aciertos va entero al tema inmediato: el más parecido es el siguiente el 25,9 % (azar 17,4 %) y el de dos puestos el 16,7 % (azar 17,2 %); la distancia crece despacio con la separación (0,124 a dos puestos, 0,144 a diez o más) | EVIDENCIA OBSERVADA | `d7_clap.npz` borde 60; 920 transiciones y 7478 pares |
 | (auditoría D7) «Historia» tampoco se distingue de CLAP dentro del disco | EVIDENCIA OBSERVADA | 56 frente a 44 discordantes, p = 0,27 |
 
