@@ -39,11 +39,20 @@ CHANGELOG:
   - 2026-11-07: Opción "clave_sin_tonalidad": el valor del componente clave para un candidato sin
                 tonalidad cuando el principal la tiene (por defecto None: no cuenta, y entonces sin filtro
                 esos temas se puntúan solo por CLAP y se cuelan entre los primeros; auditoría de E1).
+  - 2026-11-07: Opciones "clave_tabla" (el valor del componente clave por paso en la rueda Camelot,
+                harmonic.wheel_step, aprendido de sets: plan, P7; "?" para los candidatos sin tonalidad,
+                "otro" para los pasos que falten) y "clap_historia" / "clap_historia_n" (la «zona de la
+                noche»: la consulta CLAP suma el centro de lo tocado, o de los últimos n, con ese peso).
+                Por defecto, apagadas.
+  - 2026-11-07: Componente "extremos": el final del tema principal frente al comienzo del candidato
+                (Item.inicio y Item.fin, de tools/dj_sets/clap_extremos.py; opción "extremos_sentido" para el
+                control inverso). Con CLAP en percentil, también en percentil. Peso 0 por defecto.
 """
 from __future__ import annotations
 
 import base64
 import json
+import math
 import operator
 import re
 import sys
@@ -70,10 +79,13 @@ DEFAULT_INDEX = te.DEFAULT_LOG_DIR / "indice_recomendacion.json"
 DEFAULT_N = 30
 BPM_RANGE = 20.0
 KEY_MIN = 0.60                        # corte aprobado (HARMONIC_COMPATIBILITY.md)
-COMPONENTS = ("clap", "bpm", "clave", "genero", "tiv")
-DEFAULT_WEIGHTS: Dict[str, float] = {"clap": 1.0, "bpm": 0.0, "clave": 0.0, "genero": 0.0, "tiv": 0.0}
+COMPONENTS = ("clap", "bpm", "clave", "genero", "tiv", "extremos")
+DEFAULT_WEIGHTS: Dict[str, float] = {"clap": 1.0, "bpm": 0.0, "clave": 0.0, "genero": 0.0, "tiv": 0.0,
+                                     "extremos": 0.0}
 DEFAULT_OPTIONS: Dict[str, object] = {"filtro_clave": True, "clave_penalizacion": harmonic.SHIFT_PENALTY,
-                                      "clap_escala": "crudo", "clave_sin_tonalidad": None}
+                                      "clap_escala": "crudo", "clave_sin_tonalidad": None,
+                                      "clave_tabla": None, "clap_historia": 0.0, "clap_historia_n": 0,
+                                      "extremos_sentido": "fin_inicio"}
 MAJOR_CAMELOT = [8, 3, 10, 5, 12, 7, 2, 9, 4, 11, 6, 1]     # índice = semitono desde Do
 MINOR_CAMELOT = [5, 12, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10]
 _KEY_TEXT = re.compile(r"^\s*(\d{1,2})\s*([dmABab])\b")
@@ -128,6 +140,8 @@ class Item:
     key: str                          # Camelot o "?"
     vec: Optional[List[float]]        # embedding normalizado
     genre: Optional[str] = None       # género de Beatport (o del clasificador)
+    inicio: Optional[List[float]] = None   # CLAP normalizado del comienzo (tools/dj_sets/clap_extremos.py)
+    fin: Optional[List[float]] = None      # y del final
     subgenre: Optional[str] = None    # subgénero de Beatport (pocos temas lo tienen)
     bpm_src: str = "tags"
     key_src: str = "tags"
@@ -194,6 +208,28 @@ def options_from(data) -> Dict[str, object]:
                 out["clave_sin_tonalidad"] = float(v)
         except (TypeError, ValueError):
             pass
+        table = data.get("clave_tabla")
+        if isinstance(table, dict):
+            try:
+                clean = {str(k): float(v) for k, v in table.items()}
+                if clean and all(0.0 <= v <= 1.0 for v in clean.values()):
+                    out["clave_tabla"] = clean
+            except (TypeError, ValueError):
+                pass
+        try:
+            v = float(data.get("clap_historia"))
+            if 0.0 <= v <= 10.0:
+                out["clap_historia"] = v
+        except (TypeError, ValueError):
+            pass
+        try:
+            v = int(data.get("clap_historia_n"))
+            if v >= 0:
+                out["clap_historia_n"] = v
+        except (TypeError, ValueError):
+            pass
+        if data.get("extremos_sentido") in ("fin_inicio", "inicio_fin"):
+            out["extremos_sentido"] = data["extremos_sentido"]
     return out
 
 
@@ -239,6 +275,18 @@ def package_root(items: List[Item], paths: Iterable[str]) -> Optional[str]:
 
 def dot(a: List[float], b: List[float]) -> float:
     return sum(map(operator.mul, a, b))
+
+
+def night_query(current: List[float], played: List[List[float]], weight: float) -> List[float]:
+    """La consulta CLAP con la «zona de la noche»: el tema actual más `weight` veces el centro (normalizado)
+    de lo tocado. Sin peso o sin nada tocado, el tema actual."""
+    if weight <= 0 or not played:
+        return current
+    center = [sum(col) / len(played) for col in zip(*played)]
+    norm_c = math.sqrt(dot(center, center)) or 1.0
+    q = [a + weight * c / norm_c for a, c in zip(current, center)]
+    norm_q = math.sqrt(dot(q, q)) or 1.0
+    return [x / norm_q for x in q]
 
 
 class Recommender:
@@ -312,7 +360,8 @@ class Recommender:
         key0 = deck_key(principal.get("key"))
         if key0 == "?" and main is not None:
             key0 = main.key
-        excluded = {it.uid for it in (self.identify(p) for p in played) if it is not None}
+        played_items = [it for it in (self.identify(p) for p in played) if it is not None]
+        excluded = {it.uid for it in played_items}
         if main is not None:
             excluded.add(main.uid)
         use_clap = main is not None and main.vec is not None
@@ -321,6 +370,13 @@ class Recommender:
             weights = {"bpm": 1.0}                      # sin CLAP y sin otros pesos: el BPM más cercano
         key_filter = bool(self.options["filtro_clave"])
         penalty = float(self.options["clave_penalizacion"])
+        table = self.options.get("clave_tabla")
+        query = None
+        if use_clap:
+            n_last = int(self.options.get("clap_historia_n") or 0)
+            recent = [it.vec for it in played_items if it.vec is not None]
+            query = night_query(main.vec, recent[-n_last:] if n_last else recent,
+                                float(self.options.get("clap_historia") or 0.0))
         rows = []
         no_key = 0
         for it in self.candidates:
@@ -338,18 +394,24 @@ class Recommender:
             score, shift, _rel = harmonic.best_key_shift(key0, it.key, shift_penalty=penalty)
             if use_clap and it.vec is None:
                 continue
-            sim = dot(main.vec, it.vec) if use_clap else None
+            sim = dot(query, it.vec) if use_clap else None
+            if table is not None and key0 != "?":
+                score = (table.get(harmonic.wheel_step(key0, it.key) or "", table.get("otro", 0.0))
+                         if it.key != "?" else table.get("?", self.options["clave_sin_tonalidad"]))
             comps = {
                 "clap": None if sim is None else min(1.0, max(0.0, sim)),
                 "bpm": None if bpm0 is None or it.bpm is None else max(0.0, 1.0 - abs(it.bpm - bpm0) / BPM_RANGE),
-                "clave": (score if it.key != "?" else self.options["clave_sin_tonalidad"]) if key0 != "?" else None,
+                "clave": (score if it.key != "?" or table is not None else self.options["clave_sin_tonalidad"])
+                         if key0 != "?" else None,
                 "genero": self.genre_score(main, it) if main is not None else None,
                 "tiv": None,
+                "extremos": self.ends_score(main, it),
             }
             rows.append([it, sim, shift, comps, 0.0])
         if self.options["clap_escala"] == "percentil":
-            for r, p in zip(rows, percentiles([r[3]["clap"] for r in rows])):
-                r[3]["clap"] = p
+            for comp in ("clap", "extremos"):
+                for r, p in zip(rows, percentiles([r[3][comp] for r in rows])):
+                    r[3][comp] = p
         for r in rows:
             final = weighted(r[3], weights)
             r[4] = -1.0 if final is None else final
@@ -370,6 +432,16 @@ class Recommender:
                 "semitonos": [r[2] for r in top],
                 "ms": round((time.perf_counter() - t0) * 1000, 1)}
         return [r[0].track() for r in top], info
+
+    def ends_score(self, main: Optional[Item], it: Item) -> Optional[float]:
+        """Parecido CLAP entre el final del tema principal y el comienzo del candidato («fin_inicio»; el
+        sentido inverso, «inicio_fin», es el control). None si falta alguno de los dos vectores."""
+        if main is None:
+            return None
+        a, b = (main.fin, it.inicio) if self.options.get("extremos_sentido") != "inicio_fin" else (main.inicio, it.fin)
+        if a is None or b is None:
+            return None
+        return min(1.0, max(0.0, dot(a, b)))
 
     def update(self, principal: dict, played: Iterable[str] = ()) -> dict:
         tracks, info = self.compute(principal, list(played))

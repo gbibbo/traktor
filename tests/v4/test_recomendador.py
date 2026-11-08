@@ -214,7 +214,8 @@ def test_the_session_recalculates_on_main_track_pitch_and_played(tmp_path):
 
 
 def test_weights_combine_the_components_and_default_to_clap_only():
-    assert rc.weights_from(None) == {"clap": 1.0, "bpm": 0.0, "clave": 0.0, "genero": 0.0, "tiv": 0.0}
+    assert rc.weights_from(None) == {"clap": 1.0, "bpm": 0.0, "clave": 0.0, "genero": 0.0, "tiv": 0.0,
+                                     "extremos": 0.0}
     assert rc.weights_from({"bpm": "0.5", "x": 3, "clave": -1})["bpm"] == 0.5
     assert rc.weights_from({"clave": -1})["clave"] == 0.0
     assert rc.weighted({"clap": 0.8, "bpm": 0.5, "tiv": None}, {"clap": 1, "bpm": 3, "tiv": 5}) == (0.8 + 1.5) / 4
@@ -305,12 +306,16 @@ def test_semitones_between_keys():
 
 
 def test_options_and_percentiles():
+    off = {"clave_tabla": None, "clap_historia": 0.0, "clap_historia_n": 0, "extremos_sentido": "fin_inicio"}
     assert rc.options_from(None) == {"filtro_clave": True, "clave_penalizacion": 0.15, "clap_escala": "crudo",
-                                     "clave_sin_tonalidad": None}
+                                     "clave_sin_tonalidad": None, **off}
     o = rc.options_from({"filtro_clave": False, "clave_penalizacion": "0.05", "clap_escala": "percentil",
                          "clave_sin_tonalidad": "0.5"})
     assert o == {"filtro_clave": False, "clave_penalizacion": 0.05, "clap_escala": "percentil",
-                 "clave_sin_tonalidad": 0.5}
+                 "clave_sin_tonalidad": 0.5, **off}
+    o = rc.options_from({"clave_tabla": {"+0": 1, "-5": "0.5"}, "clap_historia": "1", "clap_historia_n": 3})
+    assert o["clave_tabla"] == {"+0": 1.0, "-5": 0.5} and o["clap_historia"] == 1.0 and o["clap_historia_n"] == 3
+    assert rc.options_from({"clave_tabla": {"+0": 2}, "clap_historia": -1})["clave_tabla"] is None
     assert rc.options_from({"clave_sin_tonalidad": 2})["clave_sin_tonalidad"] is None
     assert rc.options_from({"filtro_clave": "no", "clave_penalizacion": 3, "clap_escala": "x"}) == rc.DEFAULT_OPTIONS
     assert rc.percentiles([0.1, None, 0.3, 0.3]) == [0.0, None, 0.75, 0.75]
@@ -356,3 +361,48 @@ def test_keyless_candidates_get_the_explicit_key_value_without_the_filter(tmp_pa
         tracks, info = rec.compute(principal())
         comps = dict(zip((t.title for t in tracks), info["componentes"]["clave"]))
         assert comps["e"] == expected                                   # «e» no tiene tonalidad
+
+
+def test_wheel_step_and_learned_key_table(tmp_path):
+    from src.v4.common import harmonic
+    from tools.traktor_live.recomendador import Recommender, load_index
+    assert [harmonic.wheel_step("8A", k) for k in ("8A", "8B", "9A", "3A", "10A")] == ["+0", "+0x", "+1", "-5", "+2"]
+    assert harmonic.wheel_step("8A", "?") is None
+    collection, index = make_library(tmp_path)
+    entries = entries_by_path(collection)
+    _, items = load_index(index)
+    table = {"+0": 1.0, "?": 0.3, "otro": 0.1}
+    rec = Recommender(items, entries, n=30, weights={"clap": 0, "clave": 1},
+                      options={"filtro_clave": False, "clave_tabla": table})
+    tracks, info = rec.compute(principal())
+    comps = dict(zip((t.title for t in tracks), info["componentes"]["clave"]))
+    key0 = info["principal"]["clave"]
+    for it in items:
+        if it.title in comps:
+            want = 0.3 if it.key == "?" else table.get(harmonic.wheel_step(key0, it.key), 0.1)
+            assert comps[it.title] == want, it.title
+
+
+def test_night_query_moves_towards_what_was_played():
+    from tools.traktor_live.recomendador import dot, night_query
+    q = night_query([1.0, 0.0, 0.0], [[0.0, 1.0, 0.0], [0.0, 1.0, 0.0]], 1.0)
+    assert abs(dot(q, q) - 1.0) < 1e-9 and q[0] > 0 and q[1] > 0 and abs(q[0] - q[1]) < 1e-9
+    assert night_query([1.0, 0.0], [], 1.0) == [1.0, 0.0]
+    assert night_query([1.0, 0.0], [[0.0, 1.0]], 0.0) == [1.0, 0.0]
+
+
+def test_ends_component_compares_the_end_of_the_main_track_with_the_start_of_the_candidate(tmp_path):
+    from tools.traktor_live.recomendador import Recommender, load_index
+    collection, index = make_library(tmp_path)
+    entries = entries_by_path(collection)
+    _, items = load_index(index)
+    for it in items:                                   # el final de todos apunta a x, el comienzo a y
+        it.fin, it.inicio = [1.0, 0.0], [0.0, 1.0]
+    target = next(it for it in items if it.title == "b")
+    target.inicio = [1.0, 0.0]                         # «b» empieza como terminan los demás
+    for sense, best in (("fin_inicio", 1.0), ("inicio_fin", 0.0)):
+        rec = Recommender(items, entries, n=30, weights={"clap": 0, "extremos": 1},
+                          options={"filtro_clave": False, "extremos_sentido": sense})
+        tracks, info = rec.compute(principal())
+        comps = dict(zip((t.title for t in tracks), info["componentes"]["extremos"]))
+        assert comps["b"] == best

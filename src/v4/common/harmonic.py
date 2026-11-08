@@ -96,6 +96,17 @@ def shift_camelot(camelot: str, semitones: int) -> str:
     return f"{_wrap(num + 7 * semitones)}{mode}"
 
 
+def wheel_step(anchor: str, candidate: str) -> Optional[str]:
+    """Paso en la rueda Camelot de `anchor` a `candidate`: "+1", "-2", "+0x" (x: cambia el modo); None si
+    alguna es desconocida. Cada paso tiene un sentido: "+0" la misma tonalidad, "+0x" la relativa, "+1" y
+    "-1" las vecinas, "-5" y "+5" la misma a un semitono (+1 semitono = +7 en la rueda), "+2" y "-2" a dos
+    semitonos. Es la categoría de los valores de tonalidad aprendidos de sets (plan, P7)."""
+    a, b = _split(anchor), _split(candidate)
+    if a is None or b is None:
+        return None
+    d = (b[0] - a[0] + 5) % 12 - 5
+    return f"{d:+d}" + ("x" if a[1] != b[1] else "")
+
 def semitones_between(original: str, resulting: str) -> Optional[int]:
     """Semitonos de transposición que llevan `original` a `resulting` (Camelot, el mismo modo), entre -6 y
     +6; el menor en valor absoluto (-6 ante el tritono). None si alguna no se conoce o cambia el modo."""
