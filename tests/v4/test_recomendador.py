@@ -406,3 +406,11 @@ def test_ends_component_compares_the_end_of_the_main_track_with_the_start_of_the
         tracks, info = rec.compute(principal())
         comps = dict(zip((t.title for t in tracks), info["componentes"]["extremos"]))
         assert comps["b"] == best
+
+
+def test_key_from_the_file_name_only_in_brackets():
+    from tools.traktor_live.recomendador import key_from_name
+    assert key_from_name("Musica/X/02. (9A) HALDOLIUM - Our Own_Happiness.mp3") == "9A"
+    assert key_from_name("Musica\\X\\[12B] Artista - Tema.flac") == "12B"
+    assert key_from_name("Musica/X/Artista - Part 2 B.mp3") == "?"
+    assert key_from_name("Musica/X/(13A) raro.mp3") == "?"

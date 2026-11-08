@@ -47,6 +47,9 @@ CHANGELOG:
   - 2026-11-07: Componente "extremos": el final del tema principal frente al comienzo del candidato
                 (Item.inicio y Item.fin, de tools/dj_sets/clap_extremos.py; opción "extremos_sentido" para el
                 control inverso). Con CLAP en percentil, también en percentil. Peso 0 por defecto.
+  - 2026-11-08: Tonalidad del nombre del archivo («(9A) …») para los temas que no la tienen en Traktor ni en
+                los tags (auditoría de las líneas D1: los temas sin tonalidad casi no se tocan, y 41 de los
+                227 sugeribles sin tonalidad la llevan en el nombre).
 """
 from __future__ import annotations
 
@@ -78,6 +81,7 @@ from tools.traktor_live.sugerencias_itunes import Track  # noqa: E402
 DEFAULT_INDEX = te.DEFAULT_LOG_DIR / "indice_recomendacion.json"
 DEFAULT_N = 30
 BPM_RANGE = 20.0
+KEY_IN_NAME = re.compile(r"[\(\[](1[0-2]|[1-9])([AB])[\)\]]")   # «02. (9A) Artista - Tema.mp3»
 KEY_MIN = 0.60                        # corte aprobado (HARMONIC_COMPATIBILITY.md)
 COMPONENTS = ("clap", "bpm", "clave", "genero", "tiv", "extremos")
 DEFAULT_WEIGHTS: Dict[str, float] = {"clap": 1.0, "bpm": 0.0, "clave": 0.0, "genero": 0.0, "tiv": 0.0,
@@ -115,6 +119,13 @@ def deck_key(text) -> str:
             return f"{(n + 6) % 12 + 1}{'A' if mode == 'm' else 'B'}"
         return f"{n}{mode.upper()}"
     return harmonic.to_camelot(str(text))
+
+
+def key_from_name(rel: str) -> str:
+    """Tonalidad Camelot escrita en el nombre del archivo entre paréntesis o corchetes («(9A)», «[12B]»),
+    para los temas sin tonalidad en Traktor ni en los tags; "?" si no hay."""
+    m = KEY_IN_NAME.search(str(rel).replace("\\", "/").split("/")[-1])
+    return f"{m.group(1)}{m.group(2)}" if m else "?"
 
 
 def norm(path: str) -> str:
@@ -317,6 +328,10 @@ class Recommender:
             k = traktor_key(m.get("VALUE")) if m is not None else "?"
             if k != "?":
                 it.key, it.key_src = k, "traktor"
+            if it.key == "?":
+                k = key_from_name(it.rel)
+                if k != "?":
+                    it.key, it.key_src = k, "nombre"
             tempo = e.find("TEMPO")
             try:
                 bpm = float(tempo.get("BPM")) if tempo is not None and tempo.get("BPM") else 0.0
@@ -334,7 +349,8 @@ class Recommender:
         c = self.candidates
         src = Counter(it.key_src if it.key != "?" else "sin" for it in c)
         return (f"{len(c)} temas sugeribles (paquete {self.root or '?'} en la colección de Traktor); tonalidad "
-                f"de Traktor {src.get('traktor', 0)}, de tags {src.get('tags', 0)}, sin tonalidad {src.get('sin', 0)}")
+                f"de Traktor {src.get('traktor', 0)}, de tags {src.get('tags', 0)}, del nombre del archivo "
+                f"{src.get('nombre', 0)}, sin tonalidad {src.get('sin', 0)}")
 
     def genre_score(self, a: Item, b: Item) -> Optional[float]:
         """Componente genero: la taxonomía si está cargada; si no, 1 el mismo género y 0 otro."""
