@@ -103,7 +103,7 @@ cambiado, el final del actual no es mejor que su comienzo.
 | Afirmación | Etiqueta | Evidencia |
 |---|---|---|
 | Los números del informe salen de los artefactos y la tabla de pasos es correcta | EVIDENCIA OBSERVADA | Reproducción propia (arriba) |
-| Bajar los temas sin tonalidad mejora el acierto del banco | EVIDENCIA OBSERVADA | 8-9 pares ganados frente a 1 perdido |
+| Bajar los temas sin tonalidad mejora el acierto del banco [REEMPLAZADO 2026-11-08 por la adenda del par (commit d123afc): con la tonalidad del nombre del archivo en 41 temas, 9,5-9,7 % frente a 8,9 %, 4-5 frente a 1, p 0,22-0,38: ya no se distingue de CLAP] | EVIDENCIA OBSERVADA | 8-9 pares ganados frente a 1 perdido |
 | Esa mejora es «temas que Gabriel no toca», no armonía | INFERENCIA | Carpetas, rachas, nombres con tonalidad, 6 frente a 13 % en la colección previa; Traktor da tonalidad a lo que suena. Lo que la decidiría: en D2, cuando el analizador de Traktor haya pasado por toda la biblioteca, ver si Gabriel sigue evitando los que hoy no tienen tonalidad |
 | El pool de hoy incluye temas que no estaban cuando sonaron los sets viejos | HIPÓTESIS | Las copias de la colección no lo acotan (ver arriba); afectaría por igual a todos los perfiles salvo a los que bajan a los sin tonalidad |
 | Con 60 s, «final → comienzo» predice mejor que «comienzo → final» | EVIDENCIA OBSERVADA | Reproducido: 7,1 frente a 3,9 %, 33-16, p 0,02 |
@@ -147,3 +147,15 @@ cambiado, el final del actual no es mejor que su comienzo.
   azar como consulta; el mismo lado del actual contra el final del candidato), no solo el sentido inverso.
 - **P4.** Cuando se repita en D2, mirar la mejora por set y no solo el McNemar global: con un set de 129 temas,
   una noche puede mover el resultado.
+
+## Confirmación de la adenda del par (2026-11-08, commit `d123afcba036ce357ce66268b064b1a53c33aa7e`)
+
+Desde `aef033e` el recomendador lee la tonalidad del nombre del archivo («(9A) …») cuando no la hay en Traktor
+ni en los tags: 41 de los 227 sugeribles sin tonalidad. El banco repetido está en `d1_lineas_clave_nombre.json`.
+
+| Afirmación | Etiqueta | Evidencia |
+|---|---|---|
+| Todos los números de la adenda salen del JSON | EVIDENCIA OBSERVADA | 519 transiciones con paso (515,0 → 519,0 esperadas, cierra); «solo sin tonalidad» 9,46 / 9,65 / 9,65 %, 4-1 p 0,375 y 5-1 p 0,219; aprendida 0,25 11,69 %, 42-27 p 0,091; frente a regla 0,25 41-22 p 0,023; regla 0,25 sin valor para «?» 8,16 %; tabla +0 2,239, +0x 1,877, −1 1,830, +1 1,498, −5 1,121, +5 0,971, +2 0,726, −2 0,604, «?» 0,174 (9 frente a 56,4) |
+| La mitad de la ventaja de bajar los sin tonalidad eran esos 41 temas | EVIDENCIA OBSERVADA | De 8-1 a 4-1 pares discordantes con la única diferencia de 41 tonalidades leídas; las 9 veces que Gabriel fue a un tema sin tonalidad siguen siendo 9, lo que bajó es lo esperado del pool (68,2 → 56,4) |
+| Lo que queda («?» 0,17 con 186 temas) sigue siendo «temas que Gabriel no toca» | INFERENCIA | Mismos argumentos de arriba (carpetas, rachas, Traktor pone tonalidad a lo que se carga); se decide analizando esos 186 en Traktor (lista `TRAKTOR ML sin tonalidad.m3u8`, propuesta del par) y repitiendo el banco |
+| Los valores aprendidos no dependían de los sin tonalidad | EVIDENCIA OBSERVADA | Aprendida 0,25 sin cambio (11,69 %, 42-27); «solo pasos» frente a regla 40-24, p 0,06 (antes 39-24) |
