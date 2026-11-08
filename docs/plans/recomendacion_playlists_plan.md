@@ -571,7 +571,7 @@ I5 entra con I3, para que D2 guarde la etiqueta de M3 desde la primera sesión.
 Ruta propuesta:
 1. [REEMPLAZADO 2026-11-08 por decisión de Gabriel (DECISIONS 2026-11-08, punto 1): el correo ya se mandó y no se depende de la respuesta] Que Gabriel pida acceso de investigación a info@1001tracklists.com: sets de 3 h o más, con minutos.
    El agente le prepara el correo, pero lo manda Gabriel.
-2. [REEMPLAZADO 2026-11-08 por decisión de Gabriel (DECISIONS 2026-11-08, punto 1): se exporta por navegador con su cuenta, iniciada a mano; probado con un tracklist, bajar muchos queda sin decidir] No esquivar el `robots.txt`: no se cambia el agente para pasar por navegador.
+2. [REEMPLAZADO 2026-11-08 por decisión de Gabriel (DECISIONS 2026-11-08, punto 1): se exporta por navegador con su cuenta, iniciada a mano; probado con un tracklist; también se bajan muchos con su cuenta] No esquivar el `robots.txt`: no se cambia el agente para pasar por navegador.
 3. Mientras tanto:
    - sets largos de MixesDB, cuyo `robots.txt` permite leer páginas a una cada 4 segundos y bloquea las
      consultas a la API (HIPÓTESIS: hay suficientes sets largos con lista completa; se decide con una

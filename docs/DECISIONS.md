@@ -10,7 +10,7 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 
 1. **Los tracklists de 1001Tracklists se bajan directamente de la página, con la cuenta de Gabriel**
    (Gabriel). El correo ya se mandó, tardan en contestar y no se depende de eso. Reemplaza la ruta del
-   punto 9 del 2026-11-07. Bajar muchos queda sin decidir.
+   punto 9 del 2026-11-07. [REEMPLAZADO 2026-11-08 por decisión de Gabriel: se bajan muchos, con su cuenta] Bajar muchos queda sin decidir.
    - Cómo (agente, probado con un solo tracklist, Maddix `1ch990z1`): `export_1001tracklists.py`
      (Playwright con Chromium visible; está en Descargas, fuera de Git) pulsa el botón oficial de exportar
      y guarda el texto que devuelve `/ajax/export_data.php`. Gabriel inicia sesión a mano en esa ventana:
@@ -24,6 +24,16 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    - Pendiente en el script antes de darle una lista: en Windows `write_text` deja `\r\r\n` (falta
      `newline=""`); la pausa es de 3 s y el sitio pide 8; sigue con la lista después de un rechazo; no
      salta lo ya bajado; y crea su perfil con cookies en la carpeta desde donde se corre.
+   - Enlaces al audio (agente, probado con un tracklist y un tema). El texto exportado no los trae. La
+     página sí da, sin pedidos extra, el reproductor del set (en este caso Hearthis) y, por tema, el
+     segundo exacto, el ID y la URL en 1001Tracklists y el sello; duración y género, no en todos. YouTube y
+     Beatport salen de `/ajax/get_medialink.php`, un pedido por tema: `playerId` es el ID y el botón de
+     compra trae la URL de Beatport. El video de YouTube puede ser más corto que el tema (157 s contra
+     271 s en el probado): comparar con la duración.
+   - Límites (agente): en el HTML y el JS no hay contador de descargas, y las respuestas no traen
+     cabeceras de límite. Eso no prueba que no exista: el servidor sabe qué cuenta exporta, y hay captcha
+     en `get_data.php` y Turnstile en `add_count.php`. Al bajar: 8 s entre pedidos y parar al primer
+     rechazo o captcha.
 2. **Parecidos (la playlist de D0) es la lista de temas de los que Gabriel tiene «la seguridad de que
    van a sonar bien» con lo que está tocando** (Gabriel). Es precisión de la lista, no acertar el tema que
    él habría puesto después. «Sonar bien» puede ser CLAP tal cual o CLAP mejorado con lo que se aprenda de
