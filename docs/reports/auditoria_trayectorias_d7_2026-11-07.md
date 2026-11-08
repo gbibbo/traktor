@@ -1,5 +1,10 @@
 # Auditoría del informe de trayectorias D7 (2026-11-07)
 
+> **Aviso (2026-11-07, noche).** Parte del audio «continua» de D7 es otra mezcla (traktor-github-6e); los
+> números de este informe y del auditado están contaminados y se recalculan con lo validado. La adenda del
+> final muestra además que el «siguiente» dentro del disco mide continuidad de la mezcla, no elección del
+> DJ. Las marcas de abajo son de esa adenda.
+
 Informe auditado: `docs/reports/trayectorias_d7_2026-11-07.md` (commit
 `c493ca8005e8437862a4c5c8cabd4c94aebf137b`), con el protocolo `.claude/skills/auditar/SKILL.md`.
 Evidencia de esta sesión: `tools/dj_sets/trayectorias_d7.py` leído entero; los artefactos de
@@ -12,21 +17,27 @@ está descrito en cada fila). Los tests: 11 de 11 en `tests/v4/test_dj_sets.py`.
 
 ## Veredicto
 
-**El informe se sostiene.** Todos los números del veredicto y de la tabla salen del JSON y del código:
+**El informe se sostiene** [REFUTADO 2026-11-07 noche por la adenda: lo reproducido sigue reproducido, pero
+el audio de varios discos es otra mezcla y el «siguiente» dentro del disco mide continuidad, no elección]. Todos los números del veredicto y de la tabla salen del JSON y del código:
 vecinos, a dos puestos y azar del mismo disco con los tres bordes; los centroides por compilación, DJ y
 época con sus n; el banco en los dos pools con sus intervalos; los quintos, el puente y los bordes
 reducidos. Además se verificó algo que el informe daba por hecho: **los límites de MusicBrainz caen donde
 cambia el audio** (la suma de duraciones y el archivo difieren 1,3 s de mediana, 8,8 s como máximo; la
-novedad CLAP en el límite está en el percentil 0,77 de la del disco). Tres cambios de lectura:
+novedad CLAP en el límite está en el percentil 0,77 de la del disco) [REFUTADO 2026-11-07 noche: la suma
+es circular, el archivo se eligió por esa duración; el 0,77 es una media, y discos con otra mezcla dan
+0,78-0,83]. Tres cambios de lectura:
 
-1. **CLAP dentro del disco es más firme de lo que dice el informe.** Con prueba apareada: 241 aciertos
+1. **CLAP dentro del disco es más firme de lo que dice el informe.** [REFUTADO 2026-11-07 noche por la
+   adenda: sobre el mismo audio, límites desplazados media pista dan 41,5 %, N segmentos iguales 34,6 % y
+   cortes al azar 37-39 %, frente a 27,1 % con los reales; el apareado mide la continuidad de la mezcla] Con prueba apareada: 241 aciertos
    frente a 159,8 esperados (z = 7,5); supera a su propio azar en 52 de 74 discos (p = 0,0006) y en los
    cuatro DJs. El azar exacto (media de 1 sobre los candidatos) es 17,4 %, no el 16,8 % simulado. El
    exceso va entero al tema inmediato: el más parecido es el siguiente el 25,9 % (azar 17,4 %) y el de dos
    puestos el 16,7 % (azar 17,2 %); después la distancia crece despacio con la separación (0,124 a dos
    puestos, 0,144 a diez o más). «Deriva lenta» vale, con el paso inmediato como el único especial.
 2. **La inferencia «la ventaja no es audio de la transición» necesitaba otra prueba, y en parte se
-   corrige.** La diferencia de medianas entre vecinos y a dos puestos no decide: se conserva (0,012)
+   corrige.** [REEMPLAZADO 2026-11-07 noche: la señal junto al límite es parte del mismo efecto de
+   continuidad; con audio mezclado ningún borde mide la elección del siguiente] La diferencia de medianas entre vecinos y a dos puestos no decide: se conserva (0,012)
    con vectores del tercio central aunque el ranking empeore. Con el top-1 dentro del disco: borde 0
    (mezclas incluidas) 31,0 %, borde 30 27,2 %, borde 60 26,2 %, tercio central 22,6 % (apareado contra
    borde 60: 85 frente a 52, p = 0,006). Control de una variable: borde 60 con la misma cantidad de
@@ -35,7 +46,8 @@ novedad CLAP en el límite está en el percentil 0,77 de la del disco). Tres cam
    bloques, y quedan 1-2 puntos sin resolver. El 26,2 % con borde 90 está sostenido por los 245 temas
    que vuelven al borde reducido. Con cualquier borde, CLAP supera al azar (el intervalo del tercio,
    20,0-25,7 %, no toca 17,4 %).
-3. **«Momento» empeora solo con todo D7 como pool.** Dentro del disco no se distingue de CLAP: 69 frente
+3. **«Momento» empeora solo con todo D7 como pool.** [REEMPLAZADO 2026-11-07 noche: comparación sobre
+   una medida contaminada; se repite sobre lo validado] Dentro del disco no se distingue de CLAP: 69 frente
    a 50 transiciones discordantes, p = 0,10; con borde 30 empata (27,2 %). «Historia» tampoco se
    distingue (56 frente a 44, p = 0,27). La vara para T13 sigue siendo CLAP dentro del disco, pero
    «extrapolar el último paso empeora» vale para el pool con la señal de la compilación, no dentro del
@@ -110,11 +122,11 @@ la mejor copia casi no mueve nada.
 | Afirmación | Etiqueta | Evidencia |
 |---|---|---|
 | Los números del informe salen de los artefactos y del código | EVIDENCIA OBSERVADA | Tabla «Lo reproducido» |
-| Los límites de MusicBrainz están alineados con el audio de la mezcla | EVIDENCIA OBSERVADA | Suma frente a archivo ≤ 8,8 s en 76 discos; novedad en el límite, percentil 0,77 |
-| Dentro del disco, CLAP elige el siguiente más que el azar, en los 4 DJs y en 52 de 74 discos | EVIDENCIA OBSERVADA | z = 7,5; signo p = 0,0006; tabla por DJ |
-| Parte de la ventaja del vecino es audio de los 60 s junto al límite; el borde de 60 s la saca | INFERENCIA | 31,0 % con borde 0 frente a 26,2 % con 60; los bordes 30 y 60 cambian una variable (21 y 108 reducidos) |
+| Los límites de MusicBrainz están alineados con el audio de la mezcla [REFUTADO 2026-11-07 noche: suma circular; novedad media; ver adenda] | EVIDENCIA OBSERVADA | Suma frente a archivo ≤ 8,8 s en 76 discos; novedad en el límite, percentil 0,77 |
+| Dentro del disco, CLAP elige el siguiente más que el azar, en los 4 DJs y en 52 de 74 discos [REFUTADO 2026-11-07 noche: con límites falsos gana más; es continuidad de la mezcla, no elección del DJ] | EVIDENCIA OBSERVADA | z = 7,5; signo p = 0,0006; tabla por DJ |
+| Parte de la ventaja del vecino es audio de los 60 s junto al límite; el borde de 60 s la saca [REEMPLAZADO 2026-11-07 noche: mismo efecto de continuidad] | INFERENCIA | 31,0 % con borde 0 frente a 26,2 % con 60; los bordes 30 y 60 cambian una variable (21 y 108 reducidos) |
 | Más allá de 60 s, la caída del top-1 es sobre todo por tener menos bloques | INFERENCIA | Tercio 22,6 % frente a 22,9-24,8 % con los mismos bloques en borde 60 |
-| Quedan 1-2 puntos que podrían ser mezcla de más de 60 s | NO CONCLUYENTE | Diferencia entre el tercio y el control, dentro del ruido de 3 semillas; se decide con un borde fijo y la misma cantidad de bloques en todos los temas, o con los originales (propuesta P2) |
+| Quedan 1-2 puntos que podrían ser mezcla de más de 60 s [REEMPLAZADO 2026-11-07 noche: la pregunta pierde sentido con audio mezclado] | NO CONCLUYENTE | Diferencia entre el tercio y el control, dentro del ruido de 3 semillas; se decide con un borde fijo y la misma cantidad de bloques en todos los temas, o con los originales (propuesta P2) |
 | «Momento» y «historia» no se distinguen de CLAP dentro del disco | EVIDENCIA OBSERVADA | p = 0,10 y 0,27 |
 | «Momento» empeora con todo D7 como pool | EVIDENCIA OBSERVADA | Intervalos separados (JSON): 25,6-34,6 frente a 37,1-46,5 % |
 | Lo que agrupa es la compilación y no el DJ | INFERENCIA, con tres DJs con peso | Centroides del informe; Warren aporta 3 discos |
@@ -147,3 +159,63 @@ la mejor copia casi no mueve nada.
 - **P4.** Decir que la lectura DJ frente a compilación se apoya en Cox, Sasha y Cattáneo; reintentar las
   13 compilaciones de Warren sin audio antes de generalizar.
 - **P5.** Corregir la frase de la distancia a la biblioteca (es entre dos temas de la biblioteca).
+
+## Adenda de la auditoría (2026-11-07, noche): el 26 % dentro del disco es continuidad de la mezcla
+
+**Disparador.** traktor-github-6e avisó que muchos discos «continua» son otra mezcla: `youtube_buscar.validate`
+marca «continua» si la mitad de los discos tiene un archivo de la misma duración (±8 s), y en playlists de
+colección con decenas de sets de 75 min eso pasa por azar (Sasha GU013 d2 es GU019 de Digweed; Nick Warren
+GU035 Lima d1 es GU018 Amsterdam; Carl Cox Roundhouse es un set de Mind Against; etc.). Con una regla de
+título pasan unos 35 de 96 archivos continua; de los por_tema, 5 de 12 tienen títulos que no coinciden. Está
+armando `tools/dj_sets/validar_d7.py` y vuelve a correr solo con lo validado.
+
+**Lo que eso tumba de esta auditoría.** La verificación de los límites era circular: la suma de duraciones
+de MusicBrainz coincide con el archivo porque el archivo se eligió por esa misma duración. Y el percentil de
+novedad 0,77 es una media: discos que el par identificó como otra mezcla dan 0,78 (Communicate d1), 0,82
+(GU013 d1) y 0,83 (Roundhouse). La novedad por disco no alcanza para validar.
+
+**La prueba que decide lo que mide el 26 %.** Sobre el mismo audio de los 76 discos «continua» (3 o más
+pistas; vectores con borde 60; top-1 del segmento siguiente entre los que quedan):
+
+| Límites | Transiciones | Top-1 | Azar | Discos por encima / por debajo de su azar |
+|---|---|---|---|---|
+| (a) reales de MusicBrainz | 939 | 27,1 % | 17,6 % | 57 / 19 |
+| (b) desplazados media pista (cada segmento es mitad de un tema y mitad del siguiente) | 937 | 41,5 % | 17,6 % | 71 / 5 |
+| (c) N segmentos iguales, sin relación con las pistas | 939 | 34,6 % | 17,6 % | 68 / 8 |
+| (d) N − 1 cortes al azar, 3 semillas | 844-867 | 37,1-39,3 % | 18,0-18,3 % | 68-71 / 5-8 |
+
+Cualquier segmentación del audio mezclado da un «siguiente» más parecido que el azar, y las falsas lo dan
+**más** que la real: dos tramos contiguos de una mezcla se parecen porque son la misma mezcla en el mismo
+minuto, no porque el DJ haya elegido ese tema. Los límites reales son justamente donde el audio más cambia,
+por eso dan el valor más bajo. Dos controles independientes dicen lo mismo:
+
+| Subconjunto (borde 60) | Discos | Transiciones | CLAP top-1 | Azar |
+|---|---|---|---|---|
+| Continua con novedad en los límites < 0,6 (audio ajeno probable) | 4 | 44 | 34,1 % | 18,6 % |
+| Continua con novedad 0,6-0,7 | 6 | 66 | 24,2 % | 19,0 % |
+| Continua con novedad 0,7-0,8 | 27 | 354 | 26,6 % | 16,9 % |
+| Continua con novedad ≥ 0,8 | 22 | 293 | 29,4 % | 17,1 % |
+| Por_tema (un archivo por pista, sin audio compartido entre vecinos) | 15 | 163 | 18,4 % | 17,9 % |
+
+Donde el audio es ajeno, el «siguiente» gana igual o más; donde cada pista es un archivo aparte, CLAP no
+supera al azar (y 5 de esas 12 compilaciones tienen títulos que no coinciden, así que ni ese 18,4 % es
+limpio). Coincide con el piloto con los originales de Digweed: consecutivos 0,16 frente a 0,18 al azar.
+
+| Afirmación | Etiqueta | Evidencia |
+|---|---|---|
+| El top-1 del «siguiente» dentro del disco sobre audio mezclado mide la continuidad de la mezcla, no la elección del DJ | EVIDENCIA OBSERVADA | Límites falsos (b), (c) y (d) dan 34,6-41,5 % frente a 27,1 % con los reales, sobre el mismo audio |
+| Los números de D7 (informe y auditoría) sobre compilación, DJ, época, identidades y puente están contaminados por audio ajeno | EVIDENCIA OBSERVADA (del par) | Ejemplos verificados por traktor-github-6e; regla de título: ~35 de 96 archivos continua |
+| Con pistas como archivos separados, CLAP del tema actual no elige el siguiente mejor que el azar | NO CONCLUYENTE | 18,4 frente a 17,9 % en 15 discos, 5 de 12 compilaciones con títulos que no coinciden; se decide con los por_tema validados y con compilaciones con originales |
+| La novedad CLAP en los límites no sirve sola para validar el audio | EVIDENCIA OBSERVADA | Discos ajenos con percentil 0,78-0,83 |
+| «Momento» e «historia» frente a CLAP dentro del disco | REEMPLAZADO | La comparación corría sobre una medida que no mide la elección del DJ; se repite sobre lo validado y, para el «siguiente», sobre vectores por tema de fuentes separadas |
+
+**Propuestas nuevas.**
+
+- **P6.** Toda medida de orden sobre audio mezclado lleva el control de límites falsos (desplazados, iguales,
+  al azar) al lado del valor real. Si las falsas empatan o ganan, la medida es continuidad.
+- **P7.** Lo que D7 puede medir después de validar: la estructura entre discos y compilaciones (centroides),
+  la deriva por hora del set (T11 a nivel de bloque, como D8) y el pool «d7» con la compilación controlada.
+  La elección del siguiente tema (T13, E1 por tema) necesita vectores por tema de fuentes separadas:
+  por_tema validados, originales en la biblioteca (14 hoy) o compilaciones con los originales sueltos.
+- **P8.** Repetir esta auditoría sobre el `d7_trayectorias.json` validado cuando llegue el SHA; los
+  scripts están listos.

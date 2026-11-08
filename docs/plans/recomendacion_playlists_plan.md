@@ -477,7 +477,10 @@ I5 entra con I3, para que D2 guarde la etiqueta de M3 desde la primera sesión.
      - Lo que más agrupa es la compilación (sus discos a 0,034), no el DJ ni la época (0,098-0,118).
        E1 sobre D7 se mide entonces dentro del disco.
      - Extrapolar el último paso empeora: T13 tiene que superar a CLAP dentro del disco con discos fuera
-       de la muestra. Auditoría D7 (`docs/reports/auditoria_trayectorias_d7_2026-11-07.md`): empeora con
+       de la muestra. [REFUTADO 2026-11-07 noche, adenda de la auditoría D7: parte del audio continua es otra
+       mezcla, y con límites falsos el «siguiente» gana más que con los reales; el 26 % dentro del disco es
+       continuidad de la mezcla, no elección del DJ; se recalcula con lo validado] Auditoría D7
+       (`docs/reports/auditoria_trayectorias_d7_2026-11-07.md`): empeora con
        todo D7 como pool; dentro del disco no se distingue de CLAP (p = 0,10). CLAP dentro del disco
        supera al azar con prueba apareada (z = 7,5; 52 de 74 discos; los 4 DJs); el borde de 60 s saca la
        señal de la mezcla (31 % con borde 0).
@@ -630,8 +633,8 @@ alternativa a 1001Tracklists (DECISIONS 2026-11-07, puntos 12 y 13). Se suman do
 | Los tramos de un tema «(Mixed)» o de un set crudo caen cerca del mismo tema de la biblioteca | [REEMPLAZADO 2026-11-07 por el piloto de Digweed] HIPÓTESIS. Lo medido: EVIDENCIA OBSERVADA. Por tema, el original sale primero en el 79-86 % entre los de su disco. Bloque a bloque y contra toda la biblioteca, en el 26-34 % | `docs/reports/piloto_trayectorias_digweed_2026-11-07.md` |
 | En D1, CLAP solo acierta en 30 el 9,3 % y supera a azar, BPM, género y popularidad con prueba apareada; CLAP + BPM no se distingue de CLAP | EVIDENCIA OBSERVADA | `banco_sets.py` y la auditoría E1 (539 transiciones, 22 sets) |
 | La regla de tonalidad (P3) deja fuera el 23,5 % de las transiciones reales de Gabriel y deja pasar el 69 % de los pares al azar; los ±1 semitono ocurren a la tasa del azar | EVIDENCIA OBSERVADA | Auditoría E1: 387 de 506 frente a 349,5 esperadas; decide Gabriel |
-| En D7, dentro del disco, CLAP elige el siguiente el 26 % (azar exacto 17,4 %), apareado y en los 4 DJs; una parte de la señal está en los 60 s junto a los límites (31 % con borde 0) y el borde de 60 s la saca | EVIDENCIA OBSERVADA | `trayectorias_d7.py` y la auditoría D7 (920 transiciones, 74 discos) |
-| En D7 lo que agrupa en CLAP es la compilación (sus discos a 0,034), no el DJ (0,098-0,100) ni la época (suma 0,013-0,020); E1 sobre D7 se mide dentro del disco | EVIDENCIA OBSERVADA | `trayectorias_d7.py`, `entre_discos`, 74 discos; con peso, 3 DJs |
+| [REFUTADO 2026-11-07 noche por la adenda de la auditoría D7: con límites falsos sobre el mismo audio el «siguiente» gana más (34,6-41,5 %) que con los reales (27,1 %); es continuidad de la mezcla] En D7, dentro del disco, CLAP elige el siguiente el 26 % (azar exacto 17,4 %), apareado y en los 4 DJs; una parte de la señal está en los 60 s junto a los límites (31 % con borde 0) y el borde de 60 s la saca | EVIDENCIA OBSERVADA | `trayectorias_d7.py` y la auditoría D7 (920 transiciones, 74 discos) |
+| En D7 lo que agrupa en CLAP es la compilación (sus discos a 0,034), no el DJ (0,098-0,100) ni la época (suma 0,013-0,020); E1 sobre D7 se mide dentro del disco [REEMPLAZADO 2026-11-07 noche: números contaminados por audio ajeno, se recalculan con lo validado; dentro del disco con audio mezclado no se mide la elección del siguiente] | EVIDENCIA OBSERVADA | `trayectorias_d7.py`, `entre_discos`, 74 discos; con peso, 3 DJs |
 
 ## 9. Fuentes
 
