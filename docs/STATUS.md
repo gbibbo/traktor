@@ -50,8 +50,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    cuenta, probado (11-08); volumen y audio se consultan antes de implementar.
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
-5. Recomendación en vivo (DECISIONS 11-06/07): parecidos (`recomendador.py`, D#0+D0); plan
-   `docs/plans/recomendacion_playlists_plan.md`. Hechos: D7 validado, líneas en D1 (`lineas_d1`).
+5. Recomendación en vivo (DECISIONS 11-06/07/08): parecidos (`recomendador.py`, D#0+D0). Plan
+   `docs/plans/recomendacion_playlists_plan.md` § 11 y prompt `PROMPT_SEGURIDAD_Y_DIRECCION.md`.
    GABRIEL: Traktor, «TRAKTOR ML sin tonalidad», Analyze solo Key. TIV aparte.
 
 ## RUN RECIPES

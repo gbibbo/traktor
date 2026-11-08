@@ -24,6 +24,36 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    - Pendiente en el script antes de darle una lista: en Windows `write_text` deja `\r\r\n` (falta
      `newline=""`); la pausa es de 3 s y el sitio pide 8; sigue con la lista después de un rechazo; no
      salta lo ya bajado; y crea su perfil con cookies en la carpeta desde donde se corre.
+2. **Parecidos (la playlist de D0) es la lista de temas de los que Gabriel tiene «la seguridad de que
+   van a sonar bien» con lo que está tocando** (Gabriel). Es precisión de la lista, no acertar el tema que
+   él habría puesto después. «Sonar bien» puede ser CLAP tal cual o CLAP mejorado con lo que se aprenda de
+   los sets de DJs profesionales.
+   - Cómo (agente): el acierto en 30 sobre los sets de Gabriel (E1) queda como línea de descarte; las
+     medidas nuevas son la compacidad de los sets profesionales en CLAP (radio de zona), la fracción de
+     los 30 dentro de ese radio y la escucha a ciegas de listas enteras de a dos (plan, sección 11, E9 a
+     E12). Ninguna variante de la etapa 1 ni de líneas D1 había pasado por la escucha.
+3. **El material de DJs profesionales ya bajado (D7, D8) se reutiliza para Parecidos**, no solo para las
+   playlists de dirección (Gabriel). Cómo (agente): radio de zona calibrado (P8) y proyección liviana de
+   CLAP aprendida de sets (P9), con discos fuera de la muestra.
+4. **Los modelos de Essentia (danceability y otras «energías») son candidatos a coordenada de las
+   playlists de dirección** (Gabriel: deberían ser los que juzguen las trayectorias). Cómo (agente): el
+   juez es la forma de los sets largos reales y los pares de Gabriel (E11); una coordenada que no se mueve
+   con la noche no sirve, por buena que suene su etiqueta (como la energía de Mixed In Key). Hace falta
+   la pasada de EffNet o MusiCNN en WSL (V6, prueba chica antes).
+5. **Texto en CLAP como dirección**: parecidos al tema principal y a una palabra o concepto a la vez
+   (Gabriel). Cómo (agente): puntaje = peso por el coseno con el principal más peso por el coseno con el
+   concepto; dirección como diferencia de frases opuestas o percentil, varias frases por concepto; se
+   valida escuchando los extremos de la biblioteca y proyectando D7, D8 y los sets largos de Gabriel
+   (plan, T18 y E11). El codificador de texto ya está en el repo (`tag_vocals.py`).
+6. **«Fine-tuning de Essentia» para esta aplicación** (Gabriel preguntó si se puede). Cómo (agente): lo
+   realista es entrenar cabezas sobre los embeddings congelados (MAEST, CLAP), como ya hacen
+   `genre_model.py` y `clap_probe`, con etiquetas de posición o fase en los sets profesionales y partición
+   por DJ (plan, T20). Afinar el tronco de MAEST en torch es M4 (GPU) y espera.
+7. **Referencia para trayectorias**: Vande Veire y De Bie 2018 (DJ automático de Drum and Bass). Se toman
+   las ideas, no se copia (Gabriel): zona de estilo con centro y paso chico, validación escuchando dos
+   mezclas, tonalidad con ±1 semitono transpuesto, tipos de transición (plan, sección 11.1).
+8. **Un agente nuevo implementa la sección 11 desde un chat nuevo** (Gabriel), con el prompt
+   `docs/plans/PROMPT_SEGURIDAD_Y_DIRECCION.md`. La sesión auditora sigue en paralelo.
 
 ## 2026-11-07
 

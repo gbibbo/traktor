@@ -7,6 +7,10 @@ Auditado el 2026-11-07 (skill `auditar`, otra sesión): `docs/reports/auditoria_
 Las correcciones están en su lugar, con `[REFUTADO …]` o `[REEMPLAZADO …]`; los refuerzos llevan la marca
 «(auditoría 11-07)». La estructura del plan no cambió.
 
+Adenda 2026-11-08 (auditoría, con Gabriel; DECISIONS 2026-11-08): sección 11, con las medidas E9 a E12 y las
+ideas P8 a P10, T18 a T22 y M5. Las marcas «(adenda 11-08)» son suyas. Para implementarla desde un chat nuevo:
+`docs/plans/PROMPT_SEGURIDAD_Y_DIRECCION.md`.
+
 ## 0. Qué se pide auditar
 
 El auditor tiene que verificar tres cosas:
@@ -244,6 +248,10 @@ abiertas. Los 20 minutos son un valor inicial: se miran contra los 21 sets de D1
   partir por DJ, nunca solo por set, para que nada aprenda la identidad del DJ ni el set que ya vio.
 - **Línea de base adicional (auditoría 11-07).** En D3, D4 y D5, la popularidad (en cuántos sets aparece
   el candidato): Vall et al. 2019 muestran que domina la predicción del siguiente tema.
+- **Medidas de seguridad (adenda 11-08).** El acierto en 30 solo descarta: con unos 1700 candidatos y decenas
+  de temas igual de buenos, no distingue una lista buena de una regular. La calidad de Parecidos se mide con
+  E9 a E12 (sección 11.2): radio de zona, fracción de los 30 dentro del radio y escucha a ciegas de listas
+  enteras de a dos.
 
 Qué se puede evaluar sobre qué fuente (INFERENCIA desde el cruce de la sección 2: con 25 transiciones con
 los dos temas en la biblioteca, lo que necesita audio no se mide en sets de otros DJs sin D6):
@@ -328,7 +336,7 @@ Traktor = plataforma en vivo.
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | T1 | Transiciones dirigidas entre géneros: cuántas veces más que por azar se pasa de g a h; la taxonomía (G1) como respaldo donde hay pocos datos | Propuesta 2026-11-07 (no hay un estudio publicado) | Sets; Comp `transicion` | C1 sobre D3 y D5 | 2 | Pendiente |
 | T2 | Fase del set por tema y por género (apertura, pico, cierre, después de la 2.ª hora) | Propuesta 2026-11-07 | Sets; Tema; Comp `fase` | C1; D5 para sets largos | 2 | Pendiente |
-| T3 | Coordenada de energía sin Mixed In Key. Candidatos, en este orden (auditoría 11-07): direcciones de texto en CLAP (los embeddings ya existen); una coordenada sobre los 400 estilos de MAEST (`maesthf_full_styles`, ya extraído); la fase aprendida (T2); cabezas de Essentia sobre EffNet-Discogs (engagement, danceability, mood_*; arousal/valencia solo existe sobre MusiCNN o VGGish) | Essentia; arXiv 2510.20759; T2 | Tema; Comp `energia_objetivo`, `texto_clap` | Codificador de texto de CLAP (Windows). Para Essentia: bajar las cabezas (CC BY-NC-SA 4.0) y una pasada de audio en WSL (`extract_representations.py --models effnet`, venv `essentia-tf-venv`) con prueba chica (V6): no hay EffNet guardado de `musica` | 3 | Pendiente |
+| T3 | Coordenada de energía sin Mixed In Key. Candidatos, en este orden (auditoría 11-07): direcciones de texto en CLAP (los embeddings ya existen); una coordenada sobre los 400 estilos de MAEST (`maesthf_full_styles`, ya extraído); la fase aprendida (T2); cabezas de Essentia sobre EffNet-Discogs (engagement, danceability, mood_*; arousal/valencia solo existe sobre MusiCNN o VGGish) | Essentia; arXiv 2510.20759; T2 | Tema; Comp `energia_objetivo`, `texto_clap` | Codificador de texto de CLAP (Windows). Para Essentia: bajar las cabezas (CC BY-NC-SA 4.0) y una pasada de audio en WSL (`extract_representations.py --models effnet`, venv `essentia-tf-venv`) con prueba chica (V6): no hay EffNet guardado de `musica` | 3 | Pendiente (adenda 11-08: lo concretan T18, direcciones de texto, y T19, cabezas de Essentia; el juez es E11) |
 | T4 | Validar las coordenadas con juicios por pares de Gabriel (unos 20 como mucho) | MusAV (ISMIR 2022); DECISIONS 2026-11-06, punto 10 | Eval | T3 | 3 | Pendiente |
 | T5 | Trayectoria en vivo: nivel y pendiente de los últimos temas tocados | Kell 2013 (el orden importa) | Estado de la trayectoria | D2; T3 | 3 | Pendiente |
 | T6 | Paso parejo: el nivel actual más un paso típico, medido en sets reales, no el tema más extremo | Kell 2013 (los pasos parejos se acercan más al orden real) | Comp `energia_objetivo`, `suavidad` | T3, T5; sets para el paso típico | 3 | Pendiente |
@@ -342,7 +350,7 @@ Traktor = plataforma en vivo.
 | T14 | Fases del set detectadas sin etiquetas (por ejemplo, un modelo de estados ocultos sobre la secuencia CLAP): apertura, pico, introspectiva. Alimenta `fase` (adenda 11-07) | Adenda 11-07 | Sets; Comp `fase` | T11; sets largos de D7 y D8 | 3 | Pendiente |
 | T15 | Direcciones de energía e introspección aprendidas de las trayectorias profesionales (hacia dónde se mueve CLAP en el pico y después de la segunda hora), como candidatas de T3 sin etiquetas (adenda 11-07) | Adenda 11-07 | Tema; Comp `energia_objetivo`, `texto_clap` | T11, T14 | 3 | Pendiente |
 | T16 | Comienzos y finales: el CLAP del final del tema actual frente al del comienzo del candidato, porque la biblioteca solo tiene el centro (3 tramos del 35-65 %) y en D7 lo que predecía el siguiente estaba cerca de los cambios. Componente `extremos` (`tools/dj_sets/clap_extremos.py`), con el sentido inverso como control (adenda 11-07, revalidación de D7) | Revalidación de D7, 2026-11-07 | Comp `extremos` | CLAP de los extremos de la biblioteca | 2 | En curso (`lineas_d1_2026-11-07.md`; auditoría líneas D1: lo que predice es el comienzo del candidato; el final del actual no agrega sobre su comienzo o su centro) |
-| T17 | Zona de la noche: la consulta CLAP suma el centro de lo ya tocado (todo el set o los últimos n), porque los temas de una compilación forman una zona compacta en CLAP (D7). Opciones `clap_historia` y `clap_historia_n` del recomendador | Revalidación de D7, 2026-11-07 | Perfil Mantener; Comp `clap` | Nada nuevo | 2 | Medido en D1: no mejora el tema siguiente (p ≥ 0,72); falta probarlo para «mantener» |
+| T17 | Zona de la noche: la consulta CLAP suma el centro de lo ya tocado (todo el set o los últimos n), porque los temas de una compilación forman una zona compacta en CLAP (D7). Opciones `clap_historia` y `clap_historia_n` del recomendador | Revalidación de D7, 2026-11-07 | Perfil Mantener; Comp `clap` | Nada nuevo | 2 | Medido en D1: no mejora el tema siguiente (p ≥ 0,72); falta probarlo para «mantener» (adenda 11-08: se vuelve a medir como zona, con E10 y P10, no con el acierto del tema siguiente) |
 
 ### Representación aprendida de sets
 
@@ -684,3 +692,147 @@ alternativa a 1001Tracklists (DECISIONS 2026-11-07, puntos 12 y 13). Se suman do
 - Adenda: MusicBrainz, tipo de grupo de lanzamiento «DJ-mix» y su API de búsqueda; RouteNote, «How do I
   format a DJ mix release»; Label Worx, «How do I create a Mixed Compilation Album»; Wikipedia, «Category:DJ
   mix album series».
+
+- Vande Veire y De Bie, «From raw audio to a seamless mix: creating an automated DJ system for Drum and
+  Bass», EURASIP Journal on Audio, Speech, and Music Processing 2018:13 (adenda 11-08; acceso abierto, CC BY
+  4.0; código en bitbucket.org/ghentdatascience/dj).
+
+## 11. Adenda 2026-11-08: seguridad en Parecidos y coordenadas de dirección
+
+Escrita por la sesión auditora con Gabriel (DECISIONS 2026-11-08). Entra por los contratos de la sección 3:
+no abre ningún camino propio hasta Traktor. Las ideas se suman al inventario de la sección 4 con sus ids;
+nada de lo anterior se borra. Para implementarla desde un chat nuevo: `PROMPT_SEGURIDAD_Y_DIRECCION.md`.
+
+### 11.0 Qué cambió y por qué
+
+- **Parecidos (la playlist de D0) es, en palabras de Gabriel, «un listado de temas de los que tengo la
+  seguridad de que van a sonar bien con lo que estoy tocando».** Es precisión de la lista: cada uno de los
+  30 tiene que ser una apuesta segura. No es acertar el tema que él habría puesto después. «Sonar bien»
+  puede ser CLAP tal cual o CLAP mejorado con lo que se aprenda de los sets de DJs profesionales.
+- **Lectura de los resultados de la etapa 1 y de las líneas D1** (INFERENCIA, a partir de los informes
+  E1, D7 y líneas D1 y sus auditorías): todo lo medido hasta hoy usa una sola medida, el acierto en 30 del
+  tema que Gabriel tocó después, que con unos 1700 candidatos y decenas de temas igual de buenos da entre
+  9 y 12 % para cualquier variante y no distingue una lista buena de una regular. Ninguna variante nueva
+  pasó por la escucha de Gabriel. «No mejora el acierto» es, para la calidad de la lista, NO CONCLUYENTE.
+  El acierto en 30 queda como línea de descarte (E2), que es lo que la sección 3.6 ya decía.
+- **El material de DJs profesionales ya bajado (D7, D8) se reutiliza para Parecidos**, no solo para las
+  playlists de dirección (Gabriel).
+- **Las playlists de dirección necesitan una coordenada que se mueva como se mueven los DJs a lo largo de
+  la noche.** Los modelos de Essentia son, para Gabriel, los candidatos naturales a juzgar la trayectoria;
+  el juez final es la forma de los sets largos reales y sus pares de juicio (E11), porque una etiqueta que
+  no se mueve con la noche no sirve, como la energía de Mixed In Key (83 % de la biblioteca en 5 o 6).
+- **Texto en CLAP como dirección** (pregunta de Gabriel): parecidos al tema principal y a una palabra o
+  concepto a la vez. El codificador de texto ya está en el repo (`tag_vocals.py`) y corre en Windows.
+- **«Fine-tuning de Essentia»** (pregunta de Gabriel): lo realista es entrenar cabezas sobre los embeddings
+  congelados, como ya hacen `genre_model.py` (regresión logística sobre MAEST capa 7 y CLAP) y `clap_probe`
+  (lineal sobre CLAP, entrenado con 54 temas de Electrobyte). Las etiquetas abundantes y gratis son la
+  posición o fase de cada tema en los sets profesionales. Afinar el tronco (MAEST en torch) es M4.
+
+### 11.1 Lo que se toma de Vande Veire y De Bie 2018 (ideas, no copia)
+
+Leído del PDF de acceso abierto el 2026-11-08 (EVIDENCIA OBSERVADA del texto; secciones entre paréntesis).
+
+| Idea del paper | Lo que dice | Dónde entra acá |
+| :--- | :--- | :--- |
+| El set es una zona (4.2.2) | En mezclas profesionales (90 s cada 120 s) «el estilo se queda en un vecindario relativamente chico comparado con toda la colección» | P8: la seguridad de Parecidos es estar dentro de esa zona; coincide con D7 (el disco es compacto en CLAP) |
+| Objetivo del tema siguiente = centro de la zona + paso chico (ec. 34) | Centro = el cuarto de la biblioteca más cercano al primer tema; objetivo = α·centro + (1−α)·(β·anterior + (1−β)·actual) con α = 0,4 y β = −0,1; 6 candidatos tras el filtro de tonalidad | P10 (Mantener); T17 vuelve a medirse como zona |
+| Validación escuchando, no adivinando (5.6) | Dos mezclas de 15 min, con y sin descriptor de estilo: 17 de 18 oyentes prefirieron la del estilo (3,89 frente a 2,39; p 7e-5). La similitud rítmica del tramo superpuesto apenas pesó (10 de 15, p 0,15). La mezcla sin estilo sonaba «apurada» | E12: la medida de calidad de una lista es la escucha a ciegas de listas enteras de a dos |
+| Descriptor simple sobre los tramos altos (4.2.2) | 48 estadísticas de contraste espectral solo en los segmentos «altos» (drops), PCA a 3 dimensiones sobre 160 temas | T22; y aviso de que una coordenada no necesita un modelo profundo para que la escucha la note |
+| Tonalidad (4.2.1) | Misma, quinta arriba o abajo, relativa; además los temas a un semitono de una compatible, transpuestos si salen elegidos | P7 y DECISIONS 11-07 punto 17: es la práctica de Gabriel |
+| Energía por tipos de transición (4.2.3) | Double drop, rolling, relajada, elegidos por una máquina de estados para variar el flujo | T21 (no aplica por ahora: la dirección la elige Gabriel con el mouse) |
+| Su propio límite (6) | «Podría ser una simplificación excesiva de cómo los DJs profesionales ... crean una progresión deliberada de energía y ánimo»; proponen aprenderla de las mezclas profesionales que hay en internet | Es D7 y D8 |
+
+### 11.2 Medidas nuevas (se suman a la tabla de evaluación de la sección 4)
+
+| Id | Idea | Etapa |
+| :--- | :--- | :--- |
+| E9 | Compacidad de los sets en CLAP: distribución de la distancia entre temas de un mismo set profesional validado (y de un mismo set de D1) frente a pares al azar del mismo rango de BPM. Da el radio de zona. Con pocos vectores por tema validados en D7 (123 transiciones en la revalidación), se calcula además dentro de los discos enteros a nivel de bloque y crece con D8 cuando T12 funcione | A |
+| E10 | Precisión de zona de Parecidos: fracción de los 30 primeros dentro del radio de E9. Y pureza fuera de muestra: con un tema principal de un set profesional y el pool de los temas de esa fuente más la biblioteca menos lo tocado, fracción de los 30 que son del mismo set (o del mismo DJ en la misma época), contra CLAP crudo, al azar y BPM solo | A |
+| E11 | Validación de una coordenada de dirección en tres pasos, en este orden: (1) ordena la biblioteca con sentido: Gabriel escucha los 10 primeros y los 10 últimos (E3); (2) se mueve con la noche: correlación con la posición normalizada en los bloques de D7 y D8 y en los 4 sets largos de Gabriel, por set y fuera de muestra; sube hacia el pico y cambia después de la 2.ª hora; (3) acuerda con al menos 16 de 20 pares de Gabriel (T4). Lo que no pasa (1) y (2) no entra a un perfil | A-B |
+| E12 | Escucha a ciegas de listas enteras, de a dos (CLAP crudo frente a la variante), para unos 10 temas principales por ronda; Gabriel dice cuál prefiere. Es E2 hecha concreta, con el diseño del test de Vande Veire | Siempre |
+
+### 11.3 Ideas nuevas (se suman al inventario de la sección 4; los ids siguen la numeración)
+
+| Id | Idea | Origen | Contrato | Depende de | Etapa | Estado |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| P8 | Radio de zona: los 30 de Parecidos se marcan (o se cortan) por caer dentro del radio de E9, no por el número 30. En el registro de cada lista, un campo `seguro` por tema; el orden y la latencia no cambian | Gabriel 11-08 («seguridad»); Vande Veire y De Bie 2018 | Perfil Parecidos; Eval E9, E10; registro I3 | E9; vectores por tema validados de D7; `d1.csv` | A | Pendiente |
+| P9 | Proyección liviana de CLAP aprendida de sets: lineal y de pocas dimensiones (LDA o pérdida contrastiva sobre CLAP congelado), acerca temas del mismo set y aleja los de sets distintos; discos fuera de la muestra; se compara con CLAP crudo por E10 y después por E12. Es M4 sin GPU ni reentrenar el tronco | Gabriel 11-08 (reutilizar D7 y D8); Alonso-Jiménez et al. ICASSP 2023 | Tema (vector `clap_sets`); Comp `clap` variante | P8 (la medida); D7 validado; D1 como apoyo | B | Pendiente |
+| P10 | Consulta compuesta para Mantener: centro de lo tocado con peso α más el tema actual con un paso chico en la dirección del último paso (β negativo), como la ec. 34 del paper (0,4 y −0,1 de partida). Se mide como zona (E10), no como acierto del tema siguiente | Vande Veire y De Bie 2018; T17 | Perfil Mantener; Comp `clap` | T17 (`clap_historia`), P8 | B | Pendiente. T17 medido con el acierto del siguiente no mejoró (p ≥ 0,72); esa no es la medida de esta idea |
+| T18 | Direcciones de texto en CLAP: conceptos iniciales (energético o peak time, oscuro o hipnótico, melódico o uplifting, introspectivo o deep, vocal, con breakdowns), varias frases por concepto promediadas, dirección como diferencia de dos frases opuestas o percentil dentro de la biblioteca (la brecha entre modalidades hace que el coseno con un texto sea bajo y parejo: vale el orden, no el valor). Puntaje = w·cos(candidato, principal) + (1−w)·cos(candidato, concepto) | Gabriel 11-08 (pregunta); plan T3 y T7 | Comp `texto_clap`; perfiles de dirección | Codificador de texto (`tag_vocals.py`, `laion/clap-htsat-unfused`) y embeddings de la biblioteca: existen | A | Pendiente |
+| T19 | Cabezas de Essentia como coordenadas candidatas: danceability, engagement y approachability, mood_*, arousal y valencia (estas dos solo sobre MusiCNN o VGGish). Se corren sobre la biblioteca y sobre los bloques de D7 y D8; se mira saturación (como Mixed In Key) y movimiento con la noche (E11) | Gabriel 11-08 («deberían juzgar las trayectorias»); plan T3 | Tema; Comp `energia_objetivo` | V6 (pasada de EffNet o MusiCNN en WSL, prueba chica antes); bajar las cabezas (CC BY-NC-SA 4.0) | B | Pendiente |
+| T20 | Cabeza propia sobre embeddings congelados (MAEST capa 7, estilos, CLAP): regresión del minuto normalizado o clasificación de fase (apertura, pico, después de la 2.ª hora) con etiquetas de los sets profesionales; partición por DJ. Es el «fine-tuning de Essentia» realista | Gabriel 11-08 (pregunta); precedentes `genre_model.py` y `clap_probe` | Tema; Comp `energia_objetivo`, `fase` | T11 (bloques de D7 y D8 con posición); D5 cuando exista | B | Pendiente |
+| T21 | Variar la energía con tipos de transición elegidos por una máquina de estados (double drop, rolling, relajada) | Vande Veire y De Bie 2018, 4.2.3 | Perfil | — | — | No aplica por ahora: la dirección la elige Gabriel con el mouse (DECISIONS 11-07, punto 8). Queda como idea para una lista «sorpresa» |
+| T22 | Representar el tema por sus tramos altos (drops) y no solo por el centro del 35-65 %, como el descriptor de estilo del paper; se relaciona con T16 (el comienzo del candidato) | Vande Veire y De Bie 2018, 4.2.2 | Tema (vector alternativo); Comp `clap` variante | Segmentación alto/bajo por bloque (energía) sobre la biblioteca; CLAP por bloques ya existe para D7 y D8 | C | Pendiente |
+| M5 | Afinar el tronco de MAEST en torch (`maesthf`) con pares de sets | Gabriel 11-08 (pregunta) | Tema; Comp `aprendido` | GPU; etiquetas de sets abundantes (D5, D7) | 5 | Lo cubre M4; MAEST-HF es el tronco afinable que ya está en el repo |
+
+Marcas en su lugar: T3 (lo concretan T18 y T19; el juez es E11) y T17 (se vuelve a medir como zona).
+
+### 11.4 Orden de ejecución
+
+Criterios de salida comunes: los de la sección 5, más un informe en `docs/reports/` con etiquetas por
+afirmación, los números reproducidos desde los artefactos (N por fuente) y el estado de cada idea
+actualizado en su lugar en las tablas de 11.2 y 11.3.
+
+**Etapa A (ahora, CPU, sin audio nuevo).**
+
+1. **E9 y E10 sobre CLAP crudo.** Entradas: `indice_recomendacion.json` (1760 temas), los vectores por
+   tema validados de D7, los bloques de los discos enteros, `d1.csv`. Sale: módulo de evaluación
+   (`src/v4/evaluation/zona_sets.py` o una extensión de `banco_sets.py`) e informe con el radio de zona,
+   la fracción de los 30 dentro del radio y la pureza fuera de muestra, con líneas de base al azar y BPM
+   solo. Criterio: números reproducibles; una sola variable por comparación.
+2. **P8 en el recomendador.** Campo `seguro` en el registro de cada lista, sin cambiar el orden ni la
+   latencia; opcional cortar al radio. Sale: para unos 10 temas principales (elegidos por Gabriel o al
+   azar de D1), las dos listas de E12: los 30 crudos y los «seguros». Criterio: tests del lado vivo en
+   verde; Gabriel escucha y decide.
+3. **T18, direcciones de texto.** Herramienta que toma frases por concepto, calcula las direcciones,
+   ordena la biblioteca, exporta M3U de los 10 primeros y los 10 últimos por concepto (E11 paso 1, con
+   E3) y proyecta los bloques de D7 y D8 y los sets largos de Gabriel (E11 paso 2). Sale: informe con qué
+   direcciones sobreviven. Criterio: una dirección entra a un perfil solo si pasa los pasos 1 y 2.
+
+**Etapa B (semanas; una unidad por vez).**
+
+1. **P9**: proyección con discos fuera de muestra; E10 contra CLAP crudo; si gana, E12.
+2. **V6 y T19**: pasada chica de EffNet o MusiCNN en WSL con costo por tema; cabezas sobre la biblioteca
+   y los bloques de D7 y D8; E11.
+3. **T20**: cabeza con posición o fase; E11; T18, T19 y T20 en la misma tabla.
+4. **P10** para Mantener, con E10.
+
+**Etapa C.** Perfiles Más, Menos e Introspectiva (T5 a T8) con la coordenada que sobreviva, un `.nml` por
+perfil (I1), el registro I5, y D2 en sesiones reales. Después, las etapas 4 y 5 del plan (M3, M4) como
+estaban.
+
+### 11.5 Reglas de lectura para quien implemente
+
+- El acierto en 30 sobre D1 descarta; no decide. «No mejora el acierto» no se traduce a «no mejora la lista».
+- Nada se ajusta solo contra los sets de Gabriel (referencia con ruido, por sus palabras; E6).
+- Una sola variable por comparación; partición por DJ o por disco fuera de la muestra (E5, E7).
+- Las listas que escucha Gabriel van a ciegas, enteras y de a dos; unas 10 por ronda, para no gastar su
+  escucha. Entre lo que sobrevive, decide él.
+- Una coordenada se valida con E11 antes de entrar a un perfil, por buena que suene su etiqueta.
+- CPU local; prueba chica antes de una corrida larga; `--low-priority`. Nada de GPU, Lightning ni Slurm sin
+  pedido de Gabriel en el chat. 1001Tracklists se baja con la cuenta de Gabriel por el botón de exportar del
+  sitio (DECISIONS 2026-11-08, punto 1); el `robots.txt` no se esquiva de otra forma.
+- El lado en vivo no se rompe: el botón sigue por debajo de 1 s y usa solo la biblioteca estándar.
+
+### 11.6 Preguntas para Gabriel (antes de A3)
+
+1. Los conceptos iniciales para T18, en sus palabras (los de la tabla son una propuesta).
+2. Qué DJs y qué sets para D8, y si sus 4 sets largos valen como forma de referencia para E11.
+3. Cuántas listas quiere escuchar por ronda (la propuesta es 10, de a dos).
+4. Cuántos tracklists de 1001Tracklists bajar con su cuenta y de qué DJs (DECISIONS 2026-11-08, punto 1: el
+   correo ya se mandó; bajar muchos quedó sin decidir).
+
+### 11.7 Afirmaciones de la adenda
+
+| Afirmación | Etiqueta | Evidencia |
+| :--- | :--- | :--- |
+| El codificador de texto de CLAP ya está en el repo y corre en Windows | EVIDENCIA OBSERVADA | `src/v4/pipeline/tag_vocals.py` (`VOCAL_PROMPTS`, `INSTRUMENTAL_PROMPTS`); `extract_representations.py` usa `laion/clap-htsat-unfused` por `transformers` |
+| Un prompt de texto detecta voz con AUC 0,89 por tema y 0,81 por segundo; la cabeza lineal sobre CLAP entrenada con 54 temas sube a 0,98 y 0,88 | EVIDENCIA documentada, no re-medida el 11-08 | `docs/plans/20260929_deteccion_voz.md`, tablas de Electrobyte; los artefactos de `vocal_eval` no están en este escritorio |
+| El repo ya entrena cabezas sobre embeddings congelados | EVIDENCIA OBSERVADA | `genre_model.py` (StandardScaler + LogisticRegression sobre `maesthf_full_l7` y `clap_full`, validación agrupada por artista) |
+| Las cabezas de Essentia para energía no están bajadas y no hay EffNet ni MusiCNN de `musica` | EVIDENCIA OBSERVADA (auditoría 11-07; sin cambios el 11-08) | `models/essentia/` tiene solo los troncos y `genre_discogs400` |
+| En D7, la compilación agrupa en CLAP (14,5 % de los 30 primeros contra 3,0 % de los candidatos) y, con pistas en archivos separados, CLAP no elige el tema siguiente mejor que el azar (17,9 % contra 15,3 %, 123 transiciones) | EVIDENCIA OBSERVADA (revalidación D7, 11-07) | `docs/reports/trayectorias_d7_2026-11-07.md` y su auditoría; es la base de leer «zona» y «orden dentro de la zona» como dos problemas |
+| Todo lo medido en la etapa 1 y en líneas D1 usa el acierto en 30 de D1 (9 a 12 % en todas las variantes) y ninguna variante pasó por la escucha | EVIDENCIA OBSERVADA | Informes E1, líneas D1 y sus auditorías; DECISIONS 11-07 |
+| Con esa medida no se distingue una lista buena de una regular | INFERENCIA | Unos 1700 candidatos, decenas igual de buenos para un momento; el azar exacto es 2,5 % |
+| Los números del paper (α 0,4, β −0,1; 17 de 18; 3,89 frente a 2,39; 10 de 15) | EVIDENCIA OBSERVADA | PDF de acceso abierto, secciones 4.2.2, 4.2.3 y 5.6, leído el 2026-11-08 |
+| Una proyección aprendida de sets mejora la pureza de Parecidos sobre CLAP crudo | HIPÓTESIS | La decide E10 con discos fuera de muestra y después E12 |
+| Alguna cabeza de Essentia o dirección de texto se mueve con la noche en los sets reales | HIPÓTESIS | La decide E11 paso 2 |

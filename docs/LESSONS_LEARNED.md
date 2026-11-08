@@ -406,3 +406,8 @@ tiene que mostrar solo los bloques ajenos. Si el otro no tiene nada sin commit, 
   contra «comienzo del actual frente a final del candidato» cambia los dos lados; con un lado fijo se vio que
   lo que predecía era el comienzo del candidato y no el final del actual. El control de una consulta barajada
   (otro tema al azar) dice si el par importa o si gana el candidato solo.
+- Un banco que mide si el tema siguiente del DJ cae en los 30 primeros no mide la calidad de una lista de
+  parecidos: con unos 1700 candidatos y decenas de temas igual de buenos, todo da entre 9 y 12 % y nada se
+  distingue. Sirve para descartar. La calidad de la lista se mide con la compacidad de la zona (sets
+  profesionales) y con la escucha a ciegas de listas enteras de a dos, como el test de Vande Veire y De Bie
+  2018 (17 de 18 oyentes). Antes de concluir «no mejora», preguntarse qué mide la medida.
