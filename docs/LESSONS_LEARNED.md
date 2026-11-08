@@ -394,3 +394,15 @@ tiene que mostrar solo los bloques ajenos. Si el otro no tiene nada sin commit, 
 - **Al comparar vectores con distinto borde, igualar la cantidad de bloques.** Menos bloques baja el ranking
   aunque las diferencias de medianas se conserven; un control con los mismos bloques elegidos al azar
   separa el efecto del borde del ruido.
+
+## 2026-11-08: bancos sobre los sets de Gabriel (D1)
+
+- **Lo que Traktor analiza al cargar no es independiente de lo que sonó.** Traktor pone tonalidad (y BPM, cues)
+  a lo que se carga en un deck; en un banco que repite sets, «sin tonalidad» se confunde con «nunca cargado». Un
+  componente que castiga a esos temas mejora el acierto sin decir nada de armonía. Antes de medir un rasgo que
+  viene del análisis de Traktor, completarlo para toda la biblioteca (tags, nombre del archivo, análisis) o
+  informar la mejora como «temas que el DJ no toca».
+- **Al comparar dos lados de un par, cambiar uno a la vez.** «Final del actual frente a comienzo del candidato»
+  contra «comienzo del actual frente a final del candidato» cambia los dos lados; con un lado fijo se vio que
+  lo que predecía era el comienzo del candidato y no el final del actual. El control de una consulta barajada
+  (otro tema al azar) dice si el par importa o si gana el candidato solo.
