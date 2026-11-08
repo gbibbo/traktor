@@ -26,6 +26,8 @@ CHANGELOG:
                 y remove_tracks las saca de la organización (versión 'dedupe').
   - 2026-11-04: ingest etiqueta Vocal con clap_probe (DECISIONS 2026-10-05, la regla vigente); 'clap', el
                 método viejo, le quitaba la marca a 473 temas de la biblioteca y se la ponía a 94.
+  - 2026-11-07: El UMAP guardado usa las funciones de distancia de la versión instalada de umap/numba
+                (refresh_numba_functions): con numba 0.64, «Agregar música» fallaba al ubicar los temas.
 """
 from __future__ import annotations
 
@@ -63,6 +65,24 @@ DEFAULT_PARAMS = {
 # ---------------------------------------------------------------------------
 # Almacenamiento
 # ---------------------------------------------------------------------------
+
+def refresh_numba_functions(model):
+    """Un UMAP guardado lleva sus funciones de distancia compiladas por numba, con el bytecode de cuando se
+    guardó; otra versión de numba no las puede recompilar (2026-11-07, en el escritorio con numba 0.64:
+    «AssertionError: key already in dictionary: 64» al ubicar la música agregada). Se reemplazan por las de la
+    versión instalada, por módulo y nombre (p. ej. umap.distances.cosine): es la misma métrica."""
+    import importlib
+    for attr in ("_input_distance_func", "_output_distance_func", "_inverse_distance_func"):
+        func = getattr(model, attr, None)
+        py = getattr(func, "py_func", None)
+        if py is None:
+            continue
+        try:
+            setattr(model, attr, getattr(importlib.import_module(py.__module__), py.__name__))
+        except (ImportError, AttributeError):
+            pass
+    return model
+
 
 class OrgStore:
     """Carpeta de una organización: org.json, models_v<N>/, v<N>/ (con constraints.json: las fusiones
@@ -138,7 +158,7 @@ class OrgStore:
     def models(self, model_version: int) -> Dict:
         md = self.dir / f"models_v{model_version}"
         return {"pca": joblib.load(md / "pca.joblib") if (md / "pca.joblib").exists() else None,
-                "umap": joblib.load(md / "umap.joblib"),
+                "umap": refresh_numba_functions(joblib.load(md / "umap.joblib")),
                 "bpm_stats": json.loads((md / "bpm_stats.json").read_text(encoding="utf-8"))}
 
     def save_models(self, model_version: int, pca, reducer, bpm_stats: Dict) -> None:

@@ -235,3 +235,18 @@ def test_remove_fusion_keeps_tracks_in_place(tmp_path):
     with pytest.raises(ValueError):
         remove_fusion(store, "Para abrir")
     assert store.undo() == v2 and [f["name"] for f in store.fusions()] == ["Para abrir"]
+
+
+def test_a_saved_umap_uses_the_installed_distance_functions(tmp_path):
+    """2026-11-07: el UMAP guardado traía su distancia compilada por numba con el bytecode de cuando se guardó, y
+    numba 0.64 no la podía recompilar («key already in dictionary: 64») al ubicar música agregada."""
+    import joblib
+    import umap
+    import umap.distances as ud
+    from src.v4.pipeline.organize import refresh_numba_functions
+    X = np.random.default_rng(0).standard_normal((40, 6)).astype(np.float32)
+    reducer = umap.UMAP(n_neighbors=5, metric="cosine", random_state=0, n_epochs=20).fit(X)
+    joblib.dump(reducer, tmp_path / "umap.joblib")
+    loaded = refresh_numba_functions(joblib.load(tmp_path / "umap.joblib"))
+    assert loaded._input_distance_func is ud.cosine
+    assert loaded.transform(X[:2] + 0.01).shape == (2, 2)
