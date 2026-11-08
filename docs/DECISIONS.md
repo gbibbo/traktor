@@ -64,6 +64,21 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
    mezclas, tonalidad con ±1 semitono transpuesto, tipos de transición (plan, sección 11.1).
 8. **Un agente nuevo implementa la sección 11 desde un chat nuevo** (Gabriel), con el prompt
    `docs/plans/PROMPT_SEGURIDAD_Y_DIRECCION.md`. La sesión auditora sigue en paralelo.
+9. **Los conceptos de las direcciones de texto son provisionales; si el método funciona, se escriben desde el
+   teléfono** (Gabriel: «los conceptos van a cambiar»; si es efectivo, una interfaz en el móvil para escribir
+   conceptos y que esos conceptos filtren la música). Por ahora, 4 conceptos ortogonales para probar la idea.
+   - Cómo (agente, propuesta): energía, luz (luminoso u oscuro), melodía (melódico o percusivo) y voz, medidos sobre
+     los 1760 temas con 5 frases por extremo; la correlación de Spearman más alta entre ellos es 0,30. Voz es un control
+     contra la etiqueta Vocal (AUC 0,76). Energía se mueve en parte con el BPM (0,37). Profundidad, la tercera dimensión
+     de la literatura junto con energía y valencia (Greenberg et al. 2016), no quedó independiente: −0,52 con energía
+     y −0,59 con luz, y se prueba aparte en A3. En A3 se mide también el caso de una sola frase, como se escribiría en
+     el móvil.
+10. **Para las medidas se usa todo lo disponible ahora, curado** (Gabriel: «no queremos usar basura»). Los tracklists de
+    1001Tracklists están en importación y entran cuando lleguen.
+    - Cómo (agente): `docs/reports/zona_sets_2026-11-08.md` dice qué entró y qué quedó afuera. Además de D7 y D1 entran dos
+      fuentes que el plan no listaba: los temas de la biblioteca que aparecen juntos en sets de D3 y los originales de
+      Bedrock, porque el radio se usa entre originales y D7 es audio mezclado. Se toma su respuesta como que sus 4 sets
+      largos entran en E11, como referencia con ruido.
 
 ## 2026-11-07
 

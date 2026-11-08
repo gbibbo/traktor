@@ -746,8 +746,8 @@ Leído del PDF de acceso abierto el 2026-11-08 (EVIDENCIA OBSERVADA del texto; s
 
 | Id | Idea | Etapa |
 | :--- | :--- | :--- |
-| E9 | Compacidad de los sets en CLAP: distribución de la distancia entre temas de un mismo set profesional validado (y de un mismo set de D1) frente a pares al azar del mismo rango de BPM. Da el radio de zona. Con pocos vectores por tema validados en D7 (123 transiciones en la revalidación), se calcula además dentro de los discos enteros a nivel de bloque y crece con D8 cuando T12 funcione | A |
-| E10 | Precisión de zona de Parecidos: fracción de los 30 primeros dentro del radio de E9. Y pureza fuera de muestra: con un tema principal de un set profesional y el pool de los temas de esa fuente más la biblioteca menos lo tocado, fracción de los 30 que son del mismo set (o del mismo DJ en la misma época), contra CLAP crudo, al azar y BPM solo | A |
+| E9 | Compacidad de los sets en CLAP: distribución de la distancia entre temas de un mismo set profesional validado (y de un mismo set de D1) frente a pares al azar del mismo rango de BPM. Da el radio de zona. Con pocos vectores por tema validados en D7 (123 transiciones en la revalidación), se calcula además dentro de los discos enteros a nivel de bloque y crece con D8 cuando T12 funcione. MEDIDO 2026-11-08 (`docs/reports/zona_sets_2026-11-08.md`): en el espacio de la biblioteca, mediana 0,176 entre temas de un mismo set profesional (D3 × biblioteca, 79 pares de 48 DJs, y originales de Bedrock, un DJ) frente a 0,233 al azar del mismo BPM; percentil 10: 0,098-0,104; percentil 25: 0,134-0,147. La mezcla junta los mismos pares 0,015 | A |
+| E10 | Precisión de zona de Parecidos: fracción de los 30 primeros dentro del radio de E9. Y pureza fuera de muestra: con un tema principal de un set profesional y el pool de los temas de esa fuente más la biblioteca menos lo tocado, fracción de los 30 que son del mismo set (o del mismo DJ en la misma época), contra CLAP crudo, al azar y BPM solo. MEDIDO 2026-11-08 (`zona_sets_2026-11-08.md`): dentro de 0,176 cae el 94 % de los 30, dentro de 0,147 el 89 % y dentro de 0,098 el 49 %; al azar, 23, 12 y 2 %. Pureza con pools de un solo dominio: Bedrock 5,7 % (azar 1,6 %, BPM 2,0 %), D1 1,8 % (0,7 y 1,1 %), D3 no concluyente; sobre audio mezclado BPM empata o gana a CLAP porque el tempo identifica el disco | A |
 | E11 | Validación de una coordenada de dirección en tres pasos, en este orden: (1) ordena la biblioteca con sentido: Gabriel escucha los 10 primeros y los 10 últimos (E3); (2) se mueve con la noche: correlación con la posición normalizada en los bloques de D7 y D8 y en los 4 sets largos de Gabriel, por set y fuera de muestra; sube hacia el pico y cambia después de la 2.ª hora; (3) acuerda con al menos 16 de 20 pares de Gabriel (T4). Lo que no pasa (1) y (2) no entra a un perfil | A-B |
 | E12 | Escucha a ciegas de listas enteras, de a dos (CLAP crudo frente a la variante), para unos 10 temas principales por ronda; Gabriel dice cuál prefiere. Es E2 hecha concreta, con el diseño del test de Vande Veire | Siempre |
 
@@ -755,7 +755,7 @@ Leído del PDF de acceso abierto el 2026-11-08 (EVIDENCIA OBSERVADA del texto; s
 
 | Id | Idea | Origen | Contrato | Depende de | Etapa | Estado |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| P8 | Radio de zona: los 30 de Parecidos se marcan (o se cortan) por caer dentro del radio de E9, no por el número 30. En el registro de cada lista, un campo `seguro` por tema; el orden y la latencia no cambian | Gabriel 11-08 («seguridad»); Vande Veire y De Bie 2018 | Perfil Parecidos; Eval E9, E10; registro I3 | E9; vectores por tema validados de D7; `d1.csv` | A | Pendiente |
+| P8 | Radio de zona: los 30 de Parecidos se marcan (o se cortan) por caer dentro del radio de E9, no por el número 30. En el registro de cada lista, un campo `seguro` por tema; el orden y la latencia no cambian | Gabriel 11-08 («seguridad»); Vande Veire y De Bie 2018 | Perfil Parecidos; Eval E9, E10; registro I3 | E9; vectores por tema validados de D7; `d1.csv` | A | Pendiente. Con E9 y E10 medidos (`zona_sets_2026-11-08.md`), el radio de la mediana casi no distingue y, como la lista ya está ordenada por parecido, el radio solo decide dónde cortarla: «los 30 frente a los seguros» compara una lista con su comienzo, y E12 para P8 necesita otro diseño antes de A2 |
 | P9 | Proyección liviana de CLAP aprendida de sets: lineal y de pocas dimensiones (LDA o pérdida contrastiva sobre CLAP congelado), acerca temas del mismo set y aleja los de sets distintos; discos fuera de la muestra; se compara con CLAP crudo por E10 y después por E12. Es M4 sin GPU ni reentrenar el tronco | Gabriel 11-08 (reutilizar D7 y D8); Alonso-Jiménez et al. ICASSP 2023 | Tema (vector `clap_sets`); Comp `clap` variante | P8 (la medida); D7 validado; D1 como apoyo | B | Pendiente |
 | P10 | Consulta compuesta para Mantener: centro de lo tocado con peso α más el tema actual con un paso chico en la dirección del último paso (β negativo), como la ec. 34 del paper (0,4 y −0,1 de partida). Se mide como zona (E10), no como acierto del tema siguiente | Vande Veire y De Bie 2018; T17 | Perfil Mantener; Comp `clap` | T17 (`clap_historia`), P8 | B | Pendiente. T17 medido con el acierto del siguiente no mejoró (p ≥ 0,72); esa no es la medida de esta idea |
 | T18 | Direcciones de texto en CLAP: conceptos iniciales (energético o peak time, oscuro o hipnótico, melódico o uplifting, introspectivo o deep, vocal, con breakdowns), varias frases por concepto promediadas, dirección como diferencia de dos frases opuestas o percentil dentro de la biblioteca (la brecha entre modalidades hace que el coseno con un texto sea bajo y parejo: vale el orden, no el valor). Puntaje = w·cos(candidato, principal) + (1−w)·cos(candidato, concepto) | Gabriel 11-08 (pregunta); plan T3 y T7 | Comp `texto_clap`; perfiles de dirección | Codificador de texto (`tag_vocals.py`, `laion/clap-htsat-unfused`) y embeddings de la biblioteca: existen | A | Pendiente |
@@ -775,7 +775,7 @@ actualizado en su lugar en las tablas de 11.2 y 11.3.
 
 **Etapa A (ahora, CPU, sin audio nuevo).**
 
-1. **E9 y E10 sobre CLAP crudo.** Entradas: `indice_recomendacion.json` (1760 temas), los vectores por
+1. [HECHO 2026-11-08: `src/v4/evaluation/zona_sets.py`, informe `docs/reports/zona_sets_2026-11-08.md`. Además de lo listado entraron los temas de la biblioteca que aparecen juntos en sets de D3 y los originales de Bedrock, los únicos sets profesionales en el espacio de la biblioteca] **E9 y E10 sobre CLAP crudo.** Entradas: `indice_recomendacion.json` (1760 temas), los vectores por
    tema validados de D7, los bloques de los discos enteros, `d1.csv`. Sale: módulo de evaluación
    (`src/v4/evaluation/zona_sets.py` o una extensión de `banco_sets.py`) e informe con el radio de zona,
    la fracción de los 30 dentro del radio y la pureza fuera de muestra, con líneas de base al azar y BPM
@@ -816,10 +816,10 @@ estaban.
 
 ### 11.6 Preguntas para Gabriel (antes de A3)
 
-1. Los conceptos iniciales para T18, en sus palabras (los de la tabla son una propuesta).
-2. Qué DJs y qué sets para D8, y si sus 4 sets largos valen como forma de referencia para E11.
+1. [REEMPLAZADO 2026-11-08 por respuesta de Gabriel (DECISIONS 2026-11-08, punto 9): los conceptos son provisionales; 4 ortogonales para probar el método y, si funciona, se escriben desde el móvil] Los conceptos iniciales para T18, en sus palabras (los de la tabla son una propuesta).
+2. [REEMPLAZADO 2026-11-08 por respuesta de Gabriel (DECISIONS 2026-11-08, punto 10): se usa todo lo disponible, curado; los tracklists de 1001Tracklists están en importación] Qué DJs y qué sets para D8, y si sus 4 sets largos valen como forma de referencia para E11.
 3. Cuántas listas quiere escuchar por ronda (la propuesta es 10, de a dos).
-4. Cuántos tracklists de 1001Tracklists bajar con su cuenta y de qué DJs (DECISIONS 2026-11-08, punto 1: el
+4. [REEMPLAZADO 2026-11-08 por Gabriel (DECISIONS 2026-11-08, puntos 1 y 10): se bajan muchos con su cuenta y están en importación] Cuántos tracklists de 1001Tracklists bajar con su cuenta y de qué DJs (DECISIONS 2026-11-08, punto 1: el
    correo ya se mandó; bajar muchos quedó sin decidir).
 
 ### 11.7 Afirmaciones de la adenda

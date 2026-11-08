@@ -411,3 +411,11 @@ tiene que mostrar solo los bloques ajenos. Si el otro no tiene nada sin commit, 
   distingue. Sirve para descartar. La calidad de la lista se mide con la compacidad de la zona (sets
   profesionales) y con la escucha a ciegas de listas enteras de a dos, como el test de Vande Veire y De Bie
   2018 (17 de 18 oyentes). Antes de concluir «no mejora», preguntarse qué mide la medida.
+- **Un umbral de distancia sobre una lista ya ordenada por esa distancia solo decide dónde cortarla.** No reordena nada:
+  comparar la lista con su parte «segura» es compararla con su comienzo. Además, un radio sacado de pares tocados juntos
+  (0,176 de mediana) deja adentro casi todo el top-30, que por construcción son los vecinos más cercanos (0,068 a 0,112).
+- **Antes de comparar un BPM estimado con uno de tags, redondear.** El estimador cae en valores finos (125,9) que los tags
+  no tienen, y el orden por cercanía prefiere a los temas estimados con el mismo método: la «pureza por BPM» dio 8,0 %
+  en vez de 2,0 %.
+- **En audio mezclado el BPM identifica el disco.** El DJ iguala tempos: el 72 % de los pares de un disco están a 1 BPM o menos
+  (5,8 % entre discos). Cualquier medida de «mismo set» por BPM sobre mezclas gana por construcción.
