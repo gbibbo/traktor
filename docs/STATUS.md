@@ -46,13 +46,13 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    Colección. Solo el escritorio (laptop retirada, 11-04), todo en D:: `artifacts/v4/datasets/musica`
    apunta a `D:\TRAKTOR ML datos\musica` y `Música/` a `D:\TRAKTOR ML\Musica` (package_library.py);
    el pendrive manda. LOCAL: probar «Agregar» con Workout Delft.
-3. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
-   tracklists y descarga del audio se consultan antes de implementar.
+3. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): tracklists con su
+   cuenta, probado (11-08); volumen y audio se consultan antes de implementar.
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
 5. Recomendación en vivo (DECISIONS 11-06/07): parecidos (`recomendador.py`, D#0+D0); plan
    `docs/plans/recomendacion_playlists_plan.md`. Hechos: D7 validado, líneas en D1 (`lineas_d1`).
-   GABRIEL: correo a 1001Tracklists; Traktor, «TRAKTOR ML sin tonalidad», Analyze solo Key. TIV aparte.
+   GABRIEL: Traktor, «TRAKTOR ML sin tonalidad», Analyze solo Key. TIV aparte.
 
 ## RUN RECIPES
 

@@ -6,6 +6,25 @@ anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_impl
 Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 `[REEMPLAZADO <fecha> por <decisión>: <lo que rige ahora>]` (o `[REFUTADO …]` si era un error).
 
+## 2026-11-08
+
+1. **Los tracklists de 1001Tracklists se bajan directamente de la página, con la cuenta de Gabriel**
+   (Gabriel). El correo ya se mandó, tardan en contestar y no se depende de eso. Reemplaza la ruta del
+   punto 9 del 2026-11-07. Bajar muchos queda sin decidir.
+   - Cómo (agente, probado con un solo tracklist, Maddix `1ch990z1`): `export_1001tracklists.py`
+     (Playwright con Chromium visible; está en Descargas, fuera de Git) pulsa el botón oficial de exportar
+     y guarda el texto que devuelve `/ajax/export_data.php`. Gabriel inicia sesión a mano en esa ventana:
+     la contraseña no pasa por el agente.
+   - La página y el botón se ven sin sesión, pero sin cuenta el servidor rechaza la exportación: «will be
+     enabled after your account has been active for one week».
+   - Resultado: 35 temas, igual al texto que pegó Gabriel. `Fēlēs` llega descompuesto (NFD): normalizar a
+     NFC antes de comparar nombres.
+   - Aviso (agente): la ruta anterior evitaba justo esto. El `robots.txt` bloquea al agente «CPython» y
+     pide `Crawl-delay: 8` al resto.
+   - Pendiente en el script antes de darle una lista: en Windows `write_text` deja `\r\r\n` (falta
+     `newline=""`); la pausa es de 3 s y el sitio pide 8; sigue con la lista después de un rechazo; no
+     salta lo ya bajado; y crea su perfil con cookies en la carpeta desde donde se corre.
+
 ## 2026-11-07
 
 1. **En Traktor habrá varias playlists que se actualizan solas** (Gabriel).
@@ -55,7 +74,8 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 9. **Se usan sets largos de 1001Tracklists** (Gabriel). Preguntó de dónde sacarlos y si tiene que hacer
    algo.
    - Cómo (agente), 2026-11-07: 1001Tracklists no tiene API pública, y su `robots.txt` bloquea a los
-     scripts de Python. La ruta propuesta es que Gabriel pida acceso de investigación a
+     scripts de Python. [REEMPLAZADO 2026-11-08 por decisión de Gabriel (punto 1 de ese día): se exporta
+     desde la página con su cuenta, sin depender del correo] La ruta propuesta es que Gabriel pida acceso de investigación a
      info@1001tracklists.com, como hizo el grupo de Kim. Mientras tanto, sets largos de MixesDB y los
      suyos.
    - Plan e informe para auditoría: `docs/plans/recomendacion_playlists_plan.md`.
