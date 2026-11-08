@@ -372,3 +372,17 @@ tiene que mostrar solo los bloques ajenos. Si el otro no tiene nada sin commit, 
 - Login node (`datamove1`) sí tiene acceso a internet (puede hacer pip install, git pull).
 - El comando `source /user/HS300/gb0048/anaconda3/etc/profile.d/conda.sh` es necesario antes de `conda activate`.
 - Siempre correr scripts con `PYTHONPATH=/mnt/fast/.../traktor` desde el repo root.
+
+## 2026-11-07: audio continuo de sets mezclados (D7)
+
+- **Un archivo elegido solo por duración puede ser otra mezcla.** En playlists de colección con decenas de
+  sets de ~75 min, otro set dura lo mismo (±8 s) por azar: 53 de 96 discos «continua» de D7 eran de otro DJ.
+  Validar por título (y por pistas en las bajadas tema por tema) antes de usar el audio; una verificación
+  que use la misma magnitud que eligió el archivo (la duración) es circular y no detecta nada.
+- **Toda medida de orden sobre audio mezclado lleva un control de límites falsos.** Dos tramos contiguos de
+  cualquier mezcla se parecen; con límites desplazados, iguales o al azar el «tramo siguiente» ganó más
+  (36-46 %) que con los límites reales (24-27 %). Si los falsos empatan o ganan, la medida es continuidad,
+  no la elección del DJ. Vale para D8 (nivel de bloque) y para cualquier set grabado.
+- **Al comparar vectores con distinto borde, igualar la cantidad de bloques.** Menos bloques baja el ranking
+  aunque las diferencias de medianas se conserven; un control con los mismos bloques elegidos al azar
+  separa el efecto del borde del ruido.

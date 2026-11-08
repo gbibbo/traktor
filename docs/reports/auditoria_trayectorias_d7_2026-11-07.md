@@ -219,3 +219,23 @@ limpio). Coincide con el piloto con los originales de Digweed: consecutivos 0,16
   por_tema validados, originales en la biblioteca (14 hoy) o compilaciones con los originales sueltos.
 - **P8.** Repetir esta auditoría sobre el `d7_trayectorias.json` validado cuando llegue el SHA; los
   scripts están listos.
+
+## Confirmación sobre lo validado (2026-11-07, noche; commit `149754bf8772d81abddcf568627948337b339e1f`)
+
+La revalidación de traktor-github-6e (`tools/dj_sets/validar_d7.py`, `trayectorias_d7.py` con `--validacion`)
+se verificó contra `sets/d7_validacion.json`, `d7_trayectorias.json` (límites usables) y
+`d7_trayectorias_titulo.json`. Los tests: 15 de 15 en `tests/v4/test_dj_sets.py`.
+
+| Afirmación | Etiqueta | Evidencia |
+|---|---|---|
+| Todos los números de la sección «Revalidación» del informe D7 salen de los JSON | EVIDENCIA OBSERVADA | 531 temas, 440 transiciones, 32 discos (título: 634, 526, 40); control 24,0 / 42,4 / 35,6 / 40,3-46,4 %; por_tema 22 frente a 18,9 (z 0,8); bordes 30,2 → 20,7 % con azar 20,0 %; McNemar 22/6 p 0,004; compilación 14,5 frente a 3,05 %; centroides y perfiles; Cox 299 temas en 17 discos, Warren 100 en 9, Sasha 81 en 15, Cattáneo 51 en 4 |
+| El control de límites falsos se reproduce con una implementación independiente | EVIDENCIA OBSERVADA | Script propio sobre los mismos 24 discos: reales 24,0 %, desplazados 43,0 %, iguales 36,0 %, al azar 40,6-46,0 % (azar exacto 16,7-17,5 %); con todo lo que pasa el título (32 discos): 25,7 / 44,9 / 37,4 / 41,3-45,7 %. Las diferencias con el banco (hasta 0,6 puntos) son de cómo se desplazan y recortan los tramos |
+| El validador por título rechaza todos los discos ajenos que motivaron la revisión | EVIDENCIA OBSERVADA | GU013 d1 y d2, GU035 d1 y d2, GU008 d2, Non Stop 2000 d1 y d2, Non Stop 98/01, Roundhouse, Pure Intec 3 y Communicate d1: `valido` falso con el motivo correcto. Communicate d2 (título correcto) pasa, con p de límites 0,99: entra solo en el modo «titulo» |
+| Los falsos rechazos del título son pocos y conservadores | INFERENCIA | 21 de los 53 rechazados nombran al DJ; leídos uno a uno, casi todos son otro lanzamiento (GU 010 por GU013, GU 018 por GU035, Masters 19 por 18, Crobar por Space). Dudosos: «F.A.C.T.» CD1 y CD2 frente a «F.A.C.T. (Silver Edition)», y «Masters Series Part 6 Volume 2» frente a «Sequential, Volume 2»: 2-3 discos que podrían ser la misma mezcla con otro nombre |
+| La prueba de los límites separa poco | EVIDENCIA OBSERVADA | p mediano 0,31 en los válidos (24 de 32 con p ≤ 0,5) y 0,52 en los rechazados (21 de 44 con p ≤ 0,5). Ocho discos con título correcto tienen p > 0,5 y quedan fuera del modo «limites» |
+| La tabla de bordes (0 → 3 bloques centrales) mezcla dos variables: borde y cantidad de bloques | INFERENCIA | Como en la adenda: con la misma cantidad de bloques, borde 60 ya baja a 22,9-24,8 % sobre los datos sin validar. La fila «esa ventaja está en el audio cerca de los cambios» vale como INFERENCIA, no como EVIDENCIA OBSERVADA. No cambia el veredicto: el control de límites falsos decide qué mide la medida |
+| Lo que D7 validado sigue diciendo | EVIDENCIA OBSERVADA | La compilación agrupa (14,5 frente a 3,05 % en los 30; centroides 0,049 frente a 0,07-0,11); DJ frente a época NO CONCLUYENTE con 32 discos; «historia» y «momento» no se distinguen de CLAP dentro del disco; «momento» empeora con todo D7 como pool (31,8 frente a 44,7 %) |
+
+Lo que queda abierto está en el informe D7: la elección del siguiente tema se mide con vectores por tema
+de archivos separados (por_tema validadas, originales de la biblioteca, compilaciones con originales), y la
+hipótesis «comienzos que combinan con finales» se decide en D1 con los originales.
