@@ -611,18 +611,32 @@ function showFolder(info) {
   if (info.n_known >= info.n_audio) {  // ya organizados, o copias de temas que ya están: analizar no suma nada
     body.push(el("p", {}, el("strong", { text: `${fmt(info.n_audio)} ${info.n_audio === 1 ? "tema" : "temas"}` }),
       ` · ${fmt(info.size_mb)} MB: ${info.n_audio === 1 ? "ya está" : "ya están todos"} en tu organización (o son copias de temas que ya están). No hay nada nuevo para agregar.`));
+    if (!info.inside && info.complete_path) body.push(el("p", { class: "muted" }, "Están en tu biblioteca en ", el("span", { class: "path", text: info.complete_path })));
+    body.push(traktorLine(info));
     body.push(el("p", { class: "muted", text: "Si después de agregarla la analizaste en Traktor, «Completar BPM, tonalidad y género» trae lo que Traktor calculó y busca el género de nuevo. Las playlists no cambian." }));
     return openDialog("Agregar música nueva", body, [btn("Cerrar", closeDialog), btn("Elegir otra carpeta", addMusic),
       btn("Completar BPM, tonalidad y género", async () => {
-        try { const job = await api("/api/complete-metadata", { path: info.path }); watchJob(job, "complete"); }
+        try { const job = await api("/api/complete-metadata", { path: info.complete_path || info.path }); watchJob(job, "complete"); }
         catch (e) { errorDialog(e.message); }
       }, true)]);
   }
   body.push(el("p", {}, el("strong", { text: `${fmt(info.n_audio)} ${info.n_audio === 1 ? "tema" : "temas"}` }),
     info.n_known ? ` (${fmt(info.n_known)} ya están organizados; se agregan los otros ${fmt(info.n_audio - info.n_known)})` : "", ` · ${fmt(info.size_mb)} MB`));
   if (!info.inside) body.push(el("div", { class: "callout", style: "--c: var(--warning)" },
-    "La carpeta está fuera de tu biblioteca: se va a copiar a ", el("div", { class: "path", text: info.dest })));
-  openDialog("Agregar música nueva", body, [btn("Cancelar", closeDialog), btn("Elegir otra carpeta", addMusic), btn("Analizar", () => confirmAdd(info), true)]);
+    info.dest_kind === "home" ? "Algunos de estos temas ya están en tu biblioteca: los que faltan se copian junto a ellos, en "
+      : info.dest_kind === "resume" ? "Un intento anterior ya empezó a copiar esta carpeta: se completa esa copia (no se hace otra), en "
+      : "La carpeta está fuera de tu biblioteca: se va a copiar a ", el("div", { class: "path", text: info.dest })));
+  body.push(traktorLine(info));
+  openDialog("Agregar música nueva", body, [btn("Cancelar", closeDialog), btn("Elegir otra carpeta", addMusic), btn("Agregar a la colección", () => confirmAdd(info), true)]);
+}
+// ¿Traktor ya calculó BPM y tonalidad? (por nombre de archivo en su colección)
+function traktorLine(info) {
+  if (info.n_traktor == null) return el("p", { class: "muted", text: "No encontré la colección de Traktor en este ordenador: BPM y tonalidad salen solo de las etiquetas." });
+  if (info.n_traktor >= info.n_audio) return el("p", { class: "muted", text: `✓ Traktor ya analizó ${info.n_audio === 1 ? "el tema" : `los ${fmt(info.n_audio)} temas`}: BPM y tonalidad salen de ahí.` });
+  const falta = info.n_audio - info.n_traktor;
+  return el("div", { class: "callout", style: "--c: var(--warning)" },
+    el("strong", { text: `Traktor todavía no analizó ${falta === 1 ? "1 tema" : `${fmt(falta)} temas`} de esta carpeta.` }),
+    el("p", { text: "Antes de agregarla, cargala en Traktor y tocá Analyze: de ahí salen el BPM y la tonalidad. Si la agregás igual, esos temas quedan sin tonalidad hasta que la completes después desde acá." }));
 }
 function consequence(what) {
   return prefs.keep
@@ -640,12 +654,12 @@ function consequence(what) {
         el("p", { class: "muted", text: "La versión actual queda guardada y podés volver a ella con «Deshacer el último cambio». Si preferís no mover nada, cancelá y encendé el interruptor." }));
 }
 function confirmAdd(info) {
-  const mins = Math.max(1, Math.round(info.n_audio * 15 / 60));
+  const mins = Math.max(1, Math.round((60 + (info.n_audio - (info.n_known || 0)) * 3) / 60));
   openDialog(prefs.keep ? "Agregar sin mover lo que ya está" : "Agregar y reorganizar todo", [
     consequence("add"),
-    el("p", { text: `El análisis tarda hasta unos 15 segundos por tema (≈ ${mins} min para ${fmt(info.n_audio)} temas); la música bajada con la app de descargas ya viene analizada y tarda mucho menos. A los temas con voz se les agrega «Vocal» en el comentario, y se busca el género en Beatport.` }),
-    el("p", { class: "muted", text: "BPM y tonalidad salen de lo que Traktor analizó: si todavía no cargaste esta carpeta en Traktor, hacelo antes (o completalo después desde acá)." })],
-    [btn("Cancelar", closeDialog), btn("Aceptar y analizar", async () => {
+    el("p", { text: `La música bajada con la app de descargas ya trae calculados el género, las voces y los embeddings: acá se suman a tu colección (≈ ${mins} min). Música de otro lado se analiza ahora y tarda más (hasta unos 15 segundos por tema).` }),
+    traktorLine(info)],
+    [btn("Cancelar", closeDialog), btn("Agregar", async () => {
       try { const job = await api("/api/add-collection", { path: info.path, keep: prefs.keep }); watchJob(job, "add"); }
       catch (e) { errorDialog(e.message); }
     }, true)]);
@@ -659,16 +673,18 @@ function renderJob(job, title) {
   const bar = el("div", { class: "bar" + (indet ? " indet" : "") }, el("div", { style: indet ? null : `width:${Math.round(job.frac * 100)}%` }));
   const eta = job.eta_s != null ? ` · faltan ≈ ${job.eta_s < 90 ? job.eta_s + " s" : Math.round(job.eta_s / 60) + " min"}` : "";
   openDialog(title, [steps, bar, el("p", { class: "muted", text: (job.detail || "") + eta }),
-    el("p", { class: "muted", text: "Podés seguir escuchando mientras tanto; no cierres esta pestaña ni la ventana negra de la app." })], [], false);
+    el("p", { class: "muted", text: "Podés seguir escuchando mientras tanto. Si un paso se traba, la app lo corta y lo vuelve a intentar sola; «Cancelar» lo corta ahora (lo hecho se guarda y se reutiliza la próxima vez)." })],
+    [btn("Cancelar", async () => { try { await api("/api/cancel", {}); } catch (e) { errorDialog(e.message); } })], false);
 }
 function watchJob(job, kind) {
-  const titles = { add: "Analizando la música nueva", fusions: "Rehaciendo las playlists", export: "Preparando las playlists",
+  const titles = { add: "Agregando a tu colección", fusions: "Rehaciendo las playlists", export: "Preparando las playlists",
                    complete: "Completando BPM, tonalidad y género" };
   const tick = async () => {
     let j;
     try { j = await (await fetch(`/api/job/${job.id}`)).json(); } catch (e) { return setTimeout(tick, 1500); }
     if (j.status === "running") { renderJob(j, titles[kind]); return setTimeout(tick, 800); }
     if (j.status === "error") return errorDialog(j.error);
+    if (j.status === "cancelled") return openDialog("Cancelado", [el("p", { text: "Se cortó. Lo que ya estaba hecho quedó guardado: si volvés a agregar la misma carpeta, sigue desde ahí y no se copia de nuevo." })], [btn("Cerrar", closeDialog, true)], false);
     doneDialog(kind, j.result);
   };
   renderJob(job, titles[kind]); setTimeout(tick, 500);

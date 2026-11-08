@@ -15,6 +15,10 @@ PURPOSE: Guardar dentro de cada archivo de música (en sus tags) su embedding y 
            file_embeddings.py write --package "D:\\TRAKTOR ML" [--folder "<subcarpeta de Musica>"] [--low-priority]
            file_embeddings.py check --package "D:\\TRAKTOR ML"
 CHANGELOG:
+  - 2026-11-07: same() no compara la versión de la organización guardada en el lugar: es la versión en que se
+                fijó ese lugar. Cada agregado sube la versión, y por eso «Actualizar el pendrive» reescribía (y
+                verificaba con dos hashes de audio) los 1760 archivos aunque solo hubieran entrado 10 temas.
+                package_plan(only_uids=…): solo esos temas (los nuevos o los que cambiaron de lugar).
   - 2026-11-04: Creación.
 """
 from __future__ import annotations
@@ -102,8 +106,15 @@ def write_track(path: Path, vec: np.ndarray, place: Dict, rep: str) -> None:
     tags.save(str(path), v2_version=version)
 
 
+PLACE_IGNORED = ("version",)   # la versión en que se fijó el lugar: no hace distinto un lugar que no cambió
+
+
+def _comparable(place: Optional[Dict]) -> Optional[Dict]:
+    return None if place is None else {k: v for k, v in place.items() if k not in PLACE_IGNORED}
+
+
 def same(vec: Optional[np.ndarray], place: Optional[Dict], want_vec: np.ndarray, want_place: Dict) -> bool:
-    return (vec is not None and place == want_place
+    return (vec is not None and _comparable(place) == _comparable(want_place)
             and np.array_equal(vec, np.asarray(want_vec, dtype="<f4")))
 
 
@@ -111,8 +122,10 @@ def same(vec: Optional[np.ndarray], place: Optional[Dict], want_vec: np.ndarray,
 # El paquete
 # ---------------------------------------------------------------------------
 
-def package_plan(package: Path, artifacts: Path, org_name: str, folder: Optional[str] = None) -> Tuple[List[Dict], str]:
-    """Qué escribir en cada archivo del paquete: embedding y lugar en la versión actual de la organización."""
+def package_plan(package: Path, artifacts: Path, org_name: str, folder: Optional[str] = None,
+                 only_uids: Optional[set] = None) -> Tuple[List[Dict], str]:
+    """Qué escribir en cada archivo del paquete: embedding y lugar en la versión actual de la organización.
+    only_uids: solo esos temas (sin leer el resto de los archivos)."""
     store = OrgStore(artifacts, org_name)
     meta = store.meta()
     rep = meta["params"]["rep"]
@@ -125,6 +138,8 @@ def package_plan(package: Path, artifacts: Path, org_name: str, folder: Optional
     for r in index.itertuples():
         rel = PureWindowsPath(r.archivo)
         if folder and (len(rel.parts) < 2 or rel.parts[1] != folder):
+            continue
+        if only_uids is not None and r.track_uid not in only_uids:
             continue
         a = by_uid.loc[r.track_uid] if r.track_uid in by_uid.index else None
         place = None if a is None else {

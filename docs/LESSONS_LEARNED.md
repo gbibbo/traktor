@@ -125,6 +125,25 @@ con pico de −8,9 dBFS; los de Soulseek de la misma playlist están entre −6 
 `ebur128`). Es una baja pareja, sin recortes: el grabador sube cada tema hasta un pico de −1 dBFS
 y recupera el nivel. Desactivar la normalización en Spotify evita perder resolución.
 
+### En Windows, no dejar un hilo bloqueado leyendo la entrada estándar
+
+La app de Organización sabía que la app de descargas se cerraba porque un hilo leía su entrada estándar (un pipe)
+hasta el fin de archivo. El 2026-11-07 se trabó dos veces:
+- un script lanzado por ella no arrancó (13 MB, 0 s de CPU a los 30 min);
+- después la app entera se congeló al importar `dedupe` a mitad de una tarea.
+
+En una prueba aislada, con un hilo así bloqueado, un hijo que hereda la entrada no arranca e importar módulos
+queda colgado. En Windows, una lectura sincrónica pendiente frena otras operaciones sobre el mismo archivo.
+Para saber si se cerró, mirar sin bloquear (`PeekNamedPipe`) o vigilar el proceso padre, y lanzar los hijos con
+`stdin=DEVNULL`.
+
+### Un dato que cambia en cada versión, guardado en cada archivo, obliga a reescribirlos todos
+
+El lugar de cada tema en la organización va dentro del archivo (`file_embeddings.py`) e incluía la versión de la
+organización. Cada «Agregar música» sube la versión. Por eso «Actualizar el pendrive» reescribía y verificaba,
+con dos hashes de audio, los 1760 archivos para sumar 10 temas. La versión ya no cuenta como cambio y se
+escriben solo los temas nuevos o movidos.
+
 ### Spotify puede rechazar con un 500 la transferencia al dispositivo que ya está activo
 
 El 2026-11-07 a las 18:33, `PUT /v1/me/player` (`transfer_playback`) devolvía 500 «Server error» en cada

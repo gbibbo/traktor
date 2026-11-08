@@ -39,6 +39,9 @@ CHANGELOG:
                 con ella, después de la tarea en curso).
   - 2026-11-02: Si al Python de la app le falta el pipeline, la Organización prueba con el del PATH, y el
                 aviso dice lo que falta de verdad (la música organizada, no solo paquetes).
+  - 2026-11-07: La Organización recibe --parent-pid: se cierra también si esta app se cae sin cerrarle la
+                entrada (review_app ya no deja una lectura bloqueada en ella, con la que se trabó dos veces).
+                Al terminar una descarga, «Siguiente paso: sumarla a tu colección» con «Agregar a la colección».
   - 2026-11-07: ProcessTree ya no adopta procesos ajenos por PID reutilizado: al terminar una descarga se
                 cerraron Google Drive (GoogleDriveFS.exe) y varios msedgewebview2.exe. Solo entra un proceso
                 cuyo padre sigue siendo el mismo de la descarga, y no se sigue dentro de Spotify.
@@ -1743,8 +1746,9 @@ class Organizer:
     vive la app: al cerrarse esta, se le cierra la entrada estándar y termina después de la tarea en curso."""
 
     def __init__(self, cmds: list[list[str]] | None = None):
-        self.cmds = cmds or [[exe, "-u", str(REVIEW_APP), "--no-browser", "--exit-on-stdin-eof"]
-                             for exe in organizer_pythons()]
+        # --parent-pid: también se cierra si esta app se cae sin cerrarle la entrada
+        self.cmds = cmds or [[exe, "-u", str(REVIEW_APP), "--no-browser", "--exit-on-stdin-eof",
+                              "--parent-pid", str(os.getpid())] for exe in organizer_pythons()]
         self.proc: subprocess.Popen[str] | None = None
         self.status = "off"  # off | starting | ready | error
         self.url: str | None = None

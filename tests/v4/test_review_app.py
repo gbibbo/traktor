@@ -236,6 +236,9 @@ def test_added_music_gets_traktor_bpm_key_and_genre_without_stopping_on_failures
     assert "--traktor" in by["phase1_tags.py"] and "--estimate-missing" in by["phase1_tags.py"]
     maest = [c for c in calls if c[0].endswith("extract_representations.py") and "maesthf" in c]
     assert maest and maest[0][maest[0].index("--folder") + 1] == "A"
+    # solo la carpeta: ensamblado incremental y voces de la carpeta (no toda la biblioteca)
+    assert all("--incremental" in c for c in calls if c[0].endswith("extract_representations.py"))
+    assert by["tag_vocals.py"][by["tag_vocals.py"].index("--scope") + 1] == "A"
     assert by["beatport_lookup.py"][by["beatport_lookup.py"].index("--folder") + 1] == "A"
     assert "--offline" in by["beatport_lookup.py"] and "--offline" in by["beatport_subgenres.py"]
     assert "--predict" in by["genre_model.py"]
@@ -253,11 +256,54 @@ def test_added_music_gets_traktor_bpm_key_and_genre_without_stopping_on_failures
     calls.clear()
     code, body, _ = _req(base + "/api/complete-metadata", {"path": str(app.library / "A")})
     j = _wait(base, json.loads(body)["id"])
-    assert code == 200 and j["status"] == "done" and j["steps"] == ["BPM y tonalidad", "Género y subgénero"]
+    assert code == 200 and j["status"] == "done" and j["steps"] == review_app.COMPLETE_STEPS
     assert [Path(c[0]).name for c in calls] == ["phase1_tags.py", "extract_representations.py", "beatport_lookup.py",
                                                 "beatport_subgenres.py", "genre_model.py"]
     assert any("1 tema quedó sin tonalidad" in n for n in j["result"]["notes"])
     assert _req(base + "/api/complete-metadata", {"path": str(app.library.parent)})[0] == 400
+
+
+def test_the_app_watches_its_stdin_without_blocking_it(tmp_path):
+    """Lanzada desde la app de descargas, la app se cierra cuando le cierran la entrada estándar. Antes la leía con
+    un hilo bloqueado, y en Windows eso trabó la app dos veces el 2026-11-07: un script que no arrancaba y la app
+    entera al importar dedupe a mitad de una tarea (en una prueba, importar con la lectura pendiente quedó colgado
+    más de 200 s). stdin_closed mira sin bloquear: con la entrada abierta se importa y se lanzan scripts, y el
+    cierre se ve."""
+    import subprocess
+    script = tmp_path / "paso.py"
+    script.write_text("print('1/1 temas', flush=True)" + chr(10), encoding="utf-8")
+    driver = tmp_path / "app.py"
+    driver.write_text(chr(10).join([
+        "import os, sys, threading, time",
+        f"sys.path.insert(0, {str(REPO_ROOT)!r})",
+        "import src.v4.ui.review_app as ra",
+        "closed = threading.Event()",
+        "def watch():",
+        "    while not ra.stdin_closed():",
+        "        time.sleep(0.2)",
+        "    closed.set()",
+        "threading.Thread(target=watch, daemon=True).start()",
+        "time.sleep(1)",
+        "import src.v4.pipeline.tag_vocals, src.v4.pipeline.genre_model  # importar a mitad de la vigilancia",
+        "job = ra.Job('add', ['paso'])",
+        f"ra.run_script([{str(script)!r}], job, 0)",
+        "print('frac', job.frac, 'abierta' if not closed.is_set() else 'cerrada', flush=True)",
+        "print('cierre visto' if closed.wait(30) else 'sin cierre', flush=True)",
+        "os._exit(0)", ""]), encoding="utf-8")
+    proc = subprocess.Popen([sys.executable, str(driver)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, text=True)
+    first = proc.stdout.readline()
+    deadline = time.time() + 120
+    while "frac" not in first and time.time() < deadline and first:
+        first = proc.stdout.readline()
+    assert "frac 1.0 abierta" in first, first
+    proc.stdin.close()   # la app de descargas se cierra
+    try:
+        rest, _ = proc.communicate(timeout=60)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        pytest.fail("no vio que se cerró la entrada")
+    assert "cierre visto" in rest, rest
 
 
 def test_reorder_and_remove_fusion(running_app):
@@ -376,3 +422,73 @@ def test_the_package_is_looked_for_first_where_the_organization_data_is():
     assert review_app.drive_order(kinds) == ["C:\\", "E:\\", "D:\\"]
     assert review_app.drive_order(kinds, "D:\\") == ["D:\\", "C:\\", "E:\\"]   # los datos en el pendrive
     assert review_app.drive_order(kinds, "Z:\\") == ["C:\\", "E:\\", "D:\\"]   # nunca una unidad de red
+
+
+def test_a_cut_or_repeated_copy_does_not_make_a_second_folder(running_app, tmp_path):
+    """Gabriel, 2026-11-07: «Agregar» se trabó, al reintentar copió la carpeta otra vez («Workout Delft (2)») y la
+    primera copia quedó suelta. Una copia a medias se completa; lo que ya está en la biblioteca no se vuelve a copiar."""
+    import pandas as pd
+    app, base = running_app
+    src = tmp_path / "Nueva"
+    src.mkdir()
+    (src / "x.mp3").write_bytes(b"x" * 300)
+    (src / "y.mp3").write_bytes(b"y" * 400)
+    describe = lambda: json.loads(_req(base + "/api/describe-folder", {"path": str(src)})[1])  # noqa: E731
+    info = describe()
+    assert info["dest_kind"] == "new" and Path(info["dest"]) == app.library / "Nueva"
+    (app.library / "Nueva").mkdir()                       # el intento anterior se cortó copiando x.mp3
+    (app.library / "Nueva" / "x.mp3").write_bytes(b"x" * 120)
+    info = describe()
+    assert info["dest_kind"] == "resume" and Path(info["dest"]) == app.library / "Nueva"
+    job = review_app.Job("add", ["copia"])
+    review_app.copy_tree(src, Path(info["dest"]), job, 0)
+    assert (app.library / "Nueva" / "x.mp3").read_bytes() == b"x" * 300 and (app.library / "Nueva" / "y.mp3").exists()
+    assert not list((app.library / "Nueva").glob("*.copiando"))
+    (app.library / "Nueva" / "z.mp3").write_bytes(b"z")  # otra carpeta con el mismo nombre: no es esta copia
+    assert Path(describe()["dest"]) == app.library / "Nueva (2)"
+    # x.mp3 ya está organizado en la biblioteca (mismo nombre y tamaño): se copia solo y.mp3, junto a él
+    uid = app.store.load()[0]["track_uid"].iloc[0]
+    cat = pd.read_parquet(app.artifacts / "catalog.parquet")
+    cat.loc[cat["track_uid"] == uid, ["rel_path", "filesize_bytes"]] = ["A/x.mp3", 300]
+    cat.to_parquet(app.artifacts / "catalog.parquet", index=False)
+    info = describe()
+    assert info["dest_kind"] == "home" and Path(info["dest"]) == app.library / "A"
+    assert info["n_known"] == 1 and info["skip"] == ["x.mp3"]
+
+
+def test_a_stuck_script_is_cut_and_retried_and_cancel_stops_it(tmp_path):
+    pytest.importorskip("psutil")
+    count = tmp_path / "intentos.txt"
+    stuck = tmp_path / "trabado.py"
+    stuck.write_text(f"open({str(count)!r}, 'a').write('x')\nimport time\ntime.sleep(60)\n", encoding="utf-8")
+    job = review_app.Job("add", ["paso"])
+    t0 = time.time()
+    with pytest.raises(RuntimeError, match="se trabó"):
+        review_app.run_script([str(stuck)], job, 0, stall_s=1.5)
+    assert count.read_text() == "xx" and time.time() - t0 < 30   # se cortó y se lanzó una vez más
+    busy = tmp_path / "trabajando.py"                              # sin escribir pero usando CPU: no está trabado
+    busy.write_text("import time\nt = time.time()\nwhile time.time() - t < 4: pass\nprint('1/1 temas')\n",
+                    encoding="utf-8")
+    review_app.run_script([str(busy)], job, 0, stall_s=1.5)
+    assert job.frac == 1.0
+    job = review_app.Job("add", ["paso"])
+    errors = []
+    worker = threading.Thread(target=lambda: errors.append(
+        pytest.raises(review_app.Cancelled, review_app.run_script, [str(stuck)], job, 0)))
+    worker.start()
+    time.sleep(1.5)
+    job.cancel()                                                   # «Cancelar»
+    worker.join(timeout=15)
+    assert not worker.is_alive() and errors and job.proc is None
+
+
+def test_the_package_only_rewrites_what_moved(running_app):
+    """«Actualizar el pendrive» reescribía los 1760 archivos en cada agregado; ahora solo lo nuevo o lo movido."""
+    app, base = running_app
+    since = app.store.meta()["current_version"]
+    assert review_app.changed_places(app.store, since) == set()
+    a, _, _ = app.store.load()
+    key, order = max(_playlists(a).items(), key=lambda kv: len(kv[1]))
+    new = order[1:] + order[:1]                                    # el primero pasa al final: se mueven todos
+    _req(base + "/api/reorder", {"l1": int(key[0]), "l2": int(key[1]), "tracks": [u[:16] for u in new]})
+    assert review_app.changed_places(app.store, since) == set(order)

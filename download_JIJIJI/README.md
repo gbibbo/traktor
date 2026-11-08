@@ -155,8 +155,9 @@ El orquestador va **tema a tema**, como cuando se busca a mano en Soulseek (2026
    - ni BPM ni tonalidad: los calcula Traktor.
 
    **Después de la descarga**, dos pasos para que los temas entren en las playlists con los de la
-   colección: cargar la carpeta en Traktor y analizarla (**Analyze**), y después agregarla en la pestaña
-   Organización con «Agregar música nueva». Ese paso toma de Traktor el BPM y la tonalidad (Traktor los
+   colección: cargar la carpeta en Traktor y analizarla (**Analyze**), y después tocar «Agregar a la
+   colección», que aparece en Descargas al terminar (abre «Agregar música nueva» en Organización con esa
+   carpeta y dice cuántos temas ya analizó Traktor). Ese paso toma de Traktor el BPM y la tonalidad (Traktor los
    guarda en su colección, no en el archivo) y arma el género y el subgénero de las tablas que usan las
    playlists y las sugerencias. Una carpeta ya agregada se completa con «Completar BPM, tonalidad y
    género».

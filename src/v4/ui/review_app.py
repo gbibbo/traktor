@@ -35,6 +35,10 @@ CHANGELOG:
                 la app vuelve a permitir cambios, y «Preparar para Rekordbox y Traktor» y «Agregar música nueva»
                 además actualizan el pendrive: sus playlists (usb_package.refresh_from_org, sin mover audio) y el
                 lugar de cada tema guardado en su archivo (file_embeddings.py).
+  - 2026-11-07: Los procesos que lanza la app arrancan con stdin=DEVNULL, sin heredar el pipe que lee
+                exit_with_parent. «Agregar música nueva» de Gabriel quedó trabado en «Leer la colección»: el
+                hijo seguía sin arrancar (13 MB, 0 s de CPU) a los 30 min. Que el pipe heredado sea la causa es
+                una hipótesis: en una prueba aislada traba al hijo, con la cadena exacta de la app no.
   - 2026-11-07: «Agregar música nueva» completa lo que leen las playlists y las sugerencias en vivo: BPM y
                 tonalidad también de la colección de Traktor (phase1_tags --traktor) y el paso «Género y
                 subgénero» (MAEST, beatport_lookup de la carpeta sumado a features/beatport,
@@ -71,13 +75,17 @@ from src.v4.common.config_loader import load_config  # noqa: E402
 from src.v4.common.path_resolver import resolve_dataset_artifacts, resolve_dataset_audio_root  # noqa: E402
 from src.v4.common.tags import read_cover  # noqa: E402
 from src.v4.pipeline import organize  # noqa: E402
+# Importados al arrancar, no a mitad de una tarea: el 2026-11-07 la app se congeló justo al importar dedupe
+# mientras otro hilo leía la entrada estándar (lo que sigue hace --parent-pid, sin leerla)
+from src.v4.pipeline import dedupe, file_embeddings, phase5_export  # noqa: E402,F401
 from src.v4.pipeline.usb_package import PACKAGE_NAME  # noqa: E402
 from tools.playlist_review.build_review_page import history_lines, make_data, render  # noqa: E402
 
 AUDIO_TYPES = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".flac": "audio/flac", ".aif": "audio/aiff",
                ".aiff": "audio/aiff", ".m4a": "audio/mp4"}
-ADD_STEPS = ["Copiar a tu biblioteca", "Leer la colección", "BPM y tonalidad", "Analizar el sonido de cada tema",
-             "Detectar voces", "Género y subgénero", "Buscar temas repetidos", "Ubicar los temas en las playlists"]
+ADD_STEPS = ["Copiar a tu biblioteca", "Leer los temas", "BPM y tonalidad (de Traktor)", "Embeddings del sonido",
+             "Voces", "Género y subgénero", "Temas repetidos", "Ubicar en las playlists"]
+COMPLETE_STEPS = ["BPM y tonalidad (de Traktor)", "Género y subgénero"]
 _PROGRESS = [re.compile(r"(\d+)/(\d+) temas"), re.compile(r"BPM estimado (\d+)/(\d+)"),
              re.compile(r"\[beatport\] (\d+)/(\d+)")]
 BEATPORT_PART = "beatport_agregado"     # búsqueda de la carpeta agregada, antes de sumarla a features/beatport
@@ -86,6 +94,14 @@ BEATPORT_PART = "beatport_agregado"     # búsqueda de la carpeta agregada, ante
 # ---------------------------------------------------------------------------
 # Tareas en segundo plano
 # ---------------------------------------------------------------------------
+
+STALL_S = 600.0     # sin escribir nada y sin usar CPU durante 10 min: el script está trabado
+STALL_RETRIES = 1   # trabado: se lanza una vez más (los pasos se pueden repetir: lo hecho se reutiliza)
+
+
+class Cancelled(RuntimeError):
+    """Gabriel tocó «Cancelar»."""
+
 
 class Job:
     """Una operación larga con pasos; la interfaz la consulta por /api/job/<id>."""
@@ -97,6 +113,18 @@ class Job:
         self.status, self.result, self.error = "running", None, None
         self.started = time.time()
         self.step_started = time.time()
+        self.proc: Optional[subprocess.Popen] = None   # el script que corre ahora (para cancelar)
+        self.cancel_requested = False
+
+    def check(self) -> None:
+        """Entre pasos: si se pidió cancelar, se corta acá (lo hecho queda y se reutiliza la próxima vez)."""
+        if self.cancel_requested:
+            raise Cancelled("cancelado")
+
+    def cancel(self) -> None:
+        self.cancel_requested = True
+        if self.proc is not None:
+            _kill_tree(self.proc)
 
     def set(self, step: Optional[int] = None, frac: Optional[float] = None, detail: Optional[str] = None) -> None:
         if step is not None and step != self.step:
@@ -116,31 +144,157 @@ class Job:
                 "eta_s": eta}
 
 
-def run_script(args: List[str], job: Job, step: int) -> None:
-    """Corre un script del pipeline y traduce sus líneas 'n/N temas' a progreso del paso."""
+def _cpu_seconds(pid: int) -> Optional[float]:
+    """CPU usada por el proceso y sus hijos (psutil); None si no se puede saber."""
+    try:
+        import psutil
+        p = psutil.Process(pid)
+        return sum(sum(q.cpu_times()[:2]) for q in [p, *p.children(recursive=True)])
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _kill_tree(proc: subprocess.Popen) -> None:
+    try:
+        import psutil
+        p = psutil.Process(proc.pid)
+        for q in p.children(recursive=True):
+            q.kill()
+        p.kill()
+    except Exception:  # noqa: BLE001
+        try:
+            proc.kill()
+        except OSError:
+            pass
+
+
+def run_script(args: List[str], job: Job, step: int, stall_s: Optional[float] = None) -> None:
+    """Corre un script del pipeline y traduce sus líneas 'n/N temas' a progreso del paso. Si se traba (ni escribe
+    ni usa CPU durante stall_s) se corta y se lanza una vez más; «Cancelar» lo corta enseguida."""
+    stall_s = STALL_S if stall_s is None else stall_s
+    name = Path(args[0]).name
+    for attempt in range(STALL_RETRIES + 1):
+        if _run_once(args, job, step, stall_s):
+            return
+        if attempt < STALL_RETRIES:
+            print(f"[agregar] {name} no avanzó en {stall_s / 60:.0f} min: lo vuelvo a lanzar", flush=True)
+            job.set(step, 0, "Se había trabado: lo vuelvo a intentar…")
+    raise RuntimeError(f"{name} se trabó {STALL_RETRIES + 1} veces (sin avanzar durante {stall_s / 60:.0f} min). "
+                       "Lo hecho hasta acá queda guardado: volvé a agregar la carpeta y sigue desde ahí.")
+
+
+def _run_once(args: List[str], job: Job, step: int, stall_s: float) -> bool:
+    """True si terminó; False si se trabó (y ya se cortó)."""
+    import queue
+    job.check()
     env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1")
-    proc = subprocess.Popen([sys.executable, *args], cwd=REPO_ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            text=True, encoding="utf-8", errors="replace", env=env)
+    # stdin=DEVNULL: lanzada desde la app de descargas, nuestra entrada es un pipe que exit_with_parent está leyendo.
+    # En una prueba aislada, un hijo que heredaba un pipe así se trababa al arrancar (HIPÓTESIS de la traba del
+    # 2026-11-07, «Leer la colección» 30 min sin avanzar; con la cadena exacta de la app no se reprodujo)
+    proc = subprocess.Popen([sys.executable, *args], cwd=REPO_ROOT, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", env=env)
+    job.proc = proc
+    lines: "queue.Queue[Optional[str]]" = queue.Queue()
+
+    def pump() -> None:
+        for raw in proc.stdout:
+            lines.put(raw)
+        lines.put(None)
+    threading.Thread(target=pump, daemon=True).start()
     tail: List[str] = []
-    for line in proc.stdout:
-        tail = (tail + [line.rstrip()])[-30:]
-        for rx in _PROGRESS:
-            m = rx.search(line)
-            if m and int(m.group(2)) > 0:
-                job.set(step, int(m.group(1)) / int(m.group(2)), f"{m.group(1)} de {m.group(2)} temas")
-    if proc.wait() != 0:
+    active, cpu = time.monotonic(), _cpu_seconds(proc.pid)
+    try:
+        while True:
+            if job.cancel_requested:
+                _kill_tree(proc)
+                proc.wait()
+                raise Cancelled("cancelado")
+            try:
+                line = lines.get(timeout=2.0)
+            except queue.Empty:
+                now_cpu = _cpu_seconds(proc.pid)
+                if now_cpu is not None and (cpu is None or now_cpu > cpu + 0.5):
+                    cpu, active = now_cpu, time.monotonic()   # trabaja aunque no escriba
+                if time.monotonic() - active > stall_s:
+                    _kill_tree(proc)
+                    proc.wait()
+                    return False
+                continue
+            if line is None:
+                break
+            active = time.monotonic()
+            tail = (tail + [line.rstrip()])[-30:]
+            for rx in _PROGRESS:
+                m = rx.search(line)
+                if m and int(m.group(2)) > 0:
+                    job.set(step, int(m.group(1)) / int(m.group(2)), f"{m.group(1)} de {m.group(2)} temas")
+    finally:
+        job.proc = None
+    code = proc.wait()
+    if job.cancel_requested:  # «Cancelar» lo cortó (el proceso muerto no es un error del script)
+        raise Cancelled("cancelado")
+    if code != 0:
         raise RuntimeError("Falló " + Path(args[0]).name + ":\n" + "\n".join(tail[-12:]))
+    return True
 
 
-def copy_tree(src: Path, dst: Path, job: Job, step: int) -> None:
-    files = [p for p in src.rglob("*") if p.is_file()]
+def package_index(pkg: Path) -> Dict[str, tuple]:
+    """track_uid -> (archivo, carpeta, playlist) del _organizacion.csv del pendrive (lo que va en el lugar)."""
+    import pandas as pd
+    index = Path(pkg) / "_organizacion.csv"
+    if not index.is_file():
+        return {}
+    df = pd.read_csv(index, encoding="utf-8-sig", dtype=str, keep_default_na=False)
+    cols = [c for c in ("archivo", "carpeta", "playlist") if c in df.columns]
+    return {r[0]: tuple(r[1:]) for r in df[["track_uid", *cols]].itertuples(index=False)}
+
+
+def changed_places(store, since_version: int) -> set:
+    """Temas nuevos o que cambiaron de playlist, posición o lugar en el mapa desde since_version."""
+    cols = ["l1", "l2", "position", "x", "y"]
+    cur = store.load()[0].drop_duplicates("track_uid").set_index("track_uid")[cols]
+    try:
+        old = store.load(since_version)[0].drop_duplicates("track_uid").set_index("track_uid")[cols]
+    except OSError:
+        return set(cur.index)
+    common = cur.index.intersection(old.index)
+    a, b = cur.loc[common], old.loc[common]
+    moved = (a[["l1", "l2", "position"]] != b[["l1", "l2", "position"]]).any(axis=1) | \
+        ((a[["x", "y"]] - b[["x", "y"]]).abs() > 1e-6).any(axis=1)
+    return set(cur.index.difference(old.index)) | set(common[moved.to_numpy()])
+
+
+def files_under(folder: Path) -> List[Path]:
+    return [p for p in folder.rglob("*") if p.is_file()]
+
+
+def is_copy_of(dest: Path, src: Path) -> bool:
+    """dest es una copia (entera o cortada a medias) de src: cada archivo suyo está en src con el mismo nombre y
+    a lo sumo el mismo tamaño. Así, repetir un agregado que se cortó completa esa copia en vez de hacer otra."""
+    for p in files_under(dest):
+        q = src / p.relative_to(dest)
+        if not q.is_file() or p.stat().st_size > q.stat().st_size:
+            return False
+    return True
+
+
+def copy_tree(src: Path, dst: Path, job: Job, step: int, skip: Optional[set] = None) -> None:
+    """Copia lo que falte. No se copia de nuevo un archivo ya copiado (mismo tamaño) ni uno de `skip` (rutas
+    relativas de temas que ya están en la biblioteca)."""
+    skip = skip or set()
+    files = [p for p in files_under(src) if p.relative_to(src).as_posix() not in skip]
     total = sum(p.stat().st_size for p in files) or 1
     done = 0
     for p in files:
+        job.check()
         target = dst / p.relative_to(src)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(p, target)
-        done += p.stat().st_size
+        st = p.stat()
+        if not (target.is_file() and target.stat().st_size == st.st_size):
+            target.parent.mkdir(parents=True, exist_ok=True)
+            partial = target.with_name(target.name + ".copiando")
+            shutil.copy2(p, partial)
+            os.replace(partial, target)   # un corte a mitad no deja un archivo de audio truncado
+        done += st.st_size
         job.set(step, done / total, f"{done / 2**20:.0f} de {total / 2**20:.0f} MB")
 
 
@@ -246,14 +400,22 @@ class App:
         from src.v4.pipeline.package_library import is_package_library
         return self.library.parent if self.library is not None and is_package_library(self.library) else None
 
-    def _update_package(self, job: "Job", step: int) -> Dict:
+    def _update_package(self, job: "Job", step: int, since_version: Optional[int] = None) -> Dict:
+        """Playlists del pendrive y, en cada archivo, su embedding y su lugar. Con since_version, solo se escriben
+        los temas nuevos o que cambiaron de lugar desde esa versión: el resto ya tiene lo mismo."""
         from src.v4.pipeline import file_embeddings, usb_package
         pkg = self.package_dir()
+        before = package_index(pkg)
         job.set(step, 0.05, "Rehaciendo las playlists del pendrive…")
         if usb_package.refresh_from_org(pkg, self.dataset, self.org_name, self.config) != 0:
             raise RuntimeError("No se pudieron rehacer las playlists del pendrive: el detalle está en la consola.")
+        job.check()
+        only = None
+        if since_version is not None:
+            after = package_index(pkg)
+            only = changed_places(self.store, since_version) | {u for u, v in after.items() if before.get(u) != v}
         job.set(step, 0.5, "Guardando en cada tema su lugar en la organización…")
-        plan, rep = file_embeddings.package_plan(pkg, self.artifacts, self.org_name)
+        plan, rep = file_embeddings.package_plan(pkg, self.artifacts, self.org_name, only_uids=only)
         result = file_embeddings.write_package(plan, rep)
         if result["counts"]["errores"]:
             raise RuntimeError(f"{result['counts']['errores']} temas no se pudieron actualizar, p. ej. "
@@ -297,11 +459,20 @@ class App:
             try:
                 job.result = fn(job)
                 job.status = "done"
+            except Cancelled:
+                job.status = "cancelled"
             except Exception as exc:  # noqa: BLE001
                 job.status, job.error = "error", f"{type(exc).__name__}: {exc}"
                 traceback.print_exc()
         threading.Thread(target=target, daemon=True).start()
         return job
+
+    def cancel(self) -> Dict:
+        job = self.running()
+        if job is None:
+            return {"cancelled": False}
+        job.cancel()
+        return {"cancelled": True, "id": job.id}
 
     # ---- carpetas ----
     def pick_folder(self) -> Dict:
@@ -309,7 +480,7 @@ class App:
                 "r.attributes('-topmost', True); "
                 "p = filedialog.askdirectory(initialdir=sys.argv[1], title=sys.argv[2], mustexist=True); print(p or '')")
         out = subprocess.run([sys.executable, "-c", code, str(self.library), "Elegí la carpeta con la música nueva"],
-                             capture_output=True, text=True, encoding="utf-8").stdout.strip()
+                             stdin=subprocess.DEVNULL, capture_output=True, text=True, encoding="utf-8").stdout.strip()
         if not out:
             return {"cancelled": True}
         return self.describe_folder(out)
@@ -320,26 +491,82 @@ class App:
             raise ValueError(f"No existe la carpeta: {folder}")
         files = get_audio_files(folder, recursive=True)
         inside = folder == self.library or self.library in folder.parents
-        known = 0
-        if inside and folder != self.library:  # temas que ya están en esta organización
-            import pandas as pd
-            from src.v4.common.duplicates import dropped
-            cat = pd.read_parquet(self.artifacts / "catalog.parquet", columns=["track_uid", "rel_path"])
-            same_audio = self.artifacts / "duplicates.csv"  # copias idénticas que el catálogo no repite
-            if same_audio.is_file():
-                cat = pd.concat([cat, pd.read_csv(same_audio, usecols=["track_uid", "rel_path"])])
-            # una copia descartada por dedupe tampoco se agrega: su gemela ya está
-            in_org = set(self.store.load()[0]["track_uid"]) | set(dropped(self.artifacts))
-            organized = set(cat.loc[cat["track_uid"].isin(in_org), "rel_path"])
-            known = sum((p.relative_to(self.library).as_posix() in organized) for p in files)
+        known, homes, present = 0, [], []
+        if folder != self.library:
+            library = self._library_files()
+            if inside:  # temas que ya están en esta organización
+                rels = set(library.loc[library["organized"], "rel_path"])
+                known = sum((p.relative_to(self.library).as_posix() in rels) for p in files)
+            else:  # fuera de la biblioteca: ¿ya se copiaron antes? (mismo nombre y tamaño, o el mismo audio)
+                for p in files:
+                    hit = self._library_copy(p, library)
+                    if hit is not None:
+                        known += bool(hit["organized"])
+                        homes.append(Path(str(hit["rel_path"])).parent.as_posix())
+                        present.append(p.relative_to(folder).as_posix())
         size = sum(p.stat().st_size for p in files)
-        return {"path": str(folder), "name": folder.name, "inside": inside, "is_library": folder == self.library,
+        info = {"path": str(folder), "name": folder.name, "inside": inside, "is_library": folder == self.library,
                 "n_audio": len(files), "n_known": int(known), "size_mb": round(size / 2**20),
-                "dest": str(folder) if inside else str(self._copy_destination(folder))}
+                "n_traktor": self._traktor_analyzed(files), "dest": str(folder), "dest_kind": "inside",
+                "complete_path": str(folder) if inside else None, "skip": present}
+        if not inside and folder != self.library:
+            home = max(set(homes), key=homes.count) if homes else None
+            if home is not None:  # lo nuevo va junto a lo que ya está; lo ya copiado no se copia de nuevo
+                info.update(dest=str(self.library / home), dest_kind="home", complete_path=str(self.library / home))
+            else:
+                dest = self._copy_destination(folder)
+                info.update(dest=str(dest), dest_kind="resume" if dest.exists() else "new")
+        return info
+
+    def _library_files(self):
+        """Los temas de la biblioteca (catálogo, más las copias idénticas que el catálogo no repite): rel_path,
+        nombre, tamaño y si ya están organizados (en la organización, o descartados por dedupe porque su gemela
+        está)."""
+        import pandas as pd
+        from src.v4.common.duplicates import dropped
+        cat = pd.read_parquet(self.artifacts / "catalog.parquet")
+        cat = cat.reindex(columns=["track_uid", "rel_path", "filesize_bytes"])  # un catálogo viejo puede no tener tamaño
+        same_audio = self.artifacts / "duplicates.csv"
+        if same_audio.is_file():
+            cat = pd.concat([cat, pd.read_csv(same_audio, usecols=["track_uid", "rel_path"])])
+        in_org = set(self.store.load()[0]["track_uid"]) | set(dropped(self.artifacts))
+        cat = cat.copy()
+        cat["organized"] = cat["track_uid"].isin(in_org)
+        cat["name"] = cat["rel_path"].map(lambda r: Path(str(r)).name.casefold())
+        return cat
+
+    def _library_copy(self, path: Path, library) -> Optional[Dict]:
+        """La fila de la biblioteca que es este mismo tema, o None. Mismo nombre y tamaño; si el tamaño cambió
+        (Traktor escribe sus datos en el archivo), se compara el audio. Entre varias, la organizada."""
+        same_name = library[library["name"] == path.name.casefold()]
+        if same_name.empty:
+            return None
+        hit = same_name[same_name["filesize_bytes"] == path.stat().st_size]
+        if hit.empty:
+            from src.v4.common.tags import audio_payload_hash
+            hit = same_name[same_name["track_uid"] == audio_payload_hash(path)]
+        if hit.empty:
+            return None
+        return hit.sort_values("organized", ascending=False).iloc[0].to_dict()
+
+    def _traktor_analyzed(self, files: List[Path]) -> Optional[int]:
+        """Cuántos de estos archivos tienen BPM en la colección de Traktor (por nombre); None sin Traktor."""
+        try:
+            from src.v4.common.traktor_nml import find_collection
+            from src.v4.pipeline.phase1_tags import traktor_bpm_key
+            collection = find_collection()
+            if collection is None:
+                return None
+            entries = traktor_bpm_key(collection)
+        except Exception:  # noqa: BLE001 — es un aviso
+            return None
+        return sum(any(bpm > 0 for bpm, _, _ in entries.get(p.name.casefold(), [])) for p in files)
 
     def _copy_destination(self, folder: Path) -> Path:
+        """Una carpeta con ese nombre que ya es una copia (entera o a medias) de esta, de un intento anterior que
+        se cortó, se completa en vez de hacer «nombre (2)»."""
         dest, k = self.library / folder.name, 2
-        while dest.exists():
+        while dest.exists() and not is_copy_of(dest, folder):
             dest, k = self.library / f"{folder.name} ({k})", k + 1
         return dest
 
@@ -358,35 +585,38 @@ class App:
         S = {name: k for k, name in enumerate(steps)}
 
         def fn(job: Job) -> Dict:
+            since = self.store.meta()["current_version"]   # el pendrive reescribe solo lo que cambió desde acá
             folder = Path(info["path"])
             if not info["inside"]:
                 dest = Path(info["dest"])
-                copy_tree(folder, dest, job, S["Copiar a tu biblioteca"])
+                copy_tree(folder, dest, job, S["Copiar a tu biblioteca"], skip=set(info.get("skip") or []))
                 folder = dest
             scope = folder.relative_to(self.library).as_posix()
             pipe = REPO_ROOT / "src" / "v4" / "pipeline"
             ds = ["--dataset-name", self.dataset]
-            step = S["Leer la colección"]
-            job.set(step, 0, "Leyendo tags y buscando duplicados…")
+            step = S["Leer los temas"]
+            job.set(step, 0, "Leyendo los tags de la carpeta…")
             run_script([str(pipe / "phase0_ingest.py"), *ds, "--scope", scope], job, step)
-            notes = self._bpm_key(scope, job, S["BPM y tonalidad"])
-            step = S["Analizar el sonido de cada tema"]
-            job.set(step, 0, "")
+            notes = self._bpm_key(scope, job, S["BPM y tonalidad (de Traktor)"])
+            step = S["Embeddings del sonido"]
+            job.set(step, 0, "Los que vienen de la descarga ya están calculados: se suman a la colección…")
             backend = self.store.meta()["params"]["rep"].split("_")[0]
             run_script([str(pipe / "extract_representations.py"), *ds, "--models", backend, "--folder", scope,
-                        "--min-duration", "90", "--max-duration", "900"], job, step)
-            step = S["Detectar voces"]
+                        "--min-duration", "90", "--max-duration", "900", "--incremental"], job, step)
+            step = S["Voces"]
             job.set(step, 0, "")
             if backend == "clap":
-                # clap_probe, la regla vigente (DECISIONS 2026-10-05): 'clap', el método viejo, reescribía la
-                # marca Vocal de toda la biblioteca. Los temas que ya tienen caché no cambian.
-                run_script([str(pipe / "tag_vocals.py"), *ds, "--method", "clap_probe", "--write-tags"], job, step)
+                # clap_probe, la regla vigente (DECISIONS 2026-10-05), solo sobre la carpeta (--scope): antes leía y
+                # comparaba los comentarios de toda la biblioteca.
+                run_script([str(pipe / "tag_vocals.py"), *ds, "--method", "clap_probe", "--write-tags",
+                            "--scope", scope], job, step)
             notes += self._genres(scope, job, S["Género y subgénero"])
-            step = S["Buscar temas repetidos"]
+            job.check()
+            step = S["Temas repetidos"]
             job.set(step, 0, "Comparando con tu colección…")
-            from src.v4.pipeline import dedupe
             dups = dedupe.auto_resolve(self.artifacts, self.library, self.org_name, scope)
-            step = S["Ubicar los temas en las playlists"]
+            job.check()
+            step = S["Ubicar en las playlists"]
             job.set(step, 0, "Esto puede tardar un minuto…")
             lib = organize.Library(self.artifacts, self.store.meta()["params"]["rep"])
             if keep:
@@ -406,8 +636,8 @@ class App:
             counts["to_decide"] = len(dups["pending"])
             job.set(step, 1, "")
             result = {"version": v, "counts": counts, "scope": scope, "keep": keep, "notes": notes}
-            if pkg is not None:  # playlists del pendrive y lugar de cada tema en su archivo (los nuevos también)
-                result.update(self._update_package(job, S["Actualizar el pendrive"]))
+            if pkg is not None:  # playlists del pendrive y lugar en el archivo de los temas nuevos o que se movieron
+                result.update(self._update_package(job, S["Actualizar el pendrive"], since_version=since if keep else None))
             return result
         return self.start("add", steps, fn)
 
@@ -418,7 +648,7 @@ class App:
         if not info["inside"] or info["is_library"]:
             raise ValueError("Elegí una subcarpeta de tu biblioteca que ya esté agregada.")
         scope = Path(info["path"]).relative_to(self.library).as_posix()
-        steps = ["BPM y tonalidad", "Género y subgénero"]
+        steps = COMPLETE_STEPS
 
         def fn(job: Job) -> Dict:
             notes = self._bpm_key(scope, job, 0)
@@ -470,7 +700,7 @@ class App:
         job.set(step, 0, "Escuchando el estilo de cada tema…")  # MAEST: el modelo de género lo necesita
         attempt("Estilo de cada tema", lambda: run_script(
             [str(pipe / "extract_representations.py"), *ds, "--models", "maesthf", "--folder", scope,
-             "--min-duration", "90", "--max-duration", "900"], job, step))
+             "--min-duration", "90", "--max-duration", "900", "--incremental"], job, step))
         job.set(step, 0, "Buscando en Beatport…")
         online, why = available()
         offline = [] if online else ["--offline"]
@@ -696,6 +926,8 @@ def make_handler(app: App):
                     return self._json(200, app.add_collection(body["path"], bool(body.get("keep", True))).public())
                 if path == "/api/complete-metadata":
                     return self._json(200, app.complete_metadata(body["path"]).public())
+                if path == "/api/cancel":
+                    return self._json(200, app.cancel())
                 if path == "/api/drafts":
                     app.save_drafts(body.get("fusions", []))
                     return self._json(200, {"ok": True})
@@ -742,15 +974,72 @@ def serve(app: App, port: int = 8765, open_browser: bool = True) -> ThreadingHTT
     return httpd
 
 
-def exit_with_parent(app: App, httpd: ThreadingHTTPServer) -> None:
-    """La app de descargas no escribe nada en la entrada estándar: el fin de archivo es que se cerró (o se cayó).
-    Una tarea a medias (agregar música, fusiones, export) termina antes de cerrar."""
-    if sys.stdin is None:  # pythonw sin entrada: no hay de quién depender
-        return
+def stdin_closed() -> bool:
+    """¿Se cerró la entrada estándar? Sin dejar una lectura pendiente: en Windows, con un hilo bloqueado leyendo el
+    pipe de la entrada, la app se trabó dos veces el 2026-11-07 (un script que no arrancaba y, después, la app
+    entera al importar dedupe a mitad de una tarea). PeekNamedPipe mira sin bloquear."""
+    if sys.stdin is None:
+        return False
     try:
-        sys.stdin.read()
-    except (OSError, ValueError):
+        fd = sys.stdin.fileno()
+    except (OSError, ValueError, AttributeError):  # no es un archivo del sistema (p. ej. en memoria): leer no bloquea
+        try:
+            return sys.stdin.read() == ""
+        except (OSError, ValueError):
+            return False
+    if os.name == "nt":
+        import ctypes
+        import msvcrt
+        from ctypes import wintypes
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.PeekNamedPipe.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD, ctypes.c_void_p,
+                                      ctypes.POINTER(wintypes.DWORD), ctypes.c_void_p]
+        try:
+            handle = msvcrt.get_osfhandle(fd)
+        except OSError:
+            return False
+        avail = wintypes.DWORD(0)
+        if not k32.PeekNamedPipe(handle, None, 0, None, ctypes.byref(avail), None):
+            return ctypes.get_last_error() in (109, 232, 233)  # pipe roto / cerrándose / sin conectar
+        if avail.value:  # la app de descargas no escribe nada; si algo llega, se descarta
+            os.read(fd, avail.value)
+        return False
+    import select
+    ready, _, _ = select.select([fd], [], [], 0)
+    return bool(ready) and os.read(fd, 4096) == b""
+
+
+def process_alive(pid: int) -> bool:
+    try:
+        import psutil
+        return psutil.pid_exists(pid) and psutil.Process(pid).status() != psutil.STATUS_ZOMBIE
+    except ImportError:
         pass
+    except Exception:  # noqa: BLE001 (psutil.NoSuchProcess y similares)
+        return False
+    if os.name == "nt":
+        import ctypes
+        k32 = ctypes.windll.kernel32
+        handle = k32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return False
+        code = ctypes.c_ulong()
+        ok = k32.GetExitCodeProcess(handle, ctypes.byref(code))
+        k32.CloseHandle(handle)
+        return bool(ok) and code.value == 259  # STILL_ACTIVE
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def exit_with_parent(app: App, httpd: ThreadingHTTPServer, parent_pid: Optional[int] = None,
+                     watch_stdin: bool = True, poll_s: float = 1.0) -> None:
+    """Se cierra cuando la app de descargas cierra la entrada estándar (no escribe nada en ella) o cuando su proceso
+    ya no está (se cayó). Una tarea a medias (agregar música, fusiones, export) termina antes de cerrar."""
+    while not ((watch_stdin and stdin_closed()) or (parent_pid and not process_alive(parent_pid))):
+        time.sleep(poll_s)
     while app.running():
         time.sleep(2)
     httpd.shutdown()
@@ -765,7 +1054,9 @@ def main() -> int:
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--exit-on-stdin-eof", action="store_true",
                         help="Cerrarse cuando se cierra la entrada estándar (la app que la lanzó se cerró o se cayó), "
-                             "después de la tarea en curso")
+                             "después de la tarea en curso (sin dejar una lectura pendiente)")
+    parser.add_argument("--parent-pid", type=int, default=None,
+                        help="Cerrarse cuando termina ese proceso (la app que la lanzó), después de la tarea en curso")
     parser.add_argument("--package", default=None,
                         help="Sin la carpeta de música: el paquete de usb_package.py del que salen los temas "
                              "(si no, se busca <unidad>:\\TRAKTOR ML: primero en la unidad de los datos de la "
@@ -773,8 +1064,9 @@ def main() -> int:
     args = parser.parse_args()
     app = App(args.dataset_name, args.org_name, args.config, args.package)
     httpd = serve(app, args.port, not args.no_browser)
-    if args.exit_on_stdin_eof:
-        threading.Thread(target=exit_with_parent, args=(app, httpd), daemon=True).start()
+    if args.parent_pid or args.exit_on_stdin_eof:
+        threading.Thread(target=exit_with_parent, args=(app, httpd, args.parent_pid, args.exit_on_stdin_eof),
+                         daemon=True).start()
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

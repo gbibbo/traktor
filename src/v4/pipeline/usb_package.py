@@ -31,6 +31,8 @@ CHANGELOG:
   - 2026-10-10: Preparar Traktor usa los temas de la colección local (ya analizados) y deja la copia
                 del paquete solo para los que faltan; el CSV suma nombre, carpeta y duración originales.
   - 2026-10-10: Creación inicial (Gabriel toca con Traktor desde el pendrive en otra computadora).
+  - 2026-11-07: refresh_from_org lee los tags con tag_cache: un archivo que no cambió no se abre (en cada
+                agregado releía los 1760 temas del pendrive, dos veces cada uno).
 """
 from __future__ import annotations
 
@@ -450,6 +452,7 @@ def refresh_package(package_dir: Path) -> int:
 def refresh_from_org(package_dir: Path, dataset_name: str, org_name: str, config: Optional[dict] = None) -> int:
     """Las playlists del paquete desde la versión actual de la organización, sin mover ni copiar audio: la
     biblioteca es el paquete (su Musica/, package_library.py) y catalog.source_path dice dónde está cada tema."""
+    from src.v4.common.tag_cache import FILE_NAME as TAG_CACHE, TagCache
     from src.v4.common.tags import read_release_tags, read_tags
     from src.v4.pipeline.phase5_export import run_export
     config = config or load_config(None)
@@ -457,6 +460,7 @@ def refresh_from_org(package_dir: Path, dataset_name: str, org_name: str, config
         _, specs, _, _ = run_export(dataset_name, config, formats=("traktor",), out_root=Path(tmp),
                                     org_name=org_name, return_specs=True)
     artifacts = resolve_dataset_artifacts(dataset_name, config)
+    tag_cache = TagCache(artifacts / TAG_CACHE)  # solo se abren los archivos que cambiaron
     cat = pd.read_parquet(artifacts / "catalog.parquet").drop_duplicates("track_uid").set_index("track_uid")
     music = (Path(package_dir) / "Musica").resolve()
     # El origen de cada tema (columnas origen y nombre_original del CSV) se conserva: Preparar Traktor
@@ -488,7 +492,7 @@ def refresh_from_org(package_dir: Path, dataset_name: str, org_name: str, config
     rows = []
     for p in files:
         f, c = Path(package_dir) / p.rel_path, cat.loc[p.track_uid]
-        t, rel = read_tags(f), read_release_tags(f)
+        t, rel = tag_cache.read(f, "tags", read_tags), tag_cache.read(f, "release", read_release_tags)
         orig = c.get("orig_rel_path") if isinstance(c.get("orig_rel_path"), str) else c.get("rel_path")
         rows.append({"track_uid": p.track_uid, "source_path": str(f),
                      "artist": _text(t["tag_artist"]) or _text(c.get("artist")),
@@ -499,6 +503,7 @@ def refresh_from_org(package_dir: Path, dataset_name: str, org_name: str, config
                                                else float("nan")),
                      "filesize_bytes": f.stat().st_size,
                      "rel_path": str(PureWindowsPath(str(orig))) if isinstance(orig, str) else ""})
+    tag_cache.save()
     tracks = pd.DataFrame(rows).set_index("track_uid")
     write_package_files(Path(package_dir), tracks, specs, placements, _root_label(Path(package_dir)))
     print(f"[INFO] Paquete rehecho desde '{org_name}': {len(files)} temas, {len(specs)} playlists -> {package_dir}")

@@ -883,10 +883,10 @@ function statusHtml(v, tracks) {
     html += `<div class="note amber">${icon("warn")}<div><b>Se guardaron ${done} de ${total} temas; ${missing === 1 ? "falta 1" : `faltan ${missing}`}</b>
       <p>${esc(run.reason || "Algunos temas no se pudieron bajar ni grabar.")} Pasa el ratón sobre «No se pudo» para ver cuáles. «Volver a intentar» los busca de nuevo; lo que ya está en la carpeta no se duplica.</p>
       <p><code>${esc(run.final_output || "")}</code></p>
-      <div class="row"><button class="pill white small" data-open-folder="${esc(run.final_output || "")}">${icon("folder", "sm")}Abrir carpeta</button></div></div></div>`;
+      <div class="row"><button class="pill white small" data-open-folder="${esc(run.final_output || "")}">${icon("folder", "sm")}Abrir carpeta</button></div>${nextStep(run)}</div></div>`;
   } else if (status === "done") {
     html += `<div class="note green">${icon("check")}<div><b>¡Lista! ${plural(done, "tema guardado", "temas guardados")}</b><p><code>${esc(run.final_output || "")}</code></p>
-      <div class="row"><button class="pill white small" data-open-folder="${esc(run.final_output || "")}">${icon("folder", "sm")}Abrir carpeta</button></div></div></div>`;
+      <div class="row"><button class="pill white small" data-open-folder="${esc(run.final_output || "")}">${icon("folder", "sm")}Abrir carpeta</button></div>${nextStep(run)}</div></div>`;
   } else if (status === "paused") {
     const pend = run.pending_recordings;
     html += `<div class="note blue">${icon("info")}<div><b>En pausa: la grabación se detuvo${pend ? ` (${plural(pend, "tema", "temas")} por grabar)` : ""}</b><p>${run.reason ? `${esc(run.reason)} ` : ""}Lo grabado se conservó${run.final_output ? " y lo bajado de Soulseek ya está en tu carpeta" : ""}. Pulsa «Continuar» y sigue desde el primer tema pendiente.</p>
@@ -1301,6 +1301,18 @@ function openOrganizer() {
 async function startOrganizer() {
   try { const o = await api("/api/organizer/start", {}); if (S.st) S.st.organizer = o; } catch (e) { fail(e); }
   renderOrganizer();
+}
+
+// Después de una descarga: lo que falta para que los temas entren en las playlists con los de la colección.
+// Beatport, voces, género y embeddings ya se hicieron mientras se descargaba; BPM y tonalidad los calcula Traktor.
+function nextStep(run) {
+  if (!run.final_output) return "";
+  return `<div class="next-step" style="margin-top:12px"><b>Siguiente paso: sumarla a tu colección</b>
+    <ol style="margin:6px 0 8px 18px;padding:0">
+      <li>En Traktor, carga esta carpeta y toca <b>Analyze</b> (calcula BPM y tonalidad).</li>
+      <li>Toca «Agregar a la colección»: la suma a tus playlists. Género, voces y embeddings ya se calcularon al descargar.</li>
+    </ol>
+    <div class="row"><button class="pill white small" data-organize="${esc(run.final_output)}" title="Abre «Agregar música nueva» en Organización con esta carpeta">${icon("library", "sm")}Agregar a la colección</button></div></div>`;
 }
 
 function organizeFolder(path) {  // «Organizar» en Colección: «Agregar música nueva» con esa carpeta

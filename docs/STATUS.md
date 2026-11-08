@@ -45,7 +45,7 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    preparar para Rekordbox/Traktor y deshacer; decidir si las playlists usan solo lo elegido en
    Colección. Solo el escritorio (laptop retirada, 11-04), todo en D:: `artifacts/v4/datasets/musica`
    apunta a `D:\TRAKTOR ML datos\musica` y `Música/` a `D:\TRAKTOR ML\Musica` (package_library.py);
-   el pendrive manda. LOCAL: probar «Agregar música» con temas reales.
+   el pendrive manda. LOCAL: probar «Agregar» con Workout Delft.
 3. GABRIEL: 1001Tracklists como fuente del modelo (DECISIONS 2026-09-12, punto 3): fuente de los
    tracklists y descarga del audio se consultan antes de implementar.
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,

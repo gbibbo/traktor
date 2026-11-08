@@ -169,6 +169,44 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
       - El clasificador de la descarga da el mismo género que `genre_pred.parquet` en 330 de los 331
         temas C/D de la biblioteca.
 
+19. **«Agregar a la colección» trabaja solo con lo nuevo, no se queda trabado y no duplica carpetas**
+    (Gabriel: «para agregar 10 temas se revisa toda la biblioteca desde cero… es poco práctico»; «que no se
+    vuelva a trabar o, si lo hace, que no se generen dos carpetas duplicadas»).
+    - Medido el 2026-11-07, agregando 10 temas que ya venían analizados de la descarga:
+      - BPM y tonalidad: 24 s;
+      - embeddings: 70 s, rearmando la tabla de los 1760 temas;
+      - voces: 3,5 min, leyendo los comentarios de toda la biblioteca;
+      - MAEST: 35 s;
+      - subgénero y modelo de género: 44 s;
+      - el pendrive iba a reescribir los 1760 archivos, porque la versión de la organización va en cada uno.
+    - Cómo (agente):
+      - voces de la carpeta (`tag_vocals --scope`);
+      - ensamblado incremental (`extract_representations --incremental`);
+      - en el pendrive, solo lo nuevo o lo que se movió, y la versión ya no cuenta como cambio;
+      - tags leídos con caché por tamaño y fecha (`tag_cache.py`) en el pendrive y en la búsqueda de repetidos.
+    - Traba (EVIDENCIA OBSERVADA):
+      - El primer intento quedó en «Leer los temas»: el script no arrancó (13 MB, 0 s de CPU a los 30 min).
+      - El segundo se congeló entero al importar `dedupe` a mitad de la tarea.
+      - En una prueba aislada, con un hilo bloqueado leyendo la entrada estándar, un proceso hijo no arranca e
+        importar la app queda colgado más de 200 s.
+      - INFERENCIA: la causa es la lectura pendiente de esa entrada, con la que la app sabía cuándo se cerraba la
+        de descargas. Con la cadena exacta de la app, un hijo sí arrancó: el mecanismo exacto no está aislado.
+    - Lo que se hizo contra la traba:
+      - la entrada se mira sin bloquear (`PeekNamedPipe`), y también si sigue vivo el proceso de la app de
+        descargas (`--parent-pid`);
+      - los scripts arrancan sin heredar la entrada;
+      - un script que no escribe ni usa CPU durante 10 min se corta y se lanza una vez más;
+      - «Cancelar» corta el paso en curso.
+    - Lo que se hizo contra las carpetas duplicadas:
+      - una copia cortada se completa en vez de hacer «nombre (2)»;
+      - un tema que ya está en la biblioteca no se copia de nuevo, y lo que falta va junto a él;
+      - cada archivo se copia con otro nombre y se renombra al terminar.
+    - Lo que se hizo para que el proceso sea más claro:
+      - en Descargas, «Siguiente paso: sumarla a tu colección» (Traktor y Analyze; después «Agregar a la
+        colección»);
+      - en Organización, cuántos temas ya analizó Traktor;
+      - pasos con nombres que dicen lo que hacen.
+
 ## 2026-11-06
 
 1. **Descargas de Soulseek tema a tema, grabando mientras sigue la búsqueda** (Gabriel). Con muchos

@@ -18,6 +18,8 @@ CHANGELOG:
                 «Música/2020 new - copia»); restore-copies --path devuelve solo algunas.
   - 2026-11-04: Ante un empate de calidad se queda la copia que ya está en la organización (biblioteca en el
                 pendrive: un tema organizado no se mueve a _copias por una carpeta nueva).
+  - 2026-11-07: candidates lee la mezcla de cada archivo con tag_cache (solo se abren los que cambiaron):
+                releía los 1760 archivos en cada agregado.
 """
 import argparse
 import datetime as dt
@@ -36,6 +38,7 @@ from src.v4.common import duplicates as dup  # noqa: E402
 from src.v4.common.config_loader import load_config  # noqa: E402
 from src.v4.common.path_resolver import resolve_dataset_artifacts, resolve_dataset_audio_root  # noqa: E402
 from src.v4.common.tags import read_release_tags  # noqa: E402
+from src.v4.common.tag_cache import FILE_NAME as TAG_CACHE, TagCache  # noqa: E402
 from src.v4.pipeline import organize  # noqa: E402
 
 COPIES_DIR = "_copias"
@@ -69,8 +72,10 @@ def candidates(artifacts: Path, audio_root: Path, org_name: str, scope: Optional
         return []
     cat = lib.catalog.reindex(uids)
     title = [t if isinstance(t, str) and t.strip() else Path(str(f)).stem for t, f in zip(cat["title"], cat["filename"])]
-    mix = [(read_release_tags(audio_root / r).get("tag_remixer") or dup.bracket_mix(t, Path(r).stem))
+    tags = TagCache(artifacts / TAG_CACHE)  # los archivos que no cambiaron no se vuelven a abrir
+    mix = [(tags.read(audio_root / r, "release", read_release_tags).get("tag_remixer") or dup.bracket_mix(t, Path(r).stem))
            for r, t in zip(cat["rel_path"], title)]
+    tags.save()
     groups = dup.find_candidates(uids, lib.emb(uids), cat["duration_s"].to_numpy(float), cat["artist"].fillna("").tolist(),
                                  title, mix, skip=dup.decided_pairs(dup.load_decisions(artifacts)),
                                  focus=set(new) if scope else None)

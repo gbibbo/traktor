@@ -20,6 +20,9 @@ PURPOSE: Etiqueta "Vocal" por tema con modelos preentrenados, a partir de las ve
          --min-fraction (5 %, regla de Gabriel) de los segundos del tema tiene voz. Con --write-tags
          también quita " - Vocal" de los temas que dejan de ser Vocal.
 CHANGELOG:
+  - 2026-11-07: --scope <carpeta> (clap_probe): solo los temas de esa carpeta (rel_path que empieza así); su
+                resultado se suma a features/vocals_clap_probe.parquet y solo sus comentarios se leen y escriben.
+                «Agregar música nueva» leía y comparaba los comentarios de toda la biblioteca (≈ 3,5 min).
   - 2026-10-05: Método clap_probe (tema entero + clasificador lineal validado), --folder, --low-priority
                 y --write-tags que agrega o quita la marca.
   - 2026-09-27: Creación inicial (pedido de Gabriel: etiqueta Vocal en la metadata). Umbral 0.145.
@@ -218,6 +221,8 @@ def main() -> int:
     parser.add_argument("--min-fraction", type=float, default=DEFAULT_MIN_FRACTION,
                         help="clap_probe: Vocal si al menos esta fracción del tema tiene voz")
     parser.add_argument("--folder", default=None, help="Solo temas cuyo rel_path contiene este texto (prueba)")
+    parser.add_argument("--scope", default=None,
+                        help="clap_probe: solo esta carpeta de la biblioteca; se suma a vocals_clap_probe.parquet")
     parser.add_argument("--low-priority", action="store_true")
     parser.add_argument("--threshold", type=float, default=0.5, help="P(voz) mínima para contar una ventana")
     parser.add_argument("--min-coverage", type=float, default=0.34, help="Fracción mínima de ventanas con voz")
@@ -244,11 +249,18 @@ def main() -> int:
         catalog = load_catalog(args.dataset_name, config)
         if args.folder:
             catalog = catalog[catalog["rel_path"].str.contains(args.folder, case=False, regex=False)]
+        if args.scope:
+            catalog = catalog[catalog["rel_path"].str.startswith(args.scope.replace("\\", "/").rstrip("/") + "/")]
         vocals = clap_probe_vocals(catalog, rep_root / "clap_wholetrack" / "cache", min_fraction=args.min_fraction)
         vocals["method"] = "clap_probe"
         features.mkdir(parents=True, exist_ok=True)
         out = features / ("vocals_clap_probe_folder.parquet" if args.folder else "vocals_clap_probe.parquet")
+        if args.scope and out.exists():  # la carpeta reemplaza sus filas; el resto de la biblioteca queda igual
+            prev = pd.read_parquet(out)
+            vocals = pd.concat([prev[~prev["track_uid"].isin(vocals["track_uid"])], vocals], ignore_index=True)
         vocals.to_parquet(out, index=False)
+        if args.scope:
+            vocals = vocals[vocals["track_uid"].isin(catalog["track_uid"])]
         print(f"[INFO] {int(vocals['is_vocal'].sum())}/{len(vocals)} temas Vocal (clap_probe, >= "
               f"{args.min_fraction:.0%} del tema con voz) -> {out}")
         if args.write_tags:

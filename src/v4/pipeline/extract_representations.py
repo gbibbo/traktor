@@ -23,6 +23,9 @@ CHANGELOG:
                 prioridad baja del proceso (corridas largas sin frenar Rekordbox/Traktor).
   - 2026-09-29: --folder / --max-tracks limitan solo la extracción: el ensamblado usa siempre el
                 catálogo completo (antes, extraer una carpeta dejaba embeddings.npy solo con ella).
+  - 2026-11-07: --incremental: el ensamblado suma a cada variante solo los temas nuevos en caché y quita los
+                que ya no están en el catálogo, sin releer la caché entera (lo usa «Agregar música nueva»:
+                rearmar clap_full llevaba ~70 s para sumar 10 temas). Mismo conjunto de temas.
   - 2026-09-12: Creación inicial.
 """
 from __future__ import annotations
@@ -288,7 +291,8 @@ def variant_dir(rep_root: Path, backend: str, source: str, suffix: str) -> Path:
 def run(dataset_name: str, config: dict, backends: List[str], sources: List[str], audio_root: Optional[Path],
         max_tracks: Optional[int], models_dir: Path, hf_cache: Optional[str], maest_layers=MAEST_LAYERS,
         min_duration: Optional[float] = None, max_duration: Optional[float] = None,
-        shard: Optional[tuple] = None, assemble_only: bool = False, folder: Optional[str] = None) -> None:
+        shard: Optional[tuple] = None, assemble_only: bool = False, folder: Optional[str] = None,
+        incremental: bool = False) -> None:
     artifacts = resolve_dataset_artifacts(dataset_name, config)
     catalog = pd.read_parquet(artifacts / "catalog.parquet")
     if min_duration is not None or max_duration is not None:
@@ -357,6 +361,8 @@ def run(dataset_name: str, config: dict, backends: List[str], sources: List[str]
     for b in backends:
         for s in sources:
             cache = rep_root / f"{b}_{s}" / "cache"
+            if incremental and assemble_incremental(rep_root, b, s, assemble_catalog, cache, failed):
+                continue
             uids, per_key = [], {}
             for row in assemble_catalog.itertuples():
                 f = cache / f"{row.track_uid}.npz"
@@ -384,6 +390,64 @@ def run(dataset_name: str, config: dict, backends: List[str], sources: List[str]
                 print(f"[INFO] {out.name}: {mat.shape} finite={manifest['finite']}")
     if failed:
         print(f"[WARN] {len(failed)} temas fallidos")
+
+
+def assemble_incremental(rep_root: Path, backend: str, source: str, catalog: pd.DataFrame, cache: Path,
+                         failed: Dict[str, str]) -> bool:
+    """Las variantes ya ensambladas se actualizan sin releer toda la caché: se quitan los temas que ya no están en
+    el catálogo y se suman los que están en caché y faltaban (mismo track_uid = mismo audio = mismo vector).
+    El conjunto de temas es el mismo que con el ensamblado completo; el orden de filas puede cambiar, como
+    siempre se alinea por track_uids.json. False si no se puede (falta una variante o no coincide la
+    dimensión): entonces se ensambla todo, como antes."""
+    present = {p.stem for p in cache.glob("*.npz")} if cache.is_dir() else set()
+    order = [u for u in catalog["track_uid"] if u in present]
+    wanted = set(order)
+    sample = next((cache / f"{u}.npz" for u in order), None)
+    if sample is None:
+        return False
+    with np.load(sample) as data:
+        keys = [k for k in data.files if k != "_layers" and not k.startswith("_win")]
+    variants = {k: variant_dir(rep_root, backend, source, "" if k == "_" else k) for k in keys}
+    old = {}
+    for k, out in variants.items():
+        try:
+            old[k] = (json.loads((out / "track_uids.json").read_text(encoding="utf-8")), np.load(out / "embeddings.npy"))
+        except (OSError, ValueError):
+            return False
+    for k, (uids, mat) in old.items():
+        if mat.shape[0] != len(uids):
+            return False
+    for k, out in variants.items():
+        uids, mat = old[k]
+        keep = [i for i, u in enumerate(uids) if u in wanted]
+        have = {uids[i] for i in keep}
+        add = [u for u in order if u not in have]
+        rows = []
+        for u in add:
+            with np.load(cache / f"{u}.npz") as data:
+                rows.append(data[k])
+        if rows and np.asarray(rows[0]).shape[-1] != mat.shape[1]:
+            return False
+        new_uids = [uids[i] for i in keep] + add
+        new_mat = np.vstack([mat[keep]] + ([np.stack(rows).astype(np.float32)] if rows else [])).astype(np.float32)
+        if len(add) == 0 and len(keep) == len(uids):
+            print(f"[INFO] {out.name}: sin cambios ({new_mat.shape[0]} temas)")
+            continue
+        np.save(out / "embeddings.npy", new_mat)
+        (out / "track_uids.json").write_text(json.dumps(new_uids), encoding="utf-8")
+        manifest_path = out / "manifest.json"
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            manifest = {"variant": out.name, "backend": backend, "source": source}
+        manifest.update({"n_tracks": len(new_uids), "dim": int(new_mat.shape[1]), "git_commit": git_commit(),
+                         "updated": dt.datetime.now(dt.timezone.utc).isoformat(), "assembly": "incremental",
+                         "finite": bool(np.isfinite(new_mat).all())})
+        if failed:
+            manifest.setdefault("failed_uids", {}).update(failed)
+        manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        print(f"[INFO] {out.name}: {new_mat.shape} (+{len(add)} -{len(uids) - len(keep)}) finite={manifest['finite']}")
+    return True
 
 
 def lower_priority() -> None:
@@ -420,6 +484,8 @@ def main() -> int:
     parser.add_argument("--assemble-only", action="store_true", help="Solo ensamblar variantes desde la caché")
     parser.add_argument("--low-priority", action="store_true", help="Prioridad baja del proceso (corridas largas)")
     parser.add_argument("--folder", default=None, help="Solo temas de esta subcarpeta (rel_path); p. ej. '2022 sin clasificar'")
+    parser.add_argument("--incremental", action="store_true",
+                        help="Ensamblar sumando solo lo nuevo a las variantes existentes (sin releer toda la caché)")
     args = parser.parse_args()
 
     if args.low_priority:
@@ -434,7 +500,8 @@ def main() -> int:
     run(args.dataset_name, config, args.models.split(","), args.sources.split(","),
         Path(args.audio_root) if args.audio_root else None, args.max_tracks, Path(args.models_dir), args.hf_cache,
         tuple(int(x) for x in args.maest_layers.split(",")), args.min_duration, args.max_duration,
-        tuple(int(x) for x in args.shard.split(":")) if args.shard else None, args.assemble_only, args.folder)
+        tuple(int(x) for x in args.shard.split(":")) if args.shard else None, args.assemble_only, args.folder,
+        args.incremental)
     return 0
 
 
