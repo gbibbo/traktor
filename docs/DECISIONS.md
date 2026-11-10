@@ -59,6 +59,15 @@ Plan, sección 12.9. Las medidas de la auditoría de este día son exploratorias
    bajada de `lote_04` (`PermissionError`). Va en subcarpetas desde ese día (`docs/LESSONS_LEARNED.md`). Error del
    agente en el mismo rato: su script de verificación pidió a Beatport unas mil búsquedas que no hacían falta
    (08:29-08:58); Beatport no cortó.
+6. **La descarga no se detiene en seco** (Gabriel, 13:50: «si debemos esperar más entre descarga y descarga para que
+   no se bloquee el control anti robots, entonces esperamos», pero sin parar días). El agente encadena todo en
+   `tools/dj_sets/descarga_continua.py`: tres carriles a la vez (1001Tracklists, Beatport, YouTube) que eligen el paso
+   siguiente por lo que hay en disco (rescate, buscar, enlaces, bajar, lote nuevo, corrida de YouTube) y nunca se
+   rinden: tras un corte esperan más y vuelven a probar; cada verificación anti-robots de YouTube alarga la pausa
+   entre pedidos (×1,5, tope 30 s). Se para con el archivo `PARAR` en la carpeta de datos. Motivos: a las 13:00 un
+   corte de conexión de Beatport tumbó `lote_04` con una excepción (ahora se reintenta), los bucles de la mañana se
+   rendían tras 3 o 4 intentos, los rescates y YouTube esperaban a que el agente los lanzara, y una tanda de YouTube
+   cortada volvía a buscar desde el primer tema (ahora sigue donde quedó: cada pedido repetido acerca el bloqueo).
 
 ## 2026-11-09 (unidad 1: fusión de vistas y ecuación de Parecidos)
 

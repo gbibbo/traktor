@@ -642,6 +642,11 @@ Cómo se retoma la bajada (D5 y D6), desde este PC, con `--root "D:\TRAKTOR ML d
   navegador) y `bajar`; sin botón, `youtube_temas.py --corrida yt_NN elegir --de rescate_NN --solo-sin-boton` y
   `bajar --temporal "<carpeta en D:>" --pausa 6`. Al 2026-11-10: `rescate_01` (lote_01..03, 138 previews más) y
   `yt_01` (1187 temas sin botón) hechos o en curso; falta el rescate de `lote_04` y el de los que tienen botón.
+- **Desde el 2026-11-10 14:00 todo lo de arriba lo encadena solo** `python tools/dj_sets/descarga_continua.py --root
+  "D:\TRAKTOR ML datos\dj_sets" correr` (DECISIONS 11-10, punto 6): sets, lotes, `res_<lote>` (rescate, buscar,
+  enlaces, bajar) y `yt_res_<lote>`, sin rendirse ante un corte. Ver cómo va: el mismo comando con `estado` (o
+  `descarga_continua.log` en esa carpeta). Parar: crear el archivo `PARAR` ahí. Si el PC se reinicia, se vuelve a
+  lanzar y retoma por el disco y el Drive. Playwright para 1001Tracklists: `~/.traktor_ml/pw_venv` y `pw_browsers`.
 
 [REEMPLAZADO 2026-11-09 por las 158 búsquedas y el piloto: 2540 sets distintos, **1549 candidatos** (385 para trayectoria, 1164 solo para pares; 354 DJs; 1489 con grabación); piloto de 30 sets sin cortes (DECISIONS 2026-11-09, sets de 1001Tracklists)] [REEMPLAZADO 2026-11-09 por el criterio de comercial de Gabriel: 84 de 158 búsquedas, 1269 sets distintos, **831 candidatos** (142 para trayectoria, 689 solo para pares; 156 DJs; 798 con grabación) y faltan 74 búsquedas] Estado del 2026-11-09: 84 de 147 búsquedas, 1269 sets distintos, **740 candidatos** (135 para trayectoria, 605 solo para
 pares; 139 DJs; 709 con grabación). Lo que falta incluye casi todos los términos y eventos y a varios DJs de noches largas

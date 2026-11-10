@@ -24,6 +24,7 @@ CHANGELOG:
   - 2026-11-10: Creación. La restricción de edad no para la corrida (se prueba el siguiente video); artista numérico
                 («747 - »), sin marca de país y sin espacios; «Remix by X»; alias en la mezcla; corte largo antes que Radio Edit.
                 bajar --pausa (YouTube pidió la verificación anti-robots tras unos 200 temas a 2 s).
+  - 2026-11-10: la tanda guarda su avance tema por tema (parcial.json) y, si se corta, sigue donde quedó.
 """
 from __future__ import annotations
 
@@ -240,12 +241,47 @@ def bajar_audio(video_id: str, carpeta: Path) -> Optional[Dict]:
 # ---------------------------------------------------------------- tandas
 
 
+PARCIAL = "parcial.json"
+
+
+def retomar(filas: Sequence[Dict[str, str]], carpeta: Path) -> tuple:
+    """(entradas, archivos, en_tanda) que dejó un intento anterior de la misma tanda en carpeta/parcial.json, mientras
+    coincidan fila por fila y los audios sigan ahí con su tamaño; lo demás se vuelve a hacer."""
+    entradas, archivos, en_tanda = [], [], {}
+    try:
+        previas = json.loads((carpeta / PARCIAL).read_text(encoding="utf-8"))["temas"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return entradas, archivos, en_tanda
+    for fila, entrada in zip(filas, previas):
+        if entrada.get("clave_1001") != fila["clave"]:
+            break
+        if entrada.get("estado") == "ok":
+            archivo = carpeta / entrada["archivo"]
+            if not archivo.exists() or archivo.stat().st_size != entrada.get("bytes"):
+                break
+            archivos.append(archivo)
+            en_tanda[entrada["video_id"]] = fila["clave"]
+        entradas.append(entrada)
+    return entradas, archivos, en_tanda
+
+
+def guardar_parcial(carpeta: Path, entradas: Sequence[Dict]) -> None:
+    temporal = carpeta / (PARCIAL + ".tmp")
+    temporal.write_text(json.dumps({"temas": list(entradas)}, ensure_ascii=False), encoding="utf-8")
+    temporal.replace(carpeta / PARCIAL)
+
+
 def armar_tanda(filas: Sequence[Dict[str, str]], buscar_fn: Callable[[str], List[Dict]],
                 bajar_fn: Callable[[str, Path], Optional[Dict]], carpeta: Path, nombre: str, pausa_s: float = PAUSA_S) -> tuple:
-    """Busca, elige y baja el audio de cada tema; arma <nombre>.tar con manifest.json. (ruta del tar, manifiesto)."""
+    """Busca, elige y baja el audio de cada tema; arma <nombre>.tar con manifest.json. (ruta del tar, manifiesto).
+    Guarda el avance tema por tema (parcial.json): si la tanda se corta, la próxima vez sigue donde quedó sin volver
+    a pedirle a YouTube lo ya hecho (cada pedido repetido acerca la verificación anti-robots)."""
     carpeta.mkdir(parents=True, exist_ok=True)
-    entradas, archivos, en_tanda = [], [], {}
-    for fila in filas:
+    entradas, archivos, en_tanda = retomar(filas, carpeta)
+    if entradas:
+        print(f"{nombre}: sigo desde el tema {len(entradas) + 1} de {len(filas)} (parcial.json)", flush=True)
+    for fila in filas[len(entradas):]:
+        guardar_parcial(carpeta, entradas)
         base = {"clave_1001": fila["clave"], "nombre_1001": fila["nombre"], "consulta": consulta_youtube(fila)}
         resultados = buscar_fn(base["consulta"])
         aceptadas, motivos = elegir_videos(fila["artista"], fila["titulo"], resultados)

@@ -27,6 +27,8 @@ CHANGELOG:
   - 2026-11-10: la búsqueda usa match(soft_mix=True) solo si ninguna consulta trajo la versión exacta (columna
                 mezcla_suave); «aka» en el artista; rescate (los temas que otras corridas no resolvieron) y
                 enlaces --solo-sin-id. Kaggle no sirve para esto: Beatport le pide la verificación de Cloudflare.
+  - 2026-11-10: una conexión cortada al bajar un MP3 se reintenta (15 s, 1 min, 3 min) y después para la corrida limpia
+                en vez de tumbarla con una excepción (lote_04, 13:00); enlaces --n (pedidos por corrida).
 """
 from __future__ import annotations
 
@@ -292,33 +294,50 @@ def armar_tanda(filas: Sequence[Dict[str, str]], detalles: Callable[[int], Optio
     return tar, manifiesto
 
 
+ESPERAS_CORTE_S = (15, 60, 180)  # conexión cortada: reintentos antes de parar la corrida (que después se retoma)
+
+
 class Descargador:
-    """MP3 de los previews con la misma pausa que el cliente de Beatport; dos rechazos seguidos cortan la corrida."""
+    """MP3 de los previews con la misma pausa que el cliente de Beatport; dos rechazos seguidos cortan la corrida. Una
+    conexión cortada se reintenta tras ESPERAS_CORTE_S; si sigue, la corrida para limpia (BeatportBlocked)."""
 
-    def __init__(self, pausa_s: float = PAUSA_BEATPORT_S):
-        import requests
+    def __init__(self, pausa_s: float = PAUSA_BEATPORT_S, sesion=None):
+        if sesion is None:
+            import requests
 
-        self.sesion = requests.Session()
-        self.sesion.headers.update({"User-Agent": bp.USER_AGENT})
+            sesion = requests.Session()
+            sesion.headers.update({"User-Agent": bp.USER_AGENT})
+        self.sesion = sesion
         self.pausa_s, self._ultimo, self.estados = pausa_s, 0.0, Counter()
 
     def __call__(self, url: str) -> bytes:
-        for intento in range(2):
+        import requests
+
+        rechazos = cortes = 0
+        while True:
             espera = self._ultimo + self.pausa_s + random.uniform(0, 0.4) - time.monotonic()
             if espera > 0:
                 time.sleep(espera)
             self._ultimo = time.monotonic()
-            respuesta = self.sesion.get(url, timeout=60)
+            try:
+                respuesta = self.sesion.get(url, timeout=60)
+            except requests.RequestException as exc:  # 2026-11-10: «Remote end closed connection» tumbó lote_04
+                self.estados[type(exc).__name__] += 1
+                if cortes == len(ESPERAS_CORTE_S):
+                    raise bp.BeatportBlocked(f"el preview no respondió {cortes + 1} veces seguidas ({type(exc).__name__})") from exc
+                time.sleep(ESPERAS_CORTE_S[cortes])
+                cortes += 1
+                continue
             self.estados[respuesta.status_code] += 1
             if respuesta.status_code == 200:
                 return respuesta.content
-            if respuesta.status_code in (403, 429) and intento == 0:
+            if respuesta.status_code in (403, 429):
+                if rechazos:
+                    raise bp.BeatportBlocked(f"el preview respondió {respuesta.status_code} dos veces")
+                rechazos += 1
                 time.sleep(15)
                 continue
-            if respuesta.status_code in (403, 429):
-                raise bp.BeatportBlocked(f"el preview respondió {respuesta.status_code} dos veces")
             return b""
-        return b""
 
 
 # ---------------------------------------------------------------- comandos
@@ -410,7 +429,9 @@ def cmd_enlaces(args) -> int:
     ruta = base_corrida(args) / "temas.csv"
     filas = leer_tabla(ruta)
     pendientes = pendientes_de_enlace(filas, args.solo_sin_id)
-    print(f"{len(filas)} temas, {len(pendientes)} sin enlace pedido; unos {len(pendientes) * 8.5 / 60:.0f} min", flush=True)
+    print(f"{len(filas)} temas, {len(pendientes)} sin enlace pedido", flush=True)
+    pendientes = pendientes[:args.n] if args.n else pendientes
+    print(f"pido {len(pendientes)}; unos {len(pendientes) * 8.5 / 60:.0f} min", flush=True)
     if not pendientes:
         return 0
     try:
@@ -586,6 +607,7 @@ def main() -> int:
     p.add_argument("--perfil", type=Path, default=None, help="perfil del navegador con la sesión (por defecto, el de tracklists_1001)")
     p.add_argument("--esperar-login", type=int, default=0)
     p.add_argument("--solo-sin-id", action="store_true", help="solo los temas con botón de compra que la búsqueda no encontró")
+    p.add_argument("--n", type=int, default=0, help="como máximo N pedidos en esta corrida (0 = todos); el resto queda pendiente")
     p.set_defaults(func=cmd_enlaces)
     p = comandos.add_parser("buscar")
     p.set_defaults(func=cmd_buscar)

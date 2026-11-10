@@ -4,6 +4,7 @@ PURPOSE: Elección del video de YouTube para los temas de los sets que Beatport 
          una tanda armada con funciones de prueba.
 CHANGELOG:
   - 2026-11-10: Creación.
+  - 2026-11-10: tanda cortada que sigue donde quedó (parcial.json).
 """
 import tarfile
 
@@ -117,4 +118,40 @@ def test_prefiere_el_corte_largo_al_radio_edit():
     assert yt.elegir_video("Iteration X", "Timecheck", resultados)[0]["id"] == "largo"
     # Si el tema es un edit, el edit no pierde puntos.
     assert yt.elegir_video("Das Koolies", "Som Bom Magnifico (Edit)", [video("Som Bom Magnifico (Edit)", "Das Koolies - Topic", 177, "e")])[0]["id"] == "e"
+
+
+def test_tanda_cortada_sigue_donde_quedo(tmp_path):
+    import pytest
+
+    # 2026-11-10: tras la verificación anti-robots, la tanda volvía a buscar desde el primer tema.
+    filas = [{"clave": k, "nombre": f"Ignacio - T{k}", "artista": "Ignacio", "titulo": f"T{k}"} for k in "abcd"]
+    resultados = {f"Ignacio - T{k}": [video(f"T{k}", "Ignacio - Topic", 400, f"v{k}")] for k in "abc"}
+    resultados["Ignacio - Td"] = [video("Td", "Ignacio - Topic", 400, "va")]  # el mismo video que «a»: repetido
+    pedidas, bloqueo = [], {"en": "Ignacio - Tc"}
+
+    def buscar(texto):
+        pedidas.append(texto)
+        if texto == bloqueo["en"]:
+            raise yt.YouTubeBloqueado("Sign in to confirm you're not a bot")
+        return resultados.get(texto, [])
+
+    def bajar(video_id, carpeta):
+        archivo = carpeta / f"{video_id}.m4a"
+        archivo.write_bytes(b"\x00" * 1000)
+        return {"archivo": archivo, "ext": "m4a", "abr": 129.5, "acodec": "mp4a.40.2", "asr": 44100, "duracion_s": 400}
+
+    carpeta = tmp_path / "tanda_00000"
+    with pytest.raises(yt.YouTubeBloqueado):
+        yt.armar_tanda(filas, buscar, bajar, carpeta, "tanda_00000", pausa_s=0)
+    assert [e["clave_1001"] for e in yt.retomar(filas, carpeta)[0]] == ["a", "b"]
+    bloqueo["en"], pedidas[:] = None, []
+    tar, manifiesto = yt.armar_tanda(filas, buscar, bajar, carpeta, "tanda_00000", pausa_s=0)
+    assert pedidas == ["Ignacio - Tc", "Ignacio - Td"]  # a y b no se vuelven a pedir
+    assert [e["estado"] for e in manifiesto["temas"]] == ["ok", "ok", "ok", "repetido"]
+    with tarfile.open(tar) as paquete:
+        assert sorted(paquete.getnames()) == ["manifest.json", "va.m4a", "vb.m4a", "vc.m4a"]
+    # Un audio que falta o cambió de tamaño se vuelve a hacer desde ese tema.
+    (carpeta / "vb.m4a").write_bytes(b"\x00" * 10)
+    assert [e["clave_1001"] for e in yt.retomar(filas, carpeta)[0]] == ["a"]
+    assert yt.retomar(list(reversed(filas)), carpeta)[0] == []
 

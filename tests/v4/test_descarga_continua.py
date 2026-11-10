@@ -1,0 +1,100 @@
+"""
+PURPOSE: El encadenamiento de D5/D6 (tools/dj_sets/descarga_continua.py), sin red: qué paso toca en cada carril según
+         lo que hay en disco (rescate, buscar, enlaces, bajar, lote nuevo, YouTube), las marcas de vacío, las esperas
+         tras un corte y cuándo se da todo por terminado.
+CHANGELOG:
+  - 2026-11-10: Creación.
+"""
+from pathlib import Path
+
+from tools.dj_sets import beatport_previews as bpv
+from tools.dj_sets import descarga_continua as dc
+
+
+def fila(clave, **extra):
+    return dict({"clave": clave, "nombre": f"A - {clave}", "artista": "A", "titulo": clave, "con_boton": "si",
+                 "nivel_busqueda": "B"}, **extra)
+
+
+def corrida(base: Path, filas, tandas=0):
+    bpv.escribir_tabla(base / "temas.csv", filas)
+    for k in range(tandas):
+        (base / f"{bpv.nombre_tanda(k)}.json").write_text("{}", encoding="utf-8")
+
+
+def test_la_cadena_completa_paso_a_paso(tmp_path):
+    bp_dir, yt_dir = tmp_path / "beatport_previews", tmp_path / "youtube_temas"
+    corrida(bp_dir / "lote_01", [fila("x")], tandas=1)  # ya rescatado por rescate_01
+    corrida(bp_dir / "prueba3", [fila("p")], tandas=1)  # pruebas: no se rescatan
+    corrida(bp_dir / "lote_04", [fila(f"l{i}") for i in range(600)], tandas=1)
+    corrida(bp_dir / "rescate_01", [fila("a"), fila("b")], tandas=1)
+    corrida(yt_dir / "yt_01", [fila(f"y{i}") for i in range(250)], tandas=1)
+    temporal = str(bp_dir / "tmp")
+
+    # Primero lo corto: el rescate del rescate terminado, mientras lote_04 sigue a medias.
+    assert dc.tarea_beatport(tmp_path, 10) == ("rescate", ["--corrida", "res_rescate_01", "rescate", "--de", "rescate_01"])
+    corrida(bp_dir / "res_rescate_01", [fila("a", nivel_busqueda=""), fila("b", nivel_busqueda="")])
+    assert dc.tarea_beatport(tmp_path, 10) == ("buscar", ["--corrida", "res_rescate_01", "buscar"])
+    assert dc.tarea_1001(tmp_path, 0) is None  # sin buscar todavía, no se piden enlaces
+
+    # Buscado: «b» tiene botón y la búsqueda no lo encontró: espera el enlace; Beatport sigue con lote_04.
+    corrida(bp_dir / "res_rescate_01", [fila("a", nivel_busqueda="D", con_boton=""), fila("b", nivel_busqueda="C")])
+    assert dc.tarea_beatport(tmp_path, 10) == ("bajar", ["--corrida", "lote_04", "bajar", "--temporal", temporal])
+    assert dc.tarea_1001(tmp_path, 7) == ("sets", ["bajar", "--n", "200"])  # los sets primero
+    assert dc.tarea_1001(tmp_path, 0) == ("enlaces", ["--corrida", "res_rescate_01", "enlaces", "--solo-sin-id", "--n", "200"])
+
+    # Con el enlace pedido, se baja el rescate antes que el lote grande.
+    corrida(bp_dir / "res_rescate_01", [fila("a", nivel_busqueda="D", con_boton=""), fila("b", nivel_busqueda="C", fuente_1001="1")])
+    assert dc.tarea_1001(tmp_path, 0) is None
+    assert dc.tarea_beatport(tmp_path, 10) == ("bajar", ["--corrida", "res_rescate_01", "bajar", "--temporal", temporal])
+
+    # YouTube: primero termina yt_01; el rescate bajado da una corrida nueva sin repetir los temas de yt_01.
+    assert dc.tarea_youtube(tmp_path) == ("bajar", ["--corrida", "yt_01", "bajar", "--temporal", str(yt_dir / "tmp")])
+    corrida(yt_dir / "yt_01", [fila(f"y{i}") for i in range(250)], tandas=2)
+    assert dc.tarea_youtube(tmp_path) is None  # el rescate todavía no está bajado
+    corrida(bp_dir / "res_rescate_01", [fila("a", nivel_busqueda="D", con_boton=""), fila("b", nivel_busqueda="C", fuente_1001="1")], tandas=1)
+    assert dc.tarea_youtube(tmp_path) == ("elegir", ["--corrida", "yt_res_rescate_01", "elegir", "--de", "res_rescate_01",
+                                                    "--excluir", "yt_01"])
+    dc.marcar_vacia(yt_dir / "yt_res_rescate_01")
+    assert dc.tarea_youtube(tmp_path) is None
+
+    # lote_04 terminado: su rescate; si no tuvo temas sin resolver, queda marcado y sigue un lote nuevo con los sets nuevos.
+    assert dc.tarea_beatport(tmp_path, 10) == ("bajar", ["--corrida", "lote_04", "bajar", "--temporal", temporal])
+    corrida(bp_dir / "lote_04", [fila(f"l{i}") for i in range(600)], tandas=2)
+    assert dc.tarea_beatport(tmp_path, 10) == ("rescate", ["--corrida", "res_lote_04", "rescate", "--de", "lote_04"])
+    dc.marcar_vacia(bp_dir / "res_lote_04")
+    assert dc.tarea_beatport(tmp_path, 10) == ("elegir", ["--corrida", "lote_05", "elegir", "--todos", "--n", "1000000",
+                                                          "--excluir", "lote_01", "--excluir", "lote_04"])
+    (bp_dir / "sets_en_lotes.txt").write_text("10", encoding="utf-8")
+    assert dc.tarea_beatport(tmp_path, 10) is None
+    assert dc.tarea_beatport(tmp_path, 11) is not None  # llegó un set nuevo
+
+    # Todo hecho solo si los tres carriles están ociosos, no quedan sets y nada tiene tarea.
+    o = dc.Orquesta(tmp_path, Path("python"), Path("navegadores"))
+    o.ocioso = {"1001": True, "beatport": True, "youtube": True}
+    o.sets_pendientes = 0
+    assert dc.todo_hecho(o)
+    o.sets_pendientes = None  # no se pudo contar: no se da por terminado
+    assert not dc.todo_hecho(o)
+    o.sets_pendientes, o.ocioso["youtube"] = 0, False
+    assert not dc.todo_hecho(o)
+
+
+def test_esperas_crecen_con_tope_y_la_pausa_de_youtube_se_guarda(tmp_path):
+    assert [dc.espera_corte("1001", n) / 3600 for n in (1, 2, 3, 4, 9)] == [2, 3, 4, 4, 4]
+    assert [dc.espera_corte("youtube", n) / 60 for n in (1, 2, 3, 4)] == [60, 90, 120, 120]
+    assert [dc.espera_corte("beatport", n) / 60 for n in (1, 2, 3, 4)] == [30, 60, 120, 120]
+    assert [dc.espera_error(n) / 60 for n in (1, 2, 3, 4, 5)] == [10, 20, 40, 60, 60]
+    assert dc.leer_pausa_yt(tmp_path) == dc.PAUSA_YT_INICIAL
+    (tmp_path / "pausa_s.txt").write_text("13.5", encoding="utf-8")
+    assert dc.leer_pausa_yt(tmp_path) == 13.5
+
+
+def test_corrida_completa_por_nombre_de_tanda(tmp_path):
+    corrida(tmp_path / "c", [fila(str(i)) for i in range(501)], tandas=1)
+    assert not dc.completa(tmp_path / "c", 500)
+    (tmp_path / "c" / "tanda_00000_v1.json.viejo").write_text("{}", encoding="utf-8")
+    assert not dc.completa(tmp_path / "c", 500)
+    (tmp_path / "c" / "tanda_00001.json").write_text("{}", encoding="utf-8")
+    assert dc.completa(tmp_path / "c", 500)
+    assert not dc.completa(tmp_path / "vacia", 500)

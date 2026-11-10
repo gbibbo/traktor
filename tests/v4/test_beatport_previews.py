@@ -6,6 +6,7 @@ CHANGELOG:
   - 2026-11-09: Creación.
   - 2026-11-10: alias en el artista, la búsqueda no se queda con la comparación flexible si una consulta posterior
                 trae la versión exacta, rescate de los temas sin resolver y enlaces solo para los sin id con botón.
+  - 2026-11-10: el descargador de MP3 reintenta una conexión cortada y después para limpio.
 """
 import json
 import tarfile
@@ -178,6 +179,42 @@ def test_enlaces_solo_sin_id_con_boton():
              {"clave": "d", "con_boton": "si", "nivel_busqueda": "D", "fuente_1001": "1"}]
     assert [f["clave"] for f in bpv.pendientes_de_enlace(filas, True)] == ["b"]
     assert [f["clave"] for f in bpv.pendientes_de_enlace(filas, False)] == ["a", "b", "c"]
+
+
+class SesionFalsa:
+    def __init__(self, respuestas):
+        self.respuestas, self.pedidos = list(respuestas), 0
+
+    def get(self, url, timeout=None):
+        self.pedidos += 1
+        respuesta = self.respuestas.pop(0)
+        if isinstance(respuesta, Exception):
+            raise respuesta
+        return respuesta
+
+
+class RespuestaFalsa:
+    def __init__(self, status_code, content=b""):
+        self.status_code, self.content = status_code, content
+
+
+def test_descargador_reintenta_la_conexion_cortada_y_despues_para_limpio(monkeypatch):
+    requests = pytest.importorskip("requests")
+    monkeypatch.setattr(bpv.time, "sleep", lambda s: None)
+    # 2026-11-10: «Remote end closed connection without response» tumbó lote_04 con una excepción.
+    corte = requests.exceptions.ConnectionError("Remote end closed connection without response")
+    sesion = SesionFalsa([corte, corte, RespuestaFalsa(200, b"ID3mp3")])
+    descargador = bpv.Descargador(pausa_s=0, sesion=sesion)
+    assert descargador("u") == b"ID3mp3" and sesion.pedidos == 3 and descargador.estados["ConnectionError"] == 2
+    sesion = SesionFalsa([corte] * (len(bpv.ESPERAS_CORTE_S) + 1))
+    with pytest.raises(bp.BeatportBlocked):
+        bpv.Descargador(pausa_s=0, sesion=sesion)("u")
+    assert sesion.pedidos == len(bpv.ESPERAS_CORTE_S) + 1
+    # Dos rechazos seguidos paran; uno solo se reintenta; otro código da vacío.
+    with pytest.raises(bp.BeatportBlocked):
+        bpv.Descargador(pausa_s=0, sesion=SesionFalsa([RespuestaFalsa(403), RespuestaFalsa(429)]))("u")
+    assert bpv.Descargador(pausa_s=0, sesion=SesionFalsa([RespuestaFalsa(429), RespuestaFalsa(200, b"x")]))("u") == b"x"
+    assert bpv.Descargador(pausa_s=0, sesion=SesionFalsa([RespuestaFalsa(404)]))("u") == b""
 
 
 def test_buscar_prueba_el_alias_solo_si_el_nombre_como_viene_no_alcanza():
