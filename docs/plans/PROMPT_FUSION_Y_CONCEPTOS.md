@@ -11,8 +11,8 @@ del que la unidad A1 ya está hecha.
 (`docs/reports/fusion_vistas_2026-11-09.md`). Lo que sigue está en la sección 12.9 del plan, en este orden: el
 control de dominio de los previews (E15), sus vistas en gpuq (V7), la taxonomía validada con transiciones de
 profesionales y los pesos de BPM, tonalidad y género (G13, P12a), y el juez «mismo set» con D5 × biblioteca
-(E16). Después, la escucha de la unidad 2 cuando Gabriel conteste, y las unidades 3 y 4. Fijar los pesos de la
-ecuación y cambiar valores por defecto espera al dataset completo.
+(E16). Después, la escucha de la unidad 2, con los pesos aprendidos de los pares de E16, y las unidades 3 y 4.
+Los pesos definitivos salen de los pares de previews; los valores por defecto cambian cuando Gabriel lo diga.
 
 ---
 
@@ -148,6 +148,9 @@ rutas explícitas, y el bloque CHECKPOINT.
 **2. Ronda de escucha de Parecidos (E12).**
 - Unos 10 temas principales; para cada uno, dos listas enteras a ciegas y en orden al azar: la de hoy (solo
   CLAP) frente a la ecuación que haya sobrevivido a la unidad 1, con los filtros en vivo.
+- Respuestas de Gabriel del 2026-11-10 (plan 12.9, «La escucha E12»): los temas principales salen al azar de
+  los que tocó; no etiqueta nada, solo dice qué lista prefiere; la lista nueva usa todos los factores, con los
+  pesos decididos con datos.
 - Si Gabriel prefiere la nueva: índice versión 4 con las vistas (escaladas y concatenadas; si las reduces,
   demuestra que el orden no cambia), pesos nuevos en el recomendador y campo `seguro` con la probabilidad de
   P12 y el consenso de P13 en el registro de cada lista. El lado vivo sigue con la biblioteca estándar y por

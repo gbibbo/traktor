@@ -11,7 +11,9 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 Plan, sección 12.9. Las medidas de la auditoría de este día son exploratorias (scripts fuera de Git).
 
 1. **El implementador sigue mientras bajan D5 y D6, con lo que no necesita el dataset completo.** Gabriel lo había
-   pausado hasta tenerlo entero, le pidió opinión a la auditoría y después pidió el mensaje para esta etapa. Fijar
+   pausado hasta tenerlo entero, le pidió opinión a la auditoría y después pidió el mensaje para esta etapa. [REEMPLAZADO
+   2026-11-10 por el punto 8: los pesos de la escucha se aprenden con los pares de E16 y los definitivos con los
+   de previews; el valor por defecto del recomendador sigue esperando a que Gabriel lo diga] Fijar
    los pesos de la ecuación y cambiar valores por defecto espera al dataset completo. Cómo (agente): el orden es
    E15, V7, G13 con P12a, E16, y después la escucha E12 y las unidades 3 y 4.
 2. **Se verifica si el embedding de un preview cae cerca del embedding del tema completo** (Gabriel: «agrega esa
@@ -30,7 +32,19 @@ Plan, sección 12.9. Las medidas de la auditoría de este día son exploratorias
 5. **La pregunta del implementador sobre `ai-train=no` ya estaba contestada** (Gabriel, 2026-11-09, sets de
    1001Tracklists, punto 5: «Sí, bajarlos igual», y el dataset es para evaluar y entrenar). Lectura del agente:
    cubre aprender los pesos de BPM, tonalidad y género con esos datos, que ya están bajados; se lo dijo a Gabriel
-   el 11-10 para que lo corrija si no es así.
+   el 11-10 para que lo corrija si no es así. Gabriel lo confirmó el mismo día: «bajamos toda la info disponible
+   desde Beatport».
+6. **Los 10 temas principales de la escucha E12 salen al azar** (Gabriel, sobre la propuesta de la auditoría).
+   Cómo (agente): entre los temas que tocó en sus sets, repartidos por estilo y BPM, con semilla fija.
+7. **Gabriel no etiqueta nada por ahora: consume mucho tiempo** (Gabriel). En la escucha solo dice qué lista
+   prefiere. Con 10 preferencias decide un resultado de 9 o 10 de 10; 8 de 10 es un indicio (agente).
+8. **La lista nueva usa todos los factores, y el peso relativo de cada uno se decide con datos** (Gabriel). Cómo
+   (agente): para la escucha, los pesos se aprenden con los pares de E16 (D3 y D5 × biblioteca), con cada DJ
+   fuera del entrenamiento; si los datos no los distinguen de los pesos iguales, se usan iguales y se dice así.
+   Se vuelven a estimar con los pares de previews (V7); hay otra escucha solo si las listas cambian.
+9. **Siempre habrá temas «basura» en la biblioteca, que no deberían entrar en las recomendaciones ni en el
+   análisis** (Gabriel). Queda como idea P14 del plan, sin diseñar: una lista de exclusión armada al paso, sin
+   etiquetado previo.
 
 ## 2026-11-10 (sets y audio de los temas, de día)
 

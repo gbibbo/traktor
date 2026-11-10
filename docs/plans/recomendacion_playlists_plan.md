@@ -1049,7 +1049,8 @@ alcanza, sección 12.8), que un mapa o una fusión entrenada sirva para concepto
 con conceptos no vistos) y que las cabezas de Essentia sirvan de coordenada (E11).
 
 Preguntas para Gabriel:
-1. Quién elige los temas principales de la escucha E12 y si quiere marcar además tema por tema lo que no pondría.
+1. [REEMPLAZADO 2026-11-10 por las respuestas de Gabriel (DECISIONS 2026-11-10, puntos 6 y 7): al azar entre lo
+   que tocó, y sin marcar nada por ahora] Quién elige los temas principales de la escucha E12 y si quiere marcar además tema por tema lo que no pondría.
 2. [REEMPLAZADO 2026-11-09 por la puesta en marcha de gpuq: el despachador corre en la Raspberry `asr-rp5` de Gabriel; el Drive tiene unos 17 TiB libres
    (`rclone about erclm:`), docs/GPUQ.md] Dónde corre el despachador de gpuq y cuánto espacio libre tiene el Drive.
 3. Si el umbral de «pesado» (alrededor de una hora de CPU o de 10 GB de disco nuevo) y el OK previo al primer
@@ -1164,10 +1165,32 @@ coincide con el de 1001Tracklists. Los sets que faltan bajar son de pares, no de
 1. E15.
 2. V7: prueba chica en CPU, pedido de OK a Gabriel con los números, trabajo corto y después los lotes cerrados.
 3. G13 y P12a, mientras corre V7.
-4. E16.
-5. La escucha E12, cuando Gabriel conteste quién elige los temas principales y cuál es la lista nueva.
+4. E16, y con sus pares la ecuación ajustada de nuevo (P12).
+5. La escucha E12 [REEMPLAZADO 2026-11-10 por las respuestas de Gabriel del mismo día (DECISIONS 2026-11-10,
+   puntos 6 a 8): contestó; el diseño está debajo], cuando Gabriel conteste quién elige los temas principales y
+   cuál es la lista nueva.
 6. Los pasos 3 y 4 de 12.5 (Essentia y banco de conceptos), que no dependen del dataset.
+
+**La escucha E12, con las respuestas de Gabriel (2026-11-10).**
+- Temas principales: 10 al azar entre los que Gabriel tocó en sus sets (D1), repartidos por estilo y BPM, con
+  semilla fija y elegidos antes de armar ninguna lista. Salen de lo que él tocó: ninguno es un tema «basura».
+- Gabriel no etiqueta nada. Por cada tema principal dice cuál de las dos listas prefiere, o que no las
+  distingue.
+- La lista nueva usa todos los factores, y sus pesos se deciden con datos (Gabriel). Cómo (agente): se aprenden
+  con los pares de E16 (D3 y D5 × biblioteca), con cada DJ fuera del entrenamiento; el informe da cada peso con
+  su intervalo y dice si los datos los distinguen de los pesos iguales. Si no los distinguen, la lista usa pesos
+  iguales y se dice así. Los sets de Gabriel no ajustan nada.
+- Con 10 preferencias solo decide un resultado claro: 9 o 10 de 10 (p 0,02 y 0,002, binomial a dos colas); 8 de
+  10 es un indicio (p 0,11).
+- Cuando V7 termine, los pesos se vuelven a estimar con los pares de previews. Hay otra escucha solo si las
+  listas cambian: el informe dice cuántos de los 30 temas cambian por tema principal.
+
+| Id | Idea | Origen | Contrato | Depende de | Etapa | Estado |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| P14 | Temas «basura»: temas de la biblioteca que no deberían entrar en las recomendaciones ni en las medidas. Sin etiquetado previo, que Gabriel no quiere por ahora: una lista de exclusión que arma al paso, cuando ve uno, y que el recomendador y las medidas saltean | Gabriel 11-10 («siempre habrá temas que no deberían formar parte de las recomendaciones o del análisis») | Tema (marca de excluido); Eval | Que Gabriel diga cómo quiere marcarlos | Sin fecha; no es de esta etapa | Idea, sin diseñar |
 
 Cada módulo se vuelve a correr con el mismo comando cuando termine la bajada, y cada informe dice con cuántos
 sets y previews midió. **Espera al dataset completo:** fijar los pesos de la ecuación (P12 y P12b con
-previews), cambiar los pesos por defecto del recomendador, que además pasa por la escucha, y M3 y M4.
+previews) [REEMPLAZADO 2026-11-10 por Gabriel (DECISIONS 2026-11-10, punto 8): los pesos se deciden con datos;
+los de la escucha salen de E16 y los definitivos, de los pares de previews de V7], cambiar los pesos por
+defecto del recomendador, que además pasa por la escucha, y M3 y M4.
