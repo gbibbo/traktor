@@ -54,14 +54,13 @@ def test_parsear_lista():
 
 
 @pytest.mark.parametrize("titulo,generos,motivo", [
-    ("Bassjackers @ All Night Long, Toffler", ("Mainstage", "Techno"), "comercial_genero"),
-    ("Lilly Palmer @ All Night Long, Nordstern", ("Techno",), "comercial_dj"),
-    ("X @ Club", ("Trance", "Techno"), "fuera_de_estilo"),
-    ("Charlotte de Witte @ Club", ("Techno",), "comercial_dj_dudoso"),
-    ("X @ Main Stage, Parkhaus", ("Techno",), "comercial_evento"),
-    ("X @ Ultra Music Festival Miami", ("Techno",), "comercial_evento"),
-    ("X @ Club", ("Latin Music",), "comercial_genero"),
-    ("X @ Club", ("Salsa",), "sin_genero_aceptado"),
+    ("David Guetta @ Club", ("Techno",), "comercial_dj"),
+    ("Martin Garrix @ Club", ("House",), "comercial_dj"),
+    ("Bassjackers @ All Night Long, Toffler", ("Mainstage", "Techno"), "comercial_dj"),
+    ("Desconocido @ Club", ("Mainstage", "Techno"), "comercial_genero"),
+    ("Desconocido @ Club", ("Trance", "Techno"), "fuera_de_estilo"),
+    ("Desconocido @ Club", ("Latin Music",), "comercial_genero"),
+    ("Desconocido @ Club", ("Salsa",), "sin_genero_aceptado"),
 ])
 def test_descarta_comerciales(config, titulo, generos, motivo):
     salida = t.evaluar(fila(titulo, generos=generos), config)
@@ -69,7 +68,28 @@ def test_descarta_comerciales(config, titulo, generos, motivo):
 
 
 def test_dj_comercial_en_b2b(config):
-    assert t.evaluar(fila("Carl Cox & Lilly Palmer @ Club"), config)["motivo"] == "comercial_dj"
+    assert t.evaluar(fila("Carl Cox & David Guetta @ Club"), config)["motivo"] == "comercial_dj"
+
+
+@pytest.mark.parametrize("dj", ["ARTBAT", "Argy", "Boris Brejcha", "Solomun", "Tale Of Us", "Charlotte de Witte", "Amelie Lens", "Nina Kraviz"])
+def test_no_son_comerciales_para_gabriel(config, dj):
+    assert dj in config["djs"], "también se buscan"
+    assert t.evaluar(fila(f"{dj} @ Club"), config)["motivo"] == ""
+
+
+@pytest.mark.parametrize("titulo,generos", [
+    # Las etiquetas del sitio y los festivales grandes no sacan a un DJ de las semillas.
+    ("John Digweed @ Sziget Events Hall", ("Progressive House", "Mainstage")),
+    ("Charlotte de Witte @ Mainstage, Tomorrowland", ("Hard Dance",)),
+    ("Carl Cox @ Resistance Stage, Ultra Music Festival Miami", ("Techno",)),
+    ("Mathame @ Tomorrowland", ("Melodic House/Techno",)),
+])
+def test_las_semillas_no_salen_por_etiqueta_ni_evento(config, titulo, generos):
+    assert t.evaluar(fila(titulo, generos=generos), config)["motivo"] == ""
+
+
+def test_un_festival_no_vuelve_comercial_a_nadie(config):
+    assert t.evaluar(fila("Desconocido @ Stage, Tomorrowland"), config)["motivo"] == ""
 
 
 @pytest.mark.parametrize("titulo,minutos,total,ided,uso,motivo", [
@@ -139,7 +159,7 @@ def test_consultas_nombres_cortos_y_ventanas(config):
     assert t.campos_formulario(consultas["termino__all-night-long__2025"])["endDate"] == "2025-12-31"
     assert "endDate" not in t.campos_formulario(consultas["termino__all-night-long__2026"])
     assert len(consultas) == len(t.generar_consultas(config))  # ids únicos
-    assert not any(c["dj"] in config["djs_comerciales"] + config["djs_dudosos"] for c in consultas.values() if c["tipo"] == "dj")
+    assert not any(c["dj"] in config["djs_comerciales"] for c in consultas.values() if c["tipo"] == "dj")
 
 
 TEMA_HTML = """<div id="tlp_{tlp}" class="tlpTog bItm tlpItem trRow4{extra}" data-trno="3" data-id="{tlp}" data-isided="{ided}" data-trackid="ujn67dhf" onclick="r">

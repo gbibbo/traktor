@@ -264,7 +264,7 @@ D5, D7 y D8). Los datos van fuera de Git, en `--root` (en este PC, `D:\TRAKTOR M
 | `tools/dj_sets/tempo_sets.py` | BPM estimado (`src/v4/common/tempo.py`) de los temas de D7 validados, en un tramo central de cada tema (el tempo al que sonó en la mezcla), y de los originales de Bedrock → `sets/tempo_temas.csv`; `--verificar N` lo compara con el índice. Lo usa `zona_sets.py` |
 | `tools/dj_sets/tracklists_1001.py` | D5: sets de 1001Tracklists con la cuenta de Gabriel (navegador visible, 8 s entre pedidos, parada al primer rechazo o captcha). `buscar` (búsquedas filtradas por DJ, término y evento → `1001tracklists/busquedas/`), `candidatos` (cura sin abrir los sets: comerciales afuera, trayectoria o pares, topes → `candidatos.csv` con columna `veto` y `descartados.csv` con el motivo), `bajar --n` (páginas de los candidatos → `sets/<id>.json`: tema, segundo, sello, enlaces y grabación), `medir` (tiempos, pares consecutivos, afinidad, género comercial → `medidas.csv`). El perfil del navegador va fuera del repo, en `~/.traktor_ml/` |
 | `config/dj_sets/artistas_spotify.txt` | Los 92 artistas que Gabriel sigue en Spotify, punto de partida para buscar sets y compilaciones |
-| `config/dj_sets/tracklists_1001.json` | Reglas y semillas de D5: géneros aceptados, comerciales y fuera de estilo; DJs comerciales y dudosos; eventos comerciales; DJs, términos y eventos que se buscan. Se edita a mano |
+| `config/dj_sets/tracklists_1001.json` | Reglas y semillas de D5: géneros aceptados, comerciales y fuera de estilo; DJs comerciales (EDM del tipo Guetta y Garrix); DJs, términos y eventos que se buscan. Se edita a mano |
 
 ## Taxonomía de géneros (`tools/genre_taxonomy/`)
 

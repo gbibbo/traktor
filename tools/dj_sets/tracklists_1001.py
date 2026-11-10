@@ -8,13 +8,15 @@ PURPOSE: D5: elige y baja sets de 1001Tracklists con la cuenta de Gabriel (plan 
            medir      -> calidad de lo bajado: medidas.csv (tiempos, pares consecutivos, afinidad, enlaces)
          Dos usos, según lo que pidió Gabriel: los sets de 3 h o más enseñan la trayectoria de la noche; para
          saber qué temas van juntos alcanzan los temas consecutivos de sets de cualquier largo. Los sets
-         comerciales se descartan; ante la duda, afuera, y descartados.csv dice por qué.
+         comerciales (para Gabriel, el EDM del tipo David Guetta y Martin Garrix) se descartan; descartados.csv
+         dice por qué. Ante la duda, adentro: una etiqueta del sitio no saca a un DJ de las semillas.
          Reglas con el sitio: navegador visible con la sesión iniciada a mano por Gabriel (la contraseña no
          pasa por acá; el perfil queda fuera del repo), 8 s entre pedidos (Crawl-delay), sin reintentos y parada
          en la primera respuesta anormal o captcha. No se hace scroll infinito, que es donde el sitio pide
          captcha. Los enlaces por tema (/ajax/get_medialink.php) no se piden acá.
 CHANGELOG:
   - 2026-11-09: Creación.
+  - 2026-11-09: «Comercial» según Gabriel: sin listas de dudosos ni de eventos; las semillas no salen por etiqueta.
 """
 from __future__ import annotations
 
@@ -147,10 +149,9 @@ def resultados_declarados(raw: str) -> Optional[str]:
 
 def cargar_config(ruta: Path) -> Dict:
     config = json.loads(Path(ruta).read_text(encoding="utf-8"))
-    config["_eventos_comerciales"] = [re.compile(p) for p in config["eventos_comerciales"]]
     config["_stream"] = re.compile(config["stream"])
     config["_dj_comerciales"] = {norm(d) for d in config["djs_comerciales"]}
-    config["_dj_dudosos"] = {norm(d) for d in config["djs_dudosos"]}
+    config["_semillas"] = {norm(d) for d in config["djs"]}
     return config
 
 
@@ -186,20 +187,18 @@ def contiene_nombre(nombre: str, parte_dj: str) -> bool:
 
 def motivo_comercial(fila: Dict, config: Dict) -> Optional[str]:
     """Motivo por el que el set se considera comercial o fuera de estilo; None si pasa."""
+    dj_parte, _, _ = partes_titulo(fila["titulo"])
+    nombres = {norm(d) for d in djs_de(dj_parte)}
+    if nombres & config["_dj_comerciales"]:
+        return "comercial_dj"
+    # Las semillas son el gusto de Gabriel: una etiqueta del sitio no las saca (Digweed figura como Mainstage en Sziget).
+    if nombres & config["_semillas"]:
+        return None
     generos = set(fila["generos"])
     if generos & set(config["generos_comerciales"]):
         return "comercial_genero"
     if generos & set(config["generos_fuera_de_estilo"]):
         return "fuera_de_estilo"
-    dj_parte, _, _ = partes_titulo(fila["titulo"])
-    nombres = {norm(d) for d in djs_de(dj_parte)}
-    if nombres & config["_dj_comerciales"]:
-        return "comercial_dj"
-    if nombres & config["_dj_dudosos"]:
-        return "comercial_dj_dudoso"
-    titulo = norm(fila["titulo"])
-    if any(patron.search(titulo) for patron in config["_eventos_comerciales"]):
-        return "comercial_evento"
     if not generos & set(config["generos_aceptados"]):
         return "sin_genero_aceptado"
     return None

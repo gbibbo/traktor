@@ -12,25 +12,9 @@
     "Trance", "Goa / Psy-Trance", "Hard Dance", "Hardstyle", "Drum & Bass", "Bassline / Garage / Grime"
   ],
   "djs_comerciales": [
-    "Bassjackers", "Lilly Palmer", "MEDUZA", "Purple Disco Machine", "Offer Nissim", "David Guetta",
-    "Martin Garrix", "Tiësto", "Hardwell", "Afrojack", "Armin van Buuren", "Dimitri Vegas", "Like Mike",
-    "Steve Aoki", "Alesso", "Axwell", "Swedish House Mafia", "Calvin Harris", "Don Diablo", "Oliver Heldens",
-    "Timmy Trumpet", "W&W", "Nicky Romero", "R3HAB", "KSHMR", "Alok", "deadmau5", "testpilot",
-    "Porter Robinson", "Fred again.."
-  ],
-  "djs_dudosos": [
-    "ARTBAT", "Argy", "Boris Brejcha", "Tale Of Us", "Anyma", "Solomun", "Charlotte de Witte", "Amelie Lens",
-    "Nina Kraviz", "Peggy Gou", "Vintage Culture", "CamelPhat", "Kölsch", "FISHER", "John Summit", "Dom Dolla",
-    "Mau P", "Chris Lake", "Indira Paganotto", "Eric Prydz", "Black Coffee", "Keinemusik", "Adam Port", "Rampa",
-    "&ME", "David Morales", "Claptone"
-  ],
-  "eventos_comerciales": [
-    "tomorrowland", "\\bultra\\b", "\\bedc\\b", "electric daisy", "creamfields", "untold", "parookaville",
-    "electric love", "mysteryland", "sziget", "balaton sound", "neversea", "lollapalooza", "coachella",
-    "main ?stage", "kineticfield", "circuitgrounds", "a state of trance", "\\basot\\b", "defqon",
-    "transmission", "dreamstate", "world club dome", "summerburst", "\\bsensation\\b", "\\bamf\\b",
-    "ushuaia", "\\bomnia\\b", "hakkasan", "\\bxs nightclub\\b", "\\bwynn\\b",
-    "above & beyond", "anjuna", "group therapy", "diplo"
+    "David Guetta", "Martin Garrix", "Bassjackers", "Tiësto", "Hardwell", "Afrojack", "Armin van Buuren",
+    "Dimitri Vegas", "Like Mike", "Steve Aoki", "Alesso", "Axwell", "Swedish House Mafia", "Calvin Harris",
+    "Don Diablo", "Oliver Heldens", "Timmy Trumpet", "W&W", "Nicky Romero", "R3HAB", "KSHMR", "Alok"
   ],
   "stream": "twitch|livestream|live stream|\\bonline\\b|home dj set|home session|from home|beatport live|united we stream|quarantine|lockdown|streaming|bunker sessions",
   "djs": [
@@ -50,7 +34,10 @@
     "Oliver Koletzki", "Sidney Charles", "Mendo", "Armen Miran", "Djuma Soundsystem", "Mark Alow", "Sébastien Léger",
     "Electric Rescue", "Timo Maas", "Stephan Bodzin", "Andre Butano", "Joe Red", "NenaHalena", "Hostox", "Tunnelvisions",
 
-    "ANNA", "Massano", "Eli Brown", "Soul Button", "Voltaire", "Apollonia", "Sven Väth", "Joris Voorn", "Hunee"
+    "ANNA", "Massano", "Eli Brown", "Soul Button", "Voltaire", "Apollonia", "Sven Väth", "Joris Voorn", "Hunee",
+
+    "ARTBAT", "Argy", "Boris Brejcha", "Solomun", "Tale Of Us", "Charlotte de Witte", "Amelie Lens", "Nina Kraviz",
+    "MEDUZA", "Purple Disco Machine", "Offer Nissim"
   ],
   "terminos": [
     {"texto": "All Night Long", "duracion": 180, "Type": "onlyLive", "ventanas": [

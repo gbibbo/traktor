@@ -46,7 +46,11 @@ cambiarlo. Evidencia: `docs/reports/traktor_concept_ai_cloudflare_2026-11-09.md`
 
 ## 2026-11-09 (sets de 1001Tracklists)
 
-1. **Los sets comerciales quedan fuera de D5** (Gabriel). Cómo (agente): ante la duda, afuera. Se descarta por género
+1. **Los sets comerciales quedan fuera de D5** (Gabriel). Comercial, en sus palabras, es «David Guetta y Martin Garrix»;
+   ARTBAT, Argy, Boris Brejcha, Solomun, Tale Of Us, Charlotte de Witte, Amelie Lens y Nina Kraviz van incluidos. Rige
+   (agente): afuera solo el EDM de ese tipo, por nombre, y lo que el sitio etiqueta Mainstage o similar si el DJ no es
+   semilla; ante la duda, adentro; un festival no vuelve comercial a nadie. Quedan 12 sets comerciales.
+   [REFUTADO 2026-11-09 por Gabriel: esa lista era criterio del agente, no el suyo] Cómo (agente): ante la duda, afuera. Se descarta por género
    (Mainstage, Dance / Electro Pop y otros), por DJ (una lista de comerciales y otra de dudosos, como ARTBAT o Charlotte
    de Witte) y por evento o escenario (Tomorrowland, Ultra, EDC y otros). Trance, Hard Dance y Drum & Bass salen por
    estilo. Las listas están en `config/dj_sets/tracklists_1001.json`; son criterio del agente y Gabriel las corrige.
@@ -58,13 +62,16 @@ cambiarlo. Evidencia: `docs/reports/traktor_concept_ai_cloudflare_2026-11-09.md`
    - Se lee la página de cada set en lugar del botón de exportar: trae lo mismo con un pedido, y además sello, enlaces y
      grabación. Herramienta: `tools/dj_sets/tracklists_1001.py`, con la sesión iniciada a mano por Gabriel; 8 s entre
      pedidos, sin reintentos, y parada en la primera respuesta anormal. El perfil queda en `~/.traktor_ml/`, fuera del repo.
-   - Resultado: 84 de 147 búsquedas, 1269 sets distintos y 740 candidatos (135 para trayectoria, 605 solo para pares, 139
+   - [REEMPLAZADO 2026-11-09 por el criterio de comercial de Gabriel: 831 candidatos (142 para trayectoria, 689 solo para pares, 156 DJs); afuera, 12 comerciales, 3 por estilo, 217 por el tope por DJ y 206 por datos] Resultado: 84 de 147 búsquedas, 1269 sets distintos y 740 candidatos (135 para trayectoria, 605 solo para pares, 139
      DJs). Quedaron fuera 128 comerciales, 43 por estilo, 169 por el tope de 15 por DJ y 189 por datos insuficientes o
      género no aceptado. La tabla: `1001tracklists/candidatos.csv`, con columna `veto`.
    - **El sitio cortó la conexión en la búsqueda 81 de esa tanda** (`ERR_CONNECTION_RESET`, a unos 11 s por pedido; el
      resto de internet funcionaba). Puede ser un rechazo o un corte casual; una sola vez no lo distingue. No se reintentó
-     y el piloto de 30 sets no se corrió. `buscar` quedó con un tope de 40 por corrida. Faltan 63 búsquedas: 34 DJs, 15
+     y el piloto de 30 sets no se corrió. `buscar` quedó con un tope de 40 por corrida. [REEMPLAZADO 2026-11-09 al sumar a los DJs que nombró Gabriel y a tres de su Spotify que se habían sacado: faltan 74, de 158: 45 DJs, 15 términos y 14 eventos] Faltan 63 búsquedas: 34 DJs, 15
      términos y 14 eventos.
+   - Qué dicen los datos guardados del corte (agente; sin volver a tocar el sitio): el ritmo fue parejo (12 s) y sin
+     lentitud antes del corte; la sesión siguió abierta y no hay avisos en la última página; el corte fue de conexión, no
+     una respuesta de límite ni un captcha. No distingue un límite de un corte casual: es HIPÓTESIS.
 
 ## 2026-11-08
 
