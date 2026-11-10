@@ -1035,9 +1035,9 @@ tomados de arriba de la tabla (no es una muestra al azar); 1206 temas y 1092 par
 | Temas que están en la biblioteca (artista y título con la versión) | 11 de 1206 (0,9 %), en 7 sets |
 | Pares consecutivos con los dos temas en la biblioteca | 0 |
 | Pares de un mismo set con los dos temas en la biblioteca | 5, en 3 sets |
-| Temas de artistas que sí están en la biblioteca | 33 % (media por set; mediana 29,5 %) |
-| Temas con enlace a Beatport en la página | 70 % (media por set; mediana 80 %) |
-| Temas con enlace a YouTube en la página | 59 % (media por set) |
+| Temas de artistas que sí están en la biblioteca, sobre los temas con artista nombrado | 33 % (media por set; mediana 29,5 %) |
+| [REFUTADO 2026-11-09 por la aclaración de la sesión de 1001Tracklists y por `tracklists_1001.py`, función de medidas: es la parte de los temas identificados cuya fila tiene el botón de compra («affiliate»); que el botón lleve a Beatport se comprobó en un solo tema, y la URL real pide un pedido por tema que no se hizo (S14)] Temas con enlace a Beatport en la página | 70 % (media por set; mediana 80 %) |
+| [REFUTADO 2026-11-09 por lo mismo: es la parte de los temas identificados cuya fila tiene el ícono de YouTube; ningún enlace se resolvió] Temas con enlace a YouTube en la página | 59 % (media por set) |
 
 **Qué cambia.** La sección 12 contaba con los pares de D5 cruzados con la biblioteca como juez con otros DJs.
 Ese juez no existe: los DJs de D5 casi no tocan los temas de la biblioteca. Las marcas están en P11, P12, 12.5
@@ -1045,7 +1045,7 @@ y 12.7. Lo que D5 sí da, sin audio, son unos 36 pares consecutivos identificado
 
 | Id | Idea | Origen | Contrato | Depende de | Etapa | Estado |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| P12a | Los pesos de los factores que no son modelos (BPM, tonalidad, género) se aprenden de los pares consecutivos de D5 con metadatos de Beatport: cuántas veces más que al azar aparece cada paso de tonalidad (P7), cada diferencia de BPM y cada paso entre géneros (T1). Solo texto; DJs de prueba fuera del entrenamiento | Auditoría 11-09, por el piloto de D5; P7, T1 | Sets; Comp `bpm`, `clave`, `genero`, `transicion` | C1 sobre los temas de D5 (el 70 % trae enlace a Beatport); que Gabriel decida sobre la señal `ai-train=no` de Beatport (sección 6, C1) | Unidad 1, cuando D5 esté bajado | Pendiente |
+| P12a | Los pesos de los factores que no son modelos (BPM, tonalidad, género) se aprenden de los pares consecutivos de D5 con metadatos de Beatport: cuántas veces más que al azar aparece cada paso de tonalidad (P7), cada diferencia de BPM y cada paso entre géneros (T1). Solo texto; DJs de prueba fuera del entrenamiento | Auditoría 11-09, por el piloto de D5; P7, T1 | Sets; Comp `bpm`, `clave`, `genero`, `transicion` | C1 sobre los temas de D5 (el 70 % de los identificados trae botón de compra, que se supone de Beatport; C1 busca por artista y título, no depende de ese enlace); que Gabriel decida sobre la señal `ai-train=no` de Beatport (sección 6, C1) | Unidad 1, cuando D5 esté bajado | Pendiente |
 | P12b | Los pesos de los modelos (CLAP, MAEST, estilos) y su peso frente a los demás factores se aprenden donde hay audio de los dos temas: Bedrock, D3 × biblioteca, D7 validado con su control de dominio y, si Gabriel lo aprueba, D6 | Auditoría 11-09, por el piloto de D5 | Eval; Perfil Parecidos | Audio de los dos temas del par | Unidad 1 | Pendiente. Con las fuentes de hoy es un juez chico: un DJ con originales (Bedrock) y 79 pares de D3 |
 | M6 | Vector de sets por artista: como M1, pero con el artista como unidad, porque los temas casi no se repiten entre sets y los artistas sí (el 33 % de los temas del piloto es de artistas de la biblioteca). Da un factor «artistas que los DJs ponen juntos» para la ecuación, solo con texto | Auditoría 11-09; S8 de la sección 6; M1 | Tema (vector por artista); Comp `set2vec` | D3 y D5 (texto) | Después de la unidad 1 | Pendiente. Riesgo: un artista no suena siempre igual; se mide como un factor más, con el control de popularidad de E7 |
 
