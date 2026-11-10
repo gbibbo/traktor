@@ -25,6 +25,7 @@ CHANGELOG:
   - 2026-11-08: Creación (unidad A1 de la sección 11 del plan).
   - 2026-11-09: Fuente.fila_archivo: carpeta/archivo de cada original de Bedrock, para sumarle otras vistas
                 (MAEST de tools/dj_sets/maest_originales.py; fusion_vistas.py).
+  - 2026-11-10: fuente_d5: los sets de D5 (1001Tracklists) cruzados con la biblioteca como D3 (E16).
 """
 from __future__ import annotations
 
@@ -192,6 +193,42 @@ def fuente_d3(path: Path, bib: Biblioteca) -> Fuente:
     return Fuente("d3_biblioteca", "biblioteca", bib.V, bib.bpm, bib.artista, sets, dj,
                   {"sets_d3": len(mixes), "sets_con_2_o_mas_temas": len(sets), "sets_con_un_solo_tema": uno,
                    f"sets_anteriores_a_{D3_DESDE}_o_sin_fecha": viejos})
+
+
+def fuente_d5(root: Path, bib: Biblioteca, d3: Optional[Fuente] = None) -> Fuente:
+    """Sets de D5 (1001Tracklists, <root>/1001tracklists/sets/*.json) con dos temas o más de la biblioteca, comparando
+    artista y título con la versión como D3 y sin las filas tocadas encima de otra. Un set que también está en D3 (el
+    mismo DJ y dos temas o más en común) queda fuera: cuenta una vez. El DJ es el primero del título."""
+    from tools.dj_sets.tracklists_1001 import clave_de_nombre, djs_de, partes_titulo
+    previos: Dict[str, List[set]] = {}
+    if d3 is not None:
+        for sid, filas in d3.sets.items():
+            previos.setdefault(estricto(d3.dj.get(sid, "?")), []).append(set(filas))
+    sets, dj = {}, {}
+    total = uno = repetidos = 0
+    for f in sorted((root / "1001tracklists" / "sets").glob("*.json")):
+        d = json.loads(f.read_text(encoding="utf-8"))
+        total += 1
+        filas: List[int] = []
+        for t in d.get("temas", []):
+            if t.get("junto_al_anterior"):
+                continue
+            c = clave_de_nombre(t.get("nombre") or t.get("visible") or "")
+            i = bib.por_nombre.get(c) if c else None
+            if i is not None and i not in filas:
+                filas.append(i)
+        if len(filas) < 2:
+            uno += int(len(filas) == 1)
+            continue
+        nombre_dj = (djs_de(partes_titulo(d.get("titulo", ""))[0]) or ["?"])[0]
+        if any(len(set(filas) & s) >= 2 for s in previos.get(estricto(nombre_dj), [])):
+            repetidos += 1
+            continue
+        sid = "d5:" + (d.get("id") or f.stem)
+        sets[sid], dj[sid] = filas, nombre_dj
+    return Fuente("d5_biblioteca", "biblioteca", bib.V, bib.bpm, bib.artista, sets, dj,
+                  {"sets_d5": total, "sets_con_2_o_mas_temas": len(sets) + repetidos, "sets_con_un_solo_tema": uno,
+                   "sets_que_ya_estan_en_d3": repetidos})
 
 
 def discos_bedrock(root: Path, carpeta: str) -> Tuple[Dict, List[Dict], Dict[int, Dict], Dict]:
