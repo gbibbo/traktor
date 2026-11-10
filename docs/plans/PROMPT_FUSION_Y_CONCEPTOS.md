@@ -7,6 +7,13 @@ auditora el 2026-11-09, a pedido de Gabriel, que aprobó la estrategia ese mismo
 `docs/plans/recomendacion_playlists_plan.md`. Sigue a `PROMPT_SEGURIDAD_Y_DIRECCION.md` (sección 11 del plan),
 del que la unidad A1 ya está hecha.
 
+**Etapa del 2026-11-10, mientras D5 y D6 siguen bajando.** La unidad 1 está hecha
+(`docs/reports/fusion_vistas_2026-11-09.md`). Lo que sigue está en la sección 12.9 del plan, en este orden: el
+control de dominio de los previews (E15), sus vistas en gpuq (V7), la taxonomía validada con transiciones de
+profesionales y los pesos de BPM, tonalidad y género (G13, P12a), y el juez «mismo set» con D5 × biblioteca
+(E16). Después, la escucha de la unidad 2 cuando Gabriel conteste, y las unidades 3 y 4. Fijar los pesos de la
+ecuación y cambiar valores por defecto espera al dataset completo.
+
 ---
 
 Vas a mejorar con Gabriel el algoritmo de recomendación en vivo de TRAKTOR ML. No es trabajo de interfaz:
@@ -128,10 +135,14 @@ rutas explícitas, y el bloque CHECKPOINT.
   temas en la biblioteca, ningún par consecutivo y 5 pares de un mismo set (plan, sección 12.8). Para los
   modelos, el juez con otros DJs es chico: Bedrock y los 79 pares de D3. Dilo así en el informe.
 - Lo que 1001Tracklists sí da son pares consecutivos de profesionales en texto. Con los metadatos de Beatport
-  de esos temas se aprenden los pesos de BPM, tonalidad y género (P12a). Antes de pedir nada a Beatport,
+  de esos temas se aprenden los pesos de BPM, tonalidad y género (P12a). [REEMPLAZADO 2026-11-10 por DECISIONS
+  2026-11-09 (sets de 1001Tracklists), punto 5: Gabriel respondió «Sí, bajarlos igual»; género, BPM y tonalidad
+  de Beatport ya vienen en los manifiestos de D6, sin pedidos nuevos] Antes de pedir nada a Beatport,
   pregunta a Gabriel: su `robots.txt` declara `ai-train=no` y la decisión es suya. No edites los archivos de
   la sesión de 1001Tracklists.
-- El audio de los temas de los sets (D6) destrabaría el juez de los modelos. Es decisión de Gabriel y trabajo
+- [REEMPLAZADO 2026-11-10 por DECISIONS 2026-11-09 (sets de 1001Tracklists), puntos 4 y 5: Gabriel lo decidió,
+  son los previews de Beatport en su Drive y los baja otra sesión; lo tuyo es E15 y V7, plan 12.9] El audio de
+  los temas de los sets (D6) destrabaría el juez de los modelos. Es decisión de Gabriel y trabajo
   pesado: no lo empieces sin que lo pida.
 
 **2. Ronda de escucha de Parecidos (E12).**

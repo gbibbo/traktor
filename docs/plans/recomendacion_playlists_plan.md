@@ -18,6 +18,11 @@ Drive. Ideas P11 a P13 (con P12a y P12b), T23 a T30, M6, D9 y H1; medidas E13 y 
 11-09)» son suyas. Fundamento: `docs/reports/auditoria_recomendacion_2026-11-09.md`. Para implementarla desde
 un chat nuevo: `docs/plans/PROMPT_FUSION_Y_CONCEPTOS.md`.
 
+Adenda 2026-11-10 (auditoría, con Gabriel; DECISIONS 2026-11-10, «recomendación: mientras se baja el
+dataset»): sección 12.9. Qué hace el implementador mientras D5 y D6 siguen bajando: el control de dominio de
+los previews (E15), sus vistas en gpuq (V7), la taxonomía validada con transiciones de profesionales (G13, con
+P12a) y el juez «mismo set» con D5 × biblioteca (E16).
+
 ## 0. Qué se pide auditar
 
 El auditor tiene que verificar tres cosas:
@@ -1010,6 +1015,8 @@ Criterios de salida comunes: los de la sección 5 y los de la 11.4.
 
 Después siguen las etapas 4 y 5 del plan (M3, M4) como estaban, con H1 para lo que pida GPU.
 
+Mientras D5 y D6 siguen bajando (2026-11-10), el orden de la sección 12.9 va antes de los pasos 3 y 4.
+
 ### 12.6 Cómputo pesado: gpuq y Drive (H1)
 
 - **Regla** (Gabriel): todo lo pesado en procesamiento o en disco se procesa con las GPU de gpuq
@@ -1042,7 +1049,9 @@ Preguntas para Gabriel:
    (`rclone about erclm:`), docs/GPUQ.md] Dónde corre el despachador de gpuq y cuánto espacio libre tiene el Drive.
 3. Si el umbral de «pesado» (alrededor de una hora de CPU o de 10 GB de disco nuevo) y el OK previo al primer
    envío de cada tipo de trabajo quedan así.
-4. El audio de los temas de los sets (D6), que es decisión suya: sección 12.8.
+4. [REEMPLAZADO 2026-11-10 por DECISIONS 2026-11-09 (sets de 1001Tracklists), puntos 4 y 5: Gabriel decidió
+   que D6 son los previews de Beatport en su Drive y pidió bajar los de todos los temas; lo que sigue está en
+   12.9] El audio de los temas de los sets (D6), que es decisión suya: sección 12.8.
 
 ### 12.8 El piloto de D5 y el juez de la ecuación (2026-11-09, noche)
 
@@ -1065,10 +1074,13 @@ y 12.7. Lo que D5 sí da, sin audio, son unos 36 pares consecutivos identificado
 
 | Id | Idea | Origen | Contrato | Depende de | Etapa | Estado |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| P12a | Los pesos de los factores que no son modelos (BPM, tonalidad, género) se aprenden de los pares consecutivos de D5 con metadatos de Beatport: cuántas veces más que al azar aparece cada paso de tonalidad (P7), cada diferencia de BPM y cada paso entre géneros (T1). Solo texto; DJs de prueba fuera del entrenamiento | Auditoría 11-09, por el piloto de D5; P7, T1 | Sets; Comp `bpm`, `clave`, `genero`, `transicion` | C1 sobre los temas de D5 (el 70 % de los identificados trae botón de compra, que se supone de Beatport; C1 busca por artista y título, no depende de ese enlace); que Gabriel decida sobre la señal `ai-train=no` de Beatport (sección 6, C1) | Unidad 1, cuando D5 esté bajado | Pendiente |
+| P12a | Los pesos de los factores que no son modelos (BPM, tonalidad, género) se aprenden de los pares consecutivos de D5 con metadatos de Beatport: cuántas veces más que al azar aparece cada paso de tonalidad (P7), cada diferencia de BPM y cada paso entre géneros (T1). Solo texto; DJs de prueba fuera del entrenamiento | Auditoría 11-09, por el piloto de D5; P7, T1 | Sets; Comp `bpm`, `clave`, `genero`, `transicion` | C1 sobre los temas de D5 (el 70 % de los identificados trae botón de compra, que se supone de Beatport; C1 busca por artista y título, no depende de ese enlace); que Gabriel decida sobre la señal `ai-train=no` de Beatport (sección 6, C1) [REEMPLAZADO 2026-11-10 por DECISIONS 2026-11-09 (sets de 1001Tracklists), punto 5, y por los manifiestos de D6: Gabriel respondió «Sí, bajarlos igual» y pidió el dataset para evaluar y entrenar; género, BPM y tonalidad de Beatport ya vienen en `detalles` de cada preview, 13 182 temas el 11-10, sin pedidos nuevos] | Unidad 1, cuando D5 esté bajado [REEMPLAZADO 2026-11-10 por Gabriel (DECISIONS 2026-11-10): se mide ya con lo bajado y se repite al terminar la bajada; sección 12.9] | Pendiente |
 | P12b | Los pesos de los modelos (CLAP, MAEST, estilos) y su peso frente a los demás factores se aprenden donde hay audio de los dos temas: Bedrock, D3 × biblioteca, D7 validado con su control de dominio y, si Gabriel lo aprueba, D6 | Auditoría 11-09, por el piloto de D5 | Eval; Perfil Parecidos | Audio de los dos temas del par | Unidad 1 | Pendiente. Con las fuentes de hoy es un juez chico: un DJ con originales (Bedrock) y 79 pares de D3 [REEMPLAZADO 2026-11-09 por la unidad 1 (`docs/reports/fusion_vistas_2026-11-09.md`): medida con esas fuentes; falta D7 validado con su control de dominio y, si Gabriel lo aprueba, D6] |
 | M6 | Vector de sets por artista: como M1, pero con el artista como unidad, porque los temas casi no se repiten entre sets y los artistas sí (el 33 % de los temas del piloto es de artistas de la biblioteca). Da un factor «artistas que los DJs ponen juntos» para la ecuación, solo con texto | Auditoría 11-09; S8 de la sección 6; M1 | Tema (vector por artista); Comp `set2vec` | D3 y D5 (texto) | Después de la unidad 1 | Pendiente. Riesgo: un artista no suena siempre igual; se mide como un factor más, con el control de popularidad de E7 |
 
+[REEMPLAZADO 2026-11-10 por DECISIONS 2026-11-09 (sets de 1001Tracklists), puntos 4 y 5: Gabriel decidió D6
+(previews de Beatport, y YouTube para lo que Beatport no tiene) y se bajó sin este piloto; (b) y (c) los midió
+la sesión de la bajada; (a) no se midió y pasa a ser E15, sección 12.9]
 **D6, el audio de los temas de los sets, pasa de la etapa 5 a ser la decisión que destraba el juez.** Es de
 Gabriel (DECISIONS 2026-09-12, punto 3) y es trabajo pesado (H1). Propuesta de la auditoría, sin decidir:
 un piloto con los 30 sets ya bajados, que mida antes de escalar (a) si el embedding de un avance de Beatport o
@@ -1076,3 +1088,81 @@ de un audio de YouTube cae cerca del embedding del mismo tema en la biblioteca, 
 como verdad; (b) qué parte de los 1206 temas se consigue; (c) tiempo, disco y pedidos por tema. Con eso se
 estima el total para los 1549 candidatos. Un cruce más laxo, sin la versión, no sirve de juez: versiones
 distintas de un tema suenan distinto (en D3, 170 pares con el cruce laxo frente a 81 con el estricto, `zona_sets_2026-11-08.md`).
+
+### 12.9 Mientras se baja el dataset (2026-11-10)
+
+Gabriel pausó al implementador hasta tener D5 y D6 completos y le pidió opinión a la auditoría. Quedó así
+(DECISIONS 2026-11-10, «recomendación: mientras se baja el dataset»): el implementador sigue con lo que no
+necesita el dataset completo. Fijar los pesos de la ecuación y cambiar valores por defecto espera.
+
+**Estado de los datos el 2026-11-10** (EVIDENCIA OBSERVADA por la auditoría en `D:\TRAKTOR ML datos\dj_sets`,
+en `features/beatport.parquet` de `musica` y en los `manifest.json` de las tres representaciones; la bajada
+sigue y los conteos crecen):
+
+| Dato | Valor |
+| :--- | :--- |
+| Páginas de sets en `1001tracklists/sets` | 1400 de 1549 candidatos |
+| Previews distintos con archivo y metadatos (`beatport_previews/<corrida>/tanda_*.json`) | 13 182, en 39 tandas con manifiesto; 18,8 GB de MP3 según los manifiestos |
+| Metadatos de cada preview (`detalles`) | Género, BPM, tonalidad, ISRC, sello, fecha, largo del tema y la ventana del preview (`sample_start_ms`, `sample_end_ms`) |
+| Género en las filas de los sets | Cada fila trae además el género que le pone 1001Tracklists (`genero`); cobertura sin medir |
+| Temas del índice con id de Beatport (niveles A y B) | 1429 |
+| De ellos, con su preview ya bajado (el mismo `bp_track_id`) | 166, en 35 tandas (las 15 con más juntan 100 temas y 8,6 GB); 146 con `same_cut` y 153 con `confirmed` |
+| Ventana del preview | 120 s en el 95 %; empieza en el 40 % del tema (p5, p50 y p95: 0,40); largo del tema, mediana 397 s |
+| Lo que usa la biblioteca | 3 segmentos de 30 s repartidos en el tramo 35-65 % del tema, en las tres representaciones (`manifest.json`; `audio_utils.dj_segment_starts`) |
+| Solapamiento | Mediana de 98 s del preview dentro de ese tramo; el preview cubre una mediana del 83 % del tramo; sin solapamiento, el 0,4 % |
+
+INFERENCIA (leída del código, sin correr): pasarle un preview al extractor tal cual toma el 35-65 % de sus
+120 s, un tramo de 36 s; los tres segmentos de 30 s arrancan en los segundos 42, 45 y 48 y son casi el mismo
+audio. La ventana de los previews se decide con E15; no se hereda la de la biblioteca.
+
+| Id | Idea | Origen | Contrato | Depende de | Etapa | Estado |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| E15 | Control de dominio de los previews: en los temas de la biblioteca que ya tienen su preview bajado, el embedding del preview frente al del mismo tema en la biblioteca, por vista y en el puntaje de la ecuación. Decide la ventana de V7 y si un par puede mezclar preview y biblioteca o solo preview con preview. Protocolo debajo | Auditoría 11-09 (12.8, punto a); Gabriel 11-10 («agrega esa verificación») | Eval | Los 166 temas con preview; sus MP3 salen de los `.tar` del Drive | Ahora, primero | Pendiente |
+| V7 | Vistas de los previews: CLAP, MAEST capa 7 y estilos de cada preview de D6 (y de los audios completos de `youtube_temas/`), una salida por tanda, alineadas por el id de Beatport (estos temas no tienen `track_uid`). Guarda el embedding de cada segmento además de la media, para cambiar la ventana sin volver a extraer, y queda preparado para sumar otra vista (EffNet) con otra pasada. Lee los `.tar` del Drive; no le pide nada a Beatport | Auditoría 11-10; H1 | Datos (`erclm:traktor_ml/`) | E15 para la ventana; el OK de Gabriel antes del primer envío (`AGENTS.md`, «Compute») | Después de E15 | Pendiente. Es trabajo pesado: solo MAEST, a los 11 s por tema medidos en CPU con Bedrock, pasa de 40 h para 13 182 previews |
+| G13 | Validación de la taxonomía con transiciones de profesionales: en los pares consecutivos de D5 con género en los dos temas, cuántas veces más que al azar aparece cada valor del puntaje de la taxonomía (toma 15 valores entre pares de la biblioteca). Si esa curva no sube con el puntaje, la taxonomía no ordena. Se compara, con una variable por vez, con «mismo género o no» y con la coaparición aprendida de los sets (G7, T1), con los DJs de prueba fuera. Deja la lista de los pares de géneros donde la taxonomía y los DJs más discrepan, con sus conteos, para G2 y para Gabriel. El peso del factor género sale de P12a con el factor que gane | Gabriel 11-10 (validar la taxonomía con los sets bajados y ajustar el peso según los números); G1, G7, T1 | Sets; Comp `genero` | D5 y los metadatos de los manifiestos de D6; solo texto | Ahora | Pendiente |
+| E16 | Juez «mismo set» con D5 × biblioteca: los sets de D5 cruzados con la biblioteca por artista y título con la versión, como fuente nueva junto a las de `zona_sets.py`; las tablas de la unidad 1 (CLAP crudo, tres vistas, todos los factores con pesos iguales, ecuación aprendida) con esta fuente aparte y junto a D3, con cada DJ fuera del entrenamiento. Un DJ que está en D3 y en D5 va en el mismo pliegue, y un set que está en las dos fuentes cuenta una vez. Usa los embeddings de la biblioteca: no depende de E15 | Auditoría 11-10; E9, P12b | Eval | D5 (texto) | Ahora | Pendiente. La sesión de la bajada contó 234 pares de un mismo set con 838 sets (DECISIONS 2026-11-09, sets, punto 5; sin recontar por la auditoría); D3 daba 79 |
+
+**Protocolo de E15** (propuesto por la auditoría antes de medir; si el implementador cambia un umbral, lo
+escribe antes de mirar los datos):
+
+- Muestra: los temas con `same_cut`; los demás se informan aparte. Sin pedidos nuevos a Beatport: los MP3 ya
+  están en el Drive.
+- Dos causas, separadas con un control: el archivo de la biblioteca recortado a la ventana del preview. El
+  preview frente a ese recorte aísla el códec; el recorte frente al embedding de la biblioteca aísla el tramo.
+- Variantes de ventana, una por vez: el preview entero en 4 segmentos de 30 s; solo la parte que cae en el
+  35-65 % del tema; la regla del extractor tal cual, como línea de base.
+- Medidas, por vista (CLAP, MAEST capa 7, estilos) y con el centrado y la escala de `fusion_vistas.py`:
+  - puesto del tema verdadero entre los 1760 de la biblioteca;
+  - Spearman entre el parecido preview con preview y el parecido biblioteca con biblioteca de los mismos pares,
+    y lo mismo con el puntaje de todos los factores con pesos iguales;
+  - desplazamiento medio entre los dos dominios, y si centrar cada dominio por separado lo quita.
+- Umbrales: códec, coseno mediano de 0,97 o más entre el preview y el mismo recorte (el umbral de duplicado de
+  `zona_sets.py`); con la ventana elegida, el tema verdadero primero en el 90 % o más y entre los 5 primeros en
+  el 97 % o más, en CLAP y en MAEST; Spearman de 0,90 o más en el puntaje de la ecuación. Los estilos se
+  informan con el control al lado, sin umbral.
+- Qué sigue de cada resultado: si pasa, V7 usa la ventana ganadora y los pares pueden mezclar preview y
+  biblioteca. Si falla solo el puesto y el Spearman pasa, los previews se comparan entre ellos, centrados
+  aparte. Si falla el Spearman, los previews no sirven de juez de los modelos: se le dice a Gabriel antes de
+  gastar GPU en V7, y P12a y G13, que son texto, siguen igual.
+- YouTube: si hay temas con las dos fuentes (la prueba de 100 de DECISIONS 2026-11-10, punto 3), el mismo
+  control entre el audio completo de YouTube y el preview. Si no los hay, queda anotado; no se baja nada para esto.
+
+**P12a y G13, con lo bajado.** Pares consecutivos con los dos temas identificados y con `detalles`; las filas
+tocadas encima de otra no cuentan (sección 6). Dos pares al azar distintos, informados por separado: otro tema
+del mismo set que no es vecino (mide la transición) y un tema de otro set (mide el estilo de la noche). Para la
+ecuación, además, pares al azar dentro de los filtros en vivo, como en la unidad 1. BPM, tonalidad y género con
+las fórmulas del recomendador. El género de Beatport es editorial por lanzamiento (G5): se informa cuánto
+coincide con el de 1001Tracklists. Los sets que faltan bajar son de pares, no de trayectoria (DECISIONS
+2026-11-10, punto 4): lo medido hoy no es una muestra al azar del total.
+
+**Orden.**
+1. E15.
+2. V7: prueba chica en CPU, pedido de OK a Gabriel con los números, trabajo corto y después los lotes cerrados.
+3. G13 y P12a, mientras corre V7.
+4. E16.
+5. La escucha E12, cuando Gabriel conteste quién elige los temas principales y cuál es la lista nueva.
+6. Los pasos 3 y 4 de 12.5 (Essentia y banco de conceptos), que no dependen del dataset.
+
+Cada módulo se vuelve a correr con el mismo comando cuando termine la bajada, y cada informe dice con cuántos
+sets y previews midió. **Espera al dataset completo:** fijar los pesos de la ecuación (P12 y P12b con
+previews), cambiar los pesos por defecto del recomendador, que además pasa por la escucha, y M3 y M4.

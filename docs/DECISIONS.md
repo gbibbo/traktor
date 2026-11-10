@@ -6,6 +6,32 @@ anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_impl
 Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 `[REEMPLAZADO <fecha> por <decisión>: <lo que rige ahora>]` (o `[REFUTADO …]` si era un error).
 
+## 2026-11-10 (recomendación: mientras se baja el dataset)
+
+Plan, sección 12.9. Las medidas de la auditoría de este día son exploratorias (scripts fuera de Git).
+
+1. **El implementador sigue mientras bajan D5 y D6, con lo que no necesita el dataset completo.** Gabriel lo había
+   pausado hasta tenerlo entero, le pidió opinión a la auditoría y después pidió el mensaje para esta etapa. Fijar
+   los pesos de la ecuación y cambiar valores por defecto espera al dataset completo. Cómo (agente): el orden es
+   E15, V7, G13 con P12a, E16, y después la escucha E12 y las unidades 3 y 4.
+2. **Se verifica si el embedding de un preview cae cerca del embedding del tema completo** (Gabriel: «agrega esa
+   verificación»). Cómo (agente): E15, lo primero de la etapa, con umbrales escritos antes de medir. 166 temas de
+   la biblioteca ya tienen su preview bajado (el mismo id de Beatport), así que no hace falta bajar nada. El
+   preview dura 120 s y empieza en el 40 % del tema; la biblioteca usa 3 segmentos de 30 s del tramo 35-65 %. El
+   extractor tal cual usaría solo 36 s del preview: la ventana se decide con E15.
+3. **La taxonomía de géneros se valida con los sets bajados y el peso del factor se ajusta según salgan los
+   números** (Gabriel). Cómo (agente): G13 y P12a, solo texto, con el género, el BPM y la tonalidad que ya traen
+   los manifiestos de los previews. El peso que salga es el que se propone para la ecuación; el valor por defecto
+   del recomendador sigue cambiando solo cuando Gabriel lo diga, después de escuchar.
+4. **La auditoría no recomienda invertir ahora en el clasificador de género** (agente; plan, filas G1 y G3). En
+   75 pares de D3 × biblioteca, la taxonomía separa «mismo set» de azar del mismo BPM mejor que «mismo género o
+   no» (AUC 0,69 frente a 0,60) y peor que los estilos Discogs sacados del audio (0,75), que cubren los 1760 temas
+   sin depender de la etiqueta. En los sets de Gabriel, sumarla a CLAP no cambia nada distinguible.
+5. **La pregunta del implementador sobre `ai-train=no` ya estaba contestada** (Gabriel, 2026-11-09, sets de
+   1001Tracklists, punto 5: «Sí, bajarlos igual», y el dataset es para evaluar y entrenar). Lectura del agente:
+   cubre aprender los pesos de BPM, tonalidad y género con esos datos, que ya están bajados; se lo dijo a Gabriel
+   el 11-10 para que lo corrija si no es así.
+
 ## 2026-11-10 (sets y audio de los temas, de día)
 
 1. **Gabriel autoriza** cambiar el filtro de la búsqueda en Beatport, con la condición de que el agente supervise
