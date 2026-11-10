@@ -1123,7 +1123,7 @@ audio. La ventana de los previews se decide con E15; no se hereda la de la bibli
 
 | Id | Idea | Origen | Contrato | Depende de | Etapa | Estado |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| E15 | Control de dominio de los previews: en los temas de la biblioteca que ya tienen su preview bajado, el embedding del preview frente al del mismo tema en la biblioteca, por vista y en el puntaje de la ecuación. Decide la ventana de V7 y si un par puede mezclar preview y biblioteca o solo preview con preview. Protocolo debajo | Auditoría 11-09 (12.8, punto a); Gabriel 11-10 («agrega esa verificación») | Eval | Los 166 temas con preview; sus MP3 salen de los `.tar` del Drive | Ahora, primero | Pendiente [REEMPLAZADO 2026-11-10 por la medida (`docs/reports/dominio_previews_2026-11-10.md`; protocolo fijado en `269af4c` antes de medir): con los umbrales fijados, no pasa (Spearman de todos los factores 0,78; códec de CLAP 0,92; CLAP primero en el 32 %). MAEST pasa todo (primero en el 100 %, códec 0,988, Spearman 0,92); CLAP sufre el códec (preview LOFI de 96 kbps) y centrado aparte queda primero en el 92 %; el puntaje de todos los factores lo baja la tonalidad de Beatport, que coincide con la de Traktor o los tags en el 47 % (con los metadatos de la biblioteca, 0,947). Ventana: V4, el preview entero. V7 espera la decisión de Gabriel] |
+| E15 | Control de dominio de los previews: en los temas de la biblioteca que ya tienen su preview bajado, el embedding del preview frente al del mismo tema en la biblioteca, por vista y en el puntaje de la ecuación. Decide la ventana de V7 y si un par puede mezclar preview y biblioteca o solo preview con preview. Protocolo debajo | Auditoría 11-09 (12.8, punto a); Gabriel 11-10 («agrega esa verificación») | Eval | Los 166 temas con preview; sus MP3 salen de los `.tar` del Drive | Ahora, primero | Pendiente [REEMPLAZADO 2026-11-10 por la medida (`docs/reports/dominio_previews_2026-11-10.md`; protocolo fijado en `269af4c` antes de medir): con los umbrales fijados, no pasa (Spearman de todos los factores 0,78; códec de CLAP 0,92; CLAP primero en el 32 %). MAEST pasa todo (primero en el 100 %, códec 0,988, Spearman 0,92); CLAP sufre el códec (preview LOFI de 96 kbps) y centrado aparte queda primero en el 92 %; el puntaje de todos los factores lo baja la tonalidad de Beatport, que coincide con la de Traktor o los tags en el 47 % (con los metadatos de la biblioteca, 0,947). Ventana: V4, el preview entero. V7 espera la decisión de Gabriel]. Auditoría del mismo día (`docs/reports/auditoria_e15_2026-11-10.md`): los números se reproducen; el umbral del Spearman medía también la fuente de los metadatos (marcado en el protocolo); el fallo de CLAP es real y lleva a E17 y V8 |
 | V7 | Vistas de los previews: CLAP, MAEST capa 7 y estilos de cada preview de D6 (y de los audios completos de `youtube_temas/`), una salida por tanda, alineadas por el id de Beatport (estos temas no tienen `track_uid`). Guarda el embedding de cada segmento además de la media, para cambiar la ventana sin volver a extraer, y queda preparado para sumar otra vista (EffNet) con otra pasada. Lee los `.tar` del Drive; no le pide nada a Beatport | Auditoría 11-10; H1 | Datos (`erclm:traktor_ml/`) | E15 para la ventana; el OK de Gabriel antes del primer envío (`AGENTS.md`, «Compute») | Después de E15 | Pendiente. Es trabajo pesado: solo MAEST, a los 11 s por tema medidos en CPU con Bedrock, pasa de 40 h para 13 182 previews |
 | G13 | Validación de la taxonomía con transiciones de profesionales: en los pares consecutivos de D5 con género en los dos temas, cuántas veces más que al azar aparece cada valor del puntaje de la taxonomía (toma 15 valores entre pares de la biblioteca). Si esa curva no sube con el puntaje, la taxonomía no ordena. Se compara, con una variable por vez, con «mismo género o no» y con la coaparición aprendida de los sets (G7, T1), con los DJs de prueba fuera. Deja la lista de los pares de géneros donde la taxonomía y los DJs más discrepan, con sus conteos, para G2 y para Gabriel. El peso del factor género sale de P12a con el factor que gane | Gabriel 11-10 (validar la taxonomía con los sets bajados y ajustar el peso según los números); G1, G7, T1 | Sets; Comp `genero` | D5 y los metadatos de los manifiestos de D6; solo texto | Ahora | Pendiente |
 | E16 | Juez «mismo set» con D5 × biblioteca: los sets de D5 cruzados con la biblioteca por artista y título con la versión, como fuente nueva junto a las de `zona_sets.py`; las tablas de la unidad 1 (CLAP crudo, tres vistas, todos los factores con pesos iguales, ecuación aprendida) con esta fuente aparte y junto a D3, con cada DJ fuera del entrenamiento. Un DJ que está en D3 y en D5 va en el mismo pliegue, y un set que está en las dos fuentes cuenta una vez. Usa los embeddings de la biblioteca: no depende de E15 | Auditoría 11-10; E9, P12b | Eval | D5 (texto) | Ahora | Pendiente. La sesión de la bajada contó 234 pares de un mismo set con 838 sets (DECISIONS 2026-11-09, sets, punto 5; sin recontar por la auditoría); D3 daba 79 |
@@ -1144,12 +1144,19 @@ escribe antes de mirar los datos):
   - desplazamiento medio entre los dos dominios, y si centrar cada dominio por separado lo quita.
 - Umbrales: códec, coseno mediano de 0,97 o más entre el preview y el mismo recorte (el umbral de duplicado de
   `zona_sets.py`); con la ventana elegida, el tema verdadero primero en el 90 % o más y entre los 5 primeros en
-  el 97 % o más, en CLAP y en MAEST; Spearman de 0,90 o más en el puntaje de la ecuación. Los estilos se
+  el 97 % o más, en CLAP y en MAEST; Spearman de 0,90 o más en el puntaje de la ecuación [REFUTADO 2026-11-10
+  por la auditoría de E15 (`docs/reports/auditoria_e15_2026-11-10.md`): este umbral no aísla el audio del
+  preview, porque el puntaje lleva BPM, tonalidad y género de Beatport de un lado y de Traktor del otro. El
+  propio archivo de la biblioteca, cortado en la ventana del preview y con los metadatos de Beatport, da 0,81.
+  Con los mismos metadatos de los dos lados el preview da 0,947 y ese recorte 0,954]. Los estilos se
   informan con el control al lado, sin umbral.
 - Qué sigue de cada resultado: si pasa, V7 usa la ventana ganadora y los pares pueden mezclar preview y
   biblioteca. Si falla solo el puesto y el Spearman pasa, los previews se comparan entre ellos, centrados
   aparte. Si falla el Spearman, los previews no sirven de juez de los modelos: se le dice a Gabriel antes de
-  gastar GPU en V7, y P12a y G13, que son texto, siguen igual.
+  gastar GPU en V7, y P12a y G13, que son texto, siguen igual. [REEMPLAZADO 2026-11-10 por la auditoría de E15:
+  el Spearman falló por la tonalidad de Beatport y no por el audio, así que esta regla no se aplica tal cual.
+  Recomendación de la auditoría, que espera a Gabriel: V7 sigue con las tres vistas y la ventana V4, y antes
+  de aprender pesos con CLAP se hacen E17 y V8, debajo]
 - YouTube: si hay temas con las dos fuentes (la prueba de 100 de DECISIONS 2026-11-10, punto 3), el mismo
   control entre el audio completo de YouTube y el preview. Si no los hay, queda anotado; no se baja nada para esto.
 
@@ -1188,6 +1195,32 @@ coincide con el de 1001Tracklists. Los sets que faltan bajar son de pares, no de
 | Id | Idea | Origen | Contrato | Depende de | Etapa | Estado |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | P14 | Temas «basura»: temas de la biblioteca que no deberían entrar en las recomendaciones ni en las medidas. Sin etiquetado previo, que Gabriel no quiere por ahora: una lista de exclusión que arma al paso, cuando ve uno, y que el recomendador y las medidas saltean | Gabriel 11-10 («siempre habrá temas que no deberían formar parte de las recomendaciones o del análisis») | Tema (marca de excluido); Eval | Que Gabriel diga cómo quiere marcarlos | Sin fecha; no es de esta etapa | Idea, sin diseñar |
+
+**Después de E15 (auditoría del 2026-11-10, `docs/reports/auditoria_e15_2026-11-10.md`; espera a Gabriel).**
+Medidas exploratorias de la auditoría, con scripts fuera de Git:
+
+- CLAP registra la calidad del archivo y la biblioteca es despareja: 420 de los 1760 temas son MP3 de menos de
+  200 kbps. De los 10 más parecidos en CLAP a uno de esos, el 53 % también lo es (esperado por género, 28 %). La
+  dirección que separa un preview de su archivo ordena por bitrate temas que no se usaron para estimarla;
+  quitarla baja ese 53 % al 33 % y pone primero al tema verdadero en el 94 % de los previews (antes, 19 %).
+- La tonalidad de Beatport y la de Traktor coinciden en el 49,5 % de 1428 temas y la tónica en el 78 %: el
+  desacuerdo es de modo (menor para Traktor en el 86 %, para Beatport en el 58 %). El tag del archivo coincide
+  con Traktor 5 a 1 en los desacuerdos.
+- En 12 341 pares consecutivos de D5, con tonalidades de Beatport: la misma tonalidad aparece 2,3 veces más que
+  entre temas del mismo set que no son vecinos, la paralela 1,9 y la vecina 1,3; la relativa, 0,9.
+- Entre los 166 temas de E15 hay 154 pares de un mismo set: el juez da casi el mismo AUC con los embeddings de
+  los previews que con los de la biblioteca (diferencias de 0,02 o menos, intervalos de ±0,05).
+
+| Id | Idea | Origen | Contrato | Depende de | Etapa | Estado |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| E17 | El códec en CLAP: el mismo archivo de la biblioteca de 300 kbps o más, recodificado a 192, 128 y 96 kbps, y aparte con 6 dB menos sin recodificar. Coseno con el original en CLAP, MAEST capa 7 y estilos, y si la diferencia cae sobre la dirección preview − biblioteca de E15. Dice si la causa es la compresión o el nivel, y da una dirección estimada sin usar los previews | Auditoría de E15, 11-10 | Eval | 20 archivos de la biblioteca, CPU, minutos | Propuesta: ahora, antes de aprender pesos con CLAP | Espera a Gabriel |
+| V8 | CLAP sin la dirección del códec: la dirección de E17 proyectada fuera de CLAP, en la biblioteca y en los previews. Una dirección; más solo si no llega al umbral, informando todas. Umbrales propuestos, a fijar antes de medir: (1) preview frente a biblioteca en los 166 de E15, sin centrar aparte, tema verdadero primero en el 90 % o más y entre los 5 primeros en el 97 % o más; (2) vecinos: el exceso de temas de menos de 200 kbps sobre lo esperado por género no supera al de MAEST centrado; (3) el juez de la unidad 1 con V8 en lugar de CLAP, mismos pares, no pierde más de 0,02 de AUC en D3 ni en E16, con D1 aparte; (4) cuántos de los 30 temas de la lista de hoy cambian por tema principal. Si pasa, es el CLAP de la lista nueva de E12; el valor por defecto del recomendador espera a la escucha. En MAEST y estilos se mide lo mismo y solo se informa | Auditoría de E15, 11-10 | Comp (vista) | E17 | Propuesta: después de E17 y antes del paso 4 del orden | Espera a Gabriel |
+
+Tonalidad, recomendación de la auditoría (espera a Gabriel): el peso que va al recomendador en vivo sale de
+pares con la tonalidad de Traktor (D3 y D5 × biblioteca, E16). Con las tonalidades de Beatport, P12a no aprende
+un peso para la regla actual: informa cuántas veces sobre el azar aparece cada relación (P7) y lo mismo mirando
+solo la tónica. En los pares de E16, la misma tabla con cada fuente de tonalidad. Un estimador único para todos
+los temas es la línea TIV, que va aparte.
 
 Cada módulo se vuelve a correr con el mismo comando cuando termine la bajada, y cada informe dice con cuántos
 sets y previews midió. **Espera al dataset completo:** fijar los pesos de la ecuación (P12 y P12b con

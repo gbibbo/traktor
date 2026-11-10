@@ -21,6 +21,13 @@ Informe: `docs/reports/dominio_previews_2026-11-10.md`. Protocolo fijado en el c
    del extractor tal cual es mucho peor y no se usa.
 4. **Pregunta para Gabriel** (agente): si V7 sigue con MAEST y estilos como vistas del juez y CLAP solo entre
    previews y centrado aparte, y cómo se trata la tonalidad de los pares de previews, que en vivo es la de Traktor.
+5. **Auditoría de E15** (agente auditor; `docs/reports/auditoria_e15_2026-11-10.md`): los números se reproducen. El
+   umbral del Spearman era de la auditoría y medía también la fuente de los metadatos: el propio archivo de la
+   biblioteca con los metadatos de Beatport da 0,81. CLAP registra la calidad del archivo: 420 de los 1760 temas son
+   MP3 de menos de 200 kbps y sus vecinos en CLAP se agrupan por bitrate. La tonalidad de Beatport difiere de la de
+   Traktor sobre todo en el modo. **Recomendaciones, que esperan a Gabriel**: V7 sigue con las tres vistas; antes
+   de aprender pesos con CLAP, E17 y V8 (plan 12.9); el peso de la tonalidad para el vivo sale de pares con la
+   tonalidad de Traktor; G13, P12a y E16 empiezan ya.
 
 ## 2026-11-10 (recomendación: mientras se baja el dataset)
 
