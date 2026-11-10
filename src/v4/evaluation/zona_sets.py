@@ -23,6 +23,8 @@ PURPOSE: Medidas E9 y E10 del plan de playlists en vivo (docs/plans/recomendacio
          El tempo de D7 y de Bedrock sale de tools/dj_sets/tempo_sets.py (sets/tempo_temas.csv).
 CHANGELOG:
   - 2026-11-08: Creación (unidad A1 de la sección 11 del plan).
+  - 2026-11-09: Fuente.fila_archivo: carpeta/archivo de cada original de Bedrock, para sumarle otras vistas
+                (MAEST de tools/dj_sets/maest_originales.py; fusion_vistas.py).
 """
 from __future__ import annotations
 
@@ -120,6 +122,7 @@ class Fuente:
     fila_grupo: Optional[np.ndarray] = None       # compilación
     fila_dj: Optional[np.ndarray] = None
     fila_anio: Optional[np.ndarray] = None
+    fila_archivo: Optional[List[str]] = None      # «carpeta/archivo» de cada fila (Bedrock)
 
 
 def cargar_biblioteca(items: Sequence[rc.Item]) -> Biblioteca:
@@ -203,7 +206,7 @@ def discos_bedrock(root: Path, carpeta: str) -> Tuple[Dict, List[Dict], Dict[int
 def fuente_bedrock(root: Path, tempo: Dict[str, float], bib: Biblioteca) -> Tuple[Fuente, np.ndarray]:
     """Originales de los discos de Bedrock con el embedding como en la biblioteca («dj»: 3 tramos del 35-65 %), en el
     orden del set. Devuelve además la máscara de los temas de la biblioteca que son el mismo tema (por contenido)."""
-    V, bpm, artista, sets, dj = [], [], [], {}, {}
+    V, bpm, artista, sets, dj, archivos = [], [], [], {}, {}, []
     sin_dj, sin_pareja = 0, 0
     for carpeta in CARPETAS_BEDROCK:
         man, originales, _, mb = discos_bedrock(root, carpeta)
@@ -226,12 +229,13 @@ def fuente_bedrock(root: Path, tempo: Dict[str, float], bib: Biblioteca) -> Tupl
                 V.append(unit(z["dj"]))
                 bpm.append(tempo.get(f"bedrock:{carpeta}:{e['archivo']}", np.nan))
                 artista.append(estricto(primer_artista(t.get("artista"))))
+                archivos.append(f"{carpeta}/{e['archivo']}")
         sets[carpeta], dj[carpeta] = filas, "John Digweed"
     M = np.stack(V)
     dup = (bib.V @ M.T).max(axis=1) >= COS_DUPLICADO
     return (Fuente("bedrock", "biblioteca", M, np.asarray(bpm, dtype=np.float64), artista, sets, dj,
                    {"originales": len(V), "pistas_sin_original": sin_pareja, "originales_sin_embedding": sin_dj,
-                    "temas_de_la_biblioteca_que_son_estos_originales": int(dup.sum())}), dup)
+                    "temas_de_la_biblioteca_que_son_estos_originales": int(dup.sum())}, fila_archivo=archivos), dup)
 
 
 def fuente_d7(root: Path, tempo: Dict[str, float], forma: Optional[str] = None) -> Fuente:

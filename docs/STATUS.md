@@ -49,9 +49,9 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    piloto de 30 hecho. El audio se consulta antes de implementar.
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
-5. Recomendación en vivo (DECISIONS 11-06/07/08): parecidos (`recomendador.py`, D#0+D0). Plan § 11; A1
-   hecha. Estrategia 11-09 aprobada: plan § 12, prompt `PROMPT_FUSION_Y_CONCEPTOS.md`; lo pesado, a gpuq.
-   GABRIEL: Traktor, «TRAKTOR ML sin tonalidad», Analyze solo Key. TIV aparte.
+5. Recomendación en vivo (`recomendador.py`, D#0+D0): plan § 12, `PROMPT_FUSION_Y_CONCEPTOS.md`. Unidad 1
+   hecha (`fusion_vistas_2026-11-09.md`); sigue la escucha E12. GABRIEL: quién elige sus 10 temas; Traktor,
+   «TRAKTOR ML sin tonalidad», Analyze solo Key. TIV aparte.
 6. Conceptos del teléfono: circuito con LLM (Worker v5, `conceptos_agente.py`) probado en local.
    GABRIEL: `python cloudflare/publicar.py` (`cloudflare/README.md`).
 

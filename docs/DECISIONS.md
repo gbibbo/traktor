@@ -6,6 +6,28 @@ anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_impl
 Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 `[REEMPLAZADO <fecha> por <decisión>: <lo que rige ahora>]` (o `[REFUTADO …]` si era un error).
 
+## 2026-11-09 (unidad 1: fusión de vistas y ecuación de Parecidos)
+
+Unidad 1 de `docs/plans/PROMPT_FUSION_Y_CONCEPTOS.md`. Informe: `docs/reports/fusion_vistas_2026-11-09.md`.
+
+1. **El Drive tiene alojamiento infinito y gpuq iba a quedar operativo desde otra ventana** (Gabriel, al pedir la
+   unidad). Cómo (agente): el tope de unos 10 GB de disco nuevo era por el disco de este escritorio; el espacio del
+   Drive no limita. gpuq quedó probado de punta a punta el mismo día (`docs/GPUQ.md`).
+2. **El MAEST de los 179 originales de Bedrock se calculó en local** (agente): 11 s por tema, unos 30 minutos con
+   prioridad baja, debajo del umbral de pesado. `tools/dj_sets/maest_originales.py`, con el modelo y la segmentación
+   de la biblioteca (al recalcular 4 temas de la biblioteca, coseno 1,0000).
+3. **Lo que dejó la unidad 1** (agente; exploratorio, sin escucha): los números de la auditoría se reproducen;
+   Bedrock no confirma la fusión ni la tumba (las dos medidas posibles dicen cosas opuestas); la ecuación aprendida
+   no supera a los pesos iguales, porque el juez son 63 pares de D3 y un solo DJ con originales.
+4. **Para la escucha E12 se propone todos los factores con pesos iguales frente a la lista de hoy** (agente;
+   decide Gabriel escuchando). Son CLAP centrado, MAEST centrado y estilos en z, más BPM, tonalidad y género con las
+   fórmulas del recomendador, cada uno en desvíos de los pares al azar dentro de los filtros en vivo. No sale de
+   ajustar pesos con estos datos. Los pesos por defecto del recomendador siguen en solo CLAP.
+5. **Cómo se mide la ecuación** (agente): pares de un mismo set que pasan los filtros en vivo frente a 20 candidatos
+   al azar por par que también los pasan; cada set pesa 1; cada DJ se predice con un modelo entrenado sin él; un
+   factor desconocido no cuenta (vale la media de los pares al azar); Bedrock no aporta a tonalidad ni a género
+   porque sus originales no los tienen.
+
 ## 2026-11-09 (algoritmo de recomendación)
 
 1. [REFUTADO 2026-11-09 por la aclaración de Gabriel del mismo día (punto 8): el agente leyó mal. BPM y tonalidad sí
