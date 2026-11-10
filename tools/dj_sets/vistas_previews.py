@@ -14,6 +14,8 @@ PURPOSE: V7 del plan de playlists en vivo (sección 12.9): las vistas de cada pr
            python tools/dj_sets/vistas_previews.py verificar --npz <salida.npz> [--e15 "D:/TRAKTOR ML datos/dj_sets/e15/emb"]
 CHANGELOG:
   - 2026-11-10: Creación (V7).
+  - 2026-11-10: Parcial dentro de la tanda cada 96 previews: Colab perdió la sesión a los 12-13 min dos veces y una
+                tanda de 387 previews tarda unos 13 min.
 """
 from __future__ import annotations
 
@@ -43,6 +45,7 @@ SEG_S = 30.0
 N_SEG = 4
 LOTE_CLAP = 48               # ventanas de 10 s por pasada de CLAP
 LOTE_MAEST = 16              # segmentos de 30 s por pasada de MAEST
+PARCIAL_CADA = 96            # previews entre parciales: Colab cortó dos veces la sesión a los 12-13 min (2026-11-10)
 
 
 def cortar(x: np.ndarray, sr: int, n_seg: int = N_SEG, seg_s: float = SEG_S) -> List[np.ndarray]:
@@ -133,19 +136,45 @@ def temas_ok(manifiesto: dict) -> List[dict]:
     return out
 
 
+def _juntar(acc: Dict[str, List[np.ndarray]]) -> Dict[str, np.ndarray]:
+    return {k: (np.concatenate(v) if v else np.zeros((0, N_SEG, d), np.float32)) for (k, v), d in zip(acc.items(), (512, 768, 400))}
+
+
 def procesar_tanda(remote, corrida: str, tanda: str, modelos: Modelos, scratch: Path, max_temas: Optional[int] = None,
-                   lote: int = 16, commit: str = "", destino: str = DESTINO) -> Dict[str, object]:
-    """Una tanda: baja el manifiesto y el .tar, embebe cada preview y sube <DESTINO>/<corrida>/<tanda>.npz."""
+                   lote: int = 16, commit: str = "", destino: str = DESTINO, cada: int = PARCIAL_CADA) -> Dict[str, object]:
+    """Una tanda: baja el manifiesto y el .tar, embebe cada preview y sube <DESTINO>/<corrida>/<tanda>.npz. Cada `cada`
+    previews sube un parcial (<tanda>.parcial.npz) y, si la máquina se corta, el intento siguiente sigue desde ahí."""
     t0 = time.perf_counter()
     man = remote.get_json(f"{ORIGEN}/{corrida}/{tanda}.json")
     temas = temas_ok(man)[:max_temas]
+    ids, segundos, fallidos = [], [], []
+    acc: Dict[str, List[np.ndarray]] = {"clap": [], "l7": [], "styles": []}
+    parcial_rel = f"{destino}/{corrida}/{tanda}.parcial.npz"
+    if remote.exists(parcial_rel):
+        previo = scratch / f"{corrida}_{tanda}.parcial_previo.npz"
+        remote.get(parcial_rel, previo)
+        z = np.load(previo)
+        ids, segundos = [str(b) for b in z["bp_id"]], [float(x) for x in z["segundos"]]
+        fallidos = json.loads(str(z["fallidos"]))
+        acc = {k: [z[k]] for k in acc}
+        z.close()
+        previo.unlink(missing_ok=True)
+        print(f"    {corrida}/{tanda}: sigo desde el parcial, {len(ids)} hechos", flush=True)
+    listos = set(ids) | {f["bp_id"] for f in fallidos}
     tar_local = scratch / f"{corrida}_{tanda}.tar"
     remote.get(f"{ORIGEN}/{corrida}/{tanda}.tar", tar_local)
     t_bajada = time.perf_counter() - t0
-    por_archivo = {t["archivo"]: t for t in temas}
-    ids, segundos, fallidos = [], [], []
-    acc: Dict[str, List[np.ndarray]] = {"clap": [], "l7": [], "styles": []}
+    por_archivo = {t["archivo"]: t for t in temas if str(t["beatport_id"]) not in listos}
     pendientes: List[Tuple[str, np.ndarray, int]] = []
+    ultimo = [len(ids)]
+
+    def guardar_parcial():
+        loc = scratch / f"{corrida}_{tanda}.parcial.npz"
+        np.savez(loc, bp_id=np.asarray(ids, dtype=str), segundos=np.asarray(segundos, dtype=np.float32),
+                 fallidos=np.asarray(json.dumps(fallidos, ensure_ascii=False)), **_juntar(acc))
+        remote.put(loc, parcial_rel)
+        loc.unlink(missing_ok=True)
+        ultimo[0] = len(ids)
 
     def vaciar():
         if not pendientes:
@@ -156,6 +185,8 @@ def procesar_tanda(remote, corrida: str, tanda: str, modelos: Modelos, scratch: 
         ids.extend(b for b, _, _ in pendientes)
         segundos.extend(len(x) / sr for _, x, sr in pendientes)
         pendientes.clear()
+        if cada and len(ids) - ultimo[0] >= cada:
+            guardar_parcial()
 
     try:
         with tarfile.open(tar_local) as tar, tempfile.TemporaryDirectory(dir=scratch) as tmp:
@@ -182,7 +213,7 @@ def procesar_tanda(remote, corrida: str, tanda: str, modelos: Modelos, scratch: 
         tar_local.unlink(missing_ok=True)
     faltan = sorted(set(str(t["beatport_id"]) for t in temas) - set(ids) - {f["bp_id"] for f in fallidos})
     fallidos += [{"bp_id": b, "error": "no está en el .tar"} for b in faltan]
-    out = {k: (np.concatenate(v) if v else np.zeros((0, N_SEG, d), np.float32)) for (k, v), d in zip(acc.items(), (512, 768, 400))}
+    out = _juntar(acc)
     if not all(np.isfinite(v).all() for v in out.values()):
         raise ValueError(f"{corrida}/{tanda}: embeddings no finitos")
     seg = time.perf_counter() - t0
@@ -194,6 +225,7 @@ def procesar_tanda(remote, corrida: str, tanda: str, modelos: Modelos, scratch: 
                         meta=np.asarray(json.dumps(meta, ensure_ascii=False)), **out)
     remote.put(npz, f"{destino}/{corrida}/{tanda}.npz")
     npz.unlink(missing_ok=True)
+    remote.delete(parcial_rel)
     return meta
 
 

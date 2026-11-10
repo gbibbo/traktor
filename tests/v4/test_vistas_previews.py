@@ -72,3 +72,44 @@ def test_una_tanda_de_punta_a_punta(tmp_path):
     assert np.allclose(z["segundos"], [5.0, 3.0])
     assert json.loads(str(z["meta"]))["tanda"] == "tanda_00000"
     assert not list(scratch.glob("*.tar")) and not list(scratch.glob("*.npz"))
+
+
+class _SeCorta(_Falso):
+    """Se cae (como una VM perdida) después de `n` previews."""
+
+    def __init__(self, n):
+        self.n = n
+
+    def embed(self, previews):
+        if self.n <= 0:
+            raise RuntimeError("máquina perdida")
+        self.n -= len(previews)
+        return super().embed(previews)
+
+
+def test_una_tanda_cortada_sigue_desde_el_parcial(tmp_path):
+    storage = import_gpuq_storage()
+    remote = storage.LocalRemote(tmp_path / "remoto")
+    origen = tmp_path / "remoto" / vp.ORIGEN / "lote_x"
+    origen.mkdir(parents=True)
+    temas = [{"estado": "ok", "beatport_id": 20 + i, "archivo": f"{20 + i}.wav"} for i in range(5)]
+    (origen / "tanda_00001.json").write_text(json.dumps({"temas": temas}), encoding="utf-8")
+    with tarfile.open(origen / "tanda_00001.tar", "w") as tar:
+        for i in range(5):
+            datos = _wav(2, 0.1 * (i + 1))
+            info = tarfile.TarInfo(f"{20 + i}.wav")
+            info.size = len(datos)
+            tar.addfile(info, io.BytesIO(datos))
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    try:
+        vp.procesar_tanda(remote, "lote_x", "tanda_00001", _SeCorta(2), scratch, lote=1, cada=1)
+    except RuntimeError:
+        pass
+    parcial = tmp_path / "remoto" / vp.DESTINO / "lote_x" / "tanda_00001.parcial.npz"
+    assert parcial.exists() and list(np.load(parcial)["bp_id"]) == ["20", "21"]
+    meta = vp.procesar_tanda(remote, "lote_x", "tanda_00001", _Falso(), scratch, lote=1, cada=1)
+    z = np.load(tmp_path / "remoto" / vp.DESTINO / "lote_x" / "tanda_00001.npz")
+    assert list(z["bp_id"]) == ["20", "21", "22", "23", "24"] and meta["hechos"] == 5 and not meta["fallidos"]
+    assert np.all(np.diff(z["clap"][:, 0, 0]) > 0)                  # cada fila sigue siendo su preview
+    assert not parcial.exists()
