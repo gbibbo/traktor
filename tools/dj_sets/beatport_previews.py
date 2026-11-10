@@ -293,6 +293,14 @@ def base_corrida(args) -> Path:
     return args.root / "beatport_previews" / args.corrida
 
 
+def excluidas_de(args) -> set:
+    """Claves de los temas de otras corridas (--excluir), para que una corrida nueva no repita temas."""
+    claves = set()
+    for corrida in args.excluir or []:
+        claves |= {f["clave"] for f in leer_tabla(args.root / "beatport_previews" / corrida / "temas.csv")}
+    return claves
+
+
 def cmd_elegir(args) -> int:
     carpeta = args.root / "1001tracklists" / "sets"
     sets = []
@@ -302,8 +310,13 @@ def cmd_elegir(args) -> int:
         if html.exists() and not dato.get("view_item"):
             dato["view_item"] = view_item_de(gzip.open(html, "rt", encoding="utf-8").read())
         sets.append(dato)
-    filas = elegir(sets, args.n, args.todos)
+    filas = elegir(sets, args.n + len(excluidas_de(args)), args.todos)
+    excluidas = excluidas_de(args)
+    filas = [f for f in filas if f["clave"] not in excluidas][:args.n]
     destino = base_corrida(args) / "temas.csv"
+    if not filas:
+        print(f"Nada nuevo para {args.corrida}: no se escribe la lista.")
+        return 3
     if destino.exists():
         print(f"PARO: {destino} ya existe; las tandas se cuentan por fila, así que una lista nueva va en otra corrida.")
         return 2
@@ -478,6 +491,7 @@ def main() -> int:
     p = comandos.add_parser("elegir")
     p.add_argument("--n", type=int, default=100)
     p.add_argument("--todos", action="store_true", help="también los temas identificados sin botón de compra")
+    p.add_argument("--excluir", action="append", help="corrida anterior cuyos temas no se repiten (se puede repetir)")
     p.set_defaults(func=cmd_elegir)
     p = comandos.add_parser("subir-temas", help="sube temas.csv de la corrida al remoto, para la VM")
     p.set_defaults(func=cmd_subir_temas)
