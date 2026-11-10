@@ -58,10 +58,32 @@ def test_parse_track_details():
     assert bp.parse_track_details(html, 1) is None
 
 
-def test_beatport_id_prefiere_1001_y_solo_misma_version():
-    assert bpv.beatport_id({"beatport_id_1001": "1", "beatport_id_busqueda": "2", "nivel_busqueda": "B"}) == "1"
-    assert bpv.beatport_id({"beatport_id_1001": "", "beatport_id_busqueda": "2", "nivel_busqueda": "B"}) == "2"
+def test_primero_la_busqueda_y_despues_el_enlace_de_1001():
+    # Gabriel, 2026-11-09: buscar primero en Beatport; el enlace del tracklist si el tema no salió con la búsqueda.
+    assert bpv.ids_candidatos({"beatport_id_1001": "1", "beatport_id_busqueda": "2", "nivel_busqueda": "B"}) == ["2", "1"]
+    assert bpv.ids_candidatos({"beatport_id_1001": "1", "beatport_id_busqueda": "2", "nivel_busqueda": "C"}) == ["1"]
+    assert bpv.ids_candidatos({"beatport_id_1001": "2", "beatport_id_busqueda": "2", "nivel_busqueda": "A"}) == ["2"]
     assert bpv.beatport_id({"beatport_id_1001": "", "beatport_id_busqueda": "2", "nivel_busqueda": "C"}) == ""
+
+
+def test_armar_tanda_busca_y_usa_el_respaldo(tmp_path):
+    filas = [{"clave": "a", "nombre": "A - Uno", "beatport_id_1001": "55"},          # la búsqueda da 44, sin preview: va el 55
+             {"clave": "b", "nombre": "B - Dos", "beatport_id_1001": ""},            # la búsqueda da 66
+             {"clave": "c", "nombre": "C - Tres", "beatport_id_1001": "66"}]         # mismo tema de Beatport que b
+    resultados = {"a": ("44", "B", 1), "b": ("66", "A", 1), "c": ("", "D", 3)}
+    detalles = {44: {"sample_url": None}, 55: {"sample_url": "u55"}, 66: {"sample_url": "u66"}}
+    _, manifiesto = bpv.armar_tanda(filas, detalles.get, lambda url: b"ID3" + b"\x01" * 25000, tmp_path / "t", "tanda_00000",
+                                    buscar=lambda fila: resultados[fila["clave"]])
+    temas = manifiesto["temas"]
+    assert [(e["estado"], e.get("beatport_id"), e.get("via")) for e in temas] == [("ok", "55", "1001"), ("ok", "66", "busqueda"), ("repetido", "66", "1001")]
+    assert temas[0]["nivel_busqueda"] == "B" and filas[0]["beatport_id_busqueda"] == "44"
+
+
+def test_elegir_todos_incluye_los_sin_boton():
+    s = {"id": "s", "view_item": "1", "temas": [tema("a", "A - Uno"), tema("b", "B - Dos", fuentes=("13",), numerico="")]}
+    assert [f["clave"] for f in bpv.elegir([s], 10)] == ["a"]
+    filas = bpv.elegir([s], 10, todos=True)
+    assert [(f["clave"], f["con_boton"]) for f in filas] == [("a", "si"), ("b", "")]
 
 
 def test_tandas_pendientes():

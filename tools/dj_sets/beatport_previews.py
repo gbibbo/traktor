@@ -17,8 +17,13 @@ PURPOSE: D6, el audio de los temas de los sets: previews de Beatport de los tema
          Reglas: docs/GPUQ.md y AGENTS.md («Compute»). Nada fuera de erclm:traktor_ml/. La corrida grande y el
          primer trabajo de gpuq de este tipo esperan el OK de Gabriel; también su decisión sobre el ai-train=no
          que declara Beatport.
+         Corrida grande (Gabriel, 2026-11-09): buscar primero en Beatport y usar el enlace de 1001Tracklists si el
+         tema no salió con la búsqueda; la búsqueda y la bajada corren en gpuq (Kaggle, CPU) con `nube`:
+           elegir --todos --n 1000000 ; subir-temas            (en esta PC)
+           python tools/gpuq/cola.py add <id> --cmd "python tools/dj_sets/beatport_previews.py --corrida <c> nube" --gpu CPU
 CHANGELOG:
   - 2026-11-09: Creación (piloto de 100 temas).
+  - 2026-11-09: búsqueda primero y enlace de 1001Tracklists de respaldo; subir-temas y nube para gpuq; elegir --todos.
 """
 from __future__ import annotations
 
@@ -48,7 +53,7 @@ TANDA = 500
 PAUSA_1001_MS = 8000
 PAUSA_BEATPORT_S = 1.2
 MIN_BYTES_MP3 = 20_000
-COLUMNAS = ["clave", "nombre", "artista", "titulo", "id_numerico", "view_item", "set_id", "beatport_id_1001", "fuente_1001",
+COLUMNAS = ["clave", "nombre", "artista", "titulo", "con_boton", "id_numerico", "view_item", "set_id", "beatport_id_1001", "fuente_1001",
             "beatport_id_busqueda", "nivel_busqueda", "pedidos_busqueda"]
 
 
@@ -84,21 +89,23 @@ def view_item_de(html: str) -> str:
     return encontrado.group(1) if encontrado else ""
 
 
-def elegir(sets: Sequence[Dict], n: int) -> List[Dict[str, str]]:
-    """Temas identificados con botón de compra, sin repetir, tomados de a uno por set y por vuelta."""
+def elegir(sets: Sequence[Dict], n: int, todos: bool = False) -> List[Dict[str, str]]:
+    """Temas identificados sin repetir, tomados de a uno por set y por vuelta. Por defecto solo los que tienen botón de
+    compra; con todos=True también los otros (la búsqueda en Beatport puede encontrarlos; el respaldo de 1001Tracklists,
+    no)."""
     colas = []
     for dato in sets:
         cola = []
         for tema in dato["temas"]:
-            if tema["junto_al_anterior"] or not tema["identificado"] or "affiliate" not in tema["fuentes"]:
-                continue
-            if not tema["id_numerico"] or not tema["id_texto"]:
+            boton = "affiliate" in tema["fuentes"]
+            if tema["junto_al_anterior"] or not tema["identificado"] or not (boton or todos):
                 continue
             nombre = tema["nombre"] or tema["visible"]
             artista, titulo = separar_nombre(nombre)
-            if not artista or not titulo:
+            if not artista or not titulo or (boton and not tema["id_numerico"]):
                 continue
-            cola.append({"clave": tema["id_texto"], "nombre": nombre, "artista": artista, "titulo": titulo,
+            clave = tema["id_texto"] or "nombre:" + bp.norm(nombre)
+            cola.append({"clave": clave, "nombre": nombre, "artista": artista, "titulo": titulo, "con_boton": "si" if boton else "",
                          "id_numerico": tema["id_numerico"], "view_item": dato.get("view_item", ""), "set_id": dato["id"]})
         colas.append(cola)
     elegidos, vistos = [], set()
@@ -166,13 +173,20 @@ def es_mp3(contenido: bytes) -> bool:
     return len(contenido) >= MIN_BYTES_MP3 and (contenido[:3] == b"ID3" or (contenido[0] == 0xFF and contenido[1] & 0xE0 == 0xE0))
 
 
+def ids_candidatos(fila: Dict[str, str]) -> List[str]:
+    """Primero la búsqueda en Beatport si dio la misma versión (A o B); después el enlace de 1001Tracklists
+    (Gabriel, 2026-11-09: buscar primero y usar el enlace del tracklist si el tema no salió con la búsqueda)."""
+    ids = []
+    if fila.get("nivel_busqueda") in ("A", "B") and fila.get("beatport_id_busqueda"):
+        ids.append(fila["beatport_id_busqueda"])
+    if fila.get("beatport_id_1001") and fila["beatport_id_1001"] not in ids:
+        ids.append(fila["beatport_id_1001"])
+    return ids
+
+
 def beatport_id(fila: Dict[str, str]) -> str:
-    """El enlace de 1001Tracklists manda; si no hay, la búsqueda solo si es la misma versión (A o B)."""
-    if fila.get("beatport_id_1001"):
-        return fila["beatport_id_1001"]
-    if fila.get("nivel_busqueda") in ("A", "B"):
-        return fila.get("beatport_id_busqueda", "")
-    return ""
+    ids = ids_candidatos(fila)
+    return ids[0] if ids else ""
 
 
 def nombre_tanda(k: int) -> str:
@@ -185,38 +199,53 @@ def tandas_pendientes(n_filas: int, hechas: Iterable[str], tam: int = TANDA) -> 
 
 
 def armar_tanda(filas: Sequence[Dict[str, str]], detalles: Callable[[int], Optional[dict]], bajar_bytes: Callable[[str], bytes],
-                carpeta: Path, nombre: str) -> tuple:
-    """Baja los previews de una tanda a carpeta/ y arma <nombre>.tar con manifest.json. (ruta del tar, manifiesto)."""
+                carpeta: Path, nombre: str, buscar: Optional[Callable[[Dict[str, str]], tuple]] = None) -> tuple:
+    """Baja los previews de una tanda a carpeta/ y arma <nombre>.tar con manifest.json. (ruta del tar, manifiesto).
+    Con buscar, busca en Beatport los temas que todavía no se buscaron. Prueba los ids de ids_candidatos en orden:
+    si la página no existe o no tiene preview, pasa al siguiente."""
     carpeta.mkdir(parents=True, exist_ok=True)
-    entradas, archivos = [], []
+    entradas, archivos, en_tanda = [], [], {}
     for fila in filas:
-        entrada = {"clave_1001": fila["clave"], "nombre_1001": fila["nombre"], "beatport_id": beatport_id(fila)}
-        if not entrada["beatport_id"]:
-            entradas.append(dict(entrada, estado="sin_id"))
+        if buscar and not fila.get("nivel_busqueda"):
+            fila["beatport_id_busqueda"], fila["nivel_busqueda"], _ = buscar(fila)  # BeatportBlocked corta la corrida
+        base = {"clave_1001": fila["clave"], "nombre_1001": fila["nombre"], "nivel_busqueda": fila.get("nivel_busqueda", ""),
+                "beatport_id_busqueda": fila.get("beatport_id_busqueda", ""), "beatport_id_1001": fila.get("beatport_id_1001", "")}
+        ids = ids_candidatos(fila)
+        if not ids:
+            entradas.append(dict(base, estado="sin_id"))
             continue
-        t0 = time.monotonic()
-        try:
-            datos = detalles(int(entrada["beatport_id"]))
-        except bp.BeatportBlocked:
-            raise
-        except Exception as exc:  # una página rota no tumba la tanda
-            entradas.append(dict(entrada, estado=f"pagina_error: {type(exc).__name__}"))
-            continue
-        if not datos or not datos.get("sample_url"):
-            entradas.append(dict(entrada, estado="sin_preview", **({"detalles": datos} if datos else {})))
-            continue
-        t1 = time.monotonic()
-        contenido = bajar_bytes(datos["sample_url"])
-        t2 = time.monotonic()
-        if not es_mp3(contenido):
-            entradas.append(dict(entrada, estado="mp3_invalido", bytes=len(contenido), detalles=datos))
-            continue
-        archivo = carpeta / f"{entrada['beatport_id']}.mp3"
-        archivo.write_bytes(contenido)
-        archivos.append(archivo)
-        entradas.append(dict(entrada, estado="ok", archivo=archivo.name, bytes=len(contenido),
-                             md5=hashlib.md5(contenido).hexdigest(), segundos_pagina=round(t1 - t0, 2),
-                             segundos_mp3=round(t2 - t1, 2), detalles=datos))
+        estado, extra = "sin_preview", {}
+        for identificador in ids:
+            via = "busqueda" if identificador == base["beatport_id_busqueda"] and base["nivel_busqueda"] in ("A", "B") else "1001"
+            if identificador in en_tanda:
+                estado, extra = "repetido", {"beatport_id": identificador, "via": via, "igual_a": en_tanda[identificador]}
+                break
+            t0 = time.monotonic()
+            try:
+                datos = detalles(int(identificador))
+            except bp.BeatportBlocked:
+                raise
+            except Exception as exc:  # una página rota no tumba la tanda
+                estado, extra = f"pagina_error: {type(exc).__name__}", {"beatport_id": identificador}
+                continue
+            if not datos or not datos.get("sample_url"):
+                estado, extra = "sin_preview", {"beatport_id": identificador, **({"detalles": datos} if datos else {})}
+                continue
+            t1 = time.monotonic()
+            contenido = bajar_bytes(datos["sample_url"])
+            t2 = time.monotonic()
+            if not es_mp3(contenido):
+                estado, extra = "mp3_invalido", {"beatport_id": identificador, "bytes": len(contenido), "detalles": datos}
+                continue
+            archivo = carpeta / f"{identificador}.mp3"
+            archivo.write_bytes(contenido)
+            archivos.append(archivo)
+            en_tanda[identificador] = fila["clave"]
+            estado, extra = "ok", {"beatport_id": identificador, "via": via, "archivo": archivo.name, "bytes": len(contenido),
+                                   "md5": hashlib.md5(contenido).hexdigest(), "segundos_pagina": round(t1 - t0, 2),
+                                   "segundos_mp3": round(t2 - t1, 2), "detalles": datos}
+            break
+        entradas.append(dict(base, estado=estado, **extra))
     manifiesto = {"tanda": nombre, "creado": time.strftime("%Y-%m-%dT%H:%M:%S"), "temas": entradas,
                   "ok": sum(e["estado"] == "ok" for e in entradas)}
     (carpeta / "manifest.json").write_text(json.dumps(manifiesto, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -273,8 +302,12 @@ def cmd_elegir(args) -> int:
         if html.exists() and not dato.get("view_item"):
             dato["view_item"] = view_item_de(gzip.open(html, "rt", encoding="utf-8").read())
         sets.append(dato)
-    filas = elegir(sets, args.n)
-    escribir_tabla(base_corrida(args) / "temas.csv", filas)
+    filas = elegir(sets, args.n, args.todos)
+    destino = base_corrida(args) / "temas.csv"
+    if destino.exists():
+        print(f"PARO: {destino} ya existe; las tandas se cuentan por fila, así que una lista nueva va en otra corrida.")
+        return 2
+    escribir_tabla(destino, filas)
     print(f"{len(sets)} sets, {len(filas)} temas elegidos -> {base_corrida(args) / 'temas.csv'}; sin viewItem: {sum(not f['view_item'] for f in filas)}")
     return 0
 
@@ -332,43 +365,90 @@ def cmd_buscar(args) -> int:
     return 0
 
 
-def cmd_bajar(args) -> int:
-    from src.v4.common.remote_storage import open_remote, remote_root
+def procesar_tandas(filas: List[Dict[str, str]], remoto, carpeta_remota: str, temporal: Path, cache: Path, tam: int,
+                    copias: Optional[Path] = None) -> int:
+    """Las tandas que faltan en el remoto: buscar, bajar, empaquetar y subir. 0 si terminó, 2 si Beatport cortó."""
+    from src.v4.common.remote_storage import remote_root
 
-    filas = leer_tabla(base_corrida(args) / "temas.csv")
-    remoto = open_remote()
-    carpeta_remota = f"{CARPETA_REMOTA}/{args.corrida}"
     hechas = set(remoto.ls(carpeta_remota))  # {} si la carpeta no existe; exists() es solo para archivos
-    pendientes = tandas_pendientes(len(filas), hechas, args.tanda)
-    print(f"remoto {remote_root()}/{carpeta_remota}: {len(filas)} temas, tandas de {args.tanda}, pendientes {pendientes}", flush=True)
+    pendientes = tandas_pendientes(len(filas), hechas, tam)
+    print(f"remoto {remote_root()}/{carpeta_remota}: {len(filas)} temas, tandas de {tam}, faltan {len(pendientes)}: {pendientes[:12]}", flush=True)
+    if not pendientes:
+        return 0
     responde, motivo = bp.available()
     if not responde:
         print(f"PARO: Beatport {motivo}.", flush=True)
         return 2
-    cliente = bp.BeatportClient(args.root / "beatport_previews" / "cache", min_interval=PAUSA_BEATPORT_S)
+    cliente = bp.BeatportClient(cache, min_interval=PAUSA_BEATPORT_S)
     descargador = Descargador()
+
+    def buscar(fila: Dict[str, str]) -> tuple:
+        return buscar_en_beatport(cliente, fila)
+
     for k in pendientes:
         nombre = nombre_tanda(k)
-        temporal = Path(args.temporal) / args.corrida / nombre
+        carpeta = Path(temporal) / nombre
         t0 = time.monotonic()
         try:
-            tar, manifiesto = armar_tanda(filas[k * args.tanda:(k + 1) * args.tanda], cliente.track_details, descargador, temporal, nombre)
+            tar, manifiesto = armar_tanda(filas[k * tam:(k + 1) * tam], cliente.track_details, descargador, carpeta, nombre, buscar)
         except bp.BeatportBlocked as exc:
             print(f"PARO en {nombre}: {exc}. Lo ya subido queda.", flush=True)
             return 2
         manifiesto["segundos_tanda"] = round(time.monotonic() - t0, 1)
         manifiesto["estados_http_mp3"] = dict(descargador.estados)
+        manifiesto["pedidos_beatport"] = cliente.n_requests
         remoto.put(str(tar), f"{carpeta_remota}/{nombre}.tar")
         remoto.put_json(manifiesto, f"{carpeta_remota}/{nombre}.json")
-        copia = base_corrida(args) / f"{nombre}.json"
-        copia.write_text(json.dumps(manifiesto, ensure_ascii=False, indent=1), encoding="utf-8")
-        for archivo in sorted(temporal.glob("*")):
+        if copias:
+            Path(copias).mkdir(parents=True, exist_ok=True)
+            (Path(copias) / f"{nombre}.json").write_text(json.dumps(manifiesto, ensure_ascii=False, indent=1), encoding="utf-8")
+        for archivo in sorted(carpeta.glob("*")):
             archivo.unlink()
-        temporal.rmdir()
+        carpeta.rmdir()
         tamano = tar.stat().st_size
         tar.unlink()
-        print(f"{nombre}: {manifiesto['ok']} previews, {tamano / 1e6:.1f} MB, {manifiesto['segundos_tanda']:.0f} s; subida verificada", flush=True)
+        print(f"{nombre}: {manifiesto['ok']} de {len(manifiesto['temas'])} previews, {tamano / 1e6:.1f} MB, "
+              f"{manifiesto['segundos_tanda']:.0f} s; subida verificada", flush=True)
     return 0
+
+
+def cmd_bajar(args) -> int:
+    from src.v4.common.remote_storage import open_remote
+
+    return procesar_tandas(leer_tabla(base_corrida(args) / "temas.csv"), open_remote(), f"{CARPETA_REMOTA}/{args.corrida}",
+                           Path(args.temporal) / args.corrida, args.root / "beatport_previews" / "cache", args.tanda, base_corrida(args))
+
+
+def cmd_subir_temas(args) -> int:
+    """Sube la lista de temas de una corrida para la VM. No reemplaza una lista distinta: las tandas se cuentan por fila."""
+    from src.v4.common.remote_storage import import_gpuq_storage, open_remote
+
+    local = base_corrida(args) / "temas.csv"
+    rel = f"{CARPETA_REMOTA}/{args.corrida}/temas.csv"
+    remoto = open_remote()
+    actual = remoto.stat(rel)
+    propio = import_gpuq_storage().md5_file(local)
+    if actual and actual.get("md5") and actual["md5"] != propio:
+        print(f"PARO: {rel} ya está en el remoto con otro contenido; una lista nueva va en otra corrida.", flush=True)
+        return 2
+    if not actual:
+        remoto.put(str(local), rel)
+    print(f"{rel}: {len(leer_tabla(local))} temas, md5 {propio}", flush=True)
+    return 0
+
+
+def cmd_nube(args) -> int:
+    """Lo que corre en la VM de gpuq: la lista sale del remoto y la carpeta temporal es de la VM."""
+    import tempfile
+
+    from src.v4.common.remote_storage import open_remote
+
+    remoto = open_remote()
+    carpeta_remota = f"{CARPETA_REMOTA}/{args.corrida}"
+    trabajo = Path(args.temporal) if args.temporal else Path(tempfile.gettempdir()) / "beatport_previews" / args.corrida
+    trabajo.mkdir(parents=True, exist_ok=True)
+    remoto.get(f"{carpeta_remota}/temas.csv", trabajo / "temas.csv")
+    return procesar_tandas(leer_tabla(trabajo / "temas.csv"), remoto, carpeta_remota, trabajo / "tandas", trabajo / "cache", args.tanda)
 
 
 def cmd_resumen(args) -> int:
@@ -397,7 +477,14 @@ def main() -> int:
     comandos = parser.add_subparsers(dest="comando", required=True)
     p = comandos.add_parser("elegir")
     p.add_argument("--n", type=int, default=100)
+    p.add_argument("--todos", action="store_true", help="también los temas identificados sin botón de compra")
     p.set_defaults(func=cmd_elegir)
+    p = comandos.add_parser("subir-temas", help="sube temas.csv de la corrida al remoto, para la VM")
+    p.set_defaults(func=cmd_subir_temas)
+    p = comandos.add_parser("nube", help="en la VM de gpuq: lista desde el remoto, buscar, bajar y subir por tandas")
+    p.add_argument("--tanda", type=int, default=TANDA)
+    p.add_argument("--temporal", default="", help="carpeta temporal (por defecto, la de la VM)")
+    p.set_defaults(func=cmd_nube)
     p = comandos.add_parser("enlaces")
     p.add_argument("--perfil", type=Path, default=None, help="perfil del navegador con la sesión (por defecto, el de tracklists_1001)")
     p.add_argument("--esperar-login", type=int, default=0)
