@@ -220,7 +220,10 @@ cambiarlo. Evidencia: `docs/reports/traktor_concept_ai_cloudflare_2026-11-09.md`
      bajados que no estaban en lotes anteriores. Hasta las 03:30, `lote_01` a `lote_03`: 3703 previews en 11 tandas
      (5,3 GB), 899 temas sin id y 2 sin preview. Los 3703 salieron por la búsqueda: los lotes no pasaron por `enlaces`,
      así que los 899 esperan el respaldo de 1001Tracklists, a un pedido por tema (8 s). Solo 211 de los 899 tienen
-     botón de compra en 1001Tracklists; los otros 688 no tienen enlace que seguir. Entre los de nivel C hay temas que
+     botón de compra en 1001Tracklists; los otros 688 no tienen enlace que seguir. [REEMPLAZADO 2026-11-10 por
+     `docs/reports/beatport_busqueda_sin_id_2026-11-10.md`: en 10 de 30 al azar el tema estaba entre los resultados
+     (posesivo, «Remix» frente a «Mix», versión pegada al título, alias); sin la «s» suelta ni «remix» salen 66 de
+     los 338 de nivel C; el cambio en `match()` espera, porque lo usa también la biblioteca] Entre los de nivel C hay temas que
      parecen estar en Beatport con otra forma de nombrar la versión («Hyenah Raw Beat RMX», «20ms (Cristoph Remix)»):
      HIPÓTESIS, se revisa con una muestra de la búsqueda antes de cambiarla. `lote_03` seguía (6 de 12
      tandas) y 14 132 temas de los 838 sets no están en ningún lote: a unos 1200 temas por hora, unas 14 h más, más los
