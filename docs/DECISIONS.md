@@ -181,6 +181,22 @@ cambiarlo. Evidencia: `docs/reports/traktor_concept_ai_cloudflare_2026-11-09.md`
      enlace a Beatport en una mediana del 80 % de los identificados. **En la biblioteca: 11 de 1206 temas (0,9 %), ningún
      par consecutivo y 5 pares dentro de un mismo set**, con la comparación de `zona_sets.py` (artista y título con la
      versión). Para cruzar estos sets con la biblioteca hace falta el puente S15 del plan.
+4. **El audio de los temas de los sets (D6) son los previews de Beatport, guardados en el Drive de Gabriel** (Gabriel:
+   «está planificado descargar el audio de la preview de Beatport. La idea es subir todos los audios de los temas a
+   Drive»). Destino `erclm:traktor_ml/beatport_previews/<corrida>/`, en tandas de hasta 500 previews por `.tar` con su
+   manifiesto; sin el conector de Drive ni Drive para escritorio (indicación pegada por Gabriel). Herramienta:
+   `tools/dj_sets/beatport_previews.py`. La corrida grande y el primer trabajo de gpuq de este tipo esperan su OK, y
+   el `ai-train=no` que declara Beatport sigue siendo decisión suya.
+   - Piloto de 100 temas (agente, desde este PC, 2026-11-09): 95 previews en `beatport_previews/piloto/tanda_00000.tar`
+     (134 MB, subida verificada por tamaño y MD5). Cada preview es un MP3 de 120 s, de unos 1,4 MB; Beatport respondió
+     200 a todo. Tiempo por tema: 1,8 s de búsqueda y 1,7 s de página y MP3, pausas incluidas.
+   - El enlace del botón de compra en 1001Tracklists (un pedido por tema, 8,4 s) llevó a Beatport en 96 de 100 temas;
+     4 llevaban a otras tiendas. La búsqueda por nombre en Beatport dio la misma versión en 95 de 100.
+   - En los 92 temas con las dos vías, coinciden 81. De los 11 restantes: 3 son el mismo ISRC en otro disco y 4 el
+     mismo título y versión; en 3 el enlace de 1001Tracklists apunta a una página de Beatport que ya no existe y la
+     búsqueda encontró una que sí; y en 2 la búsqueda se equivocó: eligió el «Love Is Gonna Save Us» de Benny Benassi
+     de 2003 en lugar del de ARTBAT y Benny Benassi de 2025, y otro «One Day». INFERENCIA: la búsqueda alcanza como vía
+     principal, y el enlace de 1001Tracklists sirve de respaldo para los que la búsqueda no resuelve.
 
 ## 2026-11-08
 

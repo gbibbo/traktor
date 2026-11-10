@@ -19,6 +19,8 @@ PURPOSE: Beatport como fuente de metadatos (género, sello, fecha de lanzamiento
          También lee la página de un tema (track_genre): categoría, género y subgénero de Beatport
          (taxonomía de tres niveles; el subgénero es opcional), con caché en disco por tema.
 CHANGELOG:
+  - 2026-11-09: parse_track_details() y track_details(): el preview (sample_url) y los metadatos de la página
+                de un tema, para los previews de los temas de los sets (tools/dj_sets/beatport_previews.py).
   - 2026-11-07: available(): un pedido de prueba antes de una corrida (venía de tag_downloads.py, ahora
                 también lo usa «Agregar música nueva» de la app).
   - 2026-11-06: summarize guarda también genre_id y el subgénero (sub_genre); track_genre() y
@@ -225,6 +227,45 @@ def parse_track_genre(html: str, track_id: int) -> Optional[dict]:
     return None
 
 
+def _nombre(x) -> Optional[str]:
+    """Beatport da algunos campos como texto y otros como {"name": ...}."""
+    if isinstance(x, dict):
+        return x.get("name") or x.get("label_name") or x.get("genre_name")
+    return x if isinstance(x, str) else None
+
+
+def parse_track_details(html: str, track_id: int) -> Optional[dict]:
+    """Datos de la página de un tema (consulta track-details-<id>): el preview (sample_url, un MP3 de unos
+    2 minutos, y su tramo dentro del tema) más BPM, tonalidad, ISRC, género, sello y lanzamiento."""
+    m = _NEXT_DATA_RE.search(html)
+    if not m:
+        return None
+    data = json.loads(m.group(1))
+    for q in ((data.get("props") or {}).get("pageProps") or {}).get("dehydratedState", {}).get("queries", []):
+        if q.get("queryKey") != [f"track-details-{track_id}"]:
+            continue
+        d = (q.get("state") or {}).get("data") or {}
+        release = d.get("release") or {}
+        return {
+            "track_id": int(track_id),
+            "track_name": d.get("track_name"),
+            "mix_name": d.get("mix_name"),
+            "artists": [_nombre(a) for a in d.get("artists") or [] if _nombre(a)],
+            "sample_url": d.get("sample_url"),
+            "sample_start_ms": d.get("sample_start_ms"),
+            "sample_end_ms": d.get("sample_end_ms"),
+            "track_length_ms": d.get("track_length_ms"),
+            "bpm": d.get("bpm"),
+            "key": _nombre(d.get("key")),
+            "isrc": d.get("isrc"),
+            "genre": _nombre(d.get("genre")),
+            "label": _nombre(d.get("label")),
+            "release_name": _nombre(release) if isinstance(release, dict) else None,
+            "release_date": (release.get("release_date") or "")[:10] or None if isinstance(release, dict) else None,
+        }
+    return None
+
+
 class BeatportClient:
     """Búsqueda de temas con caché en disco. offline=True solo lee la caché."""
 
@@ -268,6 +309,19 @@ class BeatportClient:
         path.write_text(json.dumps({"track_id": int(track_id), "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
                                     "genre": g}, ensure_ascii=False), encoding="utf-8")
         return g
+
+    def track_details(self, track_id: int) -> Optional[dict]:
+        """parse_track_details de la página de un tema, con caché en <cache>/details/<id>.json."""
+        path = self.cache_dir / "details" / f"{int(track_id)}.json"
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8")).get("details")
+        if self.offline:
+            return None
+        details = parse_track_details(self._get(TRACK_URL.format(slug="track", track_id=int(track_id)), None), int(track_id))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"track_id": int(track_id), "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                                    "details": details}, ensure_ascii=False), encoding="utf-8")
+        return details
 
     def _get(self, url: str, params: Optional[dict]) -> str:
         import requests
