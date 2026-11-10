@@ -7,6 +7,8 @@ PURPOSE: Tests de src/v4/common/beatport.py y de la consulta de beatport_lookup,
 CHANGELOG:
   - 2026-09-29: Creación inicial.
   - 2026-11-06: summarize con genre_id y subgénero; parse_track_genre y track_genre con caché.
+  - 2026-11-10: soft_mix_core y match(soft_mix=True), con los casos de la auditoría de los previews; palabras de
+                versión nuevas en split_title_mix.
 """
 import json
 import sys
@@ -19,7 +21,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from src.v4.common.beatport import (  # noqa: E402
     BeatportClient, TrackQuery, clean_text, match, mix_core, parse_search_html, parse_track_genre, proposed_tags,
-    remixers_tag, split_title_mix, summarize,
+    remixers_tag, soft_mix_core, split_title_mix, summarize,
 )
 from src.v4.pipeline.beatport_lookup import build_queries, lookup  # noqa: E402
 
@@ -314,3 +316,82 @@ def test_double_space_separates_artists():
     q, _ = build_queries(row, {})[0]
     assert q.artists == "Nu & Jo Ke"
     assert match(q, [cand(1, "Who Loves The Sun", "Original Mix", ["Nu", "Jo.Ke"])]).level == "B"
+
+
+def test_split_title_mix_palabras_de_version_nuevas():
+    # Temas de los sets sin id (2026-11-10): la versión quedaba pegada al título.
+    assert split_title_mix("So Hot (S.A.M. Reshape)") == ("So Hot", "S.A.M. Reshape")
+    assert split_title_mix("Ink (Ten Walls Remake)") == ("Ink", "Ten Walls Remake")
+    assert split_title_mix("The Space Dance (Main Room Dubstrumental)") == ("The Space Dance", "Main Room Dubstrumental")
+    assert split_title_mix("Benediction (Re-shape)") == ("Benediction", "Re-shape")
+    assert split_title_mix("Lose Control (Spencer Brown 2026 Reinterpretation)") == ("Lose Control", "Spencer Brown 2026 Reinterpretation")
+    assert split_title_mix("Trans (Dixon Retouch)") == ("Trans", "Dixon Retouch")
+    # un paréntesis sin palabras de versión sigue siendo título
+    assert split_title_mix("Little Man (Proud Of You)") == ("Little Man (Proud Of You)", "")
+    assert split_title_mix("Sonar Barcelona 2025 ID (Working Title)") == ("Sonar Barcelona 2025 ID (Working Title)", "")
+
+
+def test_soft_mix_core():
+    # Posesivo, con los cuatro apóstrofos que trae Beatport.
+    for mezcla in ("Iorie's Lost Dream Remix", "Iorie’s Lost Dream Remix", "Iorie´s Lost Dream Remix", "Iorie`s Lost Dream Remix"):
+        assert soft_mix_core(mezcla) == soft_mix_core("Iorie Lost Dream Remix") == frozenset({"iorie", "lost", "dream", "remix"})
+    # Una mezcla con nombre que dice Mix es la misma que Remix.
+    assert soft_mix_core("John Tejada Mix") == soft_mix_core("John Tejada Remix") == frozenset({"john", "tejada", "remix"})
+    assert soft_mix_core("John Tejada Extended Mix") == soft_mix_core("John Tejada Remix")
+    # Lo que no cambia: Edit no es Remix; Original/Extended siguen vacías; un Remix sin nombre queda sin nombre.
+    assert soft_mix_core("X Edit") != soft_mix_core("X Remix")
+    assert soft_mix_core("Original Mix") == soft_mix_core("Extended Mix") == soft_mix_core("") == frozenset()
+    assert soft_mix_core("Remix") == frozenset({"remix"})
+    assert soft_mix_core("X Dub") != soft_mix_core("X Remix")
+    # Una inicial suelta no es un posesivo.
+    assert "s" in soft_mix_core("S.A.M. Reshape")
+
+
+def test_match_soft_mix_solo_si_se_pide_y_si_la_estricta_no_encuentra():
+    q = TrackQuery(artists="Bonobo", title="Sleepwalker", mix="Iorie Lost Dream Remix")
+    iorie = cand(1, "Sleepwalker", "Iorie's Lost Dream Remix", ["Bonobo"], remixers=["Iorie"])
+    otro = cand(2, "Sleepwalker", "Original Mix", ["Bonobo"])
+    assert match(q, [iorie, otro]).level == "C"                       # por defecto, como antes (la biblioteca)
+    res = match(q, [iorie, otro], soft_mix=True)
+    assert res.level == "B" and res.best["track_id"] == 1 and res.soft_mix
+    # Si la estricta encuentra la versión, la flexible no se usa.
+    exacta = cand(3, "Sleepwalker", "Iorie Lost Dream Remix", ["Bonobo"], remixers=["Iorie"])
+    res = match(q, [iorie, exacta], soft_mix=True)
+    assert res.level == "B" and res.best["track_id"] == 3 and not res.soft_mix
+    # Remix frente a Mix.
+    q = TrackQuery(artists="Ricardo Villalobos", title="Drunken Galleon", mix="John Tejada Remix")
+    res = match(q, [cand(4, "Drunken Galleon", "John Tejada Mix", ["Ricardo Villalobos"], remixers=["John Tejada"])], soft_mix=True)
+    assert res.level == "B" and res.soft_mix
+
+
+def test_match_soft_mix_no_rescata_versiones_sin_nombre_ni_otras_versiones():
+    # Sin el resguardo, «Just Close Your Eyes» sin mezcla coincidía con un «(Remix)» sin nombre.
+    q = TrackQuery(artists="Waldeck", title="Just Close Your Eyes", mix="")
+    assert match(q, [cand(1, "Just Close Your Eyes", "Remix", ["Waldeck"])], soft_mix=True).level == "C"
+    q = TrackQuery(artists="Waldeck", title="Just Close Your Eyes", mix="Remix")
+    assert match(q, [cand(1, "Just Close Your Eyes", "Mix", ["Waldeck"])], soft_mix=True).level == "C"
+    # Un Edit de la misma persona no es su Remix; el Remix de otra persona tampoco.
+    q = TrackQuery(artists="A", title="Tema", mix="X Remix")
+    assert match(q, [cand(1, "Tema", "X Edit", ["A"]), cand(2, "Tema", "Y Remix", ["A"])], soft_mix=True).level == "C"
+
+
+def test_cache_en_subcarpetas_y_lee_la_plana_de_antes(tmp_path):
+    # En FAT32 (el pendrive) la carpeta plana se llenó a los 13 106 archivos: «permiso denegado» al crear uno más.
+    import hashlib
+
+    client = BeatportClient(tmp_path, offline=True)
+    h = hashlib.sha1("Viejo Tema".encode("utf-8")).hexdigest()
+    (tmp_path / f"{h}.json").write_text(json.dumps({"query": "Viejo Tema", "results": [{"track_id": 1}]}), encoding="utf-8")
+    assert client.search("Viejo Tema") == [{"track_id": 1}]
+    assert client._path("Nuevo Tema").parent.name == hashlib.sha1("Nuevo Tema".encode("utf-8")).hexdigest()[:2]
+    BeatportClient._write(client._path("Nuevo Tema"), {"query": "Nuevo Tema", "results": [{"track_id": 2}]})
+    assert client.search("Nuevo Tema") == [{"track_id": 2}]
+    # Un archivo a medio escribir cuenta como no guardado.
+    client._path("Roto").write_text("{\"query\": ", encoding="utf-8")
+    assert client.search("Roto") == []
+    # Detalles de un tema: subcarpeta por los dos últimos dígitos; la ubicación plana sigue sirviendo.
+    (tmp_path / "details").mkdir()
+    (tmp_path / "details" / "123.json").write_text(json.dumps({"details": {"bpm": 124}}), encoding="utf-8")
+    assert client.track_details(123) == {"bpm": 124}
+    assert client._track_path("details", 123)[0] == tmp_path / "details" / "23" / "123.json"
+

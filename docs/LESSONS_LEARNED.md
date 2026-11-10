@@ -256,6 +256,15 @@ propio contenedor), y al detener el orquestador quedó un `sockseek.exe` huérfa
 Soulseek abierta. La app de descargas sigue el árbol por PID padre y guarda la hora de creación de
 cada proceso para no cerrar uno que reutilizó el PID (`ProcessTree` en `descargas_app.py`).
 
+### En el pendrive (FAT32) una carpeta se llena a los ~13 000 archivos de nombre largo
+
+`D:` es el pendrive, en FAT32: una carpeta admite 65 536 entradas y cada nombre largo ocupa varias (un nombre
+de 45 letras, cinco). El 2026-11-10 la caché plana de búsquedas de Beatport llegó a 13 106 archivos y Windows
+respondió `PermissionError` («The directory or file cannot be created») a cada archivo nuevo. Se cortaron la
+bajada de previews y la verificación a la vez, y parecía un choque entre procesos. Una carpeta con miles de
+archivos en `D:` va repartida en subcarpetas (`BeatportClient` usa `<sha1[:2]>/` desde ese día). FAT32
+tampoco admite archivos de más de 4 GB: por eso las tandas de audio de YouTube son de 200 temas.
+
 ### Las playlists de Rekordbox y Traktor guardan la letra de la unidad
 
 `traktor.nml` (VOLUME="E:") y `rekordbox.xml` (file://localhost/E:/...) llevan la ruta absoluta con la

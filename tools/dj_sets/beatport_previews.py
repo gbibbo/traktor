@@ -24,6 +24,9 @@ PURPOSE: D6, el audio de los temas de los sets: previews de Beatport de los tema
 CHANGELOG:
   - 2026-11-09: Creación (piloto de 100 temas).
   - 2026-11-09: búsqueda primero y enlace de 1001Tracklists de respaldo; subir-temas y nube para gpuq; elegir --todos.
+  - 2026-11-10: la búsqueda usa match(soft_mix=True) solo si ninguna consulta trajo la versión exacta (columna
+                mezcla_suave); «aka» en el artista; rescate (los temas que otras corridas no resolvieron) y
+                enlaces --solo-sin-id. Kaggle no sirve para esto: Beatport le pide la verificación de Cloudflare.
 """
 from __future__ import annotations
 
@@ -54,7 +57,8 @@ PAUSA_1001_MS = 8000
 PAUSA_BEATPORT_S = 1.2
 MIN_BYTES_MP3 = 20_000
 COLUMNAS = ["clave", "nombre", "artista", "titulo", "con_boton", "id_numerico", "view_item", "set_id", "beatport_id_1001", "fuente_1001",
-            "beatport_id_busqueda", "nivel_busqueda", "pedidos_busqueda"]
+            "beatport_id_busqueda", "nivel_busqueda", "pedidos_busqueda", "mezcla_suave"]
+ESTADOS_RESUELTOS = ("ok", "repetido")
 
 
 # ---------------------------------------------------------------- tabla de temas
@@ -151,20 +155,50 @@ PEDIR = """async (url) => {
 # ---------------------------------------------------------------- Beatport
 
 
-def consulta_de(fila: Dict[str, str]) -> bp.TrackQuery:
+def sin_alias(artista: str) -> str:
+    """'Ignacio aka Steve Rachmad' -> 'Ignacio, Steve Rachmad' (Beatport publica uno de los dos nombres). No toca
+    nombres que llevan la palabra: 'AKA AKA & Thalstroem'."""
+    partes = [p.strip() for p in re.split(r"\s+aka\s+", artista or "", flags=re.I)]
+
+    def es_nombre(parte: str) -> bool:
+        palabras = bp.norm(parte).split()
+        return bool(palabras) and palabras[0] != "aka" and palabras[-1] != "aka"
+
+    if len(partes) < 2 or not all(es_nombre(p) for p in partes):
+        return artista
+    return ", ".join(partes)
+
+
+def consulta_de(fila: Dict[str, str], alias: bool = False) -> bp.TrackQuery:
     base, mezcla = bp.split_title_mix(fila["titulo"])
-    return bp.TrackQuery(artists=fila["artista"], title=base, mix=mezcla)
+    return bp.TrackQuery(artists=sin_alias(fila["artista"]) if alias else fila["artista"], title=base, mix=mezcla)
+
+
+def _orden(resultado: bp.MatchResult) -> tuple:
+    """A o B estricto, después B por la mezcla flexible, después C, después D."""
+    return ({"A": 3, "B": 2, "C": 1}.get(resultado.level, 0), not resultado.soft_mix)
 
 
 def buscar_en_beatport(cliente: bp.BeatportClient, fila: Dict[str, str]) -> tuple:
-    """(id, nivel, pedidos): prueba las consultas de TrackQuery hasta un nivel A o B."""
-    consulta = consulta_de(fila)
-    antes, candidatos, mejor = cliente.n_requests, [], bp.MatchResult(level="D")
-    for texto in consulta.search_queries():
-        candidatos.extend(cliente.search(texto))
-        mejor = bp.match(consulta, candidatos)
-        if mejor.level in ("A", "B"):
+    """(id, nivel, pedidos): prueba las consultas de TrackQuery hasta un nivel A o B estricto. La comparación flexible
+    de la mezcla (match soft_mix) vale solo si ninguna consulta trajo la versión exacta; queda en fila['mezcla_suave'].
+    Si el artista trae un alias ('X aka Y'), primero con el nombre como viene y después con los dos nombres separados."""
+    consultas = [consulta_de(fila)]
+    if sin_alias(fila["artista"]) != fila["artista"]:
+        consultas.append(consulta_de(fila, alias=True))
+    antes, mejor = cliente.n_requests, bp.MatchResult(level="D")
+    for consulta in consultas:
+        candidatos = []
+        for texto in consulta.search_queries():
+            candidatos.extend(cliente.search(texto))
+            resultado = bp.match(consulta, candidatos, soft_mix=True)
+            if _orden(resultado) >= _orden(mejor):  # con los candidatos juntados, el último resultado del mismo nivel
+                mejor = resultado
+            if mejor.level in ("A", "B") and not mejor.soft_mix:
+                break
+        if mejor.level in ("A", "B") and not mejor.soft_mix:
             break
+    fila["mezcla_suave"] = "si" if mejor.soft_mix else ""
     identificador = str(mejor.best["track_id"]) if mejor.best else ""
     return identificador, mejor.level, cliente.n_requests - antes
 
@@ -209,7 +243,8 @@ def armar_tanda(filas: Sequence[Dict[str, str]], detalles: Callable[[int], Optio
         if buscar and not fila.get("nivel_busqueda"):
             fila["beatport_id_busqueda"], fila["nivel_busqueda"], _ = buscar(fila)  # BeatportBlocked corta la corrida
         base = {"clave_1001": fila["clave"], "nombre_1001": fila["nombre"], "nivel_busqueda": fila.get("nivel_busqueda", ""),
-                "beatport_id_busqueda": fila.get("beatport_id_busqueda", ""), "beatport_id_1001": fila.get("beatport_id_1001", "")}
+                "beatport_id_busqueda": fila.get("beatport_id_busqueda", ""), "beatport_id_1001": fila.get("beatport_id_1001", ""),
+                "mezcla_suave": fila.get("mezcla_suave", "")}
         ids = ids_candidatos(fila)
         if not ids:
             entradas.append(dict(base, estado="sin_id"))
@@ -325,12 +360,56 @@ def cmd_elegir(args) -> int:
     return 0
 
 
+def filas_sin_resolver(base: Path) -> List[Dict[str, str]]:
+    """Las filas de temas.csv de una corrida que en sus manifiestos locales no quedaron ok ni repetidas (sin id, sin
+    preview, error de página), con la búsqueda borrada para que se repita con el código de ahora."""
+    tabla = {f["clave"]: f for f in leer_tabla(base / "temas.csv")}
+    filas = []
+    for ruta in sorted(base.glob("tanda_*.json")):
+        for entrada in json.loads(ruta.read_text(encoding="utf-8"))["temas"]:
+            if entrada["estado"] not in ESTADOS_RESUELTOS:
+                filas.append(dict(tabla[entrada["clave_1001"]], beatport_id_busqueda="", nivel_busqueda="",
+                                  pedidos_busqueda="", mezcla_suave=""))
+    return filas
+
+
+def cmd_rescate(args) -> int:
+    """Una corrida nueva con los temas que otras corridas no resolvieron: se buscan de nuevo (la caché ahorra los pedidos
+    repetidos), se pide el enlace de 1001Tracklists de los que tienen botón (enlaces --solo-sin-id) y se bajan."""
+    excluidas, vistas, filas = excluidas_de(args), set(), []
+    for corrida in args.de:
+        base = args.root / "beatport_previews" / corrida
+        n_temas = len(leer_tabla(base / "temas.csv"))
+        n_tandas = len(list(base.glob("tanda_*.json")))
+        nuevas = [f for f in filas_sin_resolver(base) if f["clave"] not in excluidas and f["clave"] not in vistas]
+        vistas |= {f["clave"] for f in nuevas}
+        filas += nuevas
+        print(f"{corrida}: {n_tandas} de {(n_temas + TANDA - 1) // TANDA} tandas con manifiesto local, {len(nuevas)} sin resolver", flush=True)
+    destino = base_corrida(args) / "temas.csv"
+    if not filas:
+        print(f"Nada sin resolver para {args.corrida}.")
+        return 3
+    if destino.exists():
+        print(f"PARO: {destino} ya existe; las tandas se cuentan por fila, así que una lista nueva va en otra corrida.")
+        return 2
+    escribir_tabla(destino, filas)
+    print(f"{len(filas)} temas -> {destino}", flush=True)
+    return 0
+
+
+def pendientes_de_enlace(filas: Sequence[Dict[str, str]], solo_sin_id: bool) -> List[Dict[str, str]]:
+    """Filas a las que falta pedir el enlace. Con solo_sin_id, solo las que tienen botón de compra (las otras no
+    tienen enlace que dar) y que la búsqueda no resolvió (Gabriel: primero la búsqueda)."""
+    return [f for f in filas if not f.get("fuente_1001") and (not solo_sin_id or (
+        f.get("con_boton") == "si" and f.get("nivel_busqueda") not in ("A", "B")))]
+
+
 def cmd_enlaces(args) -> int:
     from tools.dj_sets.tracklists_1001 import DEFAULT_PERFIL, Detencion, navegador
 
     ruta = base_corrida(args) / "temas.csv"
     filas = leer_tabla(ruta)
-    pendientes = [f for f in filas if not f.get("fuente_1001")]
+    pendientes = pendientes_de_enlace(filas, args.solo_sin_id)
     print(f"{len(filas)} temas, {len(pendientes)} sin enlace pedido; unos {len(pendientes) * 8.5 / 60:.0f} min", flush=True)
     if not pendientes:
         return 0
@@ -499,9 +578,14 @@ def main() -> int:
     p.add_argument("--tanda", type=int, default=TANDA)
     p.add_argument("--temporal", default="", help="carpeta temporal (por defecto, la de la VM)")
     p.set_defaults(func=cmd_nube)
+    p = comandos.add_parser("rescate", help="corrida nueva con los temas que otras corridas no resolvieron")
+    p.add_argument("--de", action="append", required=True, help="corrida cuyos temas sin resolver se toman (se puede repetir)")
+    p.add_argument("--excluir", action="append", help="corrida (otro rescate) cuyos temas no se repiten")
+    p.set_defaults(func=cmd_rescate)
     p = comandos.add_parser("enlaces")
     p.add_argument("--perfil", type=Path, default=None, help="perfil del navegador con la sesión (por defecto, el de tracklists_1001)")
     p.add_argument("--esperar-login", type=int, default=0)
+    p.add_argument("--solo-sin-id", action="store_true", help="solo los temas con botón de compra que la búsqueda no encontró")
     p.set_defaults(func=cmd_enlaces)
     p = comandos.add_parser("buscar")
     p.set_defaults(func=cmd_buscar)

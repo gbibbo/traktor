@@ -4,6 +4,8 @@ PURPOSE: Previews de Beatport de los temas de los sets (tools/dj_sets/beatport_p
          tanda armada y subida a un remoto local (sin red: las descargas son funciones de prueba).
 CHANGELOG:
   - 2026-11-09: Creación.
+  - 2026-11-10: alias en el artista, la búsqueda no se queda con la comparación flexible si una consulta posterior
+                trae la versión exacta, rescate de los temas sin resolver y enlaces solo para los sin id con botón.
 """
 import json
 import tarfile
@@ -116,3 +118,78 @@ def test_armar_tanda_y_subir_a_un_remoto_local(tmp_path, monkeypatch):
     remoto = storage.LocalRemote(tmp_path / "remoto")
     remoto.put(str(tar), "beatport_previews/piloto/tanda_00000.tar")
     assert bpv.tandas_pendientes(len(filas), remoto.ls("beatport_previews/piloto")) == []
+
+
+def test_sin_alias():
+    assert bpv.sin_alias("Ignacio aka Steve Rachmad") == "Ignacio, Steve Rachmad"
+    assert bpv.sin_alias("Inkswel Aka The Snaglepuss ft. Elf Tranzporter") == "Inkswel, The Snaglepuss ft. Elf Tranzporter"
+    # Nombres que llevan la palabra no se tocan.
+    assert bpv.sin_alias("AKA AKA") == "AKA AKA"
+    assert bpv.sin_alias("AKA AKA & Thalstroem") == "AKA AKA & Thalstroem"
+    assert bpv.sin_alias("Kaka") == "Kaka"
+
+
+class ClienteFalso:
+    def __init__(self, respuestas):
+        self.respuestas, self.n_requests, self.pedidas = respuestas, 0, []
+
+    def search(self, texto):
+        self.n_requests += 1
+        self.pedidas.append(texto)
+        return self.respuestas.get(len(self.pedidas)) or self.respuestas.get(texto, [])
+
+
+def cand(track_id, title, mix, artists, remixers=()):
+    return {"track_id": track_id, "title": title, "mix": mix, "artists": list(artists), "remixers": list(remixers),
+            "label": "L", "release_date": "2020-01-01", "genre": "House", "isrc": None, "length_s": 400.0,
+            "is_dj_edit": False, "is_ugc_remix": False}
+
+
+def test_buscar_sigue_si_solo_hay_coincidencia_flexible():
+    fila = {"artista": "Bonobo", "titulo": "Sleepwalker (Iorie Lost Dream Remix)"}
+    # La primera consulta trae solo la escritura con posesivo; la segunda, la exacta: gana la exacta.
+    cliente = ClienteFalso({1: [cand(1, "Sleepwalker", "Iorie's Lost Dream Remix", ["Bonobo"])],
+                            2: [cand(2, "Sleepwalker", "Iorie Lost Dream Remix", ["Bonobo"])]})
+    assert bpv.buscar_en_beatport(cliente, fila) == ("2", "B", 2) and fila["mezcla_suave"] == ""
+    # Si ninguna consulta trae la exacta, queda la flexible, marcada, después de todas las consultas.
+    cliente = ClienteFalso({1: [cand(1, "Sleepwalker", "Iorie's Lost Dream Remix", ["Bonobo"])]})
+    identificador, nivel, pedidos = bpv.buscar_en_beatport(cliente, fila)
+    todas = bpv.consulta_de(fila).search_queries()
+    assert (identificador, nivel, fila["mezcla_suave"]) == ("1", "B", "si") and pedidos == len(cliente.pedidas) == len(todas) == 2
+
+
+def test_rescate_toma_lo_no_resuelto_y_borra_la_busqueda(tmp_path):
+    base = tmp_path / "lote_01"
+    bpv.escribir_tabla(base / "temas.csv", [
+        {"clave": k, "nombre": f"A - {k}", "artista": "A", "titulo": k, "con_boton": "si", "nivel_busqueda": "C",
+         "beatport_id_busqueda": "9"} for k in "abcd"])
+    temas = [{"clave_1001": "a", "estado": "ok"}, {"clave_1001": "b", "estado": "sin_id"},
+             {"clave_1001": "c", "estado": "repetido"}, {"clave_1001": "d", "estado": "sin_preview"}]
+    (base / "tanda_00000.json").write_text(json.dumps({"temas": temas}), encoding="utf-8")
+    filas = bpv.filas_sin_resolver(base)
+    assert [f["clave"] for f in filas] == ["b", "d"]
+    assert all(f["nivel_busqueda"] == "" and f["beatport_id_busqueda"] == "" for f in filas)
+
+
+def test_enlaces_solo_sin_id_con_boton():
+    filas = [{"clave": "a", "con_boton": "si", "nivel_busqueda": "B"},
+             {"clave": "b", "con_boton": "si", "nivel_busqueda": "C"},
+             {"clave": "c", "con_boton": "", "nivel_busqueda": "D"},
+             {"clave": "d", "con_boton": "si", "nivel_busqueda": "D", "fuente_1001": "1"}]
+    assert [f["clave"] for f in bpv.pendientes_de_enlace(filas, True)] == ["b"]
+    assert [f["clave"] for f in bpv.pendientes_de_enlace(filas, False)] == ["a", "b", "c"]
+
+
+def test_buscar_prueba_el_alias_solo_si_el_nombre_como_viene_no_alcanza():
+    fila = {"artista": "Ignacio aka Steve Rachmad", "titulo": "Organa"}
+    ignacio = cand(7, "Organa", "Original Mix", ["Ignacio"])
+    # El nombre como viene no encuentra; con los nombres separados, sí.
+    cliente = ClienteFalso({"Ignacio Organa": [ignacio]})
+    assert bpv.buscar_en_beatport(cliente, fila)[:2] == ("7", "B")
+    assert cliente.pedidas[0].startswith("Ignacio aka Steve Rachmad") and "Ignacio, Steve Rachmad Organa" in cliente.pedidas
+    # Si el nombre como viene ya encuentra la versión, no se pide nada más.
+    rogue = cand(8, "Electric Safari", "Original Mix", ["Rogue D"])
+    cliente = ClienteFalso({1: [rogue]})
+    assert bpv.buscar_en_beatport(cliente, {"artista": "Memoryman aka Uovo & Rogue D", "titulo": "Electric Safari"})[:2] == ("8", "B")
+    assert len(cliente.pedidas) == 1
+

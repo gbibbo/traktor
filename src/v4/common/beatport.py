@@ -19,6 +19,11 @@ PURPOSE: Beatport como fuente de metadatos (género, sello, fecha de lanzamiento
          También lee la página de un tema (track_genre): categoría, género y subgénero de Beatport
          (taxonomía de tres niveles; el subgénero es opcional), con caché en disco por tema.
 CHANGELOG:
+  - 2026-11-10: la caché se reparte en subcarpetas (en FAT32 la carpeta plana se llenó a los 13 106 archivos)
+                y se escribe de forma atómica; lee también la ubicación plana de antes.
+  - 2026-11-10: match(..., soft_mix=True) y soft_mix_core(): posesivo y «Mix» por «Remix» cuando la estricta no
+                encuentra la versión (para los previews de los sets; la biblioteca no lo pide). _VERSION_HINT
+                separa también Remake, Reshape, Interpretation, Dubstrumental, Retouch, Rewerk, Revisit…
   - 2026-11-09: parse_track_details() y track_details(): el preview (sample_url) y los metadatos de la página
                 de un tema, para los previews de los temas de los sets (tools/dj_sets/beatport_previews.py).
   - 2026-11-07: available(): un pedido de prueba antes de una corrida (venía de tag_downloads.py, ahora
@@ -52,7 +57,10 @@ SAME_CUT_TOLERANCE_S = 3.0
 _NEXT_DATA_RE = re.compile(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', re.S)
 _VERSION_HINT = re.compile(
     r"\b(remix|rmx|mix|edit|dub|version|rework|bootleg|vip|extended|original|instrumental|refix|"
-    r"reprise|re-?edit|flip|remaster(?:ed)?|a+c+ap+el+a|a\s+cap+el+a)\b", re.I)
+    r"reprise|re-?edit|flip|remaster(?:ed)?|a+c+ap+el+a|a\s+cap+el+a|"
+    # 2026-11-10, de los temas de los sets que quedaron sin id: «(S.A.M. Reshape)», «(Ten Walls Remake)»…
+    r"remake|re-?shape|(?:re)?interpretation|dubstrumental|re-?touch|re-?werk|re-?visit|re-?phase|"
+    r"reorgani[sz]ed|mash-?up|re-?rub)\b", re.I)
 _FEAT = re.compile(r"\s*[\(\[]\s*(?:feat|ft|featuring)\b\.?[^\)\]]*[\)\]]|\s+(?:feat|ft|featuring)\b\.?\s+.*$", re.I)
 # Palabras de una mezcla que no cambian la producción (corte, remasterización)
 _NEUTRAL_MIX_WORDS = {"extended", "original", "mix", "version", "radio", "edit", "club", "remaster",
@@ -145,6 +153,23 @@ def mix_core(mix: Optional[str]) -> frozenset:
     'Original Mix', 'Extended Mix' y 'Radio Edit' -> vacío."""
     words = {"remix" if w == "rmx" else w for w in norm(mix).split()} - _NEUTRAL_MIX_WORDS
     return frozenset(w for w in words if not re.fullmatch(r"(19|20)\d\d", w))
+
+
+_POSSESSIVE = re.compile(r"(\w)['’`´]s\b", re.I)
+
+
+def soft_mix_core(mix: Optional[str]) -> frozenset:
+    """mix_core con dos diferencias de escritura que no cambian la producción (auditoría
+    docs/reports/beatport_busqueda_sin_id_2026-11-10.md):
+      - el posesivo: «Iorie's Lost Dream Remix» == «Iorie Lost Dream Remix»;
+      - una mezcla con nombre que dice «Mix» en lugar de «Remix»: «John Tejada Mix» == «John Tejada Remix».
+    «Remix» solo se agrega si la mezcla nombra algo más que palabras neutras y dice mix o remix: «X Edit» no es
+    «X Remix», y «Extended Mix» sigue vacío."""
+    words = ["remix" if w == "rmx" else w for w in norm(_POSSESSIVE.sub(r"\1", mix or "")).split()]
+    core = {w for w in words if w not in _NEUTRAL_MIX_WORDS and not re.fullmatch(r"(19|20)\d\d", w)}
+    if core and ("mix" in words or "remix" in words):
+        core.add("remix")
+    return frozenset(core)
 
 
 def title_similarity(a: str, b: str) -> float:
@@ -278,49 +303,80 @@ class BeatportClient:
         self._session = None
         self.n_requests = 0
 
+    # Un archivo por consulta, repartidos en subcarpetas por los dos primeros caracteres: en FAT32 (el pendrive D:)
+    # una carpeta admite 65 536 entradas y un nombre largo ocupa varias; el 2026-11-10 la carpeta plana se llenó
+    # con 13 106 archivos y Windows respondió «permiso denegado» a cada archivo nuevo. Se sigue leyendo la
+    # ubicación plana de antes.
+
     def _path(self, q: str) -> Path:
-        return self.cache_dir / f"{hashlib.sha1(q.encode('utf-8')).hexdigest()}.json"
+        h = hashlib.sha1(q.encode("utf-8")).hexdigest()
+        path = self.cache_dir / h[:2] / f"{h}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def _cached(self, nuevo: Path, viejo: Path) -> Optional[dict]:
+        for path in (nuevo, viejo):
+            if path.exists():
+                try:
+                    return json.loads(path.read_text(encoding="utf-8"))
+                except ValueError:  # un archivo a medio escribir cuenta como no guardado
+                    return None
+        return None
+
+    @staticmethod
+    def _write(path: Path, data: dict) -> None:
+        """Atómica. Si el disco no deja escribir, el resultado se usa igual y la consulta se repite otro día: guardar
+        la caché no debe cortar una corrida larga."""
+        temporal = path.with_name(path.name + ".tmp")
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            temporal.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+            temporal.replace(path)
+        except OSError:
+            temporal.unlink(missing_ok=True)
+
+    def _track_path(self, kind: str, track_id: int) -> tuple:
+        return (self.cache_dir / kind / f"{int(track_id) % 100:02d}" / f"{int(track_id)}.json",
+                self.cache_dir / kind / f"{int(track_id)}.json")
 
     def search(self, q: str) -> List[dict]:
         q = re.sub(r"\s+", " ", q or "").strip()
         if not q:
             return []
         path = self._path(q)
-        if path.exists():
-            return json.loads(path.read_text(encoding="utf-8"))["results"]
+        cached = self._cached(path, self.cache_dir / path.name)
+        if cached is not None:
+            return cached["results"]
         if self.offline:
             return []
         html = self._get(SEARCH_URL, {"q": q})
         results = [summarize(r) for r in parse_search_html(html)[:MAX_RESULTS]]
-        path.write_text(json.dumps({"query": q, "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                                    "results": results}, ensure_ascii=False), encoding="utf-8")
+        self._write(path, {"query": q, "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%S"), "results": results})
         return results
 
     def track_genre(self, track_id: int, url: Optional[str] = None) -> Optional[dict]:
-        """Género completo de un tema (parse_track_genre), con caché en <cache>/tracks/<id>.json."""
-        path = self.cache_dir / "tracks" / f"{int(track_id)}.json"
-        if path.exists():
-            return json.loads(path.read_text(encoding="utf-8")).get("genre")
+        """Género completo de un tema (parse_track_genre), con caché en <cache>/tracks/<id % 100>/<id>.json."""
+        path, flat = self._track_path("tracks", track_id)
+        cached = self._cached(path, flat)
+        if cached is not None:
+            return cached.get("genre")
         if self.offline:
             return None
         html = self._get(url or TRACK_URL.format(slug="track", track_id=int(track_id)), None)
         g = parse_track_genre(html, int(track_id))
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"track_id": int(track_id), "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                                    "genre": g}, ensure_ascii=False), encoding="utf-8")
+        self._write(path, {"track_id": int(track_id), "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%S"), "genre": g})
         return g
 
     def track_details(self, track_id: int) -> Optional[dict]:
-        """parse_track_details de la página de un tema, con caché en <cache>/details/<id>.json."""
-        path = self.cache_dir / "details" / f"{int(track_id)}.json"
-        if path.exists():
-            return json.loads(path.read_text(encoding="utf-8")).get("details")
+        """parse_track_details de la página de un tema, con caché en <cache>/details/<id % 100>/<id>.json."""
+        path, flat = self._track_path("details", track_id)
+        cached = self._cached(path, flat)
+        if cached is not None:
+            return cached.get("details")
         if self.offline:
             return None
         details = parse_track_details(self._get(TRACK_URL.format(slug="track", track_id=int(track_id)), None), int(track_id))
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"track_id": int(track_id), "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                                    "details": details}, ensure_ascii=False), encoding="utf-8")
+        self._write(path, {"track_id": int(track_id), "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%S"), "details": details})
         return details
 
     def _get(self, url: str, params: Optional[dict]) -> str:
@@ -446,13 +502,17 @@ class MatchResult:
     title_sim: float = 0.0
     artist_score: float = 0.0                    # 0 si el artista solo coincide como alias
     original_genre: Optional[str] = None         # género del lanzamiento más antiguo de esa versión
+    soft_mix: bool = False                       # B por soft_mix_core: la estricta no encontró la versión
 
     @property
     def genre_conflict(self) -> bool:
         return len(self.same_version_genres) > 1
 
 
-def match(q: TrackQuery, candidates: Sequence[dict]) -> MatchResult:
+def match(q: TrackQuery, candidates: Sequence[dict], soft_mix: bool = False) -> MatchResult:
+    """Con soft_mix=True, si la comparación estricta de la mezcla no da A ni B, compara con soft_mix_core y marca
+    res.soft_mix. Solo cuando a la mezcla buscada le queda un nombre además de «remix»: una versión sin nombre
+    («Remix») no alcanza. Por defecto, apagado (la biblioteca no lo usa)."""
     uniq = {c["track_id"]: c for c in candidates}.values()
     scored = []
     for c in uniq:
@@ -470,6 +530,10 @@ def match(q: TrackQuery, candidates: Sequence[dict]) -> MatchResult:
     res.n_pool = len(pool)
     target = mix_core(q.mix)
     same = [(c, t, a) for c, t, a in pool if mix_core(effective_mix(c)) == target]
+    soft_target = soft_mix_core(q.mix)
+    if soft_mix and not exact and not same and soft_target - {"remix"}:
+        same = [(c, t, a) for c, t, a in pool if soft_mix_core(effective_mix(c)) == soft_target]
+        res.soft_mix = bool(same)
 
     def rank(item):
         c, t, a = item
