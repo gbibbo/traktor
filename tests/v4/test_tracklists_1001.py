@@ -239,3 +239,27 @@ def test_uso_pares_en_bajar_toma_solo_los_de_pares():
     assert [f["uso"] for f in filas if t.sirve_para(f, "pares")] == ["pares"]
     assert [f["uso"] for f in filas if t.sirve_para(f, "trayectoria")] == ["trayectoria+pares", "trayectoria"]
     assert len([f for f in filas if t.sirve_para(f, None)]) == 3
+
+
+def test_guardar_paro_deja_la_pagina_aunque_no_haya_contenido(tmp_path):
+    # El 403 del 2026-11-10 no dejó rastro: no se supo si era esa página o todo el sitio.
+    import gzip
+
+    class Pagina:
+        url = "https://www.1001tracklists.com/tracklist/x/a.html"
+
+        def content(self):
+            return "<html>Forbidden</html>"
+
+    class Cortada:
+        url = "about:blank"
+
+        def content(self):
+            raise RuntimeError("la conexión se cortó")
+
+    t.guardar_paro(tmp_path, "x", Pagina(), "estado HTTP 403")
+    t.guardar_paro(tmp_path, "y", Cortada(), "error de conexión")
+    textos = {p.name.split("_", 2)[2]: gzip.open(p, "rt", encoding="utf-8").read() for p in (tmp_path / "paros").glob("*.html.gz")}
+    assert set(textos) == {"x.html.gz", "y.html.gz"}
+    assert "estado HTTP 403" in textos["x.html.gz"] and "Forbidden" in textos["x.html.gz"]
+    assert textos["y.html.gz"].startswith("<!-- error de conexión | about:blank -->")

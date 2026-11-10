@@ -185,7 +185,7 @@ cambiarlo. Evidencia: `docs/reports/traktor_concept_ai_cloudflare_2026-11-09.md`
    «está planificado descargar el audio de la preview de Beatport. La idea es subir todos los audios de los temas a
    Drive»). Destino `erclm:traktor_ml/beatport_previews/<corrida>/`, en tandas de hasta 500 previews por `.tar` con su
    manifiesto; sin el conector de Drive ni Drive para escritorio (indicación pegada por Gabriel). Herramienta:
-   `tools/dj_sets/beatport_previews.py`. La corrida grande y el primer trabajo de gpuq de este tipo esperan su OK, y
+   `tools/dj_sets/beatport_previews.py`. [REEMPLAZADO 2026-11-09 por las respuestas de Gabriel del punto 5: dio el OK a la corrida grande y al trabajo de gpuq, y decidió bajar los previews pese al `ai-train=no`] La corrida grande y el primer trabajo de gpuq de este tipo esperan su OK, y
    el `ai-train=no` que declara Beatport sigue siendo decisión suya.
    - Piloto de 100 temas (agente, desde este PC, 2026-11-09): 95 previews en `beatport_previews/piloto/tanda_00000.tar`
      (134 MB, subida verificada por tamaño y MD5). Cada preview es un MP3 de 120 s, de unos 1,4 MB; Beatport respondió
@@ -197,6 +197,31 @@ cambiarlo. Evidencia: `docs/reports/traktor_concept_ai_cloudflare_2026-11-09.md`
      búsqueda encontró una que sí; y en 2 la búsqueda se equivocó: eligió el «Love Is Gonna Save Us» de Benny Benassi
      de 2003 en lugar del de ARTBAT y Benny Benassi de 2025, y otro «One Day». INFERENCIA: la búsqueda alcanza como vía
      principal, y el enlace de 1001Tracklists sirve de respaldo para los que la búsqueda no resuelve.
+5. **Se bajan todos los sets candidatos y el preview de todos sus temas, para que otro agente evalúe y entrene con ese
+   dataset** (Gabriel: «descargues todos los sets y todos los temas que habíamos definido en nuestro dataset»). Antes de
+   irse a dormir, sin poder supervisar la noche, respondió:
+   - Previews: buscar primero en Beatport y usar el enlace del tracklist si el tema no sale con la búsqueda.
+   - `ai-train=no` de Beatport: «Sí, bajarlos igual».
+   - Si 1001Tracklists corta: esperar 30 min, probar con una página y seguir; como máximo 3 veces.
+   - Encolar en gpuq; si Beatport no responde desde ahí, los previews se bajan en este PC, encendido unas 8 h.
+   Resultado (agente, noche del 9 al 10):
+   - **Kaggle no llega a Beatport**: la página le pide la verificación de Cloudflare (dos intentos con salida 2; trabajo
+     cancelado). No se intenta saltarla. Los previews salen de este PC, en paralelo con las páginas de sets.
+   - **Páginas de sets: 838 de 1549** en `1001tracklists/sets/`. A las 02:48, tras unas 830 páginas en 2 h 40 min a 8 s,
+     el sitio respondió HTTP 403, y la prueba de las 03:18 dio 403 en la misma página. Los otros dos reintentos se habían
+     ido en un timeout (23:11) y en un tracklist movido (302; error del agente, corregido en `e6c566a`). No se guardó lo
+     que mostró la página: no se sabe si era un bloqueo del sitio o de esa página. Desde ahora `bajar` la guarda en
+     `1001tracklists/paros/`. La próxima prueba conviene hacerla con otra página. Faltan 711.
+   - Medidas de los 838 (`medidas.csv`): 453 solo de pares, 360 de trayectoria y pares, 25 solo de trayectoria; 33 304
+     filas de temas; 1870 h en los sets de trayectoria; medianas de 97 % identificado y 79 % con enlace a Beatport.
+     20 542 temas identificados distintos. Con la biblioteca: 359 apariciones, 10 pares consecutivos y 234 pares en un
+     mismo set (S15 sigue haciendo falta).
+   - **Previews, por lotes** en `erclm:traktor_ml/beatport_previews/lote_NN/`: cada lote toma los temas de los sets ya
+     bajados que no estaban en lotes anteriores. Hasta las 03:30, `lote_01` a `lote_03`: 3703 previews en 11 tandas
+     (5,3 GB), 899 temas sin id y 2 sin preview. Los 3703 salieron por la búsqueda: los lotes no pasaron por `enlaces`,
+     así que los 899 esperan el respaldo de 1001Tracklists, a un pedido por tema (8 s). `lote_03` seguía (6 de 12
+     tandas) y 14 132 temas de los 838 sets no están en ningún lote: a unos 1200 temas por hora, unas 14 h más, más los
+     de los 711 sets que faltan.
 
 ## 2026-11-08
 

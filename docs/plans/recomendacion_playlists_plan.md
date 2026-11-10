@@ -614,10 +614,21 @@ Inventario de ideas de la selección:
 | S9 | Topes: 15 sets por DJ y 30 por programa, por la partición por DJ (E7) | Agente | Hecho |
 | S10 | Tabla con columna `veto`, que `bajar` respeta y `candidatos` conserva | Agente | Hecho; Gabriel veta |
 | S11 | Leer la página en lugar del botón de exportar: trae lo mismo con un pedido por set, y además sello, enlaces y grabación | Agente | Hecho (832 temas y 651 identificados, igual que la medición previa) |
-| S12 | Piloto de 30 sets, después de a 50 por día; desde la conexión de casa, sin VPN; parada al primer rechazo | Agente; Gabriel aprobó | Piloto hecho 11-09 (30 sets, uno por DJ, sin cortes); el resto, de a 50 por corrida |
+| S12 | Piloto de 30 sets, después de a 50 por día; desde la conexión de casa, sin VPN; parada al primer rechazo | Agente; Gabriel aprobó | [REEMPLAZADO 2026-11-10 por la noche del 9 al 10 (DECISIONS 2026-11-09, punto 5): Gabriel pidió bajar todos] Piloto hecho 11-09 (30 sets, uno por DJ, sin cortes); el resto, de a 50 por corrida. 838 de 1549 bajados; paró en un 403 tras unas 830 páginas seguidas; faltan 711 |
 | S13 | Unir noches publicadas por partes | Agente | `grupo_noche` cubre «Part N»; falta el caso de episodios seguidos de un programa (Eelke Kleijn) |
-| S14 | Enlaces por tema (YouTube, Beatport) al final, solo de los temas que se usen y una vez cada uno | Gabriel aprobó 11-08 | Piloto 11-09 (`beatport_previews.py`): el botón de compra lleva a Beatport en 96 de 100, a 8,4 s por tema; la búsqueda por nombre en Beatport da la misma versión con 2 errores en 92, así que queda de respaldo |
+| S14 | Enlaces por tema (YouTube, Beatport) al final, solo de los temas que se usen y una vez cada uno | Gabriel aprobó 11-08 | Piloto 11-09 (`beatport_previews.py`): el botón de compra lleva a Beatport en 96 de 100, a 8,4 s por tema; [REEMPLAZADO 2026-11-09 por Gabriel: primero la búsqueda, y el enlace del tracklist si el tema no sale] la búsqueda por nombre en Beatport da la misma versión con 2 errores en 92, así que queda de respaldo. Noche del 9 al 10: 3703 previews por la búsqueda; 899 sin id esperan el enlace (`enlaces`) |
 | S15 | Puente con la biblioteca: con 2,4 % de temas en común, hacen falta metadatos de Beatport o audio de los temas de los sets (D6, C1, sección 3.7) | Agente | Pendiente. El piloto lo confirma: con la versión incluida, 11 de 1206 temas (0,9 %), ningún par consecutivo y 5 pares en el mismo set |
+
+Cómo se retoma la bajada (D5 y D6), desde este PC, con `--root "D:\TRAKTOR ML datos\dj_sets"`:
+- Sets: `tracklists_1001.py bajar --n 50`, repetido, con un Python que tenga Playwright (no está en
+  `requirements_v4.txt`) y el perfil de `~/.traktor_ml/`. Después de un corte: esperar, probar con `--n 1`, y no
+  insistir si vuelve a parar. La página donde paró queda en `1001tracklists/paros/`.
+- Previews: por cada lote nuevo, `beatport_previews.py --corrida lote_NN elegir --todos --n 1000000 --excluir piloto
+  --excluir lote_01 ...` (todas las corridas anteriores) y después `bajar --temporal "<carpeta en D:>"`. Un lote cortado
+  se retoma con el mismo `bajar`: salta las tandas que ya están en el Drive. Kaggle no sirve: Beatport le pide la
+  verificación de Cloudflare.
+- Respaldo para los temas sin id: falta armar un lote con los `sin_id` de los manifiestos de cada lote, pasarle
+  `enlaces` (un pedido a 1001Tracklists por tema) y bajarlo.
 
 [REEMPLAZADO 2026-11-09 por las 158 búsquedas y el piloto: 2540 sets distintos, **1549 candidatos** (385 para trayectoria, 1164 solo para pares; 354 DJs; 1489 con grabación); piloto de 30 sets sin cortes (DECISIONS 2026-11-09, sets de 1001Tracklists)] [REEMPLAZADO 2026-11-09 por el criterio de comercial de Gabriel: 84 de 158 búsquedas, 1269 sets distintos, **831 candidatos** (142 para trayectoria, 689 solo para pares; 156 DJs; 798 con grabación) y faltan 74 búsquedas] Estado del 2026-11-09: 84 de 147 búsquedas, 1269 sets distintos, **740 candidatos** (135 para trayectoria, 605 solo para
 pares; 139 DJs; 709 con grabación). Lo que falta incluye casi todos los términos y eventos y a varios DJs de noches largas

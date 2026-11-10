@@ -19,6 +19,7 @@ CHANGELOG:
   - 2026-11-09: «Comercial» según Gabriel: sin listas de dudosos ni de eventos; las semillas no salen por etiqueta.
   - 2026-11-09: bajar --uso pares toma solo los de pares y --por-dj da un piloto variado; medir cuenta temas y pares en
     la biblioteca con la normalización de zona_sets.py.
+  - 2026-11-10: buscar y bajar guardan la página donde paran en paros/ (el 403 de esa noche no dejó rastro).
 """
 from __future__ import annotations
 
@@ -31,6 +32,7 @@ import json
 import math
 import re
 import sys
+import time
 import unicodedata
 from collections import Counter
 from pathlib import Path
@@ -544,6 +546,16 @@ def _json(ruta: Path, dato) -> None:
     ruta.write_text(json.dumps(dato, ensure_ascii=False, indent=1), encoding="utf-8", newline="")
 
 
+def guardar_paro(base: Path, ident: str, pagina, problema: str) -> None:
+    """La página donde se paró, para ver después qué mostró el sitio: si era un bloqueo de todo el sitio o de esa página."""
+    try:
+        contenido = pagina.content()
+    except Exception:  # después de un corte puede no haber página; esto es solo un rastro, no debe tapar la parada
+        contenido = ""
+    _gz(base / "paros" / f"{time.strftime('%Y%m%d_%H%M%S')}_{ident}.html.gz",
+        f"<!-- {problema} | {pagina.url} -->\n{contenido}")
+
+
 # ---------------------------------------------------------------- comandos
 
 
@@ -569,6 +581,7 @@ def cmd_buscar(args) -> int:
             pagina.wait_for_timeout(ASENTAR_MS)
             problema = problema_de(pagina, estado)
             if problema:
+                guardar_paro(args.root / "1001tracklists", consulta["id"], pagina, problema)
                 print(f"PARO en {consulta['id']}: {problema}. No sigo ni reintento.", flush=True)
                 return 2
             raw = pagina.content()
@@ -664,10 +677,12 @@ def cmd_bajar(args) -> int:
                 # El estado de la respuesta final: una redirección a otro tracklist (movido o fusionado) es normal.
                 estado["valor"] = respuesta.status
             if "/tracklist/" not in pagina.url:
+                guardar_paro(base, fila["id"], pagina, "fuera de /tracklist/")
                 print(f"PARO en {fila['id']}: me llevó a {pagina.url[:120]}. No sigo ni reintento.", flush=True)
                 return 2
             problema = problema_de(pagina, estado)
             if problema:
+                guardar_paro(base, fila["id"], pagina, problema)
                 print(f"PARO en {fila['id']}: {problema} ({pagina.url[:120]}). No sigo ni reintento.", flush=True)
                 return 2
             if pagina.url.split("?")[0] != (BASE + fila["ruta"]).split("?")[0]:
@@ -675,6 +690,7 @@ def cmd_bajar(args) -> int:
             raw = pagina.content()
             dato = parsear_set(raw)
             if not dato["temas"]:
+                guardar_paro(base, fila["id"], pagina, "sin temas")
                 print(f"PARO en {fila['id']}: la página no trae temas. No sigo.", flush=True)
                 return 2
             _gz(base / "sets" / f"{fila['id']}.html.gz", raw)
