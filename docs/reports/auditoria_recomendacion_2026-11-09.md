@@ -141,7 +141,7 @@ perfecta tendría 0,23 en «las dos».
 | La suma con pesos iguales supera a CLAP crudo en el acierto en 30 de D1 | EVIDENCIA OBSERVADA, exploratoria | 11,4-12,7 % frente a 9,0 %; una de tres pasa p < 0,05 (0,006); más de diez variantes miradas |
 | En sets de otros DJs, MAEST, estilos y las fusiones separan mejor «mismo set» de azar del mismo BPM | EVIDENCIA OBSERVADA | D3 × biblioteca, 79 pares, intervalos por sets que no tocan 0 |
 | Parte de la ventaja en D1 es tempo | EVIDENCIA OBSERVADA | Estilos −0,37 con la diferencia de BPM; a ±8 BPM la ventaja sigue (p 0,014 y 0,059), a ±4 no se distingue |
-| La fusión da una lista de Parecidos mejor | HIPÓTESIS | La deciden los pares de 1001Tracklists × biblioteca por DJ, Bedrock con MAEST y la escucha E12 |
+| La fusión da una lista de Parecidos mejor | HIPÓTESIS | La deciden los pares de 1001Tracklists × biblioteca por DJ, Bedrock con MAEST y la escucha E12 [REEMPLAZADO 2026-11-09 por el piloto de D5 (plan, sección 12.8): ese cruce da 11 de 1206 temas, ningún par consecutivo y 5 pares de un mismo set; deciden Bedrock con MAEST, la escucha E12 y, si Gabriel lo aprueba, el audio de los temas de los sets] |
 | Blanquear CLAP o quitarle los 3 primeros componentes empeora | EVIDENCIA OBSERVADA | 5,7-6,6 % frente a 9,0 %, p 0,01 a 0,09; quitar solo el primero no se distingue (8,1 %, p 0,42) |
 | El agente de conceptos ordena solo por texto; del tema que suena usa el filtro de BPM ±20 cuando el concepto lo pide, y no aplica la energía ni las frases negativas | EVIDENCIA OBSERVADA | `conceptos_agente.py` en el commit `73d042d`: `resolver` (`bib.matrix @ query`) y `filtrar`; no se corrió |
 | Una lista «solo texto» se parece a la referencia como una al azar | EVIDENCIA OBSERVADA en el banco exploratorio | 0,097 frente a 0,101 |
@@ -203,6 +203,9 @@ perfecta tendría 0,23 en «las dos».
   los modelos, y P12 pasa a aprender el peso de todos los factores]
 - **Datos para decidir**: Bedrock con MAEST extraído de sus 179 originales (el audio está en disco), D3 ×
   biblioteca, los pares de 1001Tracklists × biblioteca por DJ cuando lleguen, y D1 informado aparte.
+  [REEMPLAZADO 2026-11-09 por el piloto de D5 (plan, sección 12.8): el cruce de 1001Tracklists con la
+  biblioteca casi no da pares; lo que da son pares consecutivos en texto, que con metadatos de Beatport
+  sirven para los pesos de BPM, tonalidad y género, y el juez de los modelos necesita audio]
 - **Juez**: E12, diez temas principales, CLAP crudo frente a la fusión, listas enteras a ciegas.
 - **En vivo no cambia la arquitectura**: la suma de cosenos por vista es el producto punto de los vectores
   concatenados y escalados. El índice lleva un vector más largo y el lado vivo sigue con la biblioteca

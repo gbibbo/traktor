@@ -14,7 +14,7 @@ ideas P8 a P10, T18 a T22 y M5. Las marcas «(adenda 11-08)» son suyas. Para im
 Adenda 2026-11-09 (auditoría, aprobada por Gabriel; DECISIONS 2026-11-09, «algoritmo de recomendación»):
 sección 12. Parecidos como zona con varias vistas, conceptos en dos casos de uso (sin tema de referencia y con
 el set en curso), un banco local al estilo del paper «Guided Music Retrieval» y el cómputo pesado en gpuq y
-Drive. Ideas P11 a P13, T23 a T30, D9 y H1; medidas E13 y E14. Las marcas «(auditoría 11-09)» y «(adenda
+Drive. Ideas P11 a P13 (con P12a y P12b), T23 a T30, M6, D9 y H1; medidas E13 y E14. Las marcas «(auditoría 11-09)» y «(adenda
 11-09)» son suyas. Fundamento: `docs/reports/auditoria_recomendacion_2026-11-09.md`. Para implementarla desde
 un chat nuevo: `docs/plans/PROMPT_FUSION_Y_CONCEPTOS.md`.
 
@@ -956,8 +956,8 @@ segundo caso sin concepto.
 
 | Id | Idea | Origen | Contrato | Depende de | Etapa | Estado |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| P11 | Fusión de vistas para Parecidos: CLAP centrado, MAEST capa 7 centrado y estilos Discogs, cada coseno en desvíos de su distribución, sumados; pesos iguales de partida; EffNet-Discogs como cuarta vista cuando exista para `musica` | Auditoría 11-09; G6; Tabla I del paper | Tema (vector fusionado, índice versión 4); Comp `clap` | Representaciones ya extraídas; MAEST de los originales de Bedrock | 12.5, unidad 1 | Exploratorio medido: en D1 de 9,0 % a 11,4-12,7 %; AUC en D3 × biblioteca de 0,66 a 0,74-0,77. Falta Bedrock, D5 y E12 |
-| P12 | La ecuación de Parecidos, aprendida: regresión logística sobre los factores (parecido por vista, género, tonalidad, BPM), entrenada con pares de un mismo set profesional frente a pares al azar dentro de los filtros en vivo, con los DJs de prueba fuera del entrenamiento. Da el peso de cada factor, una probabilidad de «van juntos» para el campo `seguro` y dónde cortar la lista. Con los pares al azar igualados en BPM se mide aparte lo que aportan los modelos (E14). Es M3 en su forma más simple, adelantado; el valor de la tonalidad por paso puede venir de P7 | Gabriel 11-09 (una ecuación pondera el peso de cada variable); auditoría 11-09 | Eval; Perfil Parecidos (pesos); registro I3 | Pares de sets profesionales en el espacio de la biblioteca (D3 × biblioteca, Bedrock, D5), con BPM y tonalidad de los dos temas | Unidad 1 | Pendiente. Los pesos por defecto siguen en solo CLAP hasta que Gabriel los cambie |
+| P11 | Fusión de vistas para Parecidos: CLAP centrado, MAEST capa 7 centrado y estilos Discogs, cada coseno en desvíos de su distribución, sumados; pesos iguales de partida; EffNet-Discogs como cuarta vista cuando exista para `musica` | Auditoría 11-09; G6; Tabla I del paper | Tema (vector fusionado, índice versión 4); Comp `clap` | Representaciones ya extraídas; MAEST de los originales de Bedrock | 12.5, unidad 1 | Exploratorio medido: en D1 de 9,0 % a 11,4-12,7 %; AUC en D3 × biblioteca de 0,66 a 0,74-0,77. Falta Bedrock, D5 y E12 [REEMPLAZADO 2026-11-09 por el piloto de D5 (sección 12.8): el cruce de D5 con la biblioteca casi no da pares; faltan Bedrock, E12 y, si Gabriel lo aprueba, el audio de los temas de los sets] |
+| P12 | La ecuación de Parecidos, aprendida: regresión logística sobre los factores (parecido por vista, género, tonalidad, BPM), entrenada con pares de un mismo set profesional frente a pares al azar dentro de los filtros en vivo, con los DJs de prueba fuera del entrenamiento. Da el peso de cada factor, una probabilidad de «van juntos» para el campo `seguro` y dónde cortar la lista. Con los pares al azar igualados en BPM se mide aparte lo que aportan los modelos (E14). Es M3 en su forma más simple, adelantado; el valor de la tonalidad por paso puede venir de P7 | Gabriel 11-09 (una ecuación pondera el peso de cada variable); auditoría 11-09 | Eval; Perfil Parecidos (pesos); registro I3 | Pares de sets profesionales en el espacio de la biblioteca (D3 × biblioteca, Bedrock, D5), con BPM y tonalidad de los dos temas [REEMPLAZADO 2026-11-09 por el piloto de D5 (sección 12.8): D5 cruzado con la biblioteca no da pares; los pesos de BPM, tonalidad y género salen de los pares consecutivos de D5 con metadatos de Beatport (P12a), y los de los modelos, de las fuentes con audio (P12b)] | Unidad 1 | Pendiente. Los pesos por defecto siguen en solo CLAP hasta que Gabriel los cambie |
 | P13 | Consenso entre vistas como marca de seguridad: cuántas vistas ponen al candidato entre sus K primeros | Auditoría 11-09 | Registro I3 | P11 | Unidad 1 | Exploratorio medido (11,6-11,8 % en D1) |
 | T23 | Con el set en curso, concepto en dos etapas: candidatos = zona de Parecidos; orden = puntaje del concepto relativo al del tema principal; largo variable con piso de confianza | Auditoría 11-09; Gabriel 11-09 (primero los parecidos, sobre esa lista el concepto) | Perfil de concepto; Comp `texto_clap` | P11; T24 o T25 | Unidad 4 | Exploratorio medido: conserva más parecido que la suma con el mismo cumplimiento |
 | T24 | Puntaje de texto: varias frases por concepto, CLAP centrado en la biblioteca y contraste contra un banco fijo de descripciones | Auditoría 11-09; T18 | Comp `texto_clap` | Codificador de texto; `src/v4/evaluation/clap_texto.py` (otra sesión, reglas de redacción de frases) | Unidad 4 | Exploratorio medido: AUC contra el género de Beatport de 0,64 a 0,68 |
@@ -977,7 +977,9 @@ Marcas en su lugar: G6, P2, P8, P9, P10, T17, T18 y T19.
 Criterios de salida comunes: los de la sección 5 y los de la 11.4.
 
 1. **Fusión de vistas medida como código** (P11, P12, P13, E14): reproduce la tabla de la auditoría, suma los
-   originales de Bedrock con MAEST y, cuando lleguen, los pares de D5 por DJ.
+   originales de Bedrock con MAEST y, cuando lleguen, los pares de D5 por DJ [REEMPLAZADO 2026-11-09 por el
+   piloto de D5 (sección 12.8): esos pares casi no existen; la unidad sigue con Bedrock y D3 × biblioteca, y
+   suma P12a].
 2. **Escucha E12 de Parecidos**: CLAP crudo frente a la fusión. Si Gabriel la prefiere, índice versión 4 y
    campo `seguro`; el lado vivo no cambia de arquitectura.
 3. **Essentia** (V6, T19): prueba chica y después la biblioteca; EffNet como cuarta vista.
@@ -1011,7 +1013,8 @@ Después siguen las etapas 4 y 5 del plan (M3, M4) como estaban, con H1 para lo 
 
 Las afirmaciones etiquetadas de esta adenda están en la tabla «Afirmaciones» del informe de auditoría, con su
 revisión hostil; no se repiten acá. Lo que sigue siendo HIPÓTESIS: que la fusión dé una lista mejor (lo
-deciden Bedrock, D5 y E12), que un mapa o una fusión entrenada sirva para conceptos escritos libremente (E13
+deciden Bedrock, E12 y, si se consigue, el audio de los temas de los sets; D5 cruzado con la biblioteca no
+alcanza, sección 12.8), que un mapa o una fusión entrenada sirva para conceptos escritos libremente (E13
 con conceptos no vistos) y que las cabezas de Essentia sirvan de coordenada (E11).
 
 Preguntas para Gabriel:
@@ -1019,3 +1022,37 @@ Preguntas para Gabriel:
 2. Dónde corre el despachador de gpuq y cuánto espacio libre tiene el Drive.
 3. Si el umbral de «pesado» (alrededor de una hora de CPU o de 10 GB de disco nuevo) y el OK previo al primer
    envío de cada tipo de trabajo quedan así.
+4. El audio de los temas de los sets (D6), que es decisión suya: sección 12.8.
+
+### 12.8 El piloto de D5 y el juez de la ecuación (2026-11-09, noche)
+
+La sesión de 1001Tracklists corrió el piloto de 30 sets (commit `45c0c52`). La auditoría rehízo las cuentas
+desde `D:\TRAKTOR ML datos\dj_sets\1001tracklists\medidas.csv` (EVIDENCIA OBSERVADA): 30 sets, uno por DJ,
+tomados de arriba de la tabla (no es una muestra al azar); 1206 temas y 1092 pares consecutivos identificados.
+
+| Dato del piloto | Valor |
+| :--- | :--- |
+| Temas que están en la biblioteca (artista y título con la versión) | 11 de 1206 (0,9 %), en 7 sets |
+| Pares consecutivos con los dos temas en la biblioteca | 0 |
+| Pares de un mismo set con los dos temas en la biblioteca | 5, en 3 sets |
+| Temas de artistas que sí están en la biblioteca | 33 % (media por set; mediana 29,5 %) |
+| Temas con enlace a Beatport en la página | 70 % (media por set; mediana 80 %) |
+| Temas con enlace a YouTube en la página | 59 % (media por set) |
+
+**Qué cambia.** La sección 12 contaba con los pares de D5 cruzados con la biblioteca como juez con otros DJs.
+Ese juez no existe: los DJs de D5 casi no tocan los temas de la biblioteca. Las marcas están en P11, P12, 12.5
+y 12.7. Lo que D5 sí da, sin audio, son unos 36 pares consecutivos identificados por set, con su orden.
+
+| Id | Idea | Origen | Contrato | Depende de | Etapa | Estado |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| P12a | Los pesos de los factores que no son modelos (BPM, tonalidad, género) se aprenden de los pares consecutivos de D5 con metadatos de Beatport: cuántas veces más que al azar aparece cada paso de tonalidad (P7), cada diferencia de BPM y cada paso entre géneros (T1). Solo texto; DJs de prueba fuera del entrenamiento | Auditoría 11-09, por el piloto de D5; P7, T1 | Sets; Comp `bpm`, `clave`, `genero`, `transicion` | C1 sobre los temas de D5 (el 70 % trae enlace a Beatport); que Gabriel decida sobre la señal `ai-train=no` de Beatport (sección 6, C1) | Unidad 1, cuando D5 esté bajado | Pendiente |
+| P12b | Los pesos de los modelos (CLAP, MAEST, estilos) y su peso frente a los demás factores se aprenden donde hay audio de los dos temas: Bedrock, D3 × biblioteca, D7 validado con su control de dominio y, si Gabriel lo aprueba, D6 | Auditoría 11-09, por el piloto de D5 | Eval; Perfil Parecidos | Audio de los dos temas del par | Unidad 1 | Pendiente. Con las fuentes de hoy es un juez chico: un DJ con originales (Bedrock) y 79 pares de D3 |
+| M6 | Vector de sets por artista: como M1, pero con el artista como unidad, porque los temas casi no se repiten entre sets y los artistas sí (el 33 % de los temas del piloto es de artistas de la biblioteca). Da un factor «artistas que los DJs ponen juntos» para la ecuación, solo con texto | Auditoría 11-09; S8 de la sección 6; M1 | Tema (vector por artista); Comp `set2vec` | D3 y D5 (texto) | Después de la unidad 1 | Pendiente. Riesgo: un artista no suena siempre igual; se mide como un factor más, con el control de popularidad de E7 |
+
+**D6, el audio de los temas de los sets, pasa de la etapa 5 a ser la decisión que destraba el juez.** Es de
+Gabriel (DECISIONS 2026-09-12, punto 3) y es trabajo pesado (H1). Propuesta de la auditoría, sin decidir:
+un piloto con los 30 sets ya bajados, que mida antes de escalar (a) si el embedding de un avance de Beatport o
+de un audio de YouTube cae cerca del embedding del mismo tema en la biblioteca, usando temas de la biblioteca
+como verdad; (b) qué parte de los 1206 temas se consigue; (c) tiempo, disco y pedidos por tema. Con eso se
+estima el total para los 1549 candidatos. Un cruce más laxo, sin la versión, no sirve de juez: versiones
+distintas de un tema suenan distinto (en D3, 170 pares con el cruce laxo frente a 81 con el estricto, `zona_sets_2026-11-08.md`).

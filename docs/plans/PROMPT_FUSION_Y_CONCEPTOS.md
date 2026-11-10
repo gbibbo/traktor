@@ -80,7 +80,8 @@ De ahí sale el diseño:
 2. `docs/DECISIONS.md`, de la entrada 2026-11-06 a la más reciente. En «2026-11-09 (algoritmo de
    recomendación)» el punto 1 está refutado por el 8: léelos juntos.
 3. `docs/plans/recomendacion_playlists_plan.md`: la sección 12 primero (casos de uso, ideas P11 a P13, T23 a
-   T30, D9 y H1, medidas E13 y E14, orden, cómputo pesado); después la 3 (contratos), la 4 (inventario) y la
+   T30, M6, D9 y H1, medidas E13 y E14, orden, cómputo pesado, y en 12.8 lo que cambió con el piloto de
+   1001Tracklists); después la 3 (contratos), la 4 (inventario) y la
    11. Nada se borra; lo que cambia de lectura se marca en su lugar.
 4. `docs/reports/auditoria_recomendacion_2026-11-09.md` entero, con su adenda. Las tablas dan los números que
    tienes que reproducir; los scripts con que se midieron están fuera de Git en
@@ -123,8 +124,15 @@ rutas explícitas, y el bloque CHECKPOINT.
   los filtros en vivo, con los DJs de prueba fuera del entrenamiento. Informa el peso de cada factor, AUC
   fuera de muestra, calibración y la comparación con pesos iguales y con solo CLAP. Los sets de Gabriel se
   informan aparte y no ajustan nada.
-- Cuando la otra sesión termine la importación de 1001Tracklists, repite todo con sus pares cruzados con la
-  biblioteca, por DJ. No edites sus archivos.
+- No esperes un juez de 1001Tracklists cruzado con la biblioteca: en el piloto de 30 sets hay 11 de 1206
+  temas en la biblioteca, ningún par consecutivo y 5 pares de un mismo set (plan, sección 12.8). Para los
+  modelos, el juez con otros DJs es chico: Bedrock y los 79 pares de D3. Dilo así en el informe.
+- Lo que 1001Tracklists sí da son pares consecutivos de profesionales en texto. Con los metadatos de Beatport
+  de esos temas se aprenden los pesos de BPM, tonalidad y género (P12a). Antes de pedir nada a Beatport,
+  pregunta a Gabriel: su `robots.txt` declara `ai-train=no` y la decisión es suya. No edites los archivos de
+  la sesión de 1001Tracklists.
+- El audio de los temas de los sets (D6) destrabaría el juez de los modelos. Es decisión de Gabriel y trabajo
+  pesado: no lo empieces sin que lo pida.
 
 **2. Ronda de escucha de Parecidos (E12).**
 - Unos 10 temas principales; para cada uno, dos listas enteras a ciegas y en orden al azar: la de hoy (solo
@@ -238,7 +246,7 @@ Sin código:
    de factores y por qué los modelos se miden con el tempo controlado, los dos casos de uso de los conceptos, y
    por qué el banco va antes que el método.
 2. Qué vas a verificar en los artefactos antes de la unidad 1 y qué podría cambiar el diseño (por ejemplo,
-   que los números de la auditoría no se reproduzcan, o cuántos pares da el cruce de 1001Tracklists).
+   que los números de la auditoría no se reproduzcan, o que Bedrock con MAEST contradiga a los sets de Gabriel).
 3. Las preguntas que necesitas contestadas: quién elige los temas principales de la escucha y si Gabriel
    quiere además marcar tema por tema lo que no pondría; dónde corre el despachador de gpuq y cuánto espacio
    tiene el Drive.
