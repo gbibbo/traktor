@@ -658,12 +658,20 @@ def cmd_bajar(args) -> int:
     with navegador(args.perfil, args.esperar_login) as (pagina, estado):
         for indice, fila in enumerate(pendientes, 1):
             pagina.wait_for_timeout(PAUSA_MS)
-            pagina.goto(BASE + fila["ruta"], wait_until="domcontentloaded", timeout=TIMEOUT_MS)
+            respuesta = pagina.goto(BASE + fila["ruta"], wait_until="domcontentloaded", timeout=TIMEOUT_MS)
             pagina.wait_for_timeout(ASENTAR_MS)
+            if respuesta is not None:
+                # El estado de la respuesta final: una redirección a otro tracklist (movido o fusionado) es normal.
+                estado["valor"] = respuesta.status
+            if "/tracklist/" not in pagina.url:
+                print(f"PARO en {fila['id']}: me llevó a {pagina.url[:120]}. No sigo ni reintento.", flush=True)
+                return 2
             problema = problema_de(pagina, estado)
             if problema:
-                print(f"PARO en {fila['id']}: {problema}. No sigo ni reintento.", flush=True)
+                print(f"PARO en {fila['id']}: {problema} ({pagina.url[:120]}). No sigo ni reintento.", flush=True)
                 return 2
+            if pagina.url.split("?")[0] != (BASE + fila["ruta"]).split("?")[0]:
+                print(f"   {fila['id']} redirigido a {pagina.url[:120]}", flush=True)
             raw = pagina.content()
             dato = parsear_set(raw)
             if not dato["temas"]:
