@@ -8,22 +8,69 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 
 ## 2026-11-09 (algoritmo de recomendación)
 
-1. **El parecido de la playlist de D0 no cuenta BPM ni tonalidad** (Gabriel: «esos dos parámetros se pueden ajustar a
+1. [REFUTADO 2026-11-09 por la aclaración de Gabriel del mismo día (punto 8): el agente leyó mal. BPM y tonalidad sí
+   entran al puntaje final, como factores propios de la ecuación; lo que no hacen es usarse dentro de CLAP y de los
+   demás modelos] **El parecido de la playlist de D0 no cuenta BPM ni tonalidad** (Gabriel: «esos dos parámetros se pueden ajustar a
    posteriori»). La playlist son temas parecidos al que suena y que con seguridad van a sonar bien mezclados con él.
    - Cómo (agente auditor): BPM y tonalidad no entran al puntaje de parecido y toda medida de parecido lleva control de
-     tempo. Los filtros en vivo (BPM ±20 y tonalidad a ±2 semitonos; 2026-11-06, punto 7) quedan como están hasta que
-     Gabriel diga otra cosa: es una pregunta abierta para él.
+     tempo. [REEMPLAZADO 2026-11-09 por el punto 6: Gabriel contestó que los filtros siguen como están] Los filtros en
+     vivo (BPM ±20 y tonalidad a ±2 semitonos; 2026-11-06, punto 7) quedan como están hasta que Gabriel diga otra cosa:
+     es una pregunta abierta para él.
 2. **Las otras playlists redirigen el set hacia un concepto escrito en lenguaje natural; cómo se eligen esos temas es
    una pregunta abierta a optimizar** (Gabriel), con el paper «Guided Music Retrieval» (Brandão et al., enviado a IEEE
    TASLP en 2026) como inspiración.
 3. **La sesión auditora propone la estrategia y entrega el prompt para un agente implementador** (Gabriel lo pidió).
-   - Propuesta (agente, pendiente de que Gabriel la apruebe): Parecidos como zona segura con varias vistas (CLAP, MAEST
+   - [REEMPLAZADO 2026-11-09 por el punto 4: aprobada, con los dos casos de uso del punto 5] Propuesta (agente,
+     pendiente de que Gabriel la apruebe): Parecidos como zona segura con varias vistas (CLAP, MAEST
      capa 7 y estilos Discogs sumados; probabilidad de «van juntos» calibrada con sets profesionales), y cada concepto
      como un paso dentro de esa zona, con el puntaje de concepto elegido en un banco local construido como el del paper.
    - Informe con lo medido (exploratorio, sin escucha): `docs/reports/auditoria_recomendacion_2026-11-09.md`. Prompt:
      `docs/plans/PROMPT_FUSION_Y_CONCEPTOS.md`.
    - La candidata a energía del punto 2 de «conceptos desde el teléfono» (Energy de Mixed In Key) choca con el punto 3
      del 2026-11-07: Gabriel la descartó. La coordenada sale de T19 y T20 del plan, con E11 de juez.
+4. **Gabriel aprueba la estrategia** («Por lo demás, apruebo tu estrategia»), con la precisión del punto 5. El detalle
+   queda en la sección 12 de `docs/plans/recomendacion_playlists_plan.md`.
+5. **Las playlists de concepto tienen dos casos de uso** (Gabriel).
+   - **Con el set en curso**: hay un historial de lo que se viene tocando, y conviene usarlo como fuente de información
+     para la trayectoria del tema siguiente. Si se filtra por concepto, primero se eligen los temas parecidos que van
+     bien con el principal y sobre esa lista se filtra por el concepto.
+   - **Antes de empezar a tocar**: no hay tema de referencia. El DJ pide una playlist con «vibras africanas» o «música
+     de muertos», y bajo esa etiqueta se agrupan los temas que transmiten ese concepto.
+   - Si empieza por el segundo caso, elige un tema de esa lista y la iteración siguiente ya es el primero: hay tema
+     principal y los que suenen a continuación tienen que ser parecidos.
+   - Cómo (agente): el caso lo decide el estado. Sin tema principal, la lista se ordena solo por el puntaje del concepto
+     sobre toda la biblioteca, con un piso de confianza y largo variable. Con tema principal, zona de Parecidos (con el
+     historial del set) y, dentro, orden por el concepto. El banco de conceptos mide los dos modos.
+6. **Los filtros en vivo siguen como están** (Gabriel): BPM ±20 y tonalidad a ±2 semitonos no se quitan.
+7. **Todo lo pesado en procesamiento o en disco se procesa con las GPU de gpuq y con el Google Drive de Gabriel**
+   (Gabriel), el de su cuenta de trabajo. La dirección no se escribe acá: el repositorio es público.
+   - Qué es (agente, leído de github.com/gbibbo/gpuq el 2026-11-09): una cola de trabajos sobre los niveles gratuitos de
+     Colab (una T4, un trabajo por vez) y Kaggle (unas 30 horas de GPU por semana, sesiones de hasta 12 horas). Un
+     ordenador siempre encendido los lanza y los relanza; el código se toma del repositorio en la rama o commit pedido;
+     los datos y resultados van por `rclone` a un remoto, por defecto `gdrive:gpuq`; los trabajos tienen que poder
+     retomarse desde un punto de control.
+   - Cómo (agente): lo liviano sigue en local (tests, bancos sobre embeddings ya calculados, texto de CLAP, extracciones
+     de pocos temas). Va a gpuq lo que pase de alrededor de una hora de CPU en este escritorio o de unos 10 GB de disco
+     nuevo; el umbral es del agente y Gabriel lo corrige. Antes del primer envío de cada tipo de trabajo: prueba chica
+     en CPU, qué necesita la máquina remota, horas de GPU estimadas frente a la cuota, espacio en Drive y el OK de
+     Gabriel en el chat. Las credenciales las pone Gabriel con `gpuq setup`; no pasan por el agente. Nada de lo subido
+     es público: ni datasets ni notebooks públicos en Kaggle, ni enlaces compartidos de Drive.
+   - Estado (agente, 2026-11-09): en este escritorio no encontré `gpuq` ni `rclone` (no están en el PATH, el Python de
+     la Store no tiene el módulo y no hay una carpeta `gpuq` en `C:\VS projects`, en la carpeta del usuario, en
+     Documentos ni en `D:\`). No miré otros ordenadores ni dónde corre el despachador.
+   - Reemplaza al punto 4 del 2026-09-12 (GPU solo por trabajos gratuitos de Kaggle).
+8. **El puntaje de Parecidos es una ecuación que pondera varios factores** (Gabriel, aclarando el punto 1: «quizás fui
+   confuso»). En el listado de parecidos influyen modelos como CLAP y los demás, el género, la tonalidad, el BPM y
+   otros; una ecuación pondera el peso relativo de cada variable y da el puntaje final con el que se ordenan las
+   sugerencias. BPM y tonalidad se usan después, como factores propios: no se usan dentro de CLAP y de los demás
+   modelos.
+   - Cómo (agente): es la arquitectura que ya tiene el recomendador (componentes `clap`, `bpm`, `clave`, `genero` y
+     `tiv`, cada uno con su peso; 2026-11-06, punto 9). Las vistas nuevas (MAEST capa 7, estilos Discogs) son factores
+     nuevos de esa ecuación.
+   - Los modelos se miden con el tempo controlado, para ver qué aportan aparte del BPM: los estilos Discogs llevan
+     tempo (−0,37 con la diferencia de BPM) y contarían dos veces lo que ya cuenta el factor BPM.
+   - Los pesos de todos los factores se fijan juntos, con pares de sets profesionales fuera de muestra y con la escucha
+     de Gabriel (plan, P12). Hoy el peso por defecto es solo CLAP (2026-11-06) y no cambia hasta que él lo diga.
 
 ## 2026-11-09 (conceptos desde el teléfono)
 
@@ -781,7 +828,9 @@ cambiarlo. Evidencia: `docs/reports/traktor_concept_ai_cloudflare_2026-11-09.md`
    plan v6 ("evidencia débil, nunca feature en Régimen 1"). Implica resolver de dónde se
    descarga el audio de esos temas, cómo y dónde se guarda; esas cuestiones se consultan con
    Gabriel antes de implementar, no se descartan por dificultad.
-4. **Cómputo**: CPU local por defecto; GPU solo mediante trabajos gratuitos de Kaggle, a
+4. [REEMPLAZADO 2026-11-09 por la decisión de Gabriel de esa fecha (algoritmo de recomendación, punto 7): lo
+   liviano sigue en CPU local; lo pesado en procesamiento o en disco va a gpuq (Colab y Kaggle gratuitos) y a
+   su Google Drive] **Cómputo**: CPU local por defecto; GPU solo mediante trabajos gratuitos de Kaggle, a
    configurar cuando haga falta. Surrey HPC y Lightning AI ya no existen.
 5. **Base de código**: se continúa en `main`. La rama `feature/dj-clustering-v1` y `legacy/`
    son cantera de ideas (ver `docs/reports/scientific_review_2026-09-12.md`, sección 6).

@@ -50,7 +50,7 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
 5. Recomendación en vivo (DECISIONS 11-06/07/08): parecidos (`recomendador.py`, D#0+D0). Plan § 11; A1
-   hecha. Auditoría 11-09: sigue `PROMPT_FUSION_Y_CONCEPTOS.md`, si Gabriel lo aprueba.
+   hecha. Estrategia 11-09 aprobada: plan § 12, prompt `PROMPT_FUSION_Y_CONCEPTOS.md`; lo pesado, a gpuq.
    GABRIEL: Traktor, «TRAKTOR ML sin tonalidad», Analyze solo Key. TIV aparte.
 6. Conceptos desde el teléfono (Cloudflare): Worker v4 y agente `conceptos_agente.py` probados en local; falta
    publicarlos. GABRIEL: `wrangler login` (`cloudflare/README.md`).

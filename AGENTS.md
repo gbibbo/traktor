@@ -96,6 +96,8 @@ Before any paid GPU use:
 
 If a GPU failure can be reproduced on CPU, return to CPU for debugging. Do not use paid GPU time as a debugger.
 
+Heavy work goes to gpuq and Google Drive (Gabriel, `docs/DECISIONS.md` 2026-11-09, recommendation algorithm, point 7). Anything heavy in processing or in disk is not run on the local workstation: it is queued on gpuq (https://github.com/gbibbo/gpuq, a job queue over the free Colab and Kaggle GPU tiers) with its data on Gabriel's Google Drive through gpuq's storage remote. Light work stays local as described above. A gpuq job is still never submitted automatically: validate the code path on CPU with a small sample, state what needs the remote machine, estimate GPU hours against the free quota and the Drive space, and get Gabriel's approval in the current conversation before the first submission of each kind of job. Jobs must be resumable from a checkpoint. Gabriel enters the credentials himself with `gpuq setup`; they never pass through the agent. Nothing uploaded may be public: no public Kaggle datasets or notebooks, no shared Drive links.
+
 Before any long run (anything that would keep the machine busy for more than a few minutes, CPU or GPU), first run the same command on a small folder of tracks (for extraction: `extract_representations.py --folder "<subfolder>"`, which shares the cache) and check the output: no failures, finite values, plausible results, time per track. Only then launch the full run, with `--low-priority` so Gabriel can keep using Rekordbox/Traktor on the same machine.
 
 ## Coding standards

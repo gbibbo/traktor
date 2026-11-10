@@ -3,7 +3,9 @@
 Pedido de Gabriel: revisar todo lo hecho sobre el algoritmo de sugerencia (sin la interfaz), entender el
 problema y las opciones, y proponer la estrategia más prometedora para (1) la playlist de D0, temas
 parecidos al que suena y que con seguridad van a sonar bien mezclados con él, sin contar BPM ni tonalidad
-porque se ajustan después, y (2) las playlists que redirigen el set hacia un concepto escrito en palabras.
+porque se ajustan después [REFUTADO 2026-11-09 por la aclaración de Gabriel (adenda al final): leí mal; BPM y
+tonalidad sí puntúan, como factores propios de la ecuación, y lo que no hacen es usarse dentro de CLAP y de
+los demás modelos], y (2) las playlists que redirigen el set hacia un concepto escrito en palabras.
 Inspiración pedida: «Guided Music Retrieval: Music Search with Multimodal Queries» (Brandão, Silva,
 Alonso-Jiménez y Bogdanov; manuscrito enviado a IEEE TASLP, 16-07-2026, todavía sin revisión por pares).
 
@@ -29,7 +31,9 @@ pasó por el oído de Gabriel. Sirven para elegir qué construir primero, no par
    es exploratoria. Blanquear CLAP o quitarle componentes principales empeora.
 2. **«Seguro» se puede definir como acuerdo entre vistas independientes**, y calibrar con los pares de
    sets profesionales. El radio de zona (P8) solo corta una lista ya ordenada; el acuerdo cambia el orden.
-3. **Las playlists de concepto hoy ignoran lo que suena.** El agente de conceptos
+3. **Las playlists de concepto hoy ignoran lo que suena.** [REEMPLAZADO 2026-11-09 por los dos casos de uso de
+   Gabriel (adenda al final): sin tema de referencia, ordenar solo por el concepto es lo que se quiere; la
+   objeción vale para el caso con el set en curso] El agente de conceptos
    (`tools/traktor_live/conceptos_agente.py`, commit `73d042d` de hoy) ordena por el coseno entre el texto y el
    audio. En un banco al estilo del paper, esa lista se parece al tema de referencia lo mismo que una lista
    al azar (10 %). La suma de audio y texto (lo que el plan llamaba T18) tampoco supera a «solo audio» en
@@ -161,8 +165,10 @@ perfecta tendría 0,23 en «las dos».
   probadas suben (+1,9 a +3,7 puntos; la sexta, CLAP con peso doble más MAEST, no está en la tabla), que
   D3 × biblioteca, de otros DJs y con el BPM controlado, va en la misma dirección, y que las vistas sueltas
   no suben. Aun así es exploratorio y D1 es referencia con ruido (E6).
-- **¿Es tempo?** En parte. Gabriel pidió dejar BPM y tonalidad fuera. Toda medida de la fusión tiene que
-  llevar el control de tempo, y hay que probar los estilos con el tempo descontado.
+- **¿Es tempo?** En parte. Gabriel pidió dejar BPM y tonalidad fuera [REFUTADO 2026-11-09 por su aclaración:
+  son factores propios de la ecuación; la parte de la ventaja que es tempo ya la cuenta el factor BPM, y por
+  eso los modelos se miden con el tempo controlado]. Toda medida de la fusión tiene que llevar el control de
+  tempo, y hay que probar los estilos con el tempo descontado.
 - **¿«Mismo set» es «suena bien mezclado»?** No. Es coherencia de estilo dentro de un set. Un par al azar
   del mismo BPM cruza géneros, y los estilos son predicciones de género: el AUC premia la coherencia de
   género. Si eso es lo que Gabriel quiere en Parecidos lo dice la escucha.
@@ -192,7 +198,9 @@ perfecta tendría 0,23 en «las dos».
 - **P13, consenso.** Cuántas vistas ponen al candidato entre sus K primeros. Es la marca de seguridad que no
   necesita entrenamiento.
 - **E14, control de tempo en toda medida de parecido**: azar del mismo BPM, pool a ±8 BPM y la correlación
-  de cada vista con la diferencia de BPM. BPM y tonalidad no entran al puntaje.
+  de cada vista con la diferencia de BPM. BPM y tonalidad no entran al puntaje. [REFUTADO 2026-11-09 por la
+  aclaración de Gabriel: entran, como factores propios de la ecuación; el control de tempo vale para medir
+  los modelos, y P12 pasa a aprender el peso de todos los factores]
 - **Datos para decidir**: Bedrock con MAEST extraído de sus 179 originales (el audio está en disco), D3 ×
   biblioteca, los pares de 1001Tracklists × biblioteca por DJ cuando lleguen, y D1 informado aparte.
 - **Juez**: E12, diez temas principales, CLAP crudo frente a la fusión, listas enteras a ciegas.
@@ -248,7 +256,7 @@ Para sumar al plan (sección 4 y sección 11) cuando Gabriel apruebe; nada de lo
 | P12 | Probabilidad calibrada de «van juntos» sobre los parecidos por vista; campo `seguro` y corte de lista | Auditoría 11-09; reemplaza al radio de P8 como definición de seguro | Ahora | Pendiente |
 | P13 | Consenso entre vistas como marca de seguridad | Auditoría 11-09 | Ahora | Exploratorio medido (11,6-11,8 %) |
 | E13 | Banco de composición local: parecido, concepto y las dos; adición y quita; conceptos vistos y no vistos | Paper GMR, Tabla V y sección VI | Ahora | Versión exploratoria medida |
-| E14 | Control de tempo en toda medida de parecido | Gabriel 11-09 (BPM y tonalidad se ajustan después) | Siempre | Vigente |
+| E14 | Control de tempo al medir los modelos | Gabriel 11-09 (BPM y tonalidad son factores propios de la ecuación, no se usan dentro de los modelos) | Siempre | Vigente |
 | T23 | Conceptos en dos etapas: zona de Parecidos y orden por el concepto relativo al tema que suena; largo variable | Auditoría 11-09; paper (parecido y modificación son dos condiciones) | Ahora | Exploratorio medido |
 | T24 | Puntaje de texto con varias frases, centrado y contraste contra un banco fijo | Auditoría 11-09; T18 | Ahora | Exploratorio medido |
 | T25 | Sondas supervisadas por concepto con etiqueta; techo del banco | `genre_model.py`, `clap_probe`; auditoría 11-09 | Ahora | Techo medido para género |
@@ -275,3 +283,25 @@ Cambios de estado propuestos:
   puntaje separada, para que el banco E13 y el agente usen la misma. La candidata a energía que anotó esa
   sesión (Energy de Mixed In Key; DECISIONS 2026-11-09, conceptos, punto 2) choca con la decisión de Gabriel
   del 2026-11-07, punto 3: no se usa.
+
+## Adenda del mismo día: respuestas de Gabriel
+
+Gabriel leyó el veredicto y contestó (DECISIONS 2026-11-09, «algoritmo de recomendación», puntos 4 a 8). El
+detalle quedó en la sección 12 del plan.
+
+1. **Aprueba la estrategia.**
+2. **El puntaje de Parecidos es una ecuación que pondera varios factores**: modelos como CLAP y los demás,
+   género, tonalidad, BPM. BPM y tonalidad se usan después, como factores propios, y no dentro de los modelos.
+   Yo había leído que quedaban fuera del puntaje: era un error mío y está marcado en su lugar. Lo medido no
+   cambia, porque se midió con el tempo controlado, que es como hay que medir un modelo cuando el BPM tiene su
+   propio factor. Cambia P12: aprende el peso de todos los factores, no solo el de las vistas.
+3. **Hay dos casos de uso para los conceptos.** Sin tema de referencia, antes de empezar a tocar, la playlist
+   agrupa los temas que transmiten el concepto («vibras africanas», «música de muertos»). Con el set en curso,
+   primero los parecidos que van bien con el tema principal y, sobre esa lista, el concepto; y el historial
+   del set es información para la trayectoria del tema siguiente. Las dos tablas de conceptos de este informe
+   corresponden a esos casos: «qué ordena el texto de CLAP» es el caso sin referencia (de los 30 primeros
+   cumple el 21 % con texto crudo y el 38 % con una sonda, contra el género de Beatport), y «referencia más
+   concepto» es el caso con el set en curso. En los dos, lo que hay que mejorar es el puntaje de concepto.
+4. **Los filtros en vivo siguen como están**: BPM ±20 y tonalidad a ±2 semitonos.
+5. **Lo pesado en procesamiento o en disco va a gpuq y a su Google Drive.** gpuq es una cola sobre los niveles
+   gratuitos de Colab y Kaggle. En este escritorio no encontré `gpuq` ni `rclone` instalados.

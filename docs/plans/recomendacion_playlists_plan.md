@@ -11,11 +11,12 @@ Adenda 2026-11-08 (auditoría, con Gabriel; DECISIONS 2026-11-08): sección 11, 
 ideas P8 a P10, T18 a T22 y M5. Las marcas «(adenda 11-08)» son suyas. Para implementarla desde un chat nuevo:
 `docs/plans/PROMPT_SEGURIDAD_Y_DIRECCION.md`.
 
-Auditoría 2026-11-09 (propuesta, pendiente de que Gabriel la apruebe):
-`docs/reports/auditoria_recomendacion_2026-11-09.md`. Propone fusionar vistas para Parecidos y pasar los
-conceptos a dos etapas, con un banco local al estilo del paper «Guided Music Retrieval». Sus ideas (P11 a P13,
-E13, E14, T23 a T28 y D9) están en la última tabla de ese informe y entran a este inventario cuando Gabriel
-apruebe. Las marcas «(auditoría 11-09)» son suyas. Prompt: `docs/plans/PROMPT_FUSION_Y_CONCEPTOS.md`.
+Adenda 2026-11-09 (auditoría, aprobada por Gabriel; DECISIONS 2026-11-09, «algoritmo de recomendación»):
+sección 12. Parecidos como zona con varias vistas, conceptos en dos casos de uso (sin tema de referencia y con
+el set en curso), un banco local al estilo del paper «Guided Music Retrieval» y el cómputo pesado en gpuq y
+Drive. Ideas P11 a P13, T23 a T30, D9 y H1; medidas E13 y E14. Las marcas «(auditoría 11-09)» y «(adenda
+11-09)» son suyas. Fundamento: `docs/reports/auditoria_recomendacion_2026-11-09.md`. Para implementarla desde
+un chat nuevo: `docs/plans/PROMPT_FUSION_Y_CONCEPTOS.md`.
 
 ## 0. Qué se pide auditar
 
@@ -312,7 +313,7 @@ Traktor = plataforma en vivo.
 | Id | Idea | Origen | Contrato | Depende de | Etapa | Estado |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | P1 | CLAP como base: el timbre es lo que más se parece entre temas consecutivos de un set | Kell y Tzanetakis 2013; elección de Gabriel (DECISIONS 2026-09-29) | Comp `clap` | — | — | Vigente |
-| P2 | CLAP en escala comparable (percentil o rango entre los candidatos) | Medido 2026-11-06 | Comp `clap` | — | 1 | Pendiente |
+| P2 | CLAP en escala comparable (percentil o rango entre los candidatos) | Medido 2026-11-06 | Comp `clap` | — | 1 | Pendiente (adenda 11-09: lo cubre la suma de z de P11, que pone cada vista en desvíos de su propia distribución) |
 | P3 | Filtros BPM ±20 y tonalidad ±2 semitonos. En Kell 2013 la tonalidad no mostró efecto en el orden de los DJs, pero es la regla de Gabriel | DECISIONS 2026-11-06, punto 7 | Filtro común | — | — | Vigente |
 | P4 | La misma tonalidad original puntúa más que una que pide mover el pitch | DECISIONS 2026-11-06, punto 9 | Comp `clave` | — | — | Vigente (peso 0) |
 | P5 | Vector TIV de compatibilidad armónica | Rama `harmonic-tiv` (otra sesión) | Comp `tiv`; Tema | Esa rama | Aparte | En curso |
@@ -356,7 +357,7 @@ Traktor = plataforma en vivo.
 | T14 | Fases del set detectadas sin etiquetas (por ejemplo, un modelo de estados ocultos sobre la secuencia CLAP): apertura, pico, introspectiva. Alimenta `fase` (adenda 11-07) | Adenda 11-07 | Sets; Comp `fase` | T11; sets largos de D7 y D8 | 3 | Pendiente |
 | T15 | Direcciones de energía e introspección aprendidas de las trayectorias profesionales (hacia dónde se mueve CLAP en el pico y después de la segunda hora), como candidatas de T3 sin etiquetas (adenda 11-07) | Adenda 11-07 | Tema; Comp `energia_objetivo`, `texto_clap` | T11, T14 | 3 | Pendiente |
 | T16 | Comienzos y finales: el CLAP del final del tema actual frente al del comienzo del candidato, porque la biblioteca solo tiene el centro (3 tramos del 35-65 %) y en D7 lo que predecía el siguiente estaba cerca de los cambios. Componente `extremos` (`tools/dj_sets/clap_extremos.py`), con el sentido inverso como control (adenda 11-07, revalidación de D7) | Revalidación de D7, 2026-11-07 | Comp `extremos` | CLAP de los extremos de la biblioteca | 2 | En curso (`lineas_d1_2026-11-07.md`; auditoría líneas D1: lo que predice es el comienzo del candidato; el final del actual no agrega sobre su comienzo o su centro) |
-| T17 | Zona de la noche: la consulta CLAP suma el centro de lo ya tocado (todo el set o los últimos n), porque los temas de una compilación forman una zona compacta en CLAP (D7). Opciones `clap_historia` y `clap_historia_n` del recomendador | Revalidación de D7, 2026-11-07 | Perfil Mantener; Comp `clap` | Nada nuevo | 2 | Medido en D1: no mejora el tema siguiente (p ≥ 0,72); falta probarlo para «mantener» (adenda 11-08: se vuelve a medir como zona, con E10 y P10, no con el acierto del tema siguiente) |
+| T17 | Zona de la noche: la consulta CLAP suma el centro de lo ya tocado (todo el set o los últimos n), porque los temas de una compilación forman una zona compacta en CLAP (D7). Opciones `clap_historia` y `clap_historia_n` del recomendador | Revalidación de D7, 2026-11-07 | Perfil Mantener; Comp `clap` | Nada nuevo | 2 | Medido en D1: no mejora el tema siguiente (p ≥ 0,72); falta probarlo para «mantener» (adenda 11-08: se vuelve a medir como zona, con E10 y P10, no con el acierto del tema siguiente) (adenda 11-09: es la zona del caso con el set en curso, T30, con las vistas de P11) |
 
 ### Representación aprendida de sets
 
@@ -809,11 +810,11 @@ Leído del PDF de acceso abierto el 2026-11-08 (EVIDENCIA OBSERVADA del texto; s
 
 | Id | Idea | Origen | Contrato | Depende de | Etapa | Estado |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| P8 | Radio de zona: los 30 de Parecidos se marcan (o se cortan) por caer dentro del radio de E9, no por el número 30. En el registro de cada lista, un campo `seguro` por tema; el orden y la latencia no cambian | Gabriel 11-08 («seguridad»); Vande Veire y De Bie 2018 | Perfil Parecidos; Eval E9, E10; registro I3 | E9; vectores por tema validados de D7; `d1.csv` | A | Pendiente. Con E9 y E10 medidos (`zona_sets_2026-11-08.md`), el radio de la mediana casi no distingue y, como la lista ya está ordenada por parecido, el radio solo decide dónde cortarla: «los 30 frente a los seguros» compara una lista con su comienzo, y E12 para P8 necesita otro diseño antes de A2 |
-| P9 | Proyección liviana de CLAP aprendida de sets: lineal y de pocas dimensiones (LDA o pérdida contrastiva sobre CLAP congelado), acerca temas del mismo set y aleja los de sets distintos; discos fuera de la muestra; se compara con CLAP crudo por E10 y después por E12. Es M4 sin GPU ni reentrenar el tronco | Gabriel 11-08 (reutilizar D7 y D8); Alonso-Jiménez et al. ICASSP 2023 | Tema (vector `clap_sets`); Comp `clap` variante | P8 (la medida); D7 validado; D1 como apoyo | B | Pendiente |
-| P10 | Consulta compuesta para Mantener: centro de lo tocado con peso α más el tema actual con un paso chico en la dirección del último paso (β negativo), como la ec. 34 del paper (0,4 y −0,1 de partida). Se mide como zona (E10), no como acierto del tema siguiente | Vande Veire y De Bie 2018; T17 | Perfil Mantener; Comp `clap` | T17 (`clap_historia`), P8 | B | Pendiente. T17 medido con el acierto del siguiente no mejoró (p ≥ 0,72); esa no es la medida de esta idea |
+| P8 | Radio de zona: los 30 de Parecidos se marcan (o se cortan) por caer dentro del radio de E9, no por el número 30. En el registro de cada lista, un campo `seguro` por tema; el orden y la latencia no cambian | Gabriel 11-08 («seguridad»); Vande Veire y De Bie 2018 | Perfil Parecidos; Eval E9, E10; registro I3 | E9; vectores por tema validados de D7; `d1.csv` | A | Pendiente. Con E9 y E10 medidos (`zona_sets_2026-11-08.md`), el radio de la mediana casi no distingue y, como la lista ya está ordenada por parecido, el radio solo decide dónde cortarla: «los 30 frente a los seguros» compara una lista con su comienzo, y E12 para P8 necesita otro diseño antes de A2 [REEMPLAZADO 2026-11-09 por la adenda de esa fecha (sección 12): `seguro` se define con la probabilidad de «van juntos» (P12) y el consenso entre vistas (P13), que sí cambian el orden; el radio queda como referencia] |
+| P9 | Proyección liviana de CLAP aprendida de sets: lineal y de pocas dimensiones (LDA o pérdida contrastiva sobre CLAP congelado), acerca temas del mismo set y aleja los de sets distintos; discos fuera de la muestra; se compara con CLAP crudo por E10 y después por E12. Es M4 sin GPU ni reentrenar el tronco | Gabriel 11-08 (reutilizar D7 y D8); Alonso-Jiménez et al. ICASSP 2023 | Tema (vector `clap_sets`); Comp `clap` variante | P8 (la medida); D7 validado; D1 como apoyo | B | Pendiente (adenda 11-09: es el paso siguiente de P12, cuando haya miles de pares de sets profesionales en el espacio de la biblioteca; con los cientos de hoy se aprenden 3 o 4 pesos, no una proyección) |
+| P10 | Consulta compuesta para Mantener: centro de lo tocado con peso α más el tema actual con un paso chico en la dirección del último paso (β negativo), como la ec. 34 del paper (0,4 y −0,1 de partida). Se mide como zona (E10), no como acierto del tema siguiente | Vande Veire y De Bie 2018; T17 | Perfil Mantener; Comp `clap` | T17 (`clap_historia`), P8 | B | Pendiente. T17 medido con el acierto del siguiente no mejoró (p ≥ 0,72); esa no es la medida de esta idea (adenda 11-09: entra en T30, la zona del caso con el set en curso) |
 | T18 | Direcciones de texto en CLAP: conceptos iniciales (energético o peak time, oscuro o hipnótico, melódico o uplifting, introspectivo o deep, vocal, con breakdowns), varias frases por concepto promediadas, dirección como diferencia de dos frases opuestas o percentil dentro de la biblioteca (la brecha entre modalidades hace que el coseno con un texto sea bajo y parejo: vale el orden, no el valor). Puntaje = w·cos(candidato, principal) + (1−w)·cos(candidato, concepto) | Gabriel 11-08 (pregunta); plan T3 y T7 | Comp `texto_clap`; perfiles de dirección | Codificador de texto (`tag_vocals.py`, `laion/clap-htsat-unfused`) y embeddings de la biblioteca: existen | A | Pendiente (auditoría 11-09, exploratorio: en un banco de referencia más concepto, la suma de audio y texto no cumple «parecido y concepto» mejor que el audio solo, 0,041 frente a 0,042; ordenar por el concepto dentro de una zona chica conserva más parecido. Queda como línea de base; propuesta T23 y T24 en `auditoria_recomendacion_2026-11-09.md`) |
-| T19 | Cabezas de Essentia como coordenadas candidatas: danceability, engagement y approachability, mood_*, arousal y valencia (estas dos solo sobre MusiCNN o VGGish). Se corren sobre la biblioteca y sobre los bloques de D7 y D8; se mira saturación (como Mixed In Key) y movimiento con la noche (E11) | Gabriel 11-08 («deberían juzgar las trayectorias»); plan T3 | Tema; Comp `energia_objetivo` | V6 (pasada de EffNet o MusiCNN en WSL, prueba chica antes); bajar las cabezas (CC BY-NC-SA 4.0) | B | Pendiente |
+| T19 | Cabezas de Essentia como coordenadas candidatas: danceability, engagement y approachability, mood_*, arousal y valencia (estas dos solo sobre MusiCNN o VGGish). Se corren sobre la biblioteca y sobre los bloques de D7 y D8; se mira saturación (como Mixed In Key) y movimiento con la noche (E11) | Gabriel 11-08 («deberían juzgar las trayectorias»); plan T3 | Tema; Comp `energia_objetivo` | V6 (pasada de EffNet o MusiCNN en WSL, prueba chica antes); bajar las cabezas (CC BY-NC-SA 4.0) | B | Pendiente (adenda 11-09: sube al tercer lugar del orden de la sección 12.5, porque la pasada da además el modelo independiente del banco E13 y las etiquetas de sus atributos; si la prueba chica dice que es pesada, va a gpuq, H1) |
 | T20 | Cabeza propia sobre embeddings congelados (MAEST capa 7, estilos, CLAP): regresión del minuto normalizado o clasificación de fase (apertura, pico, después de la 2.ª hora) con etiquetas de los sets profesionales; partición por DJ. Es el «fine-tuning de Essentia» realista | Gabriel 11-08 (pregunta); precedentes `genre_model.py` y `clap_probe` | Tema; Comp `energia_objetivo`, `fase` | T11 (bloques de D7 y D8 con posición); D5 cuando exista | B | Pendiente |
 | T21 | Variar la energía con tipos de transición elegidos por una máquina de estados (double drop, rolling, relajada) | Vande Veire y De Bie 2018, 4.2.3 | Perfil | — | — | No aplica por ahora: la dirección la elige Gabriel con el mouse (DECISIONS 11-07, punto 8). Queda como idea para una lista «sorpresa» |
 | T22 | Representar el tema por sus tramos altos (drops) y no solo por el centro del 35-65 %, como el descriptor de estilo del paper; se relaciona con T16 (el comienzo del candidato) | Vande Veire y De Bie 2018, 4.2.2 | Tema (vector alternativo); Comp `clap` variante | Segmentación alto/bajo por bloque (energía) sobre la biblioteca; CLAP por bloques ya existe para D7 y D8 | C | Pendiente |
@@ -890,3 +891,131 @@ estaban.
 | Los números del paper (α 0,4, β −0,1; 17 de 18; 3,89 frente a 2,39; 10 de 15) | EVIDENCIA OBSERVADA | PDF de acceso abierto, secciones 4.2.2, 4.2.3 y 5.6, leído el 2026-11-08 |
 | Una proyección aprendida de sets mejora la pureza de Parecidos sobre CLAP crudo | HIPÓTESIS | La decide E10 con discos fuera de muestra y después E12 |
 | Alguna cabeza de Essentia o dirección de texto se mueve con la noche en los sets reales | HIPÓTESIS | La decide E11 paso 2 |
+
+## 12. Adenda 2026-11-09: zona con varias vistas, conceptos en dos casos y cómputo pesado
+
+Escrita por la sesión auditora y aprobada por Gabriel el 2026-11-09 (DECISIONS de esa fecha, «algoritmo de
+recomendación», puntos 4 a 7). Entra por los contratos de la sección 3 y no abre ningún camino propio hasta
+Traktor. Nada de lo anterior se borra. Los números y sus etiquetas están en
+`docs/reports/auditoria_recomendacion_2026-11-09.md`: son exploratorios y ninguna lista pasó por la escucha.
+Para implementarla desde un chat nuevo: `PROMPT_FUSION_Y_CONCEPTOS.md`.
+
+### 12.0 Qué cambió y por qué
+
+- **El puntaje de Parecidos es una ecuación que pondera varios factores** (Gabriel; DECISIONS 2026-11-09,
+  punto 8): modelos como CLAP y los demás, género, tonalidad, BPM. BPM y tonalidad son factores propios y se
+  usan después: no se le piden a los modelos. Es la arquitectura de la sección 3.3 (componentes con peso). Por
+  eso los modelos se miden con el tempo controlado (E14) y los pesos de todos los factores se fijan juntos
+  (P12). Los filtros en vivo (BPM ±20 y tonalidad a ±2 semitonos) siguen como están (Gabriel).
+- **Mirar con un solo modelo era el límite de Parecidos** (auditoría). CLAP, MAEST capa 7 y los estilos
+  Discogs arman listas de 30 casi distintas y aciertan transiciones distintas; sumadas superan a CLAP crudo en
+  los sets de Gabriel y en sets de otros DJs.
+- **Las playlists de concepto tienen dos casos de uso** (Gabriel): sin tema de referencia, antes de empezar a
+  tocar, y con el set en curso. Sección 12.2.
+- **El puntaje de concepto limita más que la fórmula que lo mezcla con el audio** (auditoría). Se elige en
+  un banco local construido como el del paper «Guided Music Retrieval».
+- **Lo pesado en procesamiento o en disco va a gpuq y al Drive de Gabriel** (Gabriel). Sección 12.6.
+
+### 12.1 Lo que se toma de «Guided Music Retrieval» (ideas, no copia)
+
+Brandão, Silva, Alonso-Jiménez y Bogdanov; manuscrito enviado a IEEE TASLP el 16-07-2026, sin revisión por
+pares todavía. Leído entero el 2026-11-09 (EVIDENCIA OBSERVADA del texto; tablas entre paréntesis).
+
+| Idea del paper | Lo que dice | Dónde entra acá |
+| :--- | :--- | :--- |
+| La consulta es un audio de referencia más un texto que lo modifica | El resultado tiene que parecerse a la referencia y cumplir el cambio: son dos condiciones | T23, E13 |
+| Hay varios blancos válidos (Tabla V) | Medir si aparece el blanco exacto subestima; se mide por separado parecido, modificación y las dos cosas | E13 |
+| La supervisión se construye sola (MTIQ) | Pares muy parecidos según un modelo que el método no usa (MusiCNN, coseno ≥ 0,8) y que difieren con confianza en un atributo, según clasificadores de Essentia con umbral de alta precisión | E13 (etiquetas y parecido independientes del método), T26, T27 |
+| Una fusión chica entrenada sobre CLAP congelado gana (Tabla IV) | En MTIQ, R@100: suma de audio y texto 2,08; Combiner 10,30; TG-CIR 14,75. En MTSQ la suma queda debajo del audio solo | T26, T27; T18 queda como línea de base |
+| Quitar un atributo falla sin entrenar (Tabla VIII) | La suma acierta 0,8 % en quitas y 4,3 % en adiciones | T28 |
+| CLAP es el mejor de siete modelos en parecido juzgado por personas (Tabla I) | Dim-Sim: CLAP 87,1; MusiCNN 85,9; MAEST 85,0; EffNet 78,6; MERT 67,1 | P1 sigue vigente; P11 le suma vistas |
+| Sus límites | Conjunto cerrado de modificaciones con plantilla, música de Jamendo, sin pesos publicados | T27 es condicional; no hay un modelo listo para usar |
+
+### 12.2 Los dos casos de uso (DECISIONS 2026-11-09, punto 5)
+
+| | Sin tema de referencia | Con el set en curso |
+| :--- | :--- | :--- |
+| Cuándo | El DJ todavía no empezó: no hay tema principal | Hay tema principal y un historial de lo tocado |
+| Qué pide | Una playlist por concepto («vibras africanas», «música de muertos»): los temas que lo transmiten, agrupados bajo esa etiqueta | Temas que van bien con lo que suena; si hay concepto, filtrados por él |
+| Candidatos | Toda la biblioteca, con las condiciones del concepto (voces) | La zona de Parecidos alrededor del tema principal y del historial (T30), con los filtros en vivo |
+| Orden | Puntaje del concepto (T29) | Parecido; con concepto, puntaje del concepto relativo al del tema principal (T23) |
+| Largo | Variable, con piso de confianza | 30 en Parecidos; variable en las de concepto |
+
+El paso de un caso al otro lo da el estado: cuando el DJ elige un tema de la lista sin referencia, ese tema pasa
+a ser el principal y la iteración siguiente es el caso con el set en curso. Parecidos (D0) es siempre el
+segundo caso sin concepto.
+
+### 12.3 Medidas nuevas (se suman a la tabla de evaluación de la sección 4)
+
+| Id | Idea | Etapa |
+| :--- | :--- | :--- |
+| E13 | Banco de conceptos local, con dos modos. Sin referencia: fracción de los primeros de la lista que cumple el concepto. Con referencia: fracción que es parecida a la referencia, que cumple el concepto y que cumple las dos cosas, con el número de blancos válidos al lado. En los dos: adición y quita por separado, conceptos vistos y no vistos, varios juegos de frases. Etiquetas independientes del método (género de Beatport, estilos Discogs, cabezas de Essentia; la etiqueta Vocal, marcada como no independiente); el parecido lo juzga un modelo que el método no use. Versión exploratoria medida el 11-09 | Ahora |
+| E14 | Control de tempo al medir los modelos (las vistas), porque BPM y tonalidad tienen sus propios factores en la ecuación: pares al azar del mismo BPM, pool a ±8 BPM y correlación de cada vista con la diferencia de BPM. La ecuación entera se mide aparte, con todos sus factores y los pares al azar tomados dentro de los filtros en vivo | Siempre |
+
+### 12.4 Ideas nuevas (se suman al inventario de la sección 4; los ids siguen la numeración)
+
+| Id | Idea | Origen | Contrato | Depende de | Etapa | Estado |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| P11 | Fusión de vistas para Parecidos: CLAP centrado, MAEST capa 7 centrado y estilos Discogs, cada coseno en desvíos de su distribución, sumados; pesos iguales de partida; EffNet-Discogs como cuarta vista cuando exista para `musica` | Auditoría 11-09; G6; Tabla I del paper | Tema (vector fusionado, índice versión 4); Comp `clap` | Representaciones ya extraídas; MAEST de los originales de Bedrock | 12.5, unidad 1 | Exploratorio medido: en D1 de 9,0 % a 11,4-12,7 %; AUC en D3 × biblioteca de 0,66 a 0,74-0,77. Falta Bedrock, D5 y E12 |
+| P12 | La ecuación de Parecidos, aprendida: regresión logística sobre los factores (parecido por vista, género, tonalidad, BPM), entrenada con pares de un mismo set profesional frente a pares al azar dentro de los filtros en vivo, con los DJs de prueba fuera del entrenamiento. Da el peso de cada factor, una probabilidad de «van juntos» para el campo `seguro` y dónde cortar la lista. Con los pares al azar igualados en BPM se mide aparte lo que aportan los modelos (E14). Es M3 en su forma más simple, adelantado; el valor de la tonalidad por paso puede venir de P7 | Gabriel 11-09 (una ecuación pondera el peso de cada variable); auditoría 11-09 | Eval; Perfil Parecidos (pesos); registro I3 | Pares de sets profesionales en el espacio de la biblioteca (D3 × biblioteca, Bedrock, D5), con BPM y tonalidad de los dos temas | Unidad 1 | Pendiente. Los pesos por defecto siguen en solo CLAP hasta que Gabriel los cambie |
+| P13 | Consenso entre vistas como marca de seguridad: cuántas vistas ponen al candidato entre sus K primeros | Auditoría 11-09 | Registro I3 | P11 | Unidad 1 | Exploratorio medido (11,6-11,8 % en D1) |
+| T23 | Con el set en curso, concepto en dos etapas: candidatos = zona de Parecidos; orden = puntaje del concepto relativo al del tema principal; largo variable con piso de confianza | Auditoría 11-09; Gabriel 11-09 (primero los parecidos, sobre esa lista el concepto) | Perfil de concepto; Comp `texto_clap` | P11; T24 o T25 | Unidad 4 | Exploratorio medido: conserva más parecido que la suma con el mismo cumplimiento |
+| T24 | Puntaje de texto: varias frases por concepto, CLAP centrado en la biblioteca y contraste contra un banco fijo de descripciones | Auditoría 11-09; T18 | Comp `texto_clap` | Codificador de texto; `src/v4/evaluation/clap_texto.py` (otra sesión, reglas de redacción de frases) | Unidad 4 | Exploratorio medido: AUC contra el género de Beatport de 0,64 a 0,68 |
+| T25 | Sondas supervisadas para los conceptos con etiqueta (voz, géneros, estilos, energía); son el techo del banco y sirven tal cual para las direcciones fijas | `genre_model.py`, `clap_probe`; auditoría 11-09 | Tema (puntajes precalculados); Comp `texto_clap`, `energia_objetivo` | Etiquetas; T19 para energía | Unidad 4 | Techo medido para género: AUC 0,76 |
+| T26 | Mapa aprendido de texto a audio: con los vocabularios de etiquetas de la biblioteca (47 géneros, 400 estilos, cabezas de Essentia), un modelo chico lleva la descripción de una etiqueta a la región del espacio de audio donde están sus temas; se evalúa con etiquetas no vistas | Paper GMR (fusión entrenada sobre CLAP congelado) | Comp `texto_clap` | E13; T19 | Unidad 5 | Pendiente |
+| T27 | Fusión tipo Combiner entrenada con MTIQ más tripletas locales construidas igual | Paper GMR | Comp `texto_clap` | E13 muestra que T24 a T26 no alcanzan; D9; H1 | Unidad 7, condicional | Pendiente |
+| T28 | Quitar y «menos X» como eje de dos polos (frases positivas menos negativas) o como sonda, nunca como texto «sin X»; las `negative_prompts` del Worker se miden en E13 antes de usarse | Paper GMR, Tabla VIII; DECISIONS 2026-11-09 (conceptos, punto 1) | Comp `texto_clap` | E13 | Unidad 4 | Pendiente |
+| T29 | Sin tema de referencia: playlist por concepto sobre toda la biblioteca, ordenada por el puntaje del concepto, con piso de confianza y largo variable. Es lo que hace hoy `conceptos_agente.py` con el coseno crudo | Gabriel 11-09 (caso antes de empezar a tocar) | Perfil de concepto sin referencia | T24 a T26 para el puntaje | Unidad 4 | En uso con texto crudo; exploratorio medido: de los 30 primeros cumple el 21 % (género de Beatport, base 9 %) |
+| T30 | Con el set en curso, la zona usa el historial: la consulta suma el centro de lo tocado y el paso reciente (T17, P10) sobre las vistas de P11, y el estado de la trayectoria (T5) da nivel y pendiente a los perfiles. Se mide como zona (E10, E13), no como acierto del tema siguiente | Gabriel 11-09 (el historial como fuente para la trayectoria del tema siguiente) | Estado de la trayectoria (3.5); Perfil | P11; D2 con sesiones | Después de la unidad 2 | Pendiente |
+| D9 | MTIQ y MTSQ: tripletas y audio de Jamendo recortado a 10 s (Hugging Face `sb-lucas/Music-Text-Queries`, Apache-2.0, 59,7 GB en total) | Paper GMR | Datos | H1 | Con T27 | Sin bajar |
+| H1 | Cómputo pesado en gpuq (cola sobre Colab y Kaggle gratuitos) y disco en el Google Drive de Gabriel; lo liviano sigue en CPU local | Gabriel 11-09 | Infraestructura (sección 12.6) | gpuq y `rclone` instalados y con credenciales puestas por Gabriel | Cuando haga falta | En este escritorio no están instalados (mirado el 11-09) |
+
+Marcas en su lugar: G6, P2, P8, P9, P10, T17, T18 y T19.
+
+### 12.5 Orden de ejecución
+
+Criterios de salida comunes: los de la sección 5 y los de la 11.4.
+
+1. **Fusión de vistas medida como código** (P11, P12, P13, E14): reproduce la tabla de la auditoría, suma los
+   originales de Bedrock con MAEST y, cuando lleguen, los pares de D5 por DJ.
+2. **Escucha E12 de Parecidos**: CLAP crudo frente a la fusión. Si Gabriel la prefiere, índice versión 4 y
+   campo `seguro`; el lado vivo no cambia de arquitectura.
+3. **Essentia** (V6, T19): prueba chica y después la biblioteca; EffNet como cuarta vista.
+4. **Banco E13 en sus dos modos y escalera de puntajes** (T24, T25, T28); el agente de conceptos pasa a tener
+   los dos casos (T29 y T23) sobre un módulo de puntaje compartido con el banco; escucha de listas de concepto.
+5. **Mapa de texto a audio** (T26).
+6. **Coordenada de energía** (T19, T20, juez E11) y **zona con historial** (T30).
+7. **Condicional**: fusión entrenada con MTIQ (T27, D9, H1).
+
+Después siguen las etapas 4 y 5 del plan (M3, M4) como estaban, con H1 para lo que pida GPU.
+
+### 12.6 Cómputo pesado: gpuq y Drive (H1)
+
+- **Regla** (Gabriel): todo lo pesado en procesamiento o en disco se procesa con las GPU de gpuq
+  (github.com/gbibbo/gpuq) y con su Google Drive. Detalle y salvaguardas: DECISIONS 2026-11-09, «algoritmo
+  de recomendación», punto 7, y `AGENTS.md`, «Compute resource discipline».
+- **Liviano, en local**: tests, bancos sobre embeddings ya calculados, texto de CLAP, MAEST de los 179
+  originales de Bedrock, entrenar sondas y modelos lineales.
+- **Candidatos a pesado**: la pasada de Essentia sobre la biblioteca si la prueba chica da más de una hora;
+  extraer vistas de audio nuevo en volumen (D5 con audio, D6, D7, D8); MTIQ (D9); M3 y M4.
+- **Cómo corre un trabajo** (leído de la documentación de gpuq): el código sale de este repositorio en la rama
+  o commit pedido; la máquina es nueva en cada intento y puede perderse, así que el trabajo guarda puntos de
+  control y los retoma; lo que tiene que sobrevivir se sube al remoto de `rclone` (por defecto `gdrive:gpuq`).
+  A este escritorio vuelven resultados chicos (embeddings, tablas), que se verifican como cualquier artefacto:
+  formas, N, valores finitos y alineación por `track_uid`.
+- **Lo que conviene**: bajar los datos públicos (MTIQ) directo a la máquina remota y subir a Drive solo los
+  embeddings. De la música privada, subir embeddings antes que audio; si hace falta audio, primero se le dice a
+  Gabriel qué y cuánto.
+
+### 12.7 Afirmaciones y preguntas
+
+Las afirmaciones etiquetadas de esta adenda están en la tabla «Afirmaciones» del informe de auditoría, con su
+revisión hostil; no se repiten acá. Lo que sigue siendo HIPÓTESIS: que la fusión dé una lista mejor (lo
+deciden Bedrock, D5 y E12), que un mapa o una fusión entrenada sirva para conceptos escritos libremente (E13
+con conceptos no vistos) y que las cabezas de Essentia sirvan de coordenada (E11).
+
+Preguntas para Gabriel:
+1. Quién elige los temas principales de la escucha E12 y si quiere marcar además tema por tema lo que no pondría.
+2. Dónde corre el despachador de gpuq y cuánto espacio libre tiene el Drive.
+3. Si el umbral de «pesado» (alrededor de una hora de CPU o de 10 GB de disco nuevo) y el OK previo al primer
+   envío de cada tipo de trabajo quedan así.
