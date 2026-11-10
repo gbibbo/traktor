@@ -5,11 +5,14 @@ PURPOSE: D5/D6 sin pausas muertas (Gabriel, 2026-11-10: «que la descarga comple
            1001      navegador con la sesión de Gabriel, de a uno: los sets que faltan (tracklists_1001.py bajar, 200
                      páginas por corrida y 45 min entre corridas) y después el enlace del botón de compra de los temas
                      que la búsqueda no resolvió (beatport_previews.py enlaces --solo-sin-id, 200 por corrida).
-           beatport  los lotes (bajar; elegir arma uno nuevo cuando hay sets nuevos) y, por cada lote terminado, su
-                     rescate res_<lote>: rescate y buscar enseguida; bajar cuando los enlaces de 1001 ya están pedidos.
-           youtube   las corridas yt_* (bajar) y, por cada rescate bajado, yt_res_<lote> con lo que sigue sin resolver
-                     (youtube_temas.py elegir). Cada verificación anti-robots alarga la pausa entre pedidos (x1,5,
-                     tope 30 s; queda guardada en youtube_temas/pausa_s.txt).
+           beatport  los lotes (bajar de a una tanda; elegir arma uno nuevo cuando hay sets nuevos) y, por cada lote
+                     terminado, su rescate res_<lote>: rescate y buscar enseguida; bajar cuando los enlaces de 1001 ya
+                     están pedidos. Entre tanda y tanda atiende lo que haya aparecido.
+           youtube   las corridas yt_* (bajar); mientras un lote se baja, sus temas sin resolver sin botón de compra
+                     (yt_<lote>_NN, de a 200 o más: Beatport ya no los da y no hay enlace que esperar); y por cada
+                     rescate bajado, yt_res_<lote> con lo que sigue sin resolver (youtube_temas.py elegir). Cada
+                     verificación anti-robots alarga la pausa entre pedidos (x1,5, tope 30 s; queda guardada en
+                     youtube_temas/pausa_s.txt).
          Nunca se rinde: si un sitio corta (salida 2), espera (1001: 2 h, 3 h, 4 h; Beatport: 30 min a 2 h; YouTube:
          1 h a 2 h) y vuelve a probar, sin límite de intentos; un error del programa (otra salida) se reintenta a los
          10 min (hasta 1 h). No esquiva verificaciones ni usa otra cuenta.
@@ -21,6 +24,8 @@ PURPOSE: D5/D6 sin pausas muertas (Gabriel, 2026-11-10: «que la descarga comple
          lote_01..03 ya los rescató rescate_01 (sin enlaces): ese rescate es un origen más (res_rescate_01).
 CHANGELOG:
   - 2026-11-10: Creación.
+  - 2026-11-10: Beatport de a una tanda (el rescate de rescate_01 esperaba a que terminaran las 34 de lote_04) y
+                YouTube adelanta los temas sin botón de los lotes (se quedaba sin trabajo hasta la madrugada).
 """
 from __future__ import annotations
 
@@ -121,11 +126,11 @@ def tarea_beatport(root: Path, n_sets: int) -> Optional[Tarea]:
         if bpv.pendientes_de_enlace(filas, True):
             continue  # espera los enlaces del carril 1001
         if not completa(bp_dir / res, TANDA_BP):
-            return "bajar", ["--corrida", res, "bajar", "--temporal", temporal]
+            return "bajar", ["--corrida", res, "bajar", "--temporal", temporal, "--max-tandas", "1"]
     lotes = [c for c in con_lista(bp_dir) if LOTE.match(c)]
-    for lote in lotes:
+    for lote in lotes:  # de a una tanda: entre tanda y tanda se atiende lo que haya aparecido
         if not completa(bp_dir / lote, TANDA_BP):
-            return "bajar", ["--corrida", lote, "bajar", "--temporal", temporal]
+            return "bajar", ["--corrida", lote, "bajar", "--temporal", temporal, "--max-tandas", "1"]
     if n_sets > sets_en_lotes(bp_dir):
         numeros = [int(c.split("_")[1]) for c in lotes if c.startswith("lote_")]
         nuevo = f"lote_{max(numeros, default=0) + 1:02d}"
@@ -146,19 +151,41 @@ def tarea_1001(root: Path, sets_pendientes: Optional[int]) -> Optional[Tarea]:
     return None
 
 
+def siguiente_nombre(carpeta: Path, prefijo: str) -> str:
+    n = 1
+    while (carpeta / f"{prefijo}_{n:02d}").exists():
+        n += 1
+    return f"{prefijo}_{n:02d}"
+
+
 def tarea_youtube(root: Path) -> Optional[Tarea]:
-    """Las corridas de YouTube sin terminar; después, una nueva por cada rescate bajado."""
+    """Las corridas de YouTube sin terminar; después, una nueva por cada rescate bajado; y mientras un lote se baja, sus
+    temas sin resolver que no tienen botón de compra (Beatport ya no los va a dar ni hay enlace que esperar), de a 200
+    o más (o los que queden cuando el lote termina)."""
     bp_dir, yt_dir = root / "beatport_previews", root / "youtube_temas"
     corridas = [c for c in con_lista(yt_dir) if c != "tmp"]
     for corrida in corridas:
         if not completa(yt_dir / corrida, TANDA_YT):
             return "bajar", ["--corrida", corrida, "bajar", "--temporal", str(yt_dir / "tmp")]
+    excluir = [x for c in corridas for x in ("--excluir", c)]
     for res in (c for c in con_lista(bp_dir) if c.startswith("res_")):
         destino = yt_dir / f"yt_{res}"
         if not resuelta(destino) and completa(bp_dir / res, TANDA_BP):
-            excluir = [x for c in corridas for x in ("--excluir", c)]
             return "elegir", ["--corrida", destino.name, "elegir", "--de", res, *excluir]
+    ya = {f["clave"] for c in corridas for f in leer(yt_dir / c / "temas.csv")}
+    for lote in con_lista(bp_dir):
+        if not re.match(r"^lote_\d+$", lote) or lote in YA_RESCATADOS:
+            continue
+        nuevas = [f for f in bpv.filas_sin_resolver(bp_dir / lote) if f.get("con_boton") != "si" and f["clave"] not in ya]
+        if len(nuevas) >= TANDA_YT or (nuevas and completa(bp_dir / lote, TANDA_BP)):
+            return "elegir", ["--corrida", siguiente_nombre(yt_dir, f"yt_{lote}"), "elegir", "--de", lote,
+                              "--solo-sin-boton", *excluir]
     return None
+
+
+def tandas_locales(root: Path, carril: str, corrida: str) -> int:
+    carpeta = root / ("beatport_previews" if carril == "beatport" else "youtube_temas") / corrida
+    return len(list(carpeta.glob("tanda_*.json")))
 
 
 def leer_pausa_yt(yt_dir: Path) -> float:
@@ -348,9 +375,16 @@ def carril_1001(o: Orquesta) -> None:
                 return
 
 
+def sin_avance(o: Orquesta, carril: str, tipo: str, argumentos: List[str], antes: int) -> bool:
+    """Un bajar que terminó bien sin subir ninguna tanda nueva (p. ej., tandas en el remoto sin copia local): espera en
+    vez de dar vueltas en falso. False si hay que parar."""
+    if tipo == "bajar" and tandas_locales(o.root, carril, argumentos[1]) == antes:
+        return o.esperar(1800, carril, f"«{' '.join(argumentos)}» terminó bien sin subir ninguna tanda nueva")
+    return True
+
+
 def carril_beatport(o: Orquesta) -> None:
     cortes = errores = 0
-    anterior: Optional[Tarea] = None
     bp_dir = o.root / "beatport_previews"
     while not o.parar.is_set():
         n_sets = contar_sets_bajados(o.root)
@@ -361,10 +395,8 @@ def carril_beatport(o: Orquesta) -> None:
                 return
             continue
         o.ocioso["beatport"] = False
-        if tarea == anterior:  # terminó bien y sigue igual: no dar vueltas en falso
-            if not o.esperar(1800, "beatport", f"«{' '.join(tarea[1])}» terminó bien pero sigue pendiente"):
-                return
         tipo, argumentos = tarea
+        antes = tandas_locales(o.root, "beatport", argumentos[1])
         codigo = o.correr("beatport", "previews", argumentos)
         if o.parar.is_set():
             return
@@ -374,9 +406,9 @@ def carril_beatport(o: Orquesta) -> None:
             marcar_vacia(bp_dir / argumentos[1])
         if codigo in (0, 3):
             cortes = errores = 0
-            anterior = tarea if codigo == 0 else None
+            if codigo == 0 and not sin_avance(o, "beatport", tipo, argumentos, antes):
+                return
             continue
-        anterior = None
         if codigo == 2:
             cortes += 1
             if not o.esperar(espera_corte("beatport", cortes), "beatport", f"Beatport cortó ({cortes} seguido/s)"):
@@ -391,7 +423,6 @@ def carril_youtube(o: Orquesta) -> None:
     yt_dir = o.root / "youtube_temas"
     pausa = leer_pausa_yt(yt_dir)
     cortes = errores = 0
-    anterior: Optional[Tarea] = None
     while not o.parar.is_set():
         tarea = tarea_youtube(o.root)
         if tarea is None:
@@ -400,12 +431,10 @@ def carril_youtube(o: Orquesta) -> None:
                 return
             continue
         o.ocioso["youtube"] = False
-        if tarea == anterior:
-            if not o.esperar(1800, "youtube", f"«{' '.join(tarea[1])}» terminó bien pero sigue pendiente"):
-                return
         tipo, argumentos = tarea
         if tipo == "bajar":
             argumentos = [*argumentos, "--pausa", f"{pausa:g}"]
+        antes = tandas_locales(o.root, "youtube", argumentos[1])
         codigo = o.correr("youtube", "youtube", argumentos)
         if o.parar.is_set():
             return
@@ -413,9 +442,9 @@ def carril_youtube(o: Orquesta) -> None:
             marcar_vacia(yt_dir / argumentos[1])
         if codigo in (0, 3):
             cortes = errores = 0
-            anterior = tarea if codigo == 0 else None
+            if codigo == 0 and not sin_avance(o, "youtube", tipo, argumentos, antes):
+                return
             continue
-        anterior = None
         if codigo == 2:
             cortes += 1
             pausa = min(round(pausa * 1.5, 1), PAUSA_YT_TOPE)

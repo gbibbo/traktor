@@ -132,6 +132,9 @@ Plan, sección 12.9. Las medidas de la auditoría de este día son exploratorias
    corte de conexión de Beatport tumbó `lote_04` con una excepción (ahora se reintenta), los bucles de la mañana se
    rendían tras 3 o 4 intentos, los rescates y YouTube esperaban a que el agente los lanzara, y una tanda de YouTube
    cortada volvía a buscar desde el primer tema (ahora sigue donde quedó: cada pedido repetido acerca el bloqueo).
+   A las 16:30, dos ajustes: Beatport baja de a una tanda y entre tanda y tanda atiende los rescates (el de
+   `rescate_01` esperaba a que terminaran las 34 de `lote_04`), y YouTube toma enseguida los temas sin botón de compra
+   que un lote no resolvió (1442 en las 22 tandas hechas de `lote_04`), sin esperar al rescate ni a los enlaces.
 
 ## 2026-11-09 (unidad 1: fusión de vistas y ecuación de Parecidos)
 

@@ -5,6 +5,7 @@ PURPOSE: El encadenamiento de D5/D6 (tools/dj_sets/descarga_continua.py), sin re
 CHANGELOG:
   - 2026-11-10: Creación.
 """
+import json
 from pathlib import Path
 
 from tools.dj_sets import beatport_previews as bpv
@@ -16,10 +17,11 @@ def fila(clave, **extra):
                  "nivel_busqueda": "B"}, **extra)
 
 
-def corrida(base: Path, filas, tandas=0):
+def corrida(base: Path, filas, tandas=0, temas=()):
+    temas = list(temas)
     bpv.escribir_tabla(base / "temas.csv", filas)
     for k in range(tandas):
-        (base / f"{bpv.nombre_tanda(k)}.json").write_text("{}", encoding="utf-8")
+        (base / f"{bpv.nombre_tanda(k)}.json").write_text(json.dumps({"temas": temas}), encoding="utf-8")
 
 
 def test_la_cadena_completa_paso_a_paso(tmp_path):
@@ -39,14 +41,14 @@ def test_la_cadena_completa_paso_a_paso(tmp_path):
 
     # Buscado: «b» tiene botón y la búsqueda no lo encontró: espera el enlace; Beatport sigue con lote_04.
     corrida(bp_dir / "res_rescate_01", [fila("a", nivel_busqueda="D", con_boton=""), fila("b", nivel_busqueda="C")])
-    assert dc.tarea_beatport(tmp_path, 10) == ("bajar", ["--corrida", "lote_04", "bajar", "--temporal", temporal])
+    assert dc.tarea_beatport(tmp_path, 10) == ("bajar", ["--corrida", "lote_04", "bajar", "--temporal", temporal, "--max-tandas", "1"])
     assert dc.tarea_1001(tmp_path, 7) == ("sets", ["bajar", "--n", "200"])  # los sets primero
     assert dc.tarea_1001(tmp_path, 0) == ("enlaces", ["--corrida", "res_rescate_01", "enlaces", "--solo-sin-id", "--n", "200"])
 
     # Con el enlace pedido, se baja el rescate antes que el lote grande.
     corrida(bp_dir / "res_rescate_01", [fila("a", nivel_busqueda="D", con_boton=""), fila("b", nivel_busqueda="C", fuente_1001="1")])
     assert dc.tarea_1001(tmp_path, 0) is None
-    assert dc.tarea_beatport(tmp_path, 10) == ("bajar", ["--corrida", "res_rescate_01", "bajar", "--temporal", temporal])
+    assert dc.tarea_beatport(tmp_path, 10) == ("bajar", ["--corrida", "res_rescate_01", "bajar", "--temporal", temporal, "--max-tandas", "1"])
 
     # YouTube: primero termina yt_01; el rescate bajado da una corrida nueva sin repetir los temas de yt_01.
     assert dc.tarea_youtube(tmp_path) == ("bajar", ["--corrida", "yt_01", "bajar", "--temporal", str(yt_dir / "tmp")])
@@ -59,7 +61,7 @@ def test_la_cadena_completa_paso_a_paso(tmp_path):
     assert dc.tarea_youtube(tmp_path) is None
 
     # lote_04 terminado: su rescate; si no tuvo temas sin resolver, queda marcado y sigue un lote nuevo con los sets nuevos.
-    assert dc.tarea_beatport(tmp_path, 10) == ("bajar", ["--corrida", "lote_04", "bajar", "--temporal", temporal])
+    assert dc.tarea_beatport(tmp_path, 10) == ("bajar", ["--corrida", "lote_04", "bajar", "--temporal", temporal, "--max-tandas", "1"])
     corrida(bp_dir / "lote_04", [fila(f"l{i}") for i in range(600)], tandas=2)
     assert dc.tarea_beatport(tmp_path, 10) == ("rescate", ["--corrida", "res_lote_04", "rescate", "--de", "lote_04"])
     dc.marcar_vacia(bp_dir / "res_lote_04")
@@ -98,3 +100,26 @@ def test_corrida_completa_por_nombre_de_tanda(tmp_path):
     (tmp_path / "c" / "tanda_00001.json").write_text("{}", encoding="utf-8")
     assert dc.completa(tmp_path / "c", 500)
     assert not dc.completa(tmp_path / "vacia", 500)
+
+
+def test_youtube_adelanta_los_sin_boton_de_un_lote_a_medias(tmp_path):
+    # 2026-11-10: YouTube se quedaba sin trabajo hasta que terminaran lote_04, su rescate y sus enlaces; los temas sin
+    # botón que Beatport no dio no esperan nada.
+    bp_dir, yt_dir = tmp_path / "beatport_previews", tmp_path / "youtube_temas"
+    filas = [fila(f"s{i}", con_boton="") for i in range(250)] + [fila(f"b{i}") for i in range(50)] + [fila(f"x{i}") for i in range(700)]
+    sin_resolver = [{"clave_1001": f["clave"], "estado": "sin_id"} for f in filas[:300]]
+    corrida(bp_dir / "lote_04", filas, tandas=1, temas=sin_resolver)
+    corrida(yt_dir / "yt_01", [fila("otro")], tandas=1)
+    tarea = dc.tarea_youtube(tmp_path)
+    assert tarea == ("elegir", ["--corrida", "yt_lote_04_01", "elegir", "--de", "lote_04", "--solo-sin-boton", "--excluir", "yt_01"])
+    # Ya tomados: con menos de 200 nuevos y el lote a medias, espera a juntar más.
+    corrida(yt_dir / "yt_lote_04_01", [fila(f"s{i}") for i in range(100, 250)])
+    assert dc.tarea_youtube(tmp_path) == ("bajar", ["--corrida", "yt_lote_04_01", "bajar", "--temporal", str(yt_dir / "tmp")])
+    corrida(yt_dir / "yt_lote_04_01", [fila(f"s{i}") for i in range(100, 250)], tandas=1)
+    assert dc.tarea_youtube(tmp_path) is None
+    # Con el lote terminado, van los que queden aunque sean menos de 200.
+    corrida(bp_dir / "lote_04", filas, tandas=2, temas=sin_resolver)
+    assert dc.tarea_youtube(tmp_path)[1][:2] == ["--corrida", "yt_lote_04_02"]
+    # lote_01..03 no: sus temas ya pasaron por rescate_01 y yt_01.
+    corrida(bp_dir / "lote_02", filas[:300], tandas=1, temas=sin_resolver)
+    assert "lote_02" not in dc.tarea_youtube(tmp_path)[1]

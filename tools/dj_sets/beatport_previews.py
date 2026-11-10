@@ -28,7 +28,8 @@ CHANGELOG:
                 mezcla_suave); «aka» en el artista; rescate (los temas que otras corridas no resolvieron) y
                 enlaces --solo-sin-id. Kaggle no sirve para esto: Beatport le pide la verificación de Cloudflare.
   - 2026-11-10: una conexión cortada al bajar un MP3 se reintenta (15 s, 1 min, 3 min) y después para la corrida limpia
-                en vez de tumbarla con una excepción (lote_04, 13:00); enlaces --n (pedidos por corrida).
+                en vez de tumbarla con una excepción (lote_04, 13:00); enlaces --n (pedidos por corrida); bajar
+                --max-tandas (descarga_continua.py baja de a una para atender los rescates entre tanda y tanda).
 """
 from __future__ import annotations
 
@@ -479,13 +480,15 @@ def cmd_buscar(args) -> int:
 
 
 def procesar_tandas(filas: List[Dict[str, str]], remoto, carpeta_remota: str, temporal: Path, cache: Path, tam: int,
-                    copias: Optional[Path] = None) -> int:
-    """Las tandas que faltan en el remoto: buscar, bajar, empaquetar y subir. 0 si terminó, 2 si Beatport cortó."""
+                    copias: Optional[Path] = None, max_tandas: int = 0) -> int:
+    """Las tandas que faltan en el remoto (como mucho max_tandas, 0 = todas): buscar, bajar, empaquetar y subir.
+    0 si terminó, 2 si Beatport cortó."""
     from src.v4.common.remote_storage import remote_root
 
     hechas = set(remoto.ls(carpeta_remota))  # {} si la carpeta no existe; exists() es solo para archivos
     pendientes = tandas_pendientes(len(filas), hechas, tam)
     print(f"remoto {remote_root()}/{carpeta_remota}: {len(filas)} temas, tandas de {tam}, faltan {len(pendientes)}: {pendientes[:12]}", flush=True)
+    pendientes = pendientes[:max_tandas] if max_tandas else pendientes
     if not pendientes:
         return 0
     responde, motivo = bp.available()
@@ -529,7 +532,8 @@ def cmd_bajar(args) -> int:
     from src.v4.common.remote_storage import open_remote
 
     return procesar_tandas(leer_tabla(base_corrida(args) / "temas.csv"), open_remote(), f"{CARPETA_REMOTA}/{args.corrida}",
-                           Path(args.temporal) / args.corrida, args.root / "beatport_previews" / "cache", args.tanda, base_corrida(args))
+                           Path(args.temporal) / args.corrida, args.root / "beatport_previews" / "cache", args.tanda, base_corrida(args),
+                           args.max_tandas)
 
 
 def cmd_subir_temas(args) -> int:
@@ -614,6 +618,7 @@ def main() -> int:
     p = comandos.add_parser("bajar")
     p.add_argument("--tanda", type=int, default=TANDA)
     p.add_argument("--temporal", required=True, help="carpeta temporal para los MP3 y el .tar (en D:, no en C:)")
+    p.add_argument("--max-tandas", type=int, default=0, help="como mucho N tandas en esta corrida (0 = todas las que faltan)")
     p.set_defaults(func=cmd_bajar)
     p = comandos.add_parser("resumen")
     p.set_defaults(func=cmd_resumen)
