@@ -1,0 +1,17 @@
+// Configuracion del Worker en produccion. Los secretos (APP_PASSWORD, DEVICE_TOKEN) viven en Cloudflare, nunca aca.
+// Despliegue y pruebas: cloudflare/README.md.
+{
+  "name": "traktor-concept-ai",
+  "main": "concept-ai-worker.js",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": true,
+  "keep_vars": true,
+  "ai": { "binding": "AI" },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "traktor-concepts",
+      "database_id": "REEMPLAZAR_CON_EL_ID_REAL"
+    }
+  ]
+}

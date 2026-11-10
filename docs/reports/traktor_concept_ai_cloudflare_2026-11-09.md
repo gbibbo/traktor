@@ -1,6 +1,6 @@
 # Traktor Concept AI: handoff Cloudflare a TRAKTOR ML
 
-**Fecha:** 2026-11-09. **Estado:** MVP remoto operativo para conversación, preparación de conceptos y encolado en D1. La integración con el ordenador de Traktor sigue pendiente.
+**Fecha:** 2026-11-09. **Estado:** MVP remoto operativo para conversación, preparación de conceptos y encolado en D1. [REEMPLAZADO 2026-11-09 por el agente local y el Worker v4 (sección 8): probados de punta a punta en local] La integración con el ordenador de Traktor sigue pendiente.
 
 > **Para Claude Code:** leer este documento, el archivo **cloudflare/concept-ai-worker.js**, **AGENTS.md**, **CLAUDE.md** y **docs/STATUS.md** antes de implementar el agente local. Este informe es un registro del trabajo realizado en la sesión de ChatGPT, no prueba de que se haya inspeccionado directamente el código binario o la versión activa de Cloudflare. El archivo JS es una copia de la versión v3 suministrada para pegar en el dashboard y que el usuario indicó haber desplegado; antes de cambios críticos, contrastarla con **Edit Code / Deployments**.
 
@@ -23,7 +23,7 @@ Cloudflare Worker traktor-concept-ai
     |
     | HTTPS autenticado: /api/device/claim y /api/device/complete
     v
-Agente Python local (AÚN NO IMPLEMENTADO)
+[REEMPLAZADO 2026-11-09: tools/traktor_live/conceptos_agente.py] Agente Python local (AÚN NO IMPLEMENTADO)
     |
     | consulta embeddings CLAP ya existentes, metadatos y track_uid
     v
@@ -31,7 +31,7 @@ Biblioteca TRAKTOR ML local
     |
     | resultados JSON hacia D1
     v
-Teléfono: GET /api/jobs/{id} (API lista; UI de resultados PENDIENTE)
+Teléfono: GET /api/jobs/{id} ([REEMPLAZADO 2026-11-09: el Worker v4 muestra la lista] API lista; UI de resultados PENDIENTE)
 ~~~
 
 **Entorno local:** repositorio público **gbibbo/traktor**, rama principal **main**. El repositorio documenta una biblioteca deduplicada de 1.760 temas y organización basada en CLAP + BPM. Verificar el estado de los artefactos actuales localmente; no asumir que están en Git. Respetar los límites de **AGENTS.md**: no subir audio, embeddings, bases locales, cachés ni credenciales. El usuario no tenía acceso al ordenador de Traktor el 09/11/2026; la única prueba desde otro ordenador fue una petición HTTPS de autenticación, no una instalación de agente.
@@ -149,9 +149,9 @@ Timestamps en milisegundos Unix. Estados: **queued** (esperando), **processing**
 
 ## 5. Pendientes y riesgos conocidos
 
-1. **Agente local Python** pendiente. Debe ejecutarse solo en la máquina de Traktor, autenticarse con DEVICE_TOKEN, hacer polling HTTPS, leer conceptos, consultar la biblioteca CLAP existente y responder con resultados. No trasladar música o embeddings a Cloudflare. Usar **track_uid canónico**, no índices posicionales ni rutas como identificadores externos. Ver **docs/STATUS.md** y **AGENTS.md** para la organización de datos.
-2. **Recovery / lease:** claim no reencola automáticamente trabajos processing tras caída del agente. Diseñar expiración de lease, heartbeat/reintentos, límites de attempts, manejo de duplicados e idempotencia. Evitar reclamar trabajos reales hasta contar con procesamiento completo y pruebas.
-3. **Interfaz:** aún no consulta GET /api/jobs/{id} después de guardar, no muestra progreso ni lista de pistas y no ofrece regeneración/corrección fina del concepto.
+1. [REEMPLAZADO 2026-11-09 por `tools/traktor_live/conceptos_agente.py`, sección 8] **Agente local Python** pendiente. Debe ejecutarse solo en la máquina de Traktor, autenticarse con DEVICE_TOKEN, hacer polling HTTPS, leer conceptos, consultar la biblioteca CLAP existente y responder con resultados. No trasladar música o embeddings a Cloudflare. Usar **track_uid canónico**, no índices posicionales ni rutas como identificadores externos. Ver **docs/STATUS.md** y **AGENTS.md** para la organización de datos.
+2. [REEMPLAZADO 2026-11-09 por el Worker v4: lease de 5 min, 3 intentos, generación del reclamo por `attempts`] **Recovery / lease:** claim no reencola automáticamente trabajos processing tras caída del agente. Diseñar expiración de lease, heartbeat/reintentos, límites de attempts, manejo de duplicados e idempotencia. Evitar reclamar trabajos reales hasta contar con procesamiento completo y pruebas.
+3. [REEMPLAZADO 2026-11-09 por el Worker v4: consulta el trabajo y muestra progreso, notas y lista; sigue sin corrección fina del concepto] **Interfaz:** aún no consulta GET /api/jobs/{id} después de guardar, no muestra progreso ni lista de pistas y no ofrece regeneración/corrección fina del concepto.
 4. **Exactitud semántica:** Gemma a veces devolvió JSON inválido; v3 tiene un reintento. El prompt prohíbe negativos inferidos, pero no hay un verificador semántico. Revisar prompts CLAP y cómo ponderar positivos/negativos; no restar negativos sin validación empírica.
 5. **Seguridad:** la página pública no tiene control de acceso previo, solo la API mediante contraseña compartida. Falta limitación de intentos/rate limiting, protección reforzada frente a abuso, autenticación individual, rotación de credenciales e idempotencia del guardado. No insertar credenciales en URL, logs, Git, HTML ni archivos .env versionados. La firma de draft usa APP_PASSWORD: rotarla invalida borradores previos.
 6. **Costos y operación:** la meta es el plan gratuito, no se garantiza ausencia de costes ni cuotas futuras. Confirmar disponibilidad/consumo de Workers AI, D1 y Workers antes de uso intensivo.
@@ -173,4 +173,26 @@ Timestamps en milisegundos Unix. Estados: **queued** (esperando), **processing**
 
 ## 7. Estado al cierre
 
-**Listo:** cuenta y Worker, binding Workers AI, D1 y tabla, secretos separados, interfaz móvil, conversación, generación de JSON, confirmación, creación de trabajos y rutas de comunicación dispositivo. **Validado parcialmente:** rutas nuevas de dispositivo y autenticación; aún no su procesamiento real. **No listo:** agente en PC Traktor, ejecución CLAP desde el agente, recuperación de trabajos, presentación de resultados y CI/CD. **Próximo entorno de trabajo:** máquina con Traktor + VS Code + Claude Code. La presente documentación y el archivo JS son la referencia inicial, sujetos a comparación con la versión activa de Cloudflare.
+**Listo:** cuenta y Worker, binding Workers AI, D1 y tabla, secretos separados, interfaz móvil, conversación, generación de JSON, confirmación, creación de trabajos y rutas de comunicación dispositivo. **Validado parcialmente:** rutas nuevas de dispositivo y autenticación; aún no su procesamiento real. **No listo:** [REEMPLAZADO 2026-11-09 por la sección 8: todo esto salvo CI/CD quedó hecho y probado en local] agente en PC Traktor, ejecución CLAP desde el agente, recuperación de trabajos, presentación de resultados y CI/CD. **Próximo entorno de trabajo:** máquina con Traktor + VS Code + Claude Code. La presente documentación y el archivo JS son la referencia inicial, sujetos a comparación con la versión activa de Cloudflare.
+
+## 8. Adenda 2026-11-09 (Claude Code): agente local y Worker v4
+
+**Veredicto.** El flujo completo funciona en local con el código real del Worker, una D1 local, CLAP real sobre la biblioteca real y la página real a tamaño de teléfono. Lo único simulado fueron las dos llamadas al LLM. Falta publicar el Worker v4 y darle el `DEVICE_TOKEN` a este ordenador; ambas cosas requieren la cuenta de Gabriel. Si las listas son buenas lo decide Gabriel escuchando.
+
+| Afirmación | Etiqueta | Evidencia (2026-11-09) |
+| --- | --- | --- |
+| Crear, reclamar, completar y leer un trabajo funciona contra el Worker real | EVIDENCIA OBSERVADA | `tests/v4/test_concept_worker_e2e.py`, 18 pasan, `wrangler dev` 4.159.0 con D1 local |
+| La página del teléfono muestra propuesta, progreso, notas y 30 temas, sin errores de consola ni desborde horizontal | EVIDENCIA OBSERVADA | Edge sin cabeza, 390×844, con el agente y CLAP reales; capturas revisadas |
+| La playlist de Traktor es válida y coincide con la lista del teléfono | EVIDENCIA OBSERVADA | `TRAKTOR ML Concepto NML.nml`: 30 entradas, mismo orden, todos los archivos y claves en la colección. Sin abrir en Traktor |
+| Primera búsqueda 8 s; las siguientes, 62 ms | EVIDENCIA OBSERVADA | `conceptos_agente.py probar`, 1717 candidatos, biblioteca `musica`, índice versión 3 del 2026-11-06 |
+| Importar torch en frío puede tardar 76 a 121 s, y el proceso con CLAP ocupa unos 950 MB | EVIDENCIA OBSERVADA | Dos medidas con caché fría; memoria del proceso después de codificar |
+| Conceptos distintos dan listas distintas | EVIDENCIA OBSERVADA | 10 conceptos × 30: 248 temas distintos, solapamiento medio 1,3 de 30, máximo 8 (industrial y peak time) |
+| Restar frases negativas no sirve para excluir voz | EVIDENCIA OBSERVADA, exploratoria | Vocal@30: 0,51 sin restar, 0,46 a 0,49 restando (peso 0,25 a 1); hasta 19 de 30 temas cambian. Solo voz, el único atributo con etiqueta |
+| La calidad musical de las listas | NO CONCLUYENTE | Los géneros de los 30 primeros son plausibles, pero no reemplazan escuchar. Sin medida contra sets; ver T18 en el plan |
+| El Worker v3 publicado hace lo mismo que el snapshot de Git | INFERENCIA, parcial | El HTML público tiene la misma lógica con otro formato. El backend no se pudo comparar sin credenciales |
+
+**Qué cambió en el Worker (v4).** Lease de 5 minutos con 3 intentos; `job_id` opcional en `/api/device/claim`, para que una prueba no consuma conceptos reales; guardado idempotente (el id sale de la firma del borrador); resultados con `bpm`, `key`, `vocal`, `notes`, `pool` y `passed`, todos opcionales, así que el formato v3 sigue valiendo; y la página muestra la lista. No cambia la tabla de D1.
+
+**Lo que el teléfono avisa que no aplica.** Energía relativa, porque no hay coordenada validada, y exclusiones que no sean voz. Ver `docs/DECISIONS.md`, 2026-11-09.
+
+**Sigue abierto.** Límite de intentos de contraseña (punto 5) y despliegue automático desde GitHub (punto 7, apagado a propósito). Recetas: `cloudflare/README.md`.

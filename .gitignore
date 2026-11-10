@@ -64,3 +64,8 @@ download_JIJIJI/runs/
 download_JIJIJI/Playlists_DOWNLOAD/
 # sockseek.exe (114 MB) se descarga en cada PC: download_JIJIJI/CONFIGURAR_OTRO_ORDENADOR.md
 tools/sockseek/
+
+# Cloudflare Worker: estado local de wrangler y secretos de desarrollo
+cloudflare/.wrangler/
+cloudflare/.dev.vars
+cloudflare/node_modules/

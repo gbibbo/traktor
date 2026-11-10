@@ -18,14 +18,13 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
   organiza una carpeta sola con su propio mapa.
 - **Temas repetidos, cerrado** (DECISIONS 2026-09-29, 8-13): una copia por tema; `biblioteca` v11
   (1760 temas); copias en `Música/_copias/` (`dedupe.py restore-copies` las devuelve). Export
-  `exports/biblioteca_v11/` (2026-10-08): 51 playlists, 0 rutas faltantes, 907 Vocal, 27 GB.
+  `exports/biblioteca_v11/` (2026-10-08): 51 playlists, 0 rutas faltantes.
 - `requirements_v4.txt` fija torch 2.7.1 y pyarrow 16.1 (Smart App Control de la laptop).
 - **Tripletas (n = 57): ninguna representación supera al BPM de forma concluyente.** Entre
   representaciones decide la escucha de playlists enteras, no el puntaje.
 - **Etiqueta Vocal (clap_probe, 2026-10-06)**: Vocal si >= 5 % del tema tiene voz (regla de Gabriel);
-  936 de 1823. Escrita (respaldo `vocal_tags_backup_20261006_111119.csv`) y verificada en 1792 MP3/FLAC.
-- **Tags de Beatport** (2026-09-29): 1087 archivos, 0 errores, track_uid intacto (respaldo
-  `catalog_before_beatport_tags_20260929.parquet`); los 110 sin confirmar conservan su género.
+  936 de 1823. Escrita y verificada en 1792 MP3/FLAC.
+- **Tags de Beatport** (2026-09-29): 1087 archivos, track_uid intacto; los 110 sin confirmar conservan su género.
 - **Pendrive `D:\TRAKTOR ML` (copia en `C:\TRAKTOR ML`)** (DECISIONS 2026-10-30, 11-02): los 1760
   temas de `biblioteca` por playlist; `_organizacion.csv` da archivo y track_uid de cada uno
   (verificado en ambas el 11-04). Carátulas 1630/1760. Rekordbox: `Preparar Rekordbox.bat`.
@@ -53,6 +52,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 5. Recomendación en vivo (DECISIONS 11-06/07/08): parecidos (`recomendador.py`, D#0+D0). Plan § 11,
    prompt `PROMPT_SEGURIDAD_Y_DIRECCION.md`; A1 hecha (`zona_sets_2026-11-08.md`), sigue A2.
    GABRIEL: Traktor, «TRAKTOR ML sin tonalidad», Analyze solo Key. TIV aparte.
+6. Conceptos desde el teléfono (Cloudflare): Worker v4 y agente `conceptos_agente.py` probados en local; falta
+   publicarlos. GABRIEL: `wrangler login` (`cloudflare/README.md`).
 
 ## RUN RECIPES
 
@@ -72,5 +73,4 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
   (varias organizaciones a ciegas: `--org <hash> --org <hash> --blind`).
 - Corrida larga: primero `--folder "<subcarpeta>"` y revisar la salida; después la completa con
   `--low-priority`.
-- Chequeo pre-commit: activar una vez por clon con `git config core.hooksPath tools/git_hooks`;
-  revisar todo el árbol con `python tools/git_hooks/check_staged.py --all`.
+- Chequeo pre-commit de todo el árbol: `python tools/git_hooks/check_staged.py --all`.

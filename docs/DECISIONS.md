@@ -6,6 +6,25 @@ anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_impl
 Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 `[REEMPLAZADO <fecha> por <decisión>: <lo que rige ahora>]` (o `[REFUTADO …]` si era un error).
 
+## 2026-11-09 (conceptos desde el teléfono)
+
+Gabriel armó el Worker de Cloudflare en otra sesión (LLM solo en Cloudflare; audio, embeddings y rutas solo en el
+ordenador) y pidió completarlo con la mayor autonomía posible. Lo que sigue lo decidió el agente y Gabriel puede
+cambiarlo. Evidencia: `docs/reports/traktor_concept_ai_cloudflare_2026-11-09.md`, sección 8.
+
+1. **Las frases negativas no se restan en CLAP** (agente; exploratorio, solo voz, el único atributo con etiqueta). Restar
+   una negativa de voz en 10 conceptos sobre los 1760 temas dejó la voz en los 30 primeros casi igual (0,51 sin restar;
+   0,46 a 0,49 con peso 0,25 a 1) y cambió hasta 19 de 30 temas. La voz se filtra con la etiqueta Vocal; las demás
+   exclusiones se informan en el teléfono como sin aplicar.
+2. **La energía relativa no se aplica todavía** (agente): no hay coordenada validada (plan, sección 11), y el teléfono lo
+   dice. Candidata que decide Gabriel: el Energy de Mixed In Key de los tags (1408 de 1770 temas, valores 2 a 8).
+3. **BPM cerca del actual es ±20, la regla de Parecidos; sin esa condición el BPM no filtra** (agente: se respeta lo que
+   pide el concepto). El BPM se muestra en la lista.
+4. **Cada lista se escribe también en `TRAKTOR ML Concepto NML.nml`, en la carpeta de sugerencias** (agente): es una
+   playlist más, como las de dirección (2026-11-07, punto 8). El botón D#0+D0 no cambia. Sin probar dentro de Traktor.
+5. **CLAP se carga con el primer concepto y se libera a los 20 min sin uso** (agente): ocupa cerca de 950 MB y este PC
+   tenía 2 GB libres. Prioridad baja y dos hilos, para no competir con el audio.
+
 ## 2026-11-08
 
 1. **Los tracklists de 1001Tracklists se bajan directamente de la página, con la cuenta de Gabriel**

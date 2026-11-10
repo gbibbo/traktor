@@ -27,6 +27,8 @@ CHANGELOG:
                 que ya no están en el catálogo, sin releer la caché entera (lo usa «Agregar música nueva»:
                 rearmar clap_full llevaba ~70 s para sumar 10 temas). Mismo conjunto de temas.
   - 2026-09-12: Creación inicial.
+  - 2026-11-09: ClapBackend.embed_text: frases de texto en el mismo espacio que el audio (lo usa el agente de
+                conceptos, tools/traktor_live/conceptos_agente.py).
 """
 from __future__ import annotations
 
@@ -184,6 +186,18 @@ class ClapBackend:
         if mat.shape[1] != 512:
             raise RuntimeError(f"CLAP: dimensión inesperada {mat.shape}")
         return {"": mat.mean(axis=0), "_winclap": mat}
+
+    def embed_text(self, prompts: List[str]) -> np.ndarray:
+        """Una fila por frase, con norma 1, en el mismo espacio de 512 dimensiones que embed()."""
+        inputs = self.processor(text=list(prompts), return_tensors="pt", padding=True)
+        with self.torch.no_grad():
+            feats = self.model.get_text_features(**inputs)
+        if not self.torch.is_tensor(feats):  # transformers>=5: ModelOutput, como en embed()
+            feats = getattr(feats, "text_embeds", None) if getattr(feats, "text_embeds", None) is not None else feats.pooler_output
+        mat = feats.numpy().astype(np.float32)
+        if mat.ndim != 2 or mat.shape[1] != 512:
+            raise RuntimeError(f"CLAP: dimensión inesperada {mat.shape}")
+        return mat / np.linalg.norm(mat, axis=1, keepdims=True)
 
 
 def split_windows(seg: np.ndarray, win: int) -> List[np.ndarray]:

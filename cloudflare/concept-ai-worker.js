@@ -1,5 +1,11 @@
+// Traktor Concept AI, v4 (2026-11-09). Fuente unica en Git: cloudflare/README.md explica como se despliega.
+// v4 sobre v3: los trabajos abandonados por el ordenador vuelven a la cola (lease), guardar dos veces el
+// mismo borrador no crea otro trabajo, /api/device/claim acepta job_id y el telefono muestra los resultados.
 const MODEL = "@cf/google/gemma-4-26b-a4b-it";
 const MAX_MESSAGES = 12;
+const LEASE_MS = 5 * 60 * 1000;   // un trabajo reclamado y sin terminar vuelve a la cola pasado este tiempo
+const MAX_ATTEMPTS = 3;           // reclamos antes de darlo por fallido
+const UUID_RE = /^[0-9a-f-]{36}$/i;
 
 function reply(data, status = 200) {
   return Response.json(data, {
@@ -24,6 +30,19 @@ async function readJson(request) {
   if (Number(request.headers.get("Content-Length") || 0) > 24000) return null;
   const text = await request.text();
   if (text.length > 24000) return null;
+  try {
+    const value = JSON.parse(text);
+    return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readOptionalJson(request) {
+  if (Number(request.headers.get("Content-Length") || 0) > 24000) return null;
+  const text = await request.text();
+  if (text.length > 24000) return null;
+  if (!text.trim()) return {};
   try {
     const value = JSON.parse(text);
     return value && typeof value === "object" && !Array.isArray(value) ? value : null;
@@ -86,9 +105,26 @@ async function verifyDraft(env, concept, expires, signature) {
     new TextEncoder().encode(JSON.stringify({ concept, expires })));
 }
 
+function jobIdFromSignature(signature) {
+  // La misma firma siempre da el mismo id: guardar dos veces un borrador no crea dos trabajos.
+  const s = signature.toLowerCase();
+  return `${s.slice(0, 8)}-${s.slice(8, 12)}-4${s.slice(13, 16)}-8${s.slice(17, 20)}-${s.slice(20, 32)}`;
+}
+
 function validateResults(result) {
   if (!result || typeof result !== "object" || Array.isArray(result) || !Array.isArray(result.tracks) ||
     result.tracks.length > 30) return null;
+  const optional = {};
+  for (const field of ["pool", "passed"]) {
+    if (result[field] === undefined || result[field] === null) continue;
+    if (!Number.isSafeInteger(result[field]) || result[field] < 0) return null;
+    optional[field] = result[field];
+  }
+  if (result.notes !== undefined && result.notes !== null) {
+    if (!Array.isArray(result.notes) || result.notes.length > 8 ||
+      !result.notes.every(n => typeof n === "string" && n.trim() && n.length <= 200)) return null;
+    optional.notes = result.notes;
+  }
   const tracks = [];
   for (const item of result.tracks) {
     if (!item || typeof item !== "object" || Array.isArray(item) ||
@@ -97,9 +133,22 @@ function validateResults(result) {
       typeof item.artist !== "string" || item.artist.length > 200 ||
       typeof item.score !== "number" || !Number.isFinite(item.score) ||
       item.score < -1 || item.score > 1) return null;
-    tracks.push({ track_id: item.track_id, title: item.title, artist: item.artist, score: item.score });
+    const track = { track_id: item.track_id, title: item.title, artist: item.artist, score: item.score };
+    if (item.bpm !== undefined && item.bpm !== null) {
+      if (typeof item.bpm !== "number" || !Number.isFinite(item.bpm) || item.bpm <= 0 || item.bpm > 400) return null;
+      track.bpm = item.bpm;
+    }
+    if (item.key !== undefined && item.key !== null) {
+      if (typeof item.key !== "string" || item.key.length > 6) return null;
+      track.key = item.key;
+    }
+    if (item.vocal !== undefined && item.vocal !== null) {
+      if (typeof item.vocal !== "boolean") return null;
+      track.vocal = item.vocal;
+    }
+    tracks.push(track);
   }
-  return { tracks };
+  return { tracks, ...optional };
 }
 
 async function handleDevice(request, env, path) {
@@ -107,15 +156,37 @@ async function handleDevice(request, env, path) {
   if (!deviceAuthorized(request, env)) return fail("No autorizado", 401);
 
   if (path === "/api/device/claim") {
+    const data = await readOptionalJson(request);
+    if (!data || (data.job_id !== undefined && (typeof data.job_id !== "string" || !UUID_RE.test(data.job_id)))) {
+      return fail("Solicitud inválida");
+    }
     const now = Date.now();
+    const cutoff = now - (Number(env.LEASE_MS) || LEASE_MS);
     try {
+      // Primero se recuperan los trabajos que un ordenador reclamó y no terminó.
+      await env.DB.batch([
+        env.DB.prepare(`UPDATE jobs SET status = 'failed', error = ?, updated_at = ?
+          WHERE status = 'processing' AND claimed_at < ? AND attempts >= ?`)
+          .bind("El ordenador no terminó este trabajo", now, cutoff, MAX_ATTEMPTS),
+        env.DB.prepare(`UPDATE jobs SET status = 'queued', updated_at = ?
+          WHERE status = 'processing' AND claimed_at < ? AND attempts < ?`)
+          .bind(now, cutoff, MAX_ATTEMPTS)
+      ]);
       // La selección y el cambio de estado ocurren en una sola instrucción SQL.
-      const job = await env.DB.prepare(`
-        UPDATE jobs SET status = 'processing', claimed_at = ?, updated_at = ?, attempts = attempts + 1
-        WHERE id = (SELECT id FROM jobs WHERE status = 'queued' ORDER BY created_at, id LIMIT 1)
-          AND status = 'queued'
-        RETURNING id, concept_json, attempts
-      `).bind(now, now).first();
+      // Con job_id se reclama solo ese trabajo: las pruebas no consumen conceptos reales.
+      const statement = data.job_id
+        ? env.DB.prepare(`
+            UPDATE jobs SET status = 'processing', claimed_at = ?, updated_at = ?, attempts = attempts + 1
+            WHERE id = ? AND status = 'queued'
+            RETURNING id, concept_json, attempts
+          `).bind(now, now, data.job_id.toLowerCase())
+        : env.DB.prepare(`
+            UPDATE jobs SET status = 'processing', claimed_at = ?, updated_at = ?, attempts = attempts + 1
+            WHERE id = (SELECT id FROM jobs WHERE status = 'queued' ORDER BY created_at, id LIMIT 1)
+              AND status = 'queued'
+            RETURNING id, concept_json, attempts
+          `).bind(now, now);
+      const job = await statement.first();
       if (!job) return reply({ job: null });
       return reply({ job: { id: job.id, attempts: job.attempts, concept: JSON.parse(job.concept_json) } });
     } catch {
@@ -125,7 +196,7 @@ async function handleDevice(request, env, path) {
 
   if (path === "/api/device/complete") {
     const data = await readJson(request);
-    if (!data || typeof data.id !== "string" || !/^[0-9a-f-]{36}$/i.test(data.id) ||
+    if (!data || typeof data.id !== "string" || !UUID_RE.test(data.id) ||
       !Number.isSafeInteger(data.attempts) || data.attempts < 1) return fail("Solicitud inválida");
     const status = data.status;
     if (status !== "done" && status !== "failed") return fail("Estado inválido");
@@ -259,13 +330,14 @@ async function handleApp(request, env, path) {
       !(await verifyDraft(env, concept, data.expires, data.signature))) {
       return fail("Prepara y confirma el concepto antes de guardarlo");
     }
-    const id = crypto.randomUUID();
+    const id = jobIdFromSignature(data.signature);
     const now = Date.now();
     try {
       await env.DB.prepare(
-        "INSERT INTO jobs (id, created_at, updated_at, status, concept_json) VALUES (?, ?, ?, 'queued', ?)"
+        "INSERT INTO jobs (id, created_at, updated_at, status, concept_json) VALUES (?, ?, ?, 'queued', ?) ON CONFLICT(id) DO NOTHING"
       ).bind(id, now, now, JSON.stringify(concept)).run();
-      return reply({ id, status: "queued" }, 201);
+      const row = await env.DB.prepare("SELECT status FROM jobs WHERE id = ?").bind(id).first();
+      return reply({ id, status: row.status }, 201);
     } catch {
       return fail("No se pudo guardar en D1", 500);
     }
@@ -286,42 +358,95 @@ input,textarea,button{box-sizing:border-box;width:100%;padding:13px;margin-top:1
 input,textarea{background:#1f2937;color:white;border:1px solid #4b5563}
 button{background:#0d9488;color:white;border:0;cursor:pointer}
 button:disabled{opacity:.4;cursor:default}
-#prepare{background:#334155}#save{background:#2563eb}#chat{min-height:120px;padding-top:15px}
+#prepare{background:#334155}#save{background:#2563eb}#again{background:#334155;display:none}#chat{min-height:120px;padding-top:15px}
 .msg{padding:12px;margin:10px 0;border-radius:10px;background:#1f2937;white-space:pre-wrap;overflow-wrap:anywhere}
-.user{background:#134e4a}#proposal{display:none;margin-top:18px;border:1px solid #475569;border-radius:10px;padding:12px}
-#proposal pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
+.user{background:#134e4a}#proposal,#results{display:none;margin-top:18px;border:1px solid #475569;border-radius:10px;padding:12px}
+#proposal pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:14px;margin:10px 0 0}
+#status{margin:8px 0 0;color:#cbd5e1}#notes{margin:10px 0 0;padding-left:18px;color:#fbbf24;font-size:14px}
+#tracks{margin:12px 0 0;padding-left:30px}#tracks li{margin:0 0 11px;overflow-wrap:anywhere}
+#tracks .meta{display:block;color:#9ca3af;font-size:13px;font-variant-numeric:tabular-nums}
+#footnote{display:none;margin-top:6px}
 </style>
 </head>
 <body>
 <h2>Traktor Concept AI</h2>
-<small>Define el concepto. Puedes pasar directamente a prepararlo sin responder más preguntas.</small>
+<small>Describe lo que quieres escuchar y prepara el concepto. No hace falta responder a todas las preguntas.</small>
 <input id="password" type="password" placeholder="Contraseña de acceso" autocomplete="off">
 <div id="chat" aria-live="polite"></div>
 <textarea id="message" rows="3" placeholder="Quiero techno oscuro e hipnótico, sin voces..."></textarea>
 <button id="send">Enviar</button>
 <button id="prepare" disabled>Preparar concepto</button>
 <div id="proposal"><strong>Concepto para revisar</strong><pre id="proposalText"></pre>
-<button id="save" disabled>Confirmar y guardar concepto</button></div>
+<button id="save" disabled>Confirmar y buscar en mi música</button></div>
+<div id="results" aria-live="polite"><strong id="resultName"></strong>
+<p id="status"></p><ul id="notes"></ul><ol id="tracks"></ol>
+<small id="footnote">El número es el parecido entre el texto y el audio (CLAP). Sirve para ordenar; no es un porcentaje.</small>
+</div>
+<button id="again">Nuevo concepto</button>
 <script>
-let history=[],draft=null;
-const chat=document.getElementById('chat');
-const sendButton=document.getElementById('send');
-const prepareButton=document.getElementById('prepare');
-const saveButton=document.getElementById('save');
-const input=document.getElementById('message');
-const password=document.getElementById('password');
-const proposal=document.getElementById('proposal');
-const proposalText=document.getElementById('proposalText');
+let history=[],draft=null,followId=0;
+const $=id=>document.getElementById(id);
+const chat=$('chat'),sendButton=$('send'),prepareButton=$('prepare'),saveButton=$('save'),againButton=$('again');
+const input=$('message'),password=$('password'),proposal=$('proposal'),proposalText=$('proposalText');
+const results=$('results'),resultName=$('resultName'),statusText=$('status'),notesList=$('notes'),tracksList=$('tracks'),footnote=$('footnote');
+const ENERGY={maintain:'mantener',increase:'subir',decrease:'bajar'};
+const VOCALS={present:'con voces',absent:'sin voces'};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function show(role,content){
   const div=document.createElement('div');div.className='msg '+role;div.textContent=content;
   chat.appendChild(div);div.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 function clearDraft(){draft=null;saveButton.disabled=true;proposal.style.display='none'}
-async function post(path,data){
-  const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json','X-App-Password':password.value},body:JSON.stringify(data)});
+function clearResults(){followId++;results.style.display='none';statusText.textContent='';notesList.replaceChildren();tracksList.replaceChildren();footnote.style.display='none';againButton.style.display='none'}
+async function call(path,options){
+  const response=await fetch(path,options);
   const result=await response.json();
   if(!response.ok)throw new Error(response.status===401?'Contraseña incorrecta':result.error||'Error HTTP '+response.status);
   return result;
+}
+const post=(path,data)=>call(path,{method:'POST',headers:{'Content-Type':'application/json','X-App-Password':password.value},body:JSON.stringify(data)});
+const get=path=>call(path,{headers:{'X-App-Password':password.value}});
+function describe(c){
+  const lines=[c.name,'',c.description,'','Lo que se va a buscar:',...c.positive_prompts.map(p=>'• '+p)];
+  if(c.negative_prompts.length)lines.push('','Excluir:',...c.negative_prompts.map(p=>'• '+p));
+  const k=c.constraints,extra=[];
+  if(ENERGY[k.energy])extra.push('energía: '+ENERGY[k.energy]);
+  if(VOCALS[k.vocals])extra.push(VOCALS[k.vocals]);
+  if(k.bpm==='near_current')extra.push('BPM cerca del tema actual');
+  if(extra.length)lines.push('','Condiciones: '+extra.join(', '));
+  return lines.join('\\n');
+}
+function showTracks(result){
+  notesList.replaceChildren(...(result.notes||[]).map(text=>{const li=document.createElement('li');li.textContent=text;return li}));
+  tracksList.replaceChildren(...result.tracks.map(t=>{
+    const li=document.createElement('li');
+    li.append((t.artist?t.artist+' — ':'')+t.title);
+    const meta=document.createElement('span');meta.className='meta';
+    meta.textContent=[t.bpm?Math.round(t.bpm)+' BPM':null,t.key||null,t.vocal===true?'Vocal':null,t.score.toFixed(2)].filter(Boolean).join(' · ');
+    li.append(meta);return li;
+  }));
+  footnote.style.display=result.tracks.length?'block':'none';
+}
+async function follow(id,name){
+  const mine=++followId,start=Date.now();
+  results.style.display='block';resultName.textContent=name;statusText.textContent='En cola...';
+  results.scrollIntoView({behavior:'smooth',block:'start'});
+  while(mine===followId&&Date.now()-start<6*60*1000){
+    await sleep(2500);
+    if(mine!==followId)return;
+    let job;
+    try{job=await get('/api/jobs/'+id)}catch(e){statusText.textContent='Sin respuesta, reintentando... ('+e.message+')';continue}
+    if(job.status==='done'){
+      const n=job.result.tracks.length;
+      statusText.textContent=n?n+' temas de tu biblioteca, del más parecido al menos parecido.':'Ningún tema pasó las condiciones.';
+      showTracks(job.result);againButton.style.display='block';return;
+    }
+    if(job.status==='failed'){statusText.textContent='No se pudo completar: '+(job.error||'error desconocido');againButton.style.display='block';return}
+    const waited=Date.now()-start;
+    statusText.textContent=job.status==='processing'?'Buscando en tu biblioteca... La primera búsqueda de la noche puede tardar uno o dos minutos.':
+      waited>30000?'Sigue en cola. ¿Está encendido el ordenador, con Traktor abierto?':'En cola...';
+  }
+  if(mine===followId){statusText.textContent='El ordenador no respondió a tiempo. El concepto queda guardado y se procesará cuando vuelva.';againButton.style.display='block'}
 }
 sendButton.onclick=async()=>{
   const content=input.value.trim();if(!content)return;
@@ -338,21 +463,22 @@ prepareButton.onclick=async()=>{
   clearDraft();sendButton.disabled=true;prepareButton.disabled=true;prepareButton.textContent='Preparando...';
   try{
     draft=await post('/api/draft',{messages:history});
-    proposalText.textContent=JSON.stringify(draft.concept,null,2);
+    proposalText.textContent=describe(draft.concept);
     proposal.style.display='block';saveButton.disabled=false;
     proposal.scrollIntoView({behavior:'smooth',block:'start'});
   }catch(e){show('assistant','Error al preparar concepto: '+e.message)}
   finally{sendButton.disabled=false;prepareButton.disabled=false;prepareButton.textContent='Preparar concepto'}
 };
 saveButton.onclick=async()=>{
-  if(!draft||!confirm('¿Confirmas este concepto para la búsqueda musical?'))return;
+  if(!draft||!confirm('¿Buscar este concepto en tu música?'))return;
   saveButton.disabled=true;
   try{
+    const name=draft.concept.name;
     const result=await post('/api/jobs',{concept:draft.concept,expires:draft.expires,signature:draft.signature,confirmed:true});
-    show('assistant','Concepto guardado. ID: '+result.id+'. Estado: '+result.status+'. La búsqueda musical aún no se ha ejecutado.');
-    clearDraft();
+    clearDraft();follow(result.id,name);
   }catch(e){show('assistant','Error al guardar: '+e.message);saveButton.disabled=false}
 };
+againButton.onclick=()=>{clearDraft();clearResults();history=[];chat.replaceChildren();prepareButton.disabled=true;input.focus()};
 </script>
 </body>
 </html>`;
