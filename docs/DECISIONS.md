@@ -6,6 +6,32 @@ anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_impl
 Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 `[REEMPLAZADO <fecha> por <decisión>: <lo que rige ahora>]` (o `[REFUTADO …]` si era un error).
 
+## 2026-11-10 (después de E15: respuestas de Gabriel)
+
+Gabriel leyó el informe de E15 y la auditoría (`docs/reports/auditoria_e15_2026-11-10.md`, commit `9c28acf`).
+
+1. **V7 sigue, con las tres vistas (CLAP incluido) y la ventana V4, guardando cada segmento.** Antes del primer
+   envío a gpuq: prueba chica en CPU y pedido de OK a Gabriel con los números (`AGENTS.md`, «Compute»). «CLAP
+   centrado aparte» no es la solución: la dan E17 y V8.
+2. **Tonalidad.** El peso que va al recomendador en vivo sale solo de pares con la tonalidad de Traktor (D3 y
+   D5 × biblioteca, E16). Con las tonalidades de Beatport, P12a no aprende un peso para la regla actual: informa
+   cuántas veces sobre el azar aparece cada relación (P7) y lo mismo mirando solo la tónica. En los pares de E16, la
+   misma tabla con la tonalidad de Traktor y con la de Beatport (`bp_key` de `beatport.parquet`), que es la única
+   variable que cambia. **La regla de compatibilidad es de Gabriel**: el agente no propone cambiarla.
+3. **G13, P12a y E16 empiezan ya.**
+4. **Unidad nueva, corta y en CPU, antes de aprender pesos con CLAP: E17 y V8** (plan 12.9). E17: 20 archivos de la
+   biblioteca de 300 kbps o más, al azar con semilla fija, recodificados a 192, 128 y 96 kbps y aparte con 6 dB menos
+   sin recodificar; dice si la causa es la compresión o el nivel. V8: CLAP sin la dirección de E17, una dirección y
+   más solo si no llega, con los umbrales de la fila V8 fijados en un commit antes de medir. Si V8 pasa, es el CLAP de
+   la lista nueva de E12. MAEST y estilos, lo mismo, solo informado. Los valores por defecto del recomendador no
+   cambian hasta que Gabriel lo diga.
+5. **Orden**: E17 y V8; en paralelo, la prueba chica de V7 y su pedido de OK; G13 y P12a; E16 y la ecuación ajustada
+   de nuevo; E12.
+6. **Dos arreglos al informe de E15** cuando se vuelva a correr `medir`: cambiar un metadato por vez (solo tonalidad,
+   solo BPM) para decir cuánto baja cada uno, y separar la tonalidad en «misma tónica» y «mismo modo».
+7. Siguen las reglas de antes: nada de pedidos a Beatport ni a 1001Tracklists, no se editan los archivos de la sesión
+   de la bajada, nada se ajusta con los sets de Gabriel y cada informe dice con cuántos sets y previews midió.
+
 ## 2026-11-10 (E15: los previews frente a la biblioteca)
 
 Informe: `docs/reports/dominio_previews_2026-11-10.md`. Protocolo fijado en el commit `269af4c` antes de medir.
@@ -19,13 +45,14 @@ Informe: `docs/reports/dominio_previews_2026-11-10.md`. Protocolo fijado en el c
    los tags en el 47 % de los temas; con los metadatos de la biblioteca, ese puntaje da 0,947.
 3. **La ventana de los previews es el preview entero en 4 segmentos de 30 s** (V4, por la regla fijada); la regla
    del extractor tal cual es mucho peor y no se usa.
-4. **Pregunta para Gabriel** (agente): si V7 sigue con MAEST y estilos como vistas del juez y CLAP solo entre
+4. [REEMPLAZADO 2026-11-10 por las respuestas de Gabriel (sección «después de E15», puntos 1 y 2): V7 sigue con
+   las tres vistas; el peso de la tonalidad para el vivo sale de pares con la tonalidad de Traktor] **Pregunta para Gabriel** (agente): si V7 sigue con MAEST y estilos como vistas del juez y CLAP solo entre
    previews y centrado aparte, y cómo se trata la tonalidad de los pares de previews, que en vivo es la de Traktor.
 5. **Auditoría de E15** (agente auditor; `docs/reports/auditoria_e15_2026-11-10.md`): los números se reproducen. El
    umbral del Spearman era de la auditoría y medía también la fuente de los metadatos: el propio archivo de la
    biblioteca con los metadatos de Beatport da 0,81. CLAP registra la calidad del archivo: 420 de los 1760 temas son
    MP3 de menos de 200 kbps y sus vecinos en CLAP se agrupan por bitrate. La tonalidad de Beatport difiere de la de
-   Traktor sobre todo en el modo. **Recomendaciones, que esperan a Gabriel**: V7 sigue con las tres vistas; antes
+   Traktor sobre todo en el modo. **Recomendaciones** [REEMPLAZADO 2026-11-10: Gabriel las aprobó (sección «después de E15»)]: V7 sigue con las tres vistas; antes
    de aprender pesos con CLAP, E17 y V8 (plan 12.9); el peso de la tonalidad para el vivo sale de pares con la
    tonalidad de Traktor; G13, P12a y E16 empiezan ya.
 
