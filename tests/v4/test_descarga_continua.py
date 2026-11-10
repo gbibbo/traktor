@@ -87,6 +87,8 @@ def test_esperas_crecen_con_tope_y_la_pausa_de_youtube_se_guarda(tmp_path):
     assert [dc.espera_corte("youtube", n) / 60 for n in (1, 2, 3, 4)] == [60, 90, 120, 120]
     assert [dc.espera_corte("beatport", n) / 60 for n in (1, 2, 3, 4)] == [30, 60, 120, 120]
     assert [dc.espera_error(n) / 60 for n in (1, 2, 3, 4, 5)] == [10, 20, 40, 60, 60]
+    assert dc.nueva_pausa_yt(6, 3 * 3600) == 9 and dc.nueva_pausa_yt(9, 60) == 9  # al arrancar: el mismo bloqueo
+    assert dc.nueva_pausa_yt(25, 3600) == dc.PAUSA_YT_TOPE
     assert dc.leer_pausa_yt(tmp_path) == dc.PAUSA_YT_INICIAL
     (tmp_path / "pausa_s.txt").write_text("13.5", encoding="utf-8")
     assert dc.leer_pausa_yt(tmp_path) == 13.5
@@ -107,7 +109,7 @@ def test_la_espera_ante_un_sitio_sobrevive_a_un_reinicio(tmp_path):
     o.parar.set()  # que no espere de verdad
     assert dc.espera_pendiente(tmp_path, "youtube") == 0
     o.esperar_sitio("youtube", 3600, "verificación anti-robots")
-    assert 3500 < dc.espera_pendiente(tmp_path, "youtube") <= 3600
+    assert 3500 < dc.espera_pendiente(tmp_path, "youtube") <= 3601  # la hora se guarda redondeada al segundo
     assert dc.espera_pendiente(tmp_path, "1001") == 0
     (tmp_path / "espera_1001.txt").write_text("1", encoding="utf-8")  # ya pasó
     assert dc.espera_pendiente(tmp_path, "1001") == 0

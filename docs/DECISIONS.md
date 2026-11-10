@@ -151,8 +151,11 @@ Plan, sección 12.9. Las medidas de la auditoría de este día son exploratorias
    repetidos sin red los 11 139 temas de los lotes, el código viejo reproduce lo grabado y el nuevo no cambia
    ninguno de los que ya tenían preview; 185 rescatados, leídos uno por uno por el agente y por un revisor aparte
    sin su juicio: 185 la misma versión. En el piloto, contra el enlace de 1001Tracklists, uno más y ninguno menos.
-   La biblioteca no lo usa: sus 1602 temas repetidos no cambian. El enlace de 1001Tracklists de los rescatados con
-   botón queda como control cuando el sitio deje.
+   La biblioteca no lo usa: sus 1602 temas repetidos no cambian. [REEMPLAZADO 2026-11-10 por el control hecho a las
+   17:30 (`docs/reports/control_filtro_suave_2026-11-10.md`): de 158 temas flexibles con enlace a Beatport, 127 con el
+   mismo id; de los 31 distintos, ninguno es otra versión (14 la misma grabación en otro lanzamiento, 10 enlaces sin
+   ficha en Beatport, 4 donde la búsqueda acierta igual o mejor, 1 sin decidir), y 2 son un corte corto de la misma
+   mezcla] El enlace de 1001Tracklists de los rescatados con botón queda como control cuando el sitio deje.
 3. **YouTube** (agente, `youtube_temas.py`): audio completo en m4a sin recodificar, tandas de 200 en
    `erclm:traktor_ml/youtube_temas/<corrida>/`; prefiere el corte largo, el canal «- Topic» y el audio al videoclip.
    En 100 temas que Beatport sí identificó, eligió 89: 73 con la misma duración (±3 s) y 16 la misma producción en
@@ -179,6 +182,9 @@ Plan, sección 12.9. Las medidas de la auditoría de este día son exploratorias
    A las 16:30, dos ajustes: Beatport baja de a una tanda y entre tanda y tanda atiende los rescates (el de
    `rescate_01` esperaba a que terminaran las 34 de `lote_04`), y YouTube toma enseguida los temas sin botón de compra
    que un lote no resolvió (1442 en las 22 tandas hechas de `lote_04`), sin esperar al rescate ni a los enlaces.
+   YouTube pidió la verificación anti-robots a las 16:28, tras unas 3 h 30 min a 6 s, y de nuevo a las 17:30, un minuto
+   después de la hora de espera: la pausa sube solo si la corrida bajó al menos 10 min antes del bloqueo (si no, es el
+   mismo bloqueo y solo se espera más), y las esperas quedan en disco para que un reinicio no las acorte.
 
 ## 2026-11-09 (unidad 1: fusión de vistas y ecuación de Parecidos)
 

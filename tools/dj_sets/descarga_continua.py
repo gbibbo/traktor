@@ -26,7 +26,8 @@ CHANGELOG:
   - 2026-11-10: Creación.
   - 2026-11-10: Beatport de a una tanda (el rescate de rescate_01 esperaba a que terminaran las 34 de lote_04) y
                 YouTube adelanta los temas sin botón de los lotes (se quedaba sin trabajo hasta la madrugada).
-                Las esperas ante un sitio quedan en espera_<carril>.txt: un reinicio no las acorta.
+                Las esperas ante un sitio quedan en espera_<carril>.txt: un reinicio no las acorta. La pausa de
+                YouTube sube solo si la corrida bajó al menos 10 min antes del bloqueo (si no, es el mismo bloqueo).
 """
 from __future__ import annotations
 
@@ -187,6 +188,18 @@ def tarea_youtube(root: Path) -> Optional[Tarea]:
 def tandas_locales(root: Path, carril: str, corrida: str) -> int:
     carpeta = root / ("beatport_previews" if carril == "beatport" else "youtube_temas") / corrida
     return len(list(carpeta.glob("tanda_*.json")))
+
+
+MIN_CORRIDA_YT_S = 600
+
+
+def nueva_pausa_yt(pausa: float, segundos_corridos: float) -> float:
+    """La pausa entre pedidos sube (x1,5, tope 30 s) solo si la corrida bajó un rato antes de la verificación
+    anti-robots. Si la pide al arrancar, es el mismo bloqueo de antes, no uno nuevo (2026-11-10 17:30: un minuto
+    después de la espera de una hora; subirla igual la habría llevado al tope sin motivo)."""
+    if segundos_corridos < MIN_CORRIDA_YT_S:
+        return pausa
+    return min(round(pausa * 1.5, 1), PAUSA_YT_TOPE)
 
 
 def leer_pausa_yt(yt_dir: Path) -> float:
@@ -461,6 +474,7 @@ def carril_youtube(o: Orquesta) -> None:
         if tipo == "bajar":
             argumentos = [*argumentos, "--pausa", f"{pausa:g}"]
         antes = tandas_locales(o.root, "youtube", argumentos[1])
+        t0 = time.monotonic()
         codigo = o.correr("youtube", "youtube", argumentos)
         if o.parar.is_set():
             return
@@ -473,11 +487,15 @@ def carril_youtube(o: Orquesta) -> None:
             continue
         if codigo == 2:
             cortes += 1
-            pausa = min(round(pausa * 1.5, 1), PAUSA_YT_TOPE)
-            yt_dir.mkdir(parents=True, exist_ok=True)
-            (yt_dir / "pausa_s.txt").write_text(f"{pausa:g}", encoding="utf-8")
-            if not o.esperar_sitio("youtube", espera_corte("youtube", cortes),
-                             f"verificación anti-robots ({cortes} seguida/s); la pausa entre pedidos pasa a {pausa:g} s"):
+            nueva = nueva_pausa_yt(pausa, time.monotonic() - t0)
+            if nueva != pausa:
+                pausa = nueva
+                yt_dir.mkdir(parents=True, exist_ok=True)
+                (yt_dir / "pausa_s.txt").write_text(f"{pausa:g}", encoding="utf-8")
+                motivo = f"verificación anti-robots ({cortes} seguida/s); la pausa entre pedidos pasa a {pausa:g} s"
+            else:
+                motivo = f"verificación anti-robots ({cortes} seguida/s), todavía al arrancar: misma pausa ({pausa:g} s), espera más"
+            if not o.esperar_sitio("youtube", espera_corte("youtube", cortes), motivo):
                 return
         else:
             errores += 1
