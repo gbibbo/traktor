@@ -50,7 +50,7 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
 5. Recomendación en vivo (`recomendador.py`, D#0+D0): plan § 12, `PROMPT_FUSION_Y_CONCEPTOS.md`. Unidad 1
-   hecha. V8 pasa en D3 (`codec_clap_2026-11-10.md`); V7: OK de GABRIEL. GABRIEL: Traktor,
+   hecha. GABRIEL: escucha E12 (`juez_d5_2026-11-10.md`). V7 corre en gpuq. GABRIEL: Traktor,
    «TRAKTOR ML sin tonalidad», Analyze solo Key. TIV aparte.
 6. Conceptos del teléfono: circuito con LLM (Worker v5, `conceptos_agente.py`) probado en local.
    GABRIEL: `python cloudflare/publicar.py` (`cloudflare/README.md`).

@@ -6,6 +6,23 @@ anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_impl
 Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 `[REEMPLAZADO <fecha> por <decisión>: <lo que rige ahora>]` (o `[REFUTADO …]` si era un error).
 
+## 2026-11-10 (E16: la ecuación con D5 y la escucha E12 lista)
+
+Informe: `docs/reports/juez_d5_2026-11-10.md`. Regla fijada en `77d4434` antes de medir.
+
+1. **La lista nueva de la escucha usa pesos iguales** (por la regla de Gabriel del punto 8 de «mientras se baja el
+   dataset»): con D3 y D5 × biblioteca (270 pares que pasan los filtros, de 42 DJs de D3 y 62 de D5, cada DJ fuera) la ecuación
+   aprendida no se distingue de los pesos iguales (+0,007 [−0,008, +0,022]).
+2. **V8 pasa entero** (D3 y E16): la lista nueva usa CLAP sin la dirección del MP3 (v8c). Los valores por defecto del
+   recomendador no cambian hasta que Gabriel lo diga.
+3. **La escucha E12 está lista** en `D:\TRAKTOR ML datos\dj_sets\e12\listas\` (10 temas principales, A y B a ciegas).
+   GABRIEL: por cada tema, A, B o «no las distingo»; `e12\clave.json` no se abre antes. Decide 9 o 10 de 10.
+4. **Dato para Gabriel, sin propuesta** (agente): dentro del filtro de compatibilidad la tonalidad no ordena (peso
+   0,01 [−0,19, 0,18]); con la tonalidad de Beatport, la «paralela» de los DJs es casi siempre la «misma» de Traktor.
+5. **V7 corre en gpuq** con el OK de Gabriel (trabajo corto `traktor-v7-prueba-1` igual a E15 y a la CPU; completos
+   `traktor-v7-1` en Colab, `lote_04`, y `traktor-v7-2` en Kaggle, el resto). Al terminar: pesos con los pares de
+   previews y cuántos de los 30 cambian; otra escucha solo si cambian.
+
 ## 2026-11-10 (G13 y P12a: los DJs de D5, solo texto)
 
 Informe: `docs/reports/pares_texto_2026-11-10.md`. 1549 sets, 13 559 pares consecutivos con metadatos de Beatport.
