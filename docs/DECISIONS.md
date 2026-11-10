@@ -6,6 +6,34 @@ anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_impl
 Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 `[REEMPLAZADO <fecha> por <decisión>: <lo que rige ahora>]` (o `[REFUTADO …]` si era un error).
 
+## 2026-11-10 (sets y audio de los temas, de día)
+
+1. **Gabriel autoriza** cambiar el filtro de la búsqueda en Beatport, con la condición de que el agente supervise
+   exhaustivamente que encuentre la versión correcta; bajar de YouTube los audios que falten; probar de nuevo
+   1001Tracklists (y si no entra, darle otra cuenta). El PC queda encendido.
+2. **Filtro de Beatport** (agente, `48485bf`): `match(soft_mix=True)` acepta la mezcla escrita de otra forma
+   (posesivo, «X Mix» por «X Remix»), solo si ninguna consulta trae la exacta, y lo marca (`mezcla_suave`); más
+   palabras de versión (Remake, Reshape, Interpretation…); «X aka Y» después del nombre como viene. Verificación:
+   repetidos sin red los 11 139 temas de los lotes, el código viejo reproduce lo grabado y el nuevo no cambia
+   ninguno de los que ya tenían preview; 185 rescatados, leídos uno por uno por el agente y por un revisor aparte
+   sin su juicio: 185 la misma versión. En el piloto, contra el enlace de 1001Tracklists, uno más y ninguno menos.
+   La biblioteca no lo usa: sus 1602 temas repetidos no cambian. El enlace de 1001Tracklists de los rescatados con
+   botón queda como control cuando el sitio deje.
+3. **YouTube** (agente, `youtube_temas.py`): audio completo en m4a sin recodificar, tandas de 200 en
+   `erclm:traktor_ml/youtube_temas/<corrida>/`; prefiere el corte largo, el canal «- Topic» y el audio al videoclip.
+   En 100 temas que Beatport sí identificó, eligió 89: 73 con la misma duración (±3 s) y 16 la misma producción en
+   otro corte. YouTube pidió la verificación anti-robots tras unos 200 temas a 2 s: no se esquiva; va a 6 s y espera
+   1 h si vuelve. Usar la sesión del navegador de Gabriel (`--cookies-from-browser`) lo evitaría, pero es su cuenta:
+   no se usa sin su OK.
+4. **1001Tracklists**: a las 08:10 entraron la página del 403 y otra: el bloqueo de la noche era de todo el sitio y
+   pasó en unas 5 h. A las 08:40 cortó la conexión tras 150 páginas; a las 10:40 dejó entrar y bajaron 200 seguidas.
+   Todos los sets de trayectoria (3 h o más) están bajados; quedan 358 de pares. El agente no usa otra cuenta para
+   seguir pasado el límite del sitio (sería saltear su control y arriesga las dos cuentas): espera y sigue.
+5. **El pendrive `D:` es FAT32**: la caché plana de búsquedas de Beatport se llenó a los 13 106 archivos y cortó la
+   bajada de `lote_04` (`PermissionError`). Va en subcarpetas desde ese día (`docs/LESSONS_LEARNED.md`). Error del
+   agente en el mismo rato: su script de verificación pidió a Beatport unas mil búsquedas que no hacían falta
+   (08:29-08:58); Beatport no cortó.
+
 ## 2026-11-09 (unidad 1: fusión de vistas y ecuación de Parecidos)
 
 Unidad 1 de `docs/plans/PROMPT_FUSION_Y_CONCEPTOS.md`. Informe: `docs/reports/fusion_vistas_2026-11-09.md`.

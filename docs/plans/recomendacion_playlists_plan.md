@@ -629,8 +629,14 @@ Cómo se retoma la bajada (D5 y D6), desde este PC, con `--root "D:\TRAKTOR ML d
   verificación de Cloudflare.
   Al 2026-11-10 05:47 hay `piloto` y `lote_01` a `lote_03` cerrados, y `lote_04` (16 700 temas, los que faltaban de los
   838 sets) a medias: se sigue con `--corrida lote_04 bajar --temporal ...`, y el lote siguiente excluye también `lote_04`.
-- Respaldo para los temas sin id: falta armar un lote con los `sin_id` de los manifiestos de cada lote, pasarle
+- [REEMPLAZADO 2026-11-10 por `rescate` y `youtube_temas.py` (DECISIONS 11-10)] Respaldo para los temas sin id: falta armar un lote con los `sin_id` de los manifiestos de cada lote, pasarle
   `enlaces` (un pedido a 1001Tracklists por tema) y bajarlo.
+- Lo que un lote no resolvió: `beatport_previews.py --corrida rescate_NN rescate --de lote_NN ...` (búsqueda de nuevo con
+  el filtro de hoy, sin pedidos repetidos), `buscar`, `bajar`. Después, los que siguen sin id: con botón de compra,
+  otro rescate con `enlaces --solo-sin-id` (1001Tracklists, cuando no esté bajando sets: comparten el perfil del
+  navegador) y `bajar`; sin botón, `youtube_temas.py --corrida yt_NN elegir --de rescate_NN --solo-sin-boton` y
+  `bajar --temporal "<carpeta en D:>" --pausa 6`. Al 2026-11-10: `rescate_01` (lote_01..03, 138 previews más) y
+  `yt_01` (1187 temas sin botón) hechos o en curso; falta el rescate de `lote_04` y el de los que tienen botón.
 
 [REEMPLAZADO 2026-11-09 por las 158 búsquedas y el piloto: 2540 sets distintos, **1549 candidatos** (385 para trayectoria, 1164 solo para pares; 354 DJs; 1489 con grabación); piloto de 30 sets sin cortes (DECISIONS 2026-11-09, sets de 1001Tracklists)] [REEMPLAZADO 2026-11-09 por el criterio de comercial de Gabriel: 84 de 158 búsquedas, 1269 sets distintos, **831 candidatos** (142 para trayectoria, 689 solo para pares; 156 DJs; 798 con grabación) y faltan 74 búsquedas] Estado del 2026-11-09: 84 de 147 búsquedas, 1269 sets distintos, **740 candidatos** (135 para trayectoria, 605 solo para
 pares; 139 DJs; 709 con grabación). Lo que falta incluye casi todos los términos y eventos y a varios DJs de noches largas
