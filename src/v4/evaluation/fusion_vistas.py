@@ -28,6 +28,7 @@ PURPOSE: Unidad 1 de docs/plans/PROMPT_FUSION_Y_CONCEPTOS.md (plan de playlists 
          MAEST de los originales de Bedrock: tools/dj_sets/maest_originales.py (<root>/maest/<carpeta>/*.npz).
 CHANGELOG:
   - 2026-11-09: Creación (unidad 1 de PROMPT_FUSION_Y_CONCEPTOS.md).
+  - 2026-11-10: lado_biblioteca() sale de main para compartirlo con dominio_previews.py (E15).
 """
 from __future__ import annotations
 
@@ -599,6 +600,27 @@ def acierto_en_vivo(f: zs.Fuente, lado: Lado, t: Tablas, puntuar, top: int = TOP
 # Carga
 # ---------------------------------------------------------------------------
 
+def lado_biblioteca(items: Sequence[rc.Item], bib: zs.Biblioteca, E: Dict[str, np.ndarray],
+                    escala: Dict[str, Tuple[float, float]], generos_extra: Sequence[Tuple[str, Optional[str]]] = ()
+                    ) -> Tuple[Lado, Tablas]:
+    """El lado de la biblioteca para los factores, con lo que ve el recomendador en vivo: tonalidad y BPM de Traktor
+    cuando los analizó (si no, los de los tags), y el género del índice. generos_extra suma géneros a la tabla (los de
+    otros temas que se comparen con la biblioteca). Arma el recomendador una vez: cambia items en el lugar."""
+    from tools.traktor_live.sugerencias_explorer import entries_by_path
+    from tools.traktor_live.sugerencias_itunes import find_collection
+    taxonomy = rc.load_taxonomy()[0]
+    rc.Recommender(list(items), entries_by_path(find_collection()), n=TOP, taxonomy=taxonomy)
+    por_uid = {it.uid: it for it in items}
+    generos = sorted({(por_uid[u].genre, por_uid[u].subgenre) for u in bib.uids if por_uid[u].genre} | set(generos_extra), key=str)
+    gid = {g: i for i, g in enumerate(generos)}
+    tablas = Tablas(escala, tabla_claves(), tabla_generos(generos, taxonomy), generos)
+    lado = Lado({v: E[v] for v in ("clap",) + VISTAS_P11 if v in E},
+                np.asarray([por_uid[u].bpm if por_uid[u].bpm else np.nan for u in bib.uids], dtype=np.float64),
+                np.asarray([indice_clave(por_uid[u].key) for u in bib.uids]),
+                np.asarray([gid.get((por_uid[u].genre, por_uid[u].subgenre), -1) for u in bib.uids]), bib.artista)
+    return lado, tablas
+
+
 def cargar_rep(nombre: str, uids: Sequence[str], reps_dir: Path = REPS_DIR) -> np.ndarray:
     E = np.load(reps_dir / nombre / "embeddings.npy").astype(np.float64)
     U = json.loads((reps_dir / nombre / "track_uids.json").read_text(encoding="utf-8"))
@@ -737,18 +759,7 @@ def main() -> int:
     print(f"tabla de vistas lista ({time.perf_counter() - t0:.0f} s)", flush=True)
 
     # --- la ecuación (P12) y el consenso (P13): BPM y tonalidad en vivo (Traktor manda sobre los tags)
-    from tools.traktor_live.sugerencias_explorer import entries_by_path
-    from tools.traktor_live.sugerencias_itunes import find_collection
-    taxonomy = rc.load_taxonomy()[0]
-    rc.Recommender(items, entries_by_path(find_collection()), n=TOP, taxonomy=taxonomy)   # pone tonalidad y BPM de Traktor
-    por_uid = {it.uid: it for it in items}
-    generos = sorted({(por_uid[u].genre, por_uid[u].subgenre) for u in bib.uids if por_uid[u].genre}, key=str)
-    gid = {g: i for i, g in enumerate(generos)}
-    tablas = Tablas(escala, tabla_claves(), tabla_generos(generos, taxonomy), generos)
-    lado_bib = Lado({v: E[v] for v in ("clap",) + VISTAS_P11},
-                    np.asarray([por_uid[u].bpm if por_uid[u].bpm else np.nan for u in bib.uids], dtype=np.float64),
-                    np.asarray([indice_clave(por_uid[u].key) for u in bib.uids]),
-                    np.asarray([gid.get((por_uid[u].genre, por_uid[u].subgenre), -1) for u in bib.uids]), bib.artista)
+    lado_bib, tablas = lado_biblioteca(items, bib, E, escala)
     rng = np.random.default_rng(args.semilla)
     partes = [pares_ecuacion("d3_biblioteca", d3, lado_bib, lado_bib, tablas, rng, mismo_espacio=True)]
     if hay.any():
