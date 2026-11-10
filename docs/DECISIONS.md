@@ -6,6 +6,18 @@ anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_impl
 Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 `[REEMPLAZADO <fecha> por <decisión>: <lo que rige ahora>]` (o `[REFUTADO …]` si era un error).
 
+## 2026-11-10 (G13 y P12a: los DJs de D5, solo texto)
+
+Informe: `docs/reports/pares_texto_2026-11-10.md`. 1549 sets, 13 559 pares consecutivos con metadatos de Beatport.
+
+1. **La taxonomía de géneros ordena el estilo de la noche, no la transición** (agente): frente a un tema de otro set
+   sube con lo que hacen los DJs; dentro del set no distingue el tema siguiente de uno lejano.
+2. **La coaparición de géneros aprendida de los sets le gana a la taxonomía** con los DJs de prueba fuera (AUC 0,72
+   frente a 0,68). **Pregunta para Gabriel**: si el factor `genero` pasa a ser esa coaparición. Hasta que conteste,
+   E16 y la escucha usan la taxonomía.
+3. **Tonalidad de Beatport** (sin peso, por decisión de Gabriel): los DJs repiten la tonalidad (2,0 veces el azar) y
+   la tónica (1,8); la paralela 1,7, la vecina 1,3, la relativa 0,9. La regla de compatibilidad no se toca.
+
 ## 2026-11-10 (E17 y V8: el códec en CLAP)
 
 Informe: `docs/reports/codec_clap_2026-11-10.md`. Protocolo y umbrales fijados en `f863a9e` antes de medir.
