@@ -73,3 +73,48 @@ def test_titulo_y_artista_al_reves_y_audio_antes_que_videoclip():
     # Un videoclip solo, si es la misma versión, se acepta.
     assert yt.elegir_video("Booka Shade", "Love Inc", resultados[:1])[0]["id"] == "v"
 
+
+def test_restriccion_de_edad_no_para_la_corrida_y_se_prueba_el_siguiente(tmp_path):
+    import pytest
+
+    # 2026-11-10: «Sign in to confirm your age» paró la corrida como si fuera el control anti-robots.
+    yt.revisar_bloqueo("ERROR: [youtube] H9-1ZjuywFQ: Sign in to confirm your age. This video may be inappropriate")
+    with pytest.raises(yt.YouTubeBloqueado):
+        yt.revisar_bloqueo("ERROR: [youtube] x: Sign in to confirm you're not a bot")
+    filas = [{"clave": "a", "nombre": "Ignacio - Organa", "artista": "Ignacio", "titulo": "Organa"}]
+    resultados = {"Ignacio - Organa": [video("Organa", "Ignacio - Topic", 458, "edad"), video("Ignacio - Organa", "Otro", 460, "bien")]}
+
+    def bajar(video_id, carpeta):
+        if video_id == "edad":
+            return None
+        carpeta.mkdir(parents=True, exist_ok=True)
+        archivo = carpeta / f"{video_id}.m4a"
+        archivo.write_bytes(b"\x00" * 1000)
+        return {"archivo": archivo, "ext": "m4a", "abr": 129.5, "acodec": "mp4a.40.2", "asr": 44100, "duracion_s": 460}
+
+    _, manifiesto = yt.armar_tanda(filas, resultados.get, bajar, tmp_path / "t", "tanda_00000", pausa_s=0)
+    tema = manifiesto["temas"][0]
+    assert (tema["estado"], tema["video_id"], tema["fallidos"]) == ("ok", "bien", ["edad"])
+
+
+def test_descartes_de_la_primera_tanda_que_eran_aciertos():
+    # yt_01 tanda_00000 (2026-11-10): estos se descartaron y eran la misma versión.
+    assert yt.evaluar("747", "Aurora Centralis (nthng Saiyan Saga)", video("747 - Aurora Centralis (nthng’s Saiyan Saga) ", "HATE"))[0]
+    assert yt.evaluar("VLTRA (IT)", "2 The Bit", video("VLTRA - 2 The Bit", "Uniqueness - House"))[0]
+    assert yt.evaluar("Kolo", "Track One", video("Track One", "K.O.L.O. - Topic"))[0]
+    assert yt.evaluar("Josh Wink", "Counter Clock 319 (Chris Liebing Reorganized)",
+                      video("Josh Wink - Counter Clock 319 (Reorganized by Chris Liebing)", "Repiet"))[0]
+    assert yt.evaluar("Christian Borée", "I Against I (Sterac aka Steve Rachmad Remix)",
+                      video("Christian Borée - I Against I (Sterac Remix)", "Shrinkk"))[0]
+    # El alias no abre la puerta a otro remixer.
+    assert not yt.evaluar("Christian Borée", "I Against I (Sterac aka Steve Rachmad Remix)",
+                          video("Christian Borée - I Against I (Other Remix)", "x"))[0]
+
+
+def test_prefiere_el_corte_largo_al_radio_edit():
+    resultados = [video("Timecheck (Radio Edit)", "Iteration X - Topic", 105, "radio"),
+                  video("Iteration X - Timecheck", "Algún Canal", 420, "largo")]
+    assert yt.elegir_video("Iteration X", "Timecheck", resultados)[0]["id"] == "largo"
+    # Si el tema es un edit, el edit no pierde puntos.
+    assert yt.elegir_video("Das Koolies", "Som Bom Magnifico (Edit)", [video("Som Bom Magnifico (Edit)", "Das Koolies - Topic", 177, "e")])[0]["id"] == "e"
+

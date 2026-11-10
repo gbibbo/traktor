@@ -21,7 +21,8 @@ PURPOSE: D6, el audio de los temas de los sets que Beatport no da (Gabriel, 2026
          Gabriel ni se esquiva la verificación.
          Nada fuera de erclm:traktor_ml/. El audio pasa por una carpeta temporal en D:, nunca en C:.
 CHANGELOG:
-  - 2026-11-10: Creación.
+  - 2026-11-10: Creación. La restricción de edad no para la corrida (se prueba el siguiente video); artista numérico
+                («747 - »), sin marca de país y sin espacios; «Remix by X»; alias en la mezcla; corte largo antes que Radio Edit.
 """
 from __future__ import annotations
 
@@ -57,6 +58,7 @@ PROHIBIDAS = re.compile(r"\b(live|set|played\s+by|full\s+album|megamix|mixtape|p
                         r"cover|karaoke|reaction|tutorial|slowed|sped\s+up|nightcore|8d|hour|loop|mashup|bootleg|"
                         r"unreleased|vinyl\s+rip)\b|@", re.I)
 SEPARADORES = re.compile(r"\s+[-–—|]\s+")
+CORTE = re.compile(r"\b(radio|edit|short|single)\b", re.I)
 VIDEO = re.compile(r"\b(official\s+(?:music\s+)?video|music\s+video|video\s+clip|visuali[sz]er|lyric)", re.I)
 
 
@@ -70,7 +72,9 @@ def ytdlp(*args: str, timeout: int = 300) -> subprocess.CompletedProcess:
 
 
 def revisar_bloqueo(stderr: str) -> None:
-    if re.search(r"confirm you.re not a bot|sign in to confirm|HTTP Error 429|too many requests", stderr or "", re.I):
+    """Para la corrida si YouTube pide confirmar que no es un robot o limita (429). Un video con restricción de edad
+    («Sign in to confirm your age») no es un bloqueo: ese video no se baja y se prueba el siguiente."""
+    if re.search(r"confirm you.re not a bot|HTTP Error 429|too many requests", stderr or "", re.I):
         raise YouTubeBloqueado((stderr or "").strip().splitlines()[-1][:200])
 
 
@@ -81,22 +85,47 @@ def partes_del_video(entrada: Dict) -> tuple:
     """(artista, título con la mezcla) de un resultado de YouTube. En un canal «X - Topic» el artista es X y el título
     del video es el del tema; si no, «Artista - Título» del título del video, o el canal como artista."""
     canal = (entrada.get("channel") or entrada.get("uploader") or "").strip()
-    texto = bp.clean_text(entrada.get("title") or "")
+    crudo = (entrada.get("title") or "").strip()
     if canal.endswith(" - Topic"):
-        return canal[: -len(" - Topic")], texto
-    partes = SEPARADORES.split(texto, maxsplit=1)
+        return canal[: -len(" - Topic")], bp.clean_text(crudo)
+    # Partir antes de limpiar: clean_text toma «747 - » por un número de pista y se lleva al artista.
+    partes = SEPARADORES.split(crudo, maxsplit=1)
     if len(partes) == 2:
-        return partes[0], partes[1]
-    return canal, texto
+        return bp.clean_text(partes[0]), bp.clean_text(partes[1])
+    return canal, bp.clean_text(crudo)
 
 
 def _artistas(artista: str) -> List[str]:
+    """Los nombres del artista de 1001Tracklists, sueltos y juntos, y sin la marca de país: 'VLTRA (IT)' -> 'VLTRA'."""
     nombres = bp.split_local_artists(bpv.sin_alias(artista))
     todos = set()
     for n in nombres:
-        todos.add(n)
-        todos.update(x for x in re.split(r"\s*&\s*|\s+and\s+", n) if x)
+        for x in [n] + [y for y in re.split(r"\s*&\s*|\s+and\s+", n) if y]:
+            todos.add(x)
+            todos.add(re.sub(r"\s*\([^)]*\)", "", x).strip())
     return [n for n in todos if len(bp.norm(n)) >= 2]
+
+
+def _compacto(texto: str) -> str:
+    return bp.norm(texto).replace(" ", "")
+
+
+def _nucleo(mezcla: str) -> frozenset:
+    return bp.soft_mix_core(mezcla) - {"by"}
+
+
+def misma_mezcla(mezcla_q: str, mezcla_v: str) -> tuple:
+    """(misma versión, estricta). Estricta como match() de Beatport; si no, soft_mix_core (posesivo, «Mix» por
+    «Remix») sin «by» («Reorganized by X» == «X Reorganized»), y un alias en la mezcla del tema: «Sterac aka Steve
+    Rachmad Remix» acepta «Sterac Remix». Siempre que a la mezcla le quede un nombre además de «remix»."""
+    if bp.mix_core(mezcla_q) == bp.mix_core(mezcla_v):
+        return True, True
+    nq, nv = _nucleo(mezcla_q), _nucleo(mezcla_v)
+    if nq - {"remix"} and nq == nv:
+        return True, False
+    if "aka" in nq and nv - {"remix"} and nv <= nq:
+        return True, False
+    return False, False
 
 
 def evaluar(artista: str, titulo_1001: str, entrada: Dict) -> tuple:
@@ -113,40 +142,50 @@ def evaluar(artista: str, titulo_1001: str, entrada: Dict) -> tuple:
     base_q, mezcla_q = bp.split_title_mix(titulo_1001)
     yt_artista, yt_titulo = partes_del_video(entrada)
     orientaciones = [(yt_artista, yt_titulo)]
-    if SEPARADORES.search(bp.clean_text(crudo)) and not (entrada.get("channel") or "").endswith(" - Topic"):
+    canal = entrada.get("channel") or ""
+    if SEPARADORES.search(crudo) and not canal.endswith(" - Topic"):
         orientaciones.append((yt_titulo, yt_artista))  # algunos canales ponen «Título - Artista»
     motivo = "título"
+    nombres = _artistas(artista)
     for yt_artista, yt_titulo in orientaciones:
         base_v, mezcla_v = bp.split_title_mix(yt_titulo)
         similitud = bp.title_similarity(base_q, base_v)
         if similitud < bp.TITLE_MIN_SIM:
             continue
-        donde = f" {bp.norm(yt_artista)} {bp.norm(entrada.get('channel') or '')} "
-        if not any(f" {bp.norm(a)} " in donde for a in _artistas(artista)):
+        donde = f" {bp.norm(yt_artista)} {bp.norm(canal)} "
+        compactos = {_compacto(yt_artista), _compacto(canal.replace(" - Topic", ""))}
+        if not any(f" {bp.norm(a)} " in donde or _compacto(a) in compactos for a in nombres):  # «K.O.L.O.» == «Kolo»
             motivo = "artista"
             continue
-        estricta = bp.mix_core(mezcla_q) == bp.mix_core(mezcla_v)
-        suave = bool(bp.soft_mix_core(mezcla_q) - {"remix"}) and bp.soft_mix_core(mezcla_q) == bp.soft_mix_core(mezcla_v)
-        if not (estricta or suave):
+        igual, estricta = misma_mezcla(mezcla_q, mezcla_v)
+        if not igual:
             motivo = "versión"
             continue
-        topic = (entrada.get("channel") or "").endswith(" - Topic")
-        audio = not VIDEO.search(crudo)  # el audio antes que el videoclip, que puede traer otro corte o sonidos
-        return True, "ok", (topic, audio, estricta, round(similitud, 2))
+        # Entre los aceptados: el corte largo antes que un «Radio Edit» que el tema no pide, después el canal «- Topic»,
+        # el audio antes que el videoclip (que puede traer otro corte o sonidos) y la mezcla estricta.
+        corte = not (CORTE.search(mezcla_v) and not CORTE.search(mezcla_q))
+        topic = canal.endswith(" - Topic")
+        audio = not VIDEO.search(crudo)
+        return True, "ok", (corte, topic, audio, estricta, round(similitud, 2))
     return False, motivo, ()
 
 
-def elegir_video(artista: str, titulo_1001: str, entradas: Sequence[Dict]) -> tuple:
-    """(entrada elegida o None, motivos de descarte contados)."""
+def elegir_videos(artista: str, titulo_1001: str, entradas: Sequence[Dict]) -> tuple:
+    """(entradas aceptadas, de la mejor a la peor; motivos de descarte contados)."""
     motivos, aceptadas = Counter(), []
     for orden, entrada in enumerate(entradas):
         acepta, motivo, puntaje = evaluar(artista, titulo_1001, entrada)
         motivos[motivo] += 1
         if acepta:
             aceptadas.append((puntaje, -orden, entrada))
-    if not aceptadas:
-        return None, dict(motivos)
-    return max(aceptadas, key=lambda x: (x[0], x[1]))[2], dict(motivos)
+    aceptadas.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    return [x[2] for x in aceptadas], dict(motivos)
+
+
+def elegir_video(artista: str, titulo_1001: str, entradas: Sequence[Dict]) -> tuple:
+    """(entrada elegida o None, motivos de descarte contados)."""
+    aceptadas, motivos = elegir_videos(artista, titulo_1001, entradas)
+    return (aceptadas[0] if aceptadas else None), motivos
 
 
 # ---------------------------------------------------------------- red
@@ -208,21 +247,28 @@ def armar_tanda(filas: Sequence[Dict[str, str]], buscar_fn: Callable[[str], List
     for fila in filas:
         base = {"clave_1001": fila["clave"], "nombre_1001": fila["nombre"], "consulta": consulta_youtube(fila)}
         resultados = buscar_fn(base["consulta"])
-        elegido, motivos = elegir_video(fila["artista"], fila["titulo"], resultados)
+        aceptadas, motivos = elegir_videos(fila["artista"], fila["titulo"], resultados)
         base["descartes"] = motivos
         base["resultados"] = resultados
-        if elegido is None:
+        if not aceptadas:
             entradas.append(dict(base, estado="sin_version" if resultados else "sin_resultados"))
             time.sleep(pausa_s * random.uniform(0.8, 1.2))
             continue
-        if elegido["id"] in en_tanda:
-            entradas.append(dict(base, estado="repetido", video_id=elegido["id"], igual_a=en_tanda[elegido["id"]]))
+        if aceptadas[0]["id"] in en_tanda:
+            entradas.append(dict(base, estado="repetido", video_id=aceptadas[0]["id"], igual_a=en_tanda[aceptadas[0]["id"]]))
             continue
-        time.sleep(pausa_s * random.uniform(0.8, 1.2))
-        audio = bajar_fn(elegido["id"], carpeta)
+        elegido, audio, fallidos = None, None, []
+        for candidato in aceptadas[:3]:  # restricción de edad, video quitado: el siguiente de la misma versión
+            time.sleep(pausa_s * random.uniform(0.8, 1.2))
+            audio = bajar_fn(candidato["id"], carpeta)
+            if audio:
+                elegido = candidato
+                break
+            fallidos.append(candidato["id"])
         if not audio:
-            entradas.append(dict(base, estado="error_bajada", video_id=elegido["id"]))
+            entradas.append(dict(base, estado="error_bajada", video_id=fallidos[0], fallidos=fallidos))
             continue
+        base["fallidos"] = fallidos
         contenido = audio["archivo"].read_bytes()
         archivos.append(audio["archivo"])
         en_tanda[elegido["id"]] = fila["clave"]
