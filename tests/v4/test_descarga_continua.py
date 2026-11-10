@@ -102,6 +102,17 @@ def test_corrida_completa_por_nombre_de_tanda(tmp_path):
     assert not dc.completa(tmp_path / "vacia", 500)
 
 
+def test_la_espera_ante_un_sitio_sobrevive_a_un_reinicio(tmp_path):
+    o = dc.Orquesta(tmp_path, Path("python"), Path("navegadores"))
+    o.parar.set()  # que no espere de verdad
+    assert dc.espera_pendiente(tmp_path, "youtube") == 0
+    o.esperar_sitio("youtube", 3600, "verificación anti-robots")
+    assert 3500 < dc.espera_pendiente(tmp_path, "youtube") <= 3600
+    assert dc.espera_pendiente(tmp_path, "1001") == 0
+    (tmp_path / "espera_1001.txt").write_text("1", encoding="utf-8")  # ya pasó
+    assert dc.espera_pendiente(tmp_path, "1001") == 0
+
+
 def test_youtube_adelanta_los_sin_boton_de_un_lote_a_medias(tmp_path):
     # 2026-11-10: YouTube se quedaba sin trabajo hasta que terminaran lote_04, su rescate y sus enlaces; los temas sin
     # botón que Beatport no dio no esperan nada.

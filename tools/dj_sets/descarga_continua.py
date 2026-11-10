@@ -26,6 +26,7 @@ CHANGELOG:
   - 2026-11-10: Creación.
   - 2026-11-10: Beatport de a una tanda (el rescate de rescate_01 esperaba a que terminaran las 34 de lote_04) y
                 YouTube adelanta los temas sin botón de los lotes (se quedaba sin trabajo hasta la madrugada).
+                Las esperas ante un sitio quedan en espera_<carril>.txt: un reinicio no las acorta.
 """
 from __future__ import annotations
 
@@ -208,6 +209,14 @@ def espera_error(n: int) -> float:
     return min(10 * 2 ** (n - 1), 60) * 60
 
 
+def espera_pendiente(root: Path, carril: str) -> float:
+    """Segundos que faltan de la última espera ante un sitio guardada para el carril (0 si no hay)."""
+    try:
+        return max(0.0, float((root / f"espera_{carril}.txt").read_text(encoding="utf-8").strip()) - time.time())
+    except (OSError, ValueError):
+        return 0.0
+
+
 # ---------------------------------------------------------------- procesos
 
 
@@ -269,6 +278,17 @@ class Orquesta:
         if motivo:
             self.log(carril, f"ESPERA {segundos / 60:.0f} min: {motivo} (hasta {time.strftime('%H:%M', time.localtime(time.time() + segundos))})")
         return not self.parar.wait(segundos)
+
+    def esperar_sitio(self, carril: str, segundos: float, motivo: str) -> bool:
+        """Una espera ante un sitio (tras un corte, o entre corridas de 1001Tracklists): queda en espera_<carril>.txt
+        para que un reinicio no la acorte (2026-11-10: reiniciar a las 16:32 habría vuelto a pedirle a YouTube
+        enseguida, con la verificación anti-robots de las 16:28 todavía encima)."""
+        (self.root / f"espera_{carril}.txt").write_text(f"{time.time() + segundos:.0f}", encoding="utf-8")
+        return self.esperar(segundos, carril, motivo)
+
+    def retomar_espera(self, carril: str) -> bool:
+        falta = espera_pendiente(self.root, carril)
+        return self.esperar(falta, carril, "sigue la espera de antes del reinicio") if falta > 0 else True
 
     def entorno(self, navegador: bool) -> Dict[str, str]:
         env = {k: v for k, v in os.environ.items() if k != "TRAKTOR_REMOTE"}  # el remoto de verdad: erclm:traktor_ml
@@ -335,6 +355,8 @@ def vigilar(o: Orquesta, nombre: str, carril) -> None:
 def carril_1001(o: Orquesta) -> None:
     cortes = errores = 0
     avisado = False
+    if not o.retomar_espera("1001"):
+        return
     while not o.parar.is_set():
         if perfil_ocupado():
             o.ocioso["1001"] = False
@@ -363,11 +385,11 @@ def carril_1001(o: Orquesta) -> None:
             return
         if codigo == 0:
             cortes = errores = 0
-            if not o.esperar(45 * 60, "1001", "pausa entre corridas de 1001Tracklists"):
+            if not o.esperar_sitio("1001", 45 * 60, "pausa entre corridas de 1001Tracklists"):
                 return
         elif codigo == 2:
             cortes += 1
-            if not o.esperar(espera_corte("1001", cortes), "1001", f"1001Tracklists cortó ({cortes} seguido/s)"):
+            if not o.esperar_sitio("1001", espera_corte("1001", cortes), f"1001Tracklists cortó ({cortes} seguido/s)"):
                 return
         else:
             errores += 1
@@ -386,6 +408,8 @@ def sin_avance(o: Orquesta, carril: str, tipo: str, argumentos: List[str], antes
 def carril_beatport(o: Orquesta) -> None:
     cortes = errores = 0
     bp_dir = o.root / "beatport_previews"
+    if not o.retomar_espera("beatport"):
+        return
     while not o.parar.is_set():
         n_sets = contar_sets_bajados(o.root)
         tarea = tarea_beatport(o.root, n_sets)
@@ -411,7 +435,7 @@ def carril_beatport(o: Orquesta) -> None:
             continue
         if codigo == 2:
             cortes += 1
-            if not o.esperar(espera_corte("beatport", cortes), "beatport", f"Beatport cortó ({cortes} seguido/s)"):
+            if not o.esperar_sitio("beatport", espera_corte("beatport", cortes), f"Beatport cortó ({cortes} seguido/s)"):
                 return
         else:
             errores += 1
@@ -423,6 +447,8 @@ def carril_youtube(o: Orquesta) -> None:
     yt_dir = o.root / "youtube_temas"
     pausa = leer_pausa_yt(yt_dir)
     cortes = errores = 0
+    if not o.retomar_espera("youtube"):
+        return
     while not o.parar.is_set():
         tarea = tarea_youtube(o.root)
         if tarea is None:
@@ -450,7 +476,7 @@ def carril_youtube(o: Orquesta) -> None:
             pausa = min(round(pausa * 1.5, 1), PAUSA_YT_TOPE)
             yt_dir.mkdir(parents=True, exist_ok=True)
             (yt_dir / "pausa_s.txt").write_text(f"{pausa:g}", encoding="utf-8")
-            if not o.esperar(espera_corte("youtube", cortes), "youtube",
+            if not o.esperar_sitio("youtube", espera_corte("youtube", cortes),
                              f"verificación anti-robots ({cortes} seguida/s); la pausa entre pedidos pasa a {pausa:g} s"):
                 return
         else:
