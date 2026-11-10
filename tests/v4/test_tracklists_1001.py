@@ -241,6 +241,30 @@ def test_uso_pares_en_bajar_toma_solo_los_de_pares():
     assert len([f for f in filas if t.sirve_para(f, None)]) == 3
 
 
+def test_saltar_en_bajar_prueba_con_otra_pagina_y_deja_las_saltadas(tmp_path, capsys):
+    # Después del 403 del 2026-11-10 la prueba se hizo con otra página; las saltadas siguen pendientes.
+    import argparse
+    import csv
+
+    base = tmp_path / "1001tracklists"
+    (base / "sets").mkdir(parents=True)
+    (base / "sets" / "c.json").write_text("{}", encoding="utf-8")
+    with (base / "candidatos.csv").open("w", encoding="utf-8-sig", newline="") as handle:
+        escritor = csv.DictWriter(handle, fieldnames=["id", "veto", "uso", "titulo", "dj", "ruta"])
+        escritor.writeheader()
+        for id_ in "abcd":
+            escritor.writerow({"id": id_, "veto": "", "uso": "pares", "titulo": f"set {id_}", "dj": "DJ", "ruta": f"/tracklist/{id_}/x.html"})
+
+    def pedidas(saltar, n):
+        args = argparse.Namespace(root=tmp_path, uso=None, por_dj=0, saltar=saltar, n=n, dry_run=True)
+        assert t.cmd_bajar(args) == 0
+        return [linea.split(" ", 1)[1] for linea in capsys.readouterr().out.splitlines()[1:]]
+
+    assert pedidas(0, 10) == ["set a", "set b", "set d"]  # c ya está bajado
+    assert pedidas(1, 1) == ["set b"]
+    assert pedidas(5, 1) == []
+
+
 def test_guardar_paro_deja_la_pagina_aunque_no_haya_contenido(tmp_path):
     # El 403 del 2026-11-10 no dejó rastro: no se supo si era esa página o todo el sitio.
     import gzip

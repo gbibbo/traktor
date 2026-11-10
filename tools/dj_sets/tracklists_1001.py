@@ -20,6 +20,7 @@ CHANGELOG:
   - 2026-11-09: bajar --uso pares toma solo los de pares y --por-dj da un piloto variado; medir cuenta temas y pares en
     la biblioteca con la normalización de zona_sets.py.
   - 2026-11-10: buscar y bajar guardan la página donde paran en paros/ (el 403 de esa noche no dejó rastro).
+    bajar --saltar N, para probar después de un corte con otra página que la que paró.
 """
 from __future__ import annotations
 
@@ -662,7 +663,7 @@ def cmd_bajar(args) -> int:
                 vistos[dj] += 1
                 elegidos.append(fila)
         pendientes = elegidos
-    pendientes = pendientes[:args.n]
+    pendientes = pendientes[args.saltar:args.saltar + args.n]
     print(f"{len(tabla)} candidatos, bajo {len(pendientes)}; unos {len(pendientes) * 11 / 60:.0f} min", flush=True)
     if args.dry_run or not pendientes:
         for fila in pendientes:
@@ -745,6 +746,7 @@ def main() -> int:
     bajar.add_argument("--n", type=int, default=50, help="tope de páginas por corrida")
     bajar.add_argument("--uso", choices=["trayectoria", "pares"], help="trayectoria: los de 3 h o más; pares: los que son solo de pares")
     bajar.add_argument("--por-dj", type=int, default=0, help="tope de sets por DJ en esta corrida (un piloto variado: 1)")
+    bajar.add_argument("--saltar", type=int, default=0, help="salta las primeras N pendientes, para probar con otra página después de un corte; quedan pendientes")
     bajar.add_argument("--dry-run", action="store_true")
     bajar.set_defaults(func=cmd_bajar)
     medir = comandos.add_parser("medir")
