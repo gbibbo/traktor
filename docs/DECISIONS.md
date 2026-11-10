@@ -225,9 +225,16 @@ cambiarlo. Evidencia: `docs/reports/traktor_concept_ai_cloudflare_2026-11-09.md`
      (posesivo, «Remix» frente a «Mix», versión pegada al título, alias); sin la «s» suelta ni «remix» salen 66 de
      los 338 de nivel C; el cambio en `match()` espera, porque lo usa también la biblioteca] Entre los de nivel C hay temas que
      parecen estar en Beatport con otra forma de nombrar la versión («Hyenah Raw Beat RMX», «20ms (Cristoph Remix)»):
-     HIPÓTESIS, se revisa con una muestra de la búsqueda antes de cambiarla. `lote_03` seguía (6 de 12
-     tandas) y 14 132 temas de los 838 sets no están en ningún lote: a unos 1200 temas por hora, unas 14 h más, más los
-     de los 711 sets que faltan.
+     HIPÓTESIS, se revisa con una muestra de la búsqueda antes de cambiarla. [REEMPLAZADO 2026-11-10 por el final de
+     `lote_03` a las 05:47, con 12 de 12 tandas] `lote_03` seguía (6 de 12 tandas) y [REFUTADO 2026-11-10 por los
+     `temas.csv` de los lotes: ese conteo dejaba fuera los 4087 temas identificados solo por nombre; quedaban 16 700,
+     que forman `lote_04`] 14 132 temas de los 838 sets no están en ningún lote: a unos 1200 temas por hora, unas 14 h
+     más, más los de los 711 sets que faltan.
+   - **Final de la noche** (05:47): `lote_01` a `lote_03` cerrados, 7539 temas: 5937 previews en 17 tandas (8,5 GB en el
+     Drive, subidas verificadas), 1598 sin id (378 con botón de compra), 3 sin preview y 1 repetido. Los lotes cubren
+     24 339 temas distintos de los 838 sets: 20 252 con id de 1001Tracklists y 4087 solo por nombre, sin nombres
+     repetidos entre los dos grupos. `lote_04` (los 16 700 restantes, 34 tandas, unas 13 h) arrancó a las 05:47 y sigue
+     mientras el PC esté encendido; se retoma por tandas (plan § 6, «Cómo se retoma la bajada»).
 
 ## 2026-11-08
 
