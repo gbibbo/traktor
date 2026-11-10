@@ -23,6 +23,7 @@ PURPOSE: D6, el audio de los temas de los sets que Beatport no da (Gabriel, 2026
 CHANGELOG:
   - 2026-11-10: Creación. La restricción de edad no para la corrida (se prueba el siguiente video); artista numérico
                 («747 - »), sin marca de país y sin espacios; «Remix by X»; alias en la mezcla; corte largo antes que Radio Edit.
+                bajar --pausa (YouTube pidió la verificación anti-robots tras unos 200 temas a 2 s).
 """
 from __future__ import annotations
 
@@ -329,7 +330,8 @@ def cmd_bajar(args) -> int:
         carpeta = Path(args.temporal) / args.corrida / nombre
         t0 = time.monotonic()
         try:
-            tar, manifiesto = armar_tanda(filas[k * args.tanda:(k + 1) * args.tanda], buscar, bajar_audio, carpeta, nombre)
+            tar, manifiesto = armar_tanda(filas[k * args.tanda:(k + 1) * args.tanda], buscar, bajar_audio, carpeta, nombre,
+                                          pausa_s=args.pausa)
         except YouTubeBloqueado as exc:
             print(f"PARO en {nombre}: YouTube {exc}. Lo ya subido queda.", flush=True)
             return 2
@@ -396,6 +398,7 @@ def main() -> int:
     p = comandos.add_parser("bajar")
     p.add_argument("--tanda", type=int, default=TANDA)
     p.add_argument("--temporal", required=True, help="carpeta temporal para el audio y el .tar (en D:, no en C:)")
+    p.add_argument("--pausa", type=float, default=PAUSA_S, help="segundos entre pedidos a YouTube (el 2026-11-10 pidió la verificación anti-robots tras unos 200 temas a 2 s)")
     p.set_defaults(func=cmd_bajar)
     p = comandos.add_parser("probar")
     p.add_argument("--de", action="append", required=True)
