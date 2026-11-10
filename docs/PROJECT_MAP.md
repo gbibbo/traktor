@@ -109,6 +109,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_tags_catalog.py` | Unit tests de tags.py y del catálogo recursivo (hash estable al escribir tags, dedup) |
 | `test_beatport.py` | Unit tests sin red de beatport.py y de las consultas de beatport_lookup (niveles A-D, alias de artista, sellos, convención de tags, caché, subgénero y género completo de la página de un tema) |
 | `test_dj_sets.py` | Emparejamiento de títulos de MusicBrainz con YouTube (también con el artista en otro alfabeto), límites por duración acumulada, novedad y picos, precisión/recuperación/F de cortes, resumen de MusicBrainz, lectura en bloques de `clap_blocks`, validación de playlists por duraciones y fechas, cortes de sets de la historia de Traktor, vectores y banco E1 de D7, validación por título y límites falsos |
+| `test_tracklists_1001.py` | D5: filas de los listados de 1001Tracklists y páginas de set (con HTML escrito a mano), descarte de sets comerciales, usos trayectoria y pares, topes por DJ y por programa, nombre exacto del DJ, consultas |
 | `test_zona_sets.py` | Medidas E9 y E10: lectura de tracklists de D3, pares por set con cada set pesando igual, azar del mismo BPM, cuantiles con pesos, cobertura, fracción dentro del radio, pureza sin lo ya tocado y tramo que mide `tempo_sets` |
 | `test_genre_taxonomy.py` | Similitud por el árbol de familias, relaciones de género y de subgénero, subgénero faltante, matriz simétrica, validación de forma, `compare` con alias y la taxonomía en uso validada contra los géneros de Beatport |
 | `test_genre_model.py` | Unit tests de genre_model.py (gate, etiquetas confirmadas alineadas por track_uids, validación cruzada) |
@@ -246,7 +247,7 @@ guarda lo conseguido y termina como `partial` (código 3).
 ## Sets de DJ (`tools/dj_sets/`)
 
 Fuentes de trayectorias de DJs para las playlists de dirección (`docs/plans/recomendacion_playlists_plan.md`,
-D7 y D8). Los datos van fuera de Git, en `--root` (en este PC, `D:\TRAKTOR ML datos\dj_sets`).
+D5, D7 y D8). Los datos van fuera de Git, en `--root` (en este PC, `D:\TRAKTOR ML datos\dj_sets`).
 
 | Archivo | Descripción |
 | :--- | :--- |
@@ -261,7 +262,9 @@ D7 y D8). Los datos van fuera de Git, en `--root` (en este PC, `D:\TRAKTOR ML da
 | `tools/dj_sets/trayectorias_d7.py` | Almacén de sets D7 (un tema por fila con el vector CLAP del tramo mezclado, sin los bordes) → `sets/d7_temas.csv` y `d7_clap.npz`; T11 (paso entre vecinos frente al azar, entre discos por DJ y época) y E1 dentro del disco y en todo D7 → `sets/d7_trayectorias.json` (informe `docs/reports/trayectorias_d7_2026-11-07.md`) |
 | `tools/dj_sets/validar_d7.py` | Revisa que cada archivo D7 sea la compilación: título de YouTube frente a MusicBrainz (decide) y novedad CLAP en los límites con desfase (dice si los límites sirven tema a tema) → `sets/d7_validacion.json`, que usa `trayectorias_d7.py` |
 | `tools/dj_sets/tempo_sets.py` | BPM estimado (`src/v4/common/tempo.py`) de los temas de D7 validados, en un tramo central de cada tema (el tempo al que sonó en la mezcla), y de los originales de Bedrock → `sets/tempo_temas.csv`; `--verificar N` lo compara con el índice. Lo usa `zona_sets.py` |
+| `tools/dj_sets/tracklists_1001.py` | D5: sets de 1001Tracklists con la cuenta de Gabriel (navegador visible, 8 s entre pedidos, parada al primer rechazo o captcha). `buscar` (búsquedas filtradas por DJ, término y evento → `1001tracklists/busquedas/`), `candidatos` (cura sin abrir los sets: comerciales afuera, trayectoria o pares, topes → `candidatos.csv` con columna `veto` y `descartados.csv` con el motivo), `bajar --n` (páginas de los candidatos → `sets/<id>.json`: tema, segundo, sello, enlaces y grabación), `medir` (tiempos, pares consecutivos, afinidad, género comercial → `medidas.csv`). El perfil del navegador va fuera del repo, en `~/.traktor_ml/` |
 | `config/dj_sets/artistas_spotify.txt` | Los 92 artistas que Gabriel sigue en Spotify, punto de partida para buscar sets y compilaciones |
+| `config/dj_sets/tracklists_1001.json` | Reglas y semillas de D5: géneros aceptados, comerciales y fuera de estilo; DJs comerciales y dudosos; eventos comerciales; DJs, términos y eventos que se buscan. Se edita a mano |
 
 ## Taxonomía de géneros (`tools/genre_taxonomy/`)
 

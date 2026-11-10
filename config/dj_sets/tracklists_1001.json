@@ -1,0 +1,82 @@
+{
+  "generos_aceptados": [
+    "Techno", "Tech House", "Melodic House/Techno", "Progressive House", "House", "Deep House",
+    "Minimal / Deep Tech", "Afro House", "Organic House / Downtempo", "Electronica", "Indie Dance",
+    "Nu Disco / Disco", "Funky / Groove House", "Chicago House / Detroit Sound", "Tribal House", "Breaks"
+  ],
+  "generos_comerciales": [
+    "Mainstage", "Dance / Electro Pop", "Pop", "Hip Hop", "Latin Music", "Moombahton", "Big Room",
+    "Bass House", "Trap", "Dubstep", "Future Bass", "Electro House"
+  ],
+  "generos_fuera_de_estilo": [
+    "Trance", "Goa / Psy-Trance", "Hard Dance", "Hardstyle", "Drum & Bass", "Bassline / Garage / Grime"
+  ],
+  "djs_comerciales": [
+    "Bassjackers", "Lilly Palmer", "MEDUZA", "Purple Disco Machine", "Offer Nissim", "David Guetta",
+    "Martin Garrix", "Tiësto", "Hardwell", "Afrojack", "Armin van Buuren", "Dimitri Vegas", "Like Mike",
+    "Steve Aoki", "Alesso", "Axwell", "Swedish House Mafia", "Calvin Harris", "Don Diablo", "Oliver Heldens",
+    "Timmy Trumpet", "W&W", "Nicky Romero", "R3HAB", "KSHMR", "Alok", "deadmau5", "testpilot",
+    "Porter Robinson", "Fred again.."
+  ],
+  "djs_dudosos": [
+    "ARTBAT", "Argy", "Boris Brejcha", "Tale Of Us", "Anyma", "Solomun", "Charlotte de Witte", "Amelie Lens",
+    "Nina Kraviz", "Peggy Gou", "Vintage Culture", "CamelPhat", "Kölsch", "FISHER", "John Summit", "Dom Dolla",
+    "Mau P", "Chris Lake", "Indira Paganotto", "Eric Prydz", "Black Coffee", "Keinemusik", "Adam Port", "Rampa",
+    "&ME", "David Morales", "Claptone"
+  ],
+  "eventos_comerciales": [
+    "tomorrowland", "\\bultra\\b", "\\bedc\\b", "electric daisy", "creamfields", "untold", "parookaville",
+    "electric love", "mysteryland", "sziget", "balaton sound", "neversea", "lollapalooza", "coachella",
+    "main ?stage", "kineticfield", "circuitgrounds", "a state of trance", "\\basot\\b", "defqon",
+    "transmission", "dreamstate", "world club dome", "summerburst", "\\bsensation\\b", "\\bamf\\b",
+    "ushuaia", "\\bomnia\\b", "hakkasan", "\\bxs nightclub\\b", "\\bwynn\\b",
+    "above & beyond", "anjuna", "group therapy", "diplo"
+  ],
+  "stream": "twitch|livestream|live stream|\\bonline\\b|home dj set|home session|from home|beatport live|united we stream|quarantine|lockdown|streaming|bunker sessions",
+  "djs": [
+    "Red Axes", "Claude VonStroke", "TYGAPAW", "Satoshi Fumi", "Vladimir Dubyshkin", "Patrice Bäumel",
+    "The Rhythm Odyssey", "Alberto Ruiz", "Quivver", "Doctor Dru", "Jamie Jones", "Harvey McKay", "Julian Jeweil",
+    "Kaiserdisco", "Kolombo", "Adrian Hour", "Pavel Petrov", "YOTTO", "Marc Romboy", "Sam Goku", "Paco Osuna",
+    "Carl Cox", "Nicole Moudaber", "Harry Romero", "Andrea Oliva", "Catz 'n Dogz", "Patrik Soderbom", "Dennis Cruz",
+    "Raxon", "Dubfire", "Sasha", "M.A.N.D.Y.", "Andrew Meller", "Dosem", "Malandra Jr.", "Richard Dorfmeister",
+    "Peter Kruder", "Hernán Cattáneo", "Nick Warren", "Ben Klock", "John Digweed", "Kellerkind", "John Talabot",
+    "Talaboman", "Paul Kalkbrenner", "Worakls", "DWIG", "Andre Rizo", "Recondite", "nthng", "Audiofly",
+    "Mathame", "Oliver Lieb", "Josh Wink", "Baiuca", "Jay Lumen", "Soulwax", "Pig&Dan", "Darius Syrossian",
+    "Longstocking", "Frankyeffe", "Mr. G", "Storken", "Daniele Baldelli", "Carlo Lio", "Llewellyn", "Matt Petrone",
+    "Tini Gessler", "Danny Serrano", "MEEN", "JAMIIE", "CASSIMM", "Human Safari", "Adam Holt", "Rrose", "Jamie xx",
+    "Hector Couto", "Dos Locos", "Fabique", "Juanito State", "ÅMRTÜM", "Dance Spirit", "Andreas Henneberg", "DreamKiller",
+
+    "Circulation", "Gregor Tresher", "Spencer Parker", "Mark Knight", "Nick Muir", "Hraach", "Guy J", "Innellea",
+    "Oliver Koletzki", "Sidney Charles", "Mendo", "Armen Miran", "Djuma Soundsystem", "Mark Alow", "Sébastien Léger",
+    "Electric Rescue", "Timo Maas", "Stephan Bodzin", "Andre Butano", "Joe Red", "NenaHalena", "Hostox", "Tunnelvisions",
+
+    "ANNA", "Massano", "Eli Brown", "Soul Button", "Voltaire", "Apollonia", "Sven Väth", "Joris Voorn", "Hunee"
+  ],
+  "terminos": [
+    {"texto": "All Night Long", "duracion": 180, "Type": "onlyLive", "ventanas": [
+      {"desde": "2026-01-01"},
+      {"desde": "2025-01-01", "hasta": "2025-12-31"},
+      {"desde": "2024-01-01", "hasta": "2024-12-31"},
+      {"desde": "2023-01-01", "hasta": "2023-12-31"},
+      {"desde": "2022-01-01", "hasta": "2022-12-31"},
+      {"desde": "2012-01-01", "hasta": "2021-12-31"}
+    ]},
+    {"texto": "Extended Set", "duracion": 180, "Type": "onlyLive", "ventanas": [
+      {"desde": "2025-01-01"},
+      {"desde": "2023-01-01", "hasta": "2024-12-31"},
+      {"desde": "2012-01-01", "hasta": "2022-12-31"}
+    ]},
+    {"texto": "Closing Set", "duracion": 180, "Type": "onlyLive"},
+    {"texto": "Opening Set", "duracion": 180, "Type": "onlyLive"},
+    {"texto": "Sunrise Set", "duracion": 180, "Type": "onlyLive"},
+    {"texto": "Marathon", "duracion": 180, "Type": "onlyLive"},
+    {"texto": "Hour Set", "duracion": 180, "Type": "onlyLive"},
+    {"texto": "Solo Set", "duracion": 180, "Type": "onlyLive"},
+    {"texto": "Back To Back", "duracion": 180, "Type": "onlyLive"}
+  ],
+  "eventos": [
+    "Awakenings", "Time Warp", "Movement Detroit", "Circoloco", "Cocoon", "Stereo Montréal", "Club Space",
+    "Warung", "Fabric London", "Output Brooklyn", "Amnesia Ibiza", "Lofi Amsterdam", "Shelter Amsterdam",
+    "Nitsa", "Fuse Brussels"
+  ]
+}

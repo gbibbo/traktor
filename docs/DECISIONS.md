@@ -25,12 +25,34 @@ cambiarlo. Evidencia: `docs/reports/traktor_concept_ai_cloudflare_2026-11-09.md`
 5. **CLAP se carga con el primer concepto y se libera a los 20 min sin uso** (agente): ocupa cerca de 950 MB y este PC
    tenía 2 GB libres. Prioridad baja y dos hilos, para no competir con el audio.
 
+## 2026-11-09 (sets de 1001Tracklists)
+
+1. **Los sets comerciales quedan fuera de D5** (Gabriel). Cómo (agente): ante la duda, afuera. Se descarta por género
+   (Mainstage, Dance / Electro Pop y otros), por DJ (una lista de comerciales y otra de dudosos, como ARTBAT o Charlotte
+   de Witte) y por evento o escenario (Tomorrowland, Ultra, EDC y otros). Trance, Hard Dance y Drum & Bass salen por
+   estilo. Las listas están en `config/dj_sets/tracklists_1001.json`; son criterio del agente y Gabriel las corrige.
+2. **Los sets de 3 h o más sirven para aprender la trayectoria de la elección de música a lo largo de la noche; para saber
+   qué temas van juntos alcanzan los temas consecutivos de sets más cortos** (Gabriel). Cómo (agente): cada set lleva su
+   uso, trayectoria o pares, o los dos (plan, sección 6).
+3. **La estrategia de selección de D5 queda aprobada** (Gabriel: «Puedes proceder»; los detalles son del agente, en el
+   plan, sección 6, ideas S1 a S15).
+   - Se lee la página de cada set en lugar del botón de exportar: trae lo mismo con un pedido, y además sello, enlaces y
+     grabación. Herramienta: `tools/dj_sets/tracklists_1001.py`, con la sesión iniciada a mano por Gabriel; 8 s entre
+     pedidos, sin reintentos, y parada en la primera respuesta anormal. El perfil queda en `~/.traktor_ml/`, fuera del repo.
+   - Resultado: 84 de 147 búsquedas, 1269 sets distintos y 740 candidatos (135 para trayectoria, 605 solo para pares, 139
+     DJs). Quedaron fuera 128 comerciales, 43 por estilo, 169 por el tope de 15 por DJ y 189 por datos insuficientes o
+     género no aceptado. La tabla: `1001tracklists/candidatos.csv`, con columna `veto`.
+   - **El sitio cortó la conexión en la búsqueda 81 de esa tanda** (`ERR_CONNECTION_RESET`, a unos 11 s por pedido; el
+     resto de internet funcionaba). Puede ser un rechazo o un corte casual; una sola vez no lo distingue. No se reintentó
+     y el piloto de 30 sets no se corrió. `buscar` quedó con un tope de 40 por corrida. Faltan 63 búsquedas: 34 DJs, 15
+     términos y 14 eventos.
+
 ## 2026-11-08
 
 1. **Los tracklists de 1001Tracklists se bajan directamente de la página, con la cuenta de Gabriel**
    (Gabriel). El correo ya se mandó, tardan en contestar y no se depende de eso. Reemplaza la ruta del
    punto 9 del 2026-11-07. [REEMPLAZADO 2026-11-08 por decisión de Gabriel: se bajan muchos, con su cuenta] Bajar muchos queda sin decidir.
-   - Cómo (agente, probado con un solo tracklist, Maddix `1ch990z1`): `export_1001tracklists.py`
+   - [REEMPLAZADO 2026-11-09 por el punto 3 de «sets de 1001Tracklists»: en volumen se lee la página, con `tools/dj_sets/tracklists_1001.py`; trae lo mismo con un solo pedido por set] Cómo (agente, probado con un solo tracklist, Maddix `1ch990z1`): `export_1001tracklists.py`
      (Playwright con Chromium visible; está en Descargas, fuera de Git) pulsa el botón oficial de exportar
      y guarda el texto que devuelve `/ajax/export_data.php`. Gabriel inicia sesión a mano en esa ventana:
      la contraseña no pasa por el agente.
@@ -40,7 +62,7 @@ cambiarlo. Evidencia: `docs/reports/traktor_concept_ai_cloudflare_2026-11-09.md`
      NFC antes de comparar nombres.
    - Aviso (agente): la ruta anterior evitaba justo esto. El `robots.txt` bloquea al agente «CPython» y
      pide `Crawl-delay: 8` al resto.
-   - Pendiente en el script antes de darle una lista: en Windows `write_text` deja `\r\r\n` (falta
+   - [REEMPLAZADO 2026-11-09 por `tools/dj_sets/tracklists_1001.py`: 8 s, parada al primer rechazo, salta lo ya bajado y el perfil queda fuera del repo; el script de Descargas no se usa para volumen] Pendiente en el script antes de darle una lista: en Windows `write_text` deja `\r\r\n` (falta
      `newline=""`); la pausa es de 3 s y el sitio pide 8; sigue con la lista después de un rechazo; no
      salta lo ya bajado; y crea su perfil con cookies en la carpeta desde donde se corre.
    - Enlaces al audio (agente, probado con un tracklist y un tema). El texto exportado no los trae. La
