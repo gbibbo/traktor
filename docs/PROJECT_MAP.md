@@ -15,6 +15,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | :--- | :--- |
 | `config_loader.py` | Cargar config con cascada: CLI > env > YAML |
 | `path_resolver.py` | Resolver rutas de artifacts, audio, caches (laptop + HPC) |
+| `remote_storage.py` | Almacenamiento remoto (Drive de Gabriel por rclone) compartido entre esta PC y los trabajos de gpuq: raíz `erclm:traktor_ml` (o `TRAKTOR_REMOTE`), `open_remote()` con `gpuq.storage` (transferencias atómicas verificadas); guía `docs/GPUQ.md` |
 | `catalog.py` | Construir y cargar catálogo de tracks (catalog.parquet); recursivo, tags, hash `audio`, deduplicado |
 | `audio_utils.py` | Carga de audio, segmentación DJ (get_dj_segments, read_dj_segments por seek), get_audio_files |
 | `demucs_utils.py` | Separación de stems (Demucs htdemucs) |
@@ -111,6 +112,7 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_dj_sets.py` | Emparejamiento de títulos de MusicBrainz con YouTube (también con el artista en otro alfabeto), límites por duración acumulada, novedad y picos, precisión/recuperación/F de cortes, resumen de MusicBrainz, lectura en bloques de `clap_blocks`, validación de playlists por duraciones y fechas, cortes de sets de la historia de Traktor, vectores y banco E1 de D7, validación por título y límites falsos |
 | `test_tracklists_1001.py` | D5: filas de los listados de 1001Tracklists y páginas de set (con HTML escrito a mano), descarte de sets comerciales, usos trayectoria y pares, topes por DJ y por programa, nombre exacto del DJ, consultas |
 | `test_zona_sets.py` | Medidas E9 y E10: lectura de tracklists de D3, pares por set con cada set pesando igual, azar del mismo BPM, cuantiles con pesos, cobertura, fracción dentro del radio, pureza sin lo ya tocado y tramo que mide `tempo_sets` |
+| `test_gpuq.py` | Raíz del almacenamiento remoto, argumentos del envoltorio de la cola y la prueba de punta a punta del Drive contra una carpeta local (se salta sin el clon de gpuq) |
 | `test_genre_taxonomy.py` | Similitud por el árbol de familias, relaciones de género y de subgénero, subgénero faltante, matriz simétrica, validación de forma, `compare` con alias y la taxonomía en uso validada contra los géneros de Beatport |
 | `test_genre_model.py` | Unit tests de genre_model.py (gate, etiquetas confirmadas alineadas por track_uids, validación cruzada) |
 | `test_write_beatport_tags.py` | Unit tests de write_beatport_tags.py (reglas del plan, escritura real en MP3 ID3 2.3 y FLAC, hash estable, reversión) |
@@ -155,6 +157,14 @@ Organización).
 | `.claude/skills/auditar/SKILL.md` | Protocolo de investigación: tres coordenadas de cada dato, revisión hostil, veredicto etiquetado, reglas del dominio |
 | `tools/git_hooks/pre-commit` | Hook de git; se activa con `git config core.hooksPath tools/git_hooks` y corre `check_staged.py` |
 | `tools/git_hooks/check_staged.py` | Bloquea audio, arrays, pesos, credenciales, archivos > 5 MB y contenido con credenciales (sin imprimirlas); `--all` revisa el árbol entero |
+
+## Cómputo pesado: gpuq y Drive (`tools/gpuq/`)
+
+| Archivo | Descripción |
+| :--- | :--- |
+| `tools/gpuq/cola.py` | Encola y sigue trabajos de gpuq desde este repo (`add`, `status`, `logs`, `cancel`); `add` fija el repo y el commit actual y se niega si no está en GitHub. Usa el clon `../gpuq-personal` (o `GPUQ_HOME`) |
+| `tools/gpuq/smoke_drive.py` | Prueba de punta a punta PC → Drive → VM con GPU → Drive → PC (`prepare`, `run`, `check`); pasó en una T4 de Colab el 2026-11-09 |
+| `tools/gpuq/rclone_desde_raspberry.ps1` | Lo corre Gabriel: copia el remoto de rclone del despachador (Raspberry) al `rclone.conf` de esta PC sin mostrarlo; `-Prueba` solo lista los nombres de las claves |
 
 ## Artifacts (generados, no en git)
 
@@ -343,6 +353,7 @@ Solo leen audio con ffmpeg; corren con el Python que tenga scipy.
 | :--- | :--- |
 | `docs/PROJECT_MAP.md` | Este archivo |
 | `docs/V4_USAGE.md` | Instrucciones de uso end-to-end (Phase 0→5, UI, escalar a 2000 tracks) |
+| `docs/GPUQ.md` | gpuq y Drive en este repo: piezas (Raspberry, cola `gpuq-personal`, remoto `erclm:traktor_ml/`), puesta en marcha en otra PC, comandos y la prueba en GPU del 2026-11-09. El procedimiento obligatorio está en `AGENTS.md`, «Compute» |
 | `docs/v4/TODO.md` | Progress tracker con fechas de completado |
 | `docs/STATUS.md` | Estado actual, pendientes y recetas de ejecución; se inyecta al abrir cada sesión de Claude Code |
 | `docs/v4/JOBS_STATUS.md` | Legado: registro de jobs Slurm de marzo de 2026 (reemplazado por `docs/STATUS.md`) |

@@ -307,4 +307,4 @@ detalle quedó en la sección 12 del plan.
    concepto» es el caso con el set en curso. En los dos, lo que hay que mejorar es el puntaje de concepto.
 4. **Los filtros en vivo siguen como están**: BPM ±20 y tonalidad a ±2 semitonos.
 5. **Lo pesado en procesamiento o en disco va a gpuq y a su Google Drive.** gpuq es una cola sobre los niveles
-   gratuitos de Colab y Kaggle. En este escritorio no encontré `gpuq` ni `rclone` instalados.
+   gratuitos de Colab y Kaggle. [REEMPLAZADO 2026-11-09 por la puesta en marcha de gpuq: instalados y probados de punta a punta, docs/GPUQ.md] En este escritorio no encontré `gpuq` ni `rclone` instalados.

@@ -55,7 +55,9 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
      en CPU, qué necesita la máquina remota, horas de GPU estimadas frente a la cuota, espacio en Drive y el OK de
      Gabriel en el chat. Las credenciales las pone Gabriel con `gpuq setup`; no pasan por el agente. Nada de lo subido
      es público: ni datasets ni notebooks públicos en Kaggle, ni enlaces compartidos de Drive.
-   - Estado (agente, 2026-11-09): en este escritorio no encontré `gpuq` ni `rclone` (no están en el PATH, el Python de
+   - [REEMPLAZADO 2026-11-09 por la puesta en marcha de gpuq: el despachador corre en la Raspberry `asr-rp5`, la cola es `gbibbo/gpuq-personal`, el Drive es el
+     remoto `erclm` con los datos de TRAKTOR en `erclm:traktor_ml/`, y este escritorio tiene el clon de la cola y
+     rclone; probado de punta a punta en una T4, docs/GPUQ.md] Estado (agente, 2026-11-09): en este escritorio no encontré `gpuq` ni `rclone` (no están en el PATH, el Python de
      la Store no tiene el módulo y no hay una carpeta `gpuq` en `C:\VS projects`, en la carpeta del usuario, en
      Documentos ni en `D:\`). No miré otros ordenadores ni dónde corre el despachador.
    - Reemplaza al punto 4 del 2026-09-12 (GPU solo por trabajos gratuitos de Kaggle).

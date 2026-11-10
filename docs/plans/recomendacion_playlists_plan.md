@@ -968,7 +968,7 @@ segundo caso sin concepto.
 | T29 | Sin tema de referencia: playlist por concepto sobre toda la biblioteca, ordenada por el puntaje del concepto, con piso de confianza y largo variable. Es lo que hace hoy `conceptos_agente.py` con el coseno crudo | Gabriel 11-09 (caso antes de empezar a tocar) | Perfil de concepto sin referencia | T24 a T26 para el puntaje | Unidad 4 | En uso con texto crudo; exploratorio medido: de los 30 primeros cumple el 21 % (género de Beatport, base 9 %) |
 | T30 | Con el set en curso, la zona usa el historial: la consulta suma el centro de lo tocado y el paso reciente (T17, P10) sobre las vistas de P11, y el estado de la trayectoria (T5) da nivel y pendiente a los perfiles. Se mide como zona (E10, E13), no como acierto del tema siguiente | Gabriel 11-09 (el historial como fuente para la trayectoria del tema siguiente) | Estado de la trayectoria (3.5); Perfil | P11; D2 con sesiones | Después de la unidad 2 | Pendiente |
 | D9 | MTIQ y MTSQ: tripletas y audio de Jamendo recortado a 10 s (Hugging Face `sb-lucas/Music-Text-Queries`, Apache-2.0, 59,7 GB en total) | Paper GMR | Datos | H1 | Con T27 | Sin bajar |
-| H1 | Cómputo pesado en gpuq (cola sobre Colab y Kaggle gratuitos) y disco en el Google Drive de Gabriel; lo liviano sigue en CPU local | Gabriel 11-09 | Infraestructura (sección 12.6) | gpuq y `rclone` instalados y con credenciales puestas por Gabriel | Cuando haga falta | En este escritorio no están instalados (mirado el 11-09) |
+| H1 | Cómputo pesado en gpuq (cola sobre Colab y Kaggle gratuitos) y disco en el Google Drive de Gabriel; lo liviano sigue en CPU local | Gabriel 11-09 | Infraestructura (sección 12.6) | gpuq y `rclone` instalados y con credenciales puestas por Gabriel | Cuando haga falta | [REEMPLAZADO 2026-11-09 por la puesta en marcha de gpuq: instalado y probado de punta a punta, docs/GPUQ.md] En este escritorio no están instalados (mirado el 11-09) |
 
 Marcas en su lugar: G6, P2, P8, P9, P10, T17, T18 y T19.
 
@@ -995,14 +995,14 @@ Después siguen las etapas 4 y 5 del plan (M3, M4) como estaban, con H1 para lo 
 
 - **Regla** (Gabriel): todo lo pesado en procesamiento o en disco se procesa con las GPU de gpuq
   (github.com/gbibbo/gpuq) y con su Google Drive. Detalle y salvaguardas: DECISIONS 2026-11-09, «algoritmo
-  de recomendación», punto 7, y `AGENTS.md`, «Compute resource discipline».
+  de recomendación», punto 7, y `AGENTS.md`, «Compute»; piezas y comandos en `docs/GPUQ.md`.
 - **Liviano, en local**: tests, bancos sobre embeddings ya calculados, texto de CLAP, MAEST de los 179
   originales de Bedrock, entrenar sondas y modelos lineales.
 - **Candidatos a pesado**: la pasada de Essentia sobre la biblioteca si la prueba chica da más de una hora;
   extraer vistas de audio nuevo en volumen (D5 con audio, D6, D7, D8); MTIQ (D9); M3 y M4.
 - **Cómo corre un trabajo** (leído de la documentación de gpuq): el código sale de este repositorio en la rama
   o commit pedido; la máquina es nueva en cada intento y puede perderse, así que el trabajo guarda puntos de
-  control y los retoma; lo que tiene que sobrevivir se sube al remoto de `rclone` (por defecto `gdrive:gpuq`).
+  control y los retoma; lo que tiene que sobrevivir se sube al remoto de `rclone` (por defecto `gdrive:gpuq`; [REEMPLAZADO 2026-11-09 por la puesta en marcha de gpuq: en este repo, `erclm:traktor_ml/`, docs/GPUQ.md]).
   A este escritorio vuelven resultados chicos (embeddings, tablas), que se verifican como cualquier artefacto:
   formas, N, valores finitos y alineación por `track_uid`.
 - **Lo que conviene**: bajar los datos públicos (MTIQ) directo a la máquina remota y subir a Drive solo los
@@ -1019,7 +1019,8 @@ con conceptos no vistos) y que las cabezas de Essentia sirvan de coordenada (E11
 
 Preguntas para Gabriel:
 1. Quién elige los temas principales de la escucha E12 y si quiere marcar además tema por tema lo que no pondría.
-2. Dónde corre el despachador de gpuq y cuánto espacio libre tiene el Drive.
+2. [REEMPLAZADO 2026-11-09 por la puesta en marcha de gpuq: el despachador corre en la Raspberry `asr-rp5` de Gabriel; el Drive tiene unos 17 TiB libres
+   (`rclone about erclm:`), docs/GPUQ.md] Dónde corre el despachador de gpuq y cuánto espacio libre tiene el Drive.
 3. Si el umbral de «pesado» (alrededor de una hora de CPU o de 10 GB de disco nuevo) y el OK previo al primer
    envío de cada tipo de trabajo quedan así.
 4. El audio de los temas de los sets (D6), que es decisión suya: sección 12.8.

@@ -15,7 +15,7 @@ Canonical instructions for coding agents in this repository.
 
 This is the independent TRAKTOR ML project for organizing a private Techno and Tech House collection into Traktor ready playlists through audio feature extraction, clustering, ordering, export, and visual inspection.
 
-The current development environment is a local, CPU-first workstation. Local CPU development is the default: repository inspection, code editing, tests, Phase 0 ingestion, Phase 1 CPU extraction (`--essentia-only`, or `--percussion hpss --device cpu`), Phases 2-5, the Streamlit app, and Git operations all run locally without any cloud machine.
+The current development environment is a local, CPU-first workstation. Local CPU development is the default: repository inspection, code editing, tests, Phase 0 ingestion, Phase 1 CPU extraction (`--essentia-only`, or `--percussion hpss --device cpu`), Phases 2-5, the Streamlit app, and Git operations all run locally without any cloud machine. Heavy work (GPU, more than about an hour of CPU, or more than about 10 GB of disk) goes to the gpuq GPU queue with its data on Gabriel's Google Drive; see the Compute section.
 
 Lightning AI Studio, Surrey HPC, and Slurm are optional legacy/remote infrastructure. They must never be started, switched, or billed automatically. Do not assume any of them is available, do not submit Slurm jobs, and do not launch, switch, or resume a Lightning machine unless Gabriel explicitly asks for that infrastructure in the current conversation. The helper scripts under `tools/lightning/` and the jobs under `slurm/` are retained for provenance only and are inert by default.
 
@@ -80,25 +80,45 @@ Rules:
 
 Before stopping after substantive project work, report the final Git state with the full HEAD SHA, push status, and whether the working tree is clean. Do not create empty commits merely to manufacture a SHA.
 
-## Compute resource discipline
+## Compute: local CPU, gpuq GPUs, and the Drive
 
-Default to CPU. Use CPU for repository inspection, code editing, tests, ingestion, clustering, ordering, export, Streamlit work, metadata processing, manifests, hashing, plotting, documentation, and Git operations whenever reasonable.
+Gabriel's rule (`docs/DECISIONS.md` 2026-11-09, recommendation algorithm, point 7): light work runs on this workstation's CPU; anything heavy in processing or in disk runs on gpuq GPUs with its data on his work Google Drive. Setup, commands, and the end-to-end test: `docs/GPUQ.md`.
 
-GPU is an exception, and remote/paid GPU (Lightning, cloud) is never invoked automatically. For the current V4 pipeline, Phase 1 feature extraction is the only GPU justified stage because it runs Demucs and MERT over the collection, and it also has CPU fallbacks (`--essentia-only` for BPM/key, `--percussion hpss --device cpu`). Do not keep a GPU active for downstream CPU work. Do not start, switch, or resume a Lightning Studio machine, call the Lightning SDK/API, submit a Slurm job, or spend any cloud credits without Gabriel's explicit approval in the current conversation.
+### 1. Light or heavy
 
-Before any paid GPU use:
+* **Light, local CPU:** repository inspection, code editing, tests, Phase 0 ingestion, clustering, ordering, export, Streamlit, metadata, manifests, hashing, plots, documentation, Git, benches on stored embeddings, CLAP text, and extractions on a small folder of tracks.
+* **Heavy, gpuq and Drive:** anything that needs a GPU, or would take more than about one hour of CPU on this workstation, or more than about 10 GB of new disk (the agent's thresholds; Gabriel may change them). Typical case: a model pass (Demucs, MERT, MAEST, CLAP, Essentia heads) over the whole library or over the DJ-set blocks.
+* When in doubt, time a small sample on CPU and extrapolate. The measured number decides, not a guess.
 
-1. Confirm that the code path is CPU validated as far as reasonably possible.
-2. State what specifically requires GPU.
-3. Select the smallest compatible GPU class.
-4. Estimate or bound the expected cost when paid compute is involved.
-5. Obtain Gabriel's explicit approval before launching a paid GPU run.
+### 2. How gpuq is wired here (verified 2026-11-09)
 
-If a GPU failure can be reproduced on CPU, return to CPU for debugging. Do not use paid GPU time as a debugger.
+* The dispatcher runs in Docker (container `gpuq`) on Gabriel's always-on Raspberry Pi `asr-rp5`. It launches jobs on Colab (one free T4 at a time) and Kaggle (about 30 GPU hours a week, 12 hours per session), relaunches them when a machine is lost, and notifies Gabriel's phone.
+* The queue lives in Gabriel's private repo `gbibbo/gpuq-personal` (queue on branch `jobs`, status and logs on branch `runs`). This workstation has a clone next to this repo, `../gpuq-personal` (override with `GPUQ_HOME`). Queue and follow jobs from this repo with `tools/gpuq/cola.py` (`add`, `status`, `logs <id>`, `cancel <id>`).
+* A job checks out **this repository at a pushed commit** (`cola.py add` pins the current HEAD and refuses a commit that is not on GitHub), runs its command at the repo root, and reaches the Drive through rclone.
+* The Drive is the rclone remote `erclm`, Gabriel's work Google Drive, with scope `drive.file`: rclone sees only the files this rclone client created, never the rest of his Drive. The same remote is configured on this workstation. TRAKTOR ML data lives under `erclm:traktor_ml/`; `src/v4/common/remote_storage.py` resolves that root on the VM and here, and `open_remote()` returns a gpuq `Remote` whose transfers are atomic and verified by size and MD5. `ERC-LM-2027/` and `gpuq-test/` on the same remote belong to other projects: do not write or delete there.
+* This repository is **public** on GitHub. Code goes to Git; data, results, and anything private go only to the Drive.
 
-Heavy work goes to gpuq and Google Drive (Gabriel, `docs/DECISIONS.md` 2026-11-09, recommendation algorithm, point 7). Anything heavy in processing or in disk is not run on the local workstation: it is queued on gpuq (https://github.com/gbibbo/gpuq, a job queue over the free Colab and Kaggle GPU tiers) with its data on Gabriel's Google Drive through gpuq's storage remote. Light work stays local as described above. A gpuq job is still never submitted automatically: validate the code path on CPU with a small sample, state what needs the remote machine, estimate GPU hours against the free quota and the Drive space, and get Gabriel's approval in the current conversation before the first submission of each kind of job. Jobs must be resumable from a checkpoint. Gabriel enters the credentials himself with `gpuq setup`; they never pass through the agent. Nothing uploaded may be public: no public Kaggle datasets or notebooks, no shared Drive links.
+### 3. Procedure for a heavy job
 
-Before any long run (anything that would keep the machine busy for more than a few minutes, CPU or GPU), first run the same command on a small folder of tracks (for extraction: `extract_representations.py --folder "<subfolder>"`, which shares the cache) and check the output: no failures, finite values, plausible results, time per track. Only then launch the full run, with `--low-priority` so Gabriel can keep using Rekordbox/Traktor on the same machine.
+1. **Write it resumable** (gpuq's `docs/WRITING_JOBS.md`): everything that must survive goes to the remote through `open_remote()`; work in shards and skip the shards already on the remote; checkpoint long loops with `gpuq.storage.Checkpoints`; print progress with `flush=True`.
+2. **Validate on CPU with a small sample**, same code path, with `TRAKTOR_REMOTE` pointing at a local folder. Measure the time per item.
+3. **Upload the inputs** under `erclm:traktor_ml/<task>/` (rclone or `open_remote().put`). Prefer derived data (embeddings, features) over audio. Audio from the collection goes up only with Gabriel's OK for that set.
+4. **Commit and push** the job code.
+5. **Ask Gabriel before the first submission of each kind of job**, in the current conversation, stating: what needs the GPU, the CPU time per item measured in step 2, the GPU hours against the free quota, the Drive space it will take (`rclone about erclm:`), and the remote paths. Later jobs of the same kind (same script, other shards or parameters) need no new OK.
+6. **Run a short job first** (minutes), check `cola.py logs <id>` and the outputs on the remote, then queue the full job. For jobs longer than about an hour, interrupt one on purpose and check that it resumes.
+7. **Bring the results back** with `open_remote().get` or rclone, check shapes, row counts, track UID alignment, and finite values, and record the job ids and remote paths in the report or in `docs/STATUS.md`.
+
+### 4. Hard limits
+
+* **Credentials never pass through the agent.** Gabriel enters them himself: `gpuq setup` on the Pi, and `tools/gpuq/rclone_desde_raspberry.ps1` to copy the Drive remote to another workstation. Never ask for, read, print, or commit a token: no `rclone config show`, no reading `rclone.conf` or `~/gpuq-data/secrets`. The agent may run `docker exec gpuq gpuq doctor` on the Pi and rclone commands that list, copy, or move data.
+* **Nothing public:** no public Kaggle datasets or notebooks, no shared Drive links, and Gabriel's e-mail address is never written in this repository.
+* **Do not change the dispatcher** (its `gpuq.toml` in `gpuq-personal`, the Pi, the container) without Gabriel's OK: it serves other projects too.
+* **Paid compute** (Lightning, Colab compute units, any cloud credits), Slurm, and Surrey HPC are never started, switched, resumed, or billed without Gabriel's explicit approval in the current conversation. Before any paid GPU use: a CPU-validated code path, what needs the GPU, the smallest GPU class, a cost bound, and his OK.
+* If a GPU failure reproduces on CPU, debug on CPU. GPU time, free or paid, is not a debugger.
+
+### 5. Long runs on this workstation
+
+Before any local run that would keep the machine busy for more than a few minutes, first run the same command on a small folder of tracks (for extraction: `extract_representations.py --folder "<subfolder>"`, which shares the cache) and check the output: no failures, finite values, plausible results, time per track. Only then launch the full run, with `--low-priority` so Gabriel can keep using Rekordbox/Traktor on the same machine. If the full run would cross the heavy threshold, it goes to gpuq instead.
 
 ## Coding standards
 

@@ -8,7 +8,7 @@ PURPOSE: Encolar y seguir trabajos de gpuq desde este repo. Envuelve el comando 
          tal cual a `gpuq add` (--gpu, --platform, --setup, --no-setup, --depends-on, --timeout-h, ...).
          Cada clase nueva de trabajo necesita antes el OK de Gabriel en el chat (AGENTS.md). Guía: docs/GPUQ.md.
 CHANGELOG:
-  - 2026-11-09: primera versión (puesta en marcha de gpuq en este repo).
+  - 2026-11-09: primera versión (puesta en marcha de gpuq en este repo); el gpuq hijo escribe en UTF-8.
 """
 from __future__ import annotations
 
@@ -60,7 +60,8 @@ def run_gpuq(args: list) -> int:
     home = gpuq_home()
     if not (home / "gpuq.toml").is_file():
         raise SystemExit(f"no encuentro gpuq.toml en {home}: cloná gbibbo/gpuq-personal ahí o definí GPUQ_HOME")
-    env = {**os.environ, "PYTHONPATH": str(home) + os.pathsep + os.environ.get("PYTHONPATH", "")}
+    env = {**os.environ, "PYTHONPATH": str(home) + os.pathsep + os.environ.get("PYTHONPATH", ""),
+           "PYTHONIOENCODING": "utf-8"}  # logs with accents, also on cp1252 consoles
     return subprocess.call([sys.executable, "-m", "gpuq", *args], cwd=str(home), env=env)
 
 

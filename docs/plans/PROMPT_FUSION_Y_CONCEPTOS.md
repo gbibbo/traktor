@@ -194,11 +194,12 @@ peldaños anteriores no alcanzan. Es trabajo pesado: va a gpuq.
 - Regla de Gabriel: lo pesado en procesamiento o en disco no corre en este escritorio. Va a gpuq
   (github.com/gbibbo/gpuq, una cola sobre los niveles gratuitos de Colab y Kaggle) con los datos en su Google
   Drive, por el remoto de `rclone` de gpuq. Detalle: DECISIONS 2026-11-09, «algoritmo de recomendación»,
-  punto 7; `AGENTS.md`, «Compute resource discipline»; plan, sección 12.6.
+  punto 7; `AGENTS.md`, «Compute» (el procedimiento paso a paso); `docs/GPUQ.md`; plan, sección 12.6.
 - Liviano, en local: tests, bancos sobre embeddings ya calculados, texto de CLAP, MAEST de los 179 originales
   de Bedrock, sondas y modelos lineales. Pesado: lo que pase de alrededor de una hora de CPU o de unos 10 GB
   de disco nuevo (umbral del agente; Gabriel lo corrige).
-- En este escritorio no se encontraron `gpuq` ni `rclone` instalados el 2026-11-09. Antes del primer trabajo
+- [REEMPLAZADO 2026-11-09 por la puesta en marcha de gpuq: gpuq y rclone están instalados y probados en una T4; el despachador corre en la Raspberry de
+  Gabriel y los datos de TRAKTOR van a `erclm:traktor_ml/`; docs/GPUQ.md] En este escritorio no se encontraron `gpuq` ni `rclone` instalados el 2026-11-09. Antes del primer trabajo
   pesado, pregunta a Gabriel dónde corre el despachador y cuánto espacio libre tiene el Drive. Las
   credenciales las pone él con `gpuq setup`: no las pidas, no las aceptes en el chat y no las escribas en
   ningún archivo.
@@ -249,6 +250,6 @@ Sin código:
    que los números de la auditoría no se reproduzcan, o que Bedrock con MAEST contradiga a los sets de Gabriel).
 3. Las preguntas que necesitas contestadas: quién elige los temas principales de la escucha y si Gabriel
    quiere además marcar tema por tema lo que no pondría; dónde corre el despachador de gpuq y cuánto espacio
-   tiene el Drive.
+   tiene el Drive ([REEMPLAZADO 2026-11-09 por la puesta en marcha de gpuq: contestado, docs/GPUQ.md]).
 
 Después, de a una unidad verificada por vez, empezando por la 1.

@@ -71,6 +71,7 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
   m3u8,rekordbox,traktor --out-root artifacts/v4/datasets/musica/exports`; página: `--org-name X`.
 - Revisar escuchando: `tools/playlist_review/build_review_page.py --dataset-name musica`
   (varias organizaciones a ciegas: `--org <hash> --org <hash> --blind`).
-- Corrida larga: primero `--folder "<subcarpeta>"` y revisar la salida; después la completa con
-  `--low-priority`.
+- Corrida larga: primero `--folder "<subcarpeta>"` y revisar; luego la completa con `--low-priority`.
+- Lo pesado (GPU, >1 h de CPU, >10 GB): `tools/gpuq/cola.py add|status|logs`, datos en
+  `erclm:traktor_ml/` (`docs/GPUQ.md`; probado en T4 el 11-09).
 - Chequeo pre-commit de todo el árbol: `python tools/git_hooks/check_staged.py --all`.
