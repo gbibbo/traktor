@@ -17,6 +17,8 @@ PURPOSE: D5: elige y baja sets de 1001Tracklists con la cuenta de Gabriel (plan 
 CHANGELOG:
   - 2026-11-09: Creación.
   - 2026-11-09: «Comercial» según Gabriel: sin listas de dudosos ni de eventos; las semillas no salen por etiqueta.
+  - 2026-11-09: bajar --uso pares toma solo los de pares y --por-dj da un piloto variado; medir cuenta temas y pares en
+    la biblioteca con la normalización de zona_sets.py.
 """
 from __future__ import annotations
 
@@ -395,10 +397,29 @@ def parsear_set(raw: str) -> Dict:
     }
 
 
-def medir_set(dato: Dict, artistas_biblioteca: set, generos_comerciales: set) -> Dict:
-    """Calidad de un set bajado. Los pares ignoran las filas tocadas encima de otra."""
+def clave_tema(artista: str, titulo: str) -> Optional[Tuple[str, str]]:
+    """(primer artista, título con la versión) normalizados igual que el cruce de D3 con la biblioteca (zona_sets.py)."""
+    from src.v4.evaluation.zona_sets import estricto, primer_artista
+
+    clave = (estricto(primer_artista(artista)), estricto(titulo))
+    return clave if all(clave) else None
+
+
+def clave_de_nombre(nombre: str) -> Optional[Tuple[str, str]]:
+    if " - " not in (nombre or ""):
+        return None
+    artista, titulo = nombre.split(" - ", 1)
+    return clave_tema(artista, titulo)
+
+
+def medir_set(dato: Dict, artistas_biblioteca: set, generos_comerciales: set, claves_biblioteca: Optional[set] = None) -> Dict:
+    """Calidad de un set bajado. Los pares ignoran las filas tocadas encima de otra. Con claves_biblioteca, cuenta además
+    los temas y pares que están en la biblioteca (lo que necesita E13/E14 de la auditoría del 2026-11-09)."""
     temas = [t for t in dato["temas"] if not t["junto_al_anterior"]]
     n = len(temas)
+    claves = [clave_de_nombre(t["nombre"] or t["visible"]) for t in temas] if claves_biblioteca else [None] * n
+    en_biblioteca = [c is not None and c in claves_biblioteca for c in claves]
+    distintos = len({c for c, dentro in zip(claves, en_biblioteca) if dentro})
     identificados = sum(t["identificado"] for t in temas)
     con_tiempo = sum(1 for i, t in enumerate(temas) if t["segundo"] is not None and (t["segundo"] > 0 or i == 0))
     pares = sum(a["identificado"] and b["identificado"] for a, b in zip(temas, temas[1:]))
@@ -419,9 +440,12 @@ def medir_set(dato: Dict, artistas_biblioteca: set, generos_comerciales: set) ->
         "pct_pares": round(100 * pares / max(1, n - 1)),
         "tramo_mas_largo": mejor,
         "pct_artista_en_biblioteca": round(100 * afines / max(1, len(nombrados))),
+        "temas_en_biblioteca": sum(en_biblioteca),
+        "pares_consecutivos_en_biblioteca": sum(a and b for a, b in zip(en_biblioteca, en_biblioteca[1:])),
+        "pares_mismo_set_en_biblioteca": distintos * (distintos - 1) // 2,
         "pct_genero_comercial": round(100 * sum(t["genero"] in generos_comerciales for t in con_genero) / max(1, len(con_genero))),
-        "pct_beatport": round(100 * sum("affiliate" in t["fuentes"] for t in temas) / max(1, identificados)),
-        "pct_youtube": round(100 * sum("13" in t["fuentes"] for t in temas) / max(1, identificados)),
+        "pct_beatport": round(100 * sum("affiliate" in t["fuentes"] for t in temas if t["identificado"]) / max(1, identificados)),
+        "pct_youtube": round(100 * sum("13" in t["fuentes"] for t in temas if t["identificado"]) / max(1, identificados)),
         "grabaciones": len(dato["grabaciones"]),
         "fuentes_grabacion": " ".join(sorted({g["fuente"] for g in dato["grabaciones"]})),
     }
@@ -606,11 +630,25 @@ def cmd_candidatos(args) -> int:
     return 0
 
 
+def sirve_para(fila: Dict, uso: Optional[str]) -> bool:
+    """'pares' toma solo los sets que no son de trayectoria (los de trayectoria también dan pares)."""
+    return not uso or (uso == "pares" and fila["uso"] == "pares") or (uso == "trayectoria" and "trayectoria" in fila["uso"])
+
+
 def cmd_bajar(args) -> int:
     base = args.root / "1001tracklists"
     with (base / "candidatos.csv").open(encoding="utf-8-sig", newline="") as handle:
         tabla = list(csv.DictReader(handle))
-    pendientes = [f for f in tabla if not f["veto"].strip() and (not args.uso or args.uso in f["uso"]) and not (base / "sets" / f"{f['id']}.json").exists()]
+    pendientes = [f for f in tabla if not f["veto"].strip() and sirve_para(f, args.uso) and not (base / "sets" / f"{f['id']}.json").exists()]
+    if args.por_dj:
+        vistos: Counter = Counter()
+        elegidos = []
+        for fila in pendientes:
+            dj = norm((djs_de(fila["dj"]) or [fila["dj"]])[0])
+            if vistos[dj] < args.por_dj:
+                vistos[dj] += 1
+                elegidos.append(fila)
+        pendientes = elegidos
     pendientes = pendientes[:args.n]
     print(f"{len(tabla)} candidatos, bajo {len(pendientes)}; unos {len(pendientes) * 11 / 60:.0f} min", flush=True)
     if args.dry_run or not pendientes:
@@ -640,14 +678,17 @@ def cmd_bajar(args) -> int:
 def cmd_medir(args) -> int:
     config = cargar_config(args.config)
     base = args.root / "1001tracklists"
-    artistas = set()
+    artistas, claves = set(), set()
     with Path(args.biblioteca).open(encoding="utf-8-sig", newline="") as handle:
         for fila in csv.DictReader(handle):
             artistas |= {norm(a) for a in re.split(r"\s*(?:&|,|\+|/|\bfeat\.?\b|\bft\.?\b|\bvs\.?\b)\s*", fila.get("artista") or "") if len(norm(a)) > 2}
+            clave = clave_tema(fila.get("artista") or "", fila.get("titulo") or "")
+            if clave:
+                claves.add(clave)
     medidas = []
     for ruta in sorted((base / "sets").glob("*.json")):
         dato = json.loads(ruta.read_text(encoding="utf-8"))
-        medidas.append(dict(medir_set(dato, artistas, set(config["generos_comerciales"])), id=dato["id"], uso=dato["uso"], minutos=dato["minutos"]))
+        medidas.append(dict(medir_set(dato, artistas, set(config["generos_comerciales"]), claves), id=dato["id"], uso=dato["uso"], minutos=dato["minutos"]))
     if not medidas:
         print("No hay sets bajados.")
         return 1
@@ -678,7 +719,8 @@ def main() -> int:
     candidatos.set_defaults(func=cmd_candidatos)
     bajar = comandos.add_parser("bajar")
     bajar.add_argument("--n", type=int, default=50, help="tope de páginas por corrida")
-    bajar.add_argument("--uso", choices=["trayectoria", "pares"])
+    bajar.add_argument("--uso", choices=["trayectoria", "pares"], help="trayectoria: los de 3 h o más; pares: los que son solo de pares")
+    bajar.add_argument("--por-dj", type=int, default=0, help="tope de sets por DJ en esta corrida (un piloto variado: 1)")
     bajar.add_argument("--dry-run", action="store_true")
     bajar.set_defaults(func=cmd_bajar)
     medir = comandos.add_parser("medir")

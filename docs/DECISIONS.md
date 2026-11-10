@@ -109,16 +109,27 @@ cambiarlo. Evidencia: `docs/reports/traktor_concept_ai_cloudflare_2026-11-09.md`
    - Se lee la página de cada set en lugar del botón de exportar: trae lo mismo con un pedido, y además sello, enlaces y
      grabación. Herramienta: `tools/dj_sets/tracklists_1001.py`, con la sesión iniciada a mano por Gabriel; 8 s entre
      pedidos, sin reintentos, y parada en la primera respuesta anormal. El perfil queda en `~/.traktor_ml/`, fuera del repo.
-   - [REEMPLAZADO 2026-11-09 por el criterio de comercial de Gabriel: 831 candidatos (142 para trayectoria, 689 solo para pares, 156 DJs); afuera, 12 comerciales, 3 por estilo, 217 por el tope por DJ y 206 por datos] Resultado: 84 de 147 búsquedas, 1269 sets distintos y 740 candidatos (135 para trayectoria, 605 solo para pares, 139
+   - [REEMPLAZADO 2026-11-09 por las 158 búsquedas: 1549 candidatos, más abajo] [REEMPLAZADO 2026-11-09 por el criterio de comercial de Gabriel: 831 candidatos (142 para trayectoria, 689 solo para pares, 156 DJs); afuera, 12 comerciales, 3 por estilo, 217 por el tope por DJ y 206 por datos] Resultado: 84 de 147 búsquedas, 1269 sets distintos y 740 candidatos (135 para trayectoria, 605 solo para pares, 139
      DJs). Quedaron fuera 128 comerciales, 43 por estilo, 169 por el tope de 15 por DJ y 189 por datos insuficientes o
      género no aceptado. La tabla: `1001tracklists/candidatos.csv`, con columna `veto`.
    - **El sitio cortó la conexión en la búsqueda 81 de esa tanda** (`ERR_CONNECTION_RESET`, a unos 11 s por pedido; el
      resto de internet funcionaba). Puede ser un rechazo o un corte casual; una sola vez no lo distingue. No se reintentó
-     y el piloto de 30 sets no se corrió. `buscar` quedó con un tope de 40 por corrida. [REEMPLAZADO 2026-11-09 al sumar a los DJs que nombró Gabriel y a tres de su Spotify que se habían sacado: faltan 74, de 158: 45 DJs, 15 términos y 14 eventos] Faltan 63 búsquedas: 34 DJs, 15
+     y el piloto de 30 sets no se corrió. `buscar` quedó con un tope de 40 por corrida. [REEMPLAZADO 2026-11-09 por las búsquedas completas, punto siguiente: no falta ninguna] [REEMPLAZADO 2026-11-09 al sumar a los DJs que nombró Gabriel y a tres de su Spotify que se habían sacado: faltan 74, de 158: 45 DJs, 15 términos y 14 eventos] Faltan 63 búsquedas: 34 DJs, 15
      términos y 14 eventos.
    - Qué dicen los datos guardados del corte (agente; sin volver a tocar el sitio): el ritmo fue parejo (12 s) y sin
      lentitud antes del corte; la sesión siguió abierta y no hay avisos en la última página; el corte fue de conexión, no
      una respuesta de límite ni un captcha. No distingue un límite de un corte casual: es HIPÓTESIS.
+   - **Búsquedas completas y piloto** (Gabriel pidió seguir y quitar la pausa entre tandas). La página principal, 17 min
+     después del corte, respondió HTTP 200 con la sesión abierta. Después corrieron 40 y 34 búsquedas, con 7 min entre las
+     dos, y las 30 páginas del piloto, sin ningún corte. Tabla final: 2540 sets distintos y 1549 candidatos (385 para
+     trayectoria, 1164 solo para pares, 354 DJs, 1489 con grabación). Afuera: 89 comerciales (44 por nombre, casi todos
+     del programa de radio de Armin van Buuren; 45 por etiqueta, de DJs que no son semillas), 108 por estilo, 436 por el
+     tope de 15 por DJ y 358 por datos.
+   - Piloto: 30 sets de arriba de la tabla, uno por DJ (no es una muestra al azar). 1206 temas y 1092 pares consecutivos
+     identificados; mediana de 100 % identificado; 19 de 30 con tiempos en el 80 % de los temas o más; 29 con grabación;
+     enlace a Beatport en una mediana del 80 % de los identificados. **En la biblioteca: 11 de 1206 temas (0,9 %), ningún
+     par consecutivo y 5 pares dentro de un mismo set**, con la comparación de `zona_sets.py` (artista y título con la
+     versión). Para cruzar estos sets con la biblioteca hace falta el puente S15 del plan.
 
 ## 2026-11-08
 

@@ -560,7 +560,7 @@ I5 entra con I3, para que D2 guarde la etiqueta de M3 desde la primera sesión.
 | D2 | Registro en vivo | Local | De Gabriel | Crece con cada sesión |
 | D3 | djmix-dataset | Bajado (JSON, 11,6 MB) | Sin licencia publicada: uso de investigación, no se redistribuye | Sección 2 |
 | D4 | Raveform (Hugging Face `taejunkim/raveform`) | Sin bajar | Sin licencia publicada en la página | 4902 sets; 38 % con horarios; 1423 temas con género de Beatport puesto a mano |
-| D5 | [REEMPLAZADO 2026-11-09 por pedido de Gabriel: sets de 3 h o más para trayectorias y sets de cualquier largo para pares; sin comerciales] 1001Tracklists, sets largos | Ver debajo | Ver debajo | [REEMPLAZADO 2026-11-09 por la selección de abajo: 831 candidatos con 84 de 158 búsquedas] A definir |
+| D5 | [REEMPLAZADO 2026-11-09 por pedido de Gabriel: sets de 3 h o más para trayectorias y sets de cualquier largo para pares; sin comerciales] 1001Tracklists, sets largos | Ver debajo | Ver debajo | [REEMPLAZADO 2026-11-09 por la selección de abajo: 1549 candidatos con las 158 búsquedas] A definir |
 | D6 | Audio de los temas de los sets | Decisión de Gabriel | Depende de la fuente | Etapa 5 |
 | D7 | Compilaciones mezcladas: álbumes «(DJ Mix)» con un tema por pista, titulado «(Mixed)» (adenda 11-07, idea de Gabriel) | Lista y orden: MusicBrainz (tipo `DJ-mix`, sin `Broadcast`; API con 1,2 s entre pedidos). Audio: YouTube, con el OK de Gabriel (DECISIONS 2026-11-07, punto 12) | De Gabriel para este uso; el audio queda fuera de Git y se borra después de sacar los embeddings | 26 438 grupos `DJ-mix` que no son radio; 4817 con etiqueta techno, tech house, progressive o deep house; 49 de John Digweed (Global Underground, Renaissance, «Live in Tokyo», «Last Night at Output») |
 | D8 | Sets crudos de YouTube de DJs que elige Gabriel (adenda 11-07) | YouTube (`yt-dlp`), con el OK de Gabriel | Igual que D7 | Unos 2 KB por cada 30 s de embedding; un set de 4 h, alrededor de 1 MB |
@@ -609,17 +609,17 @@ Inventario de ideas de la selección:
 | S4 | Curar sin abrir el set: el listado ya da fecha, duración, identificados, géneros y grabación | Agente | Hecho |
 | S5 | Filtros del buscador (duración, tipo, orden, ventanas de fecha) en vez de scroll infinito, que es donde el sitio pide captcha | Agente | Hecho |
 | S6 | Semillas: Spotify de Gabriel, artistas con 5 temas o más en la biblioteca, DJs de noches largas vistos en la muestra, y los que nombró Gabriel (ARTBAT, Argy, Boris Brejcha, Solomun, Tale Of Us, Charlotte de Witte, Amelie Lens, Nina Kraviz). Una etiqueta del sitio no saca a una semilla | Agente; Gabriel aprobó la lista y sumó esos nombres | Hecho |
-| S7 | Términos y eventos: All Night Long, Extended, Closing, Opening, Sunrise; Awakenings, Time Warp, Stereo y otros | Agente | Falta correrlos (ver corte) |
+| S7 | Términos y eventos: All Night Long, Extended, Closing, Opening, Sunrise; Awakenings, Time Warp, Stereo y otros | Agente | Hecho 11-09 (las 158 búsquedas) |
 | S8 | Bola de nieve por afinidad de artistas, no por temas en común (solo el 2,4 % de los temas está en la biblioteca, frente a 34 % de artistas) | Agente | Después del piloto |
 | S9 | Topes: 15 sets por DJ y 30 por programa, por la partición por DJ (E7) | Agente | Hecho |
 | S10 | Tabla con columna `veto`, que `bajar` respeta y `candidatos` conserva | Agente | Hecho; Gabriel veta |
 | S11 | Leer la página en lugar del botón de exportar: trae lo mismo con un pedido por set, y además sello, enlaces y grabación | Agente | Hecho (832 temas y 651 identificados, igual que la medición previa) |
-| S12 | Piloto de 30 sets, después de a 50 por día; desde la conexión de casa, sin VPN; parada al primer rechazo | Agente; Gabriel aprobó | Piloto pendiente por el corte |
+| S12 | Piloto de 30 sets, después de a 50 por día; desde la conexión de casa, sin VPN; parada al primer rechazo | Agente; Gabriel aprobó | Piloto hecho 11-09 (30 sets, uno por DJ, sin cortes); el resto, de a 50 por corrida |
 | S13 | Unir noches publicadas por partes | Agente | `grupo_noche` cubre «Part N»; falta el caso de episodios seguidos de un programa (Eelke Kleijn) |
 | S14 | Enlaces por tema (YouTube, Beatport) al final, solo de los temas que se usen y una vez cada uno | Gabriel aprobó 11-08 | Pendiente; el audio se consulta antes de implementar |
-| S15 | Puente con la biblioteca: con 2,4 % de temas en común, hacen falta metadatos de Beatport o audio de los temas de los sets (D6, C1, sección 3.7) | Agente | Pendiente |
+| S15 | Puente con la biblioteca: con 2,4 % de temas en común, hacen falta metadatos de Beatport o audio de los temas de los sets (D6, C1, sección 3.7) | Agente | Pendiente. El piloto lo confirma: con la versión incluida, 11 de 1206 temas (0,9 %), ningún par consecutivo y 5 pares en el mismo set |
 
-[REEMPLAZADO 2026-11-09 por el criterio de comercial de Gabriel: 84 de 158 búsquedas, 1269 sets distintos, **831 candidatos** (142 para trayectoria, 689 solo para pares; 156 DJs; 798 con grabación) y faltan 74 búsquedas] Estado del 2026-11-09: 84 de 147 búsquedas, 1269 sets distintos, **740 candidatos** (135 para trayectoria, 605 solo para
+[REEMPLAZADO 2026-11-09 por las 158 búsquedas y el piloto: 2540 sets distintos, **1549 candidatos** (385 para trayectoria, 1164 solo para pares; 354 DJs; 1489 con grabación); piloto de 30 sets sin cortes (DECISIONS 2026-11-09, sets de 1001Tracklists)] [REEMPLAZADO 2026-11-09 por el criterio de comercial de Gabriel: 84 de 158 búsquedas, 1269 sets distintos, **831 candidatos** (142 para trayectoria, 689 solo para pares; 156 DJs; 798 con grabación) y faltan 74 búsquedas] Estado del 2026-11-09: 84 de 147 búsquedas, 1269 sets distintos, **740 candidatos** (135 para trayectoria, 605 solo para
 pares; 139 DJs; 709 con grabación). Lo que falta incluye casi todos los términos y eventos y a varios DJs de noches largas
 (Massano, Eli Brown, Soul Button, Voltaire, Innellea), así que 135 es un piso. La conexión se cortó en la búsqueda 81 de
 esa tanda (`ERR_CONNECTION_RESET`, con el resto de internet funcionando): no se reintentó, y `buscar` quedó con un tope

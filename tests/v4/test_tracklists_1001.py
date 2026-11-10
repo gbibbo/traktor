@@ -217,3 +217,25 @@ def test_medir_set():
     assert (medida["con_tiempo"], medida["pct_tiempo"]) == (4, 100)
     assert medida["pct_genero_comercial"] == 33
     assert medida["pct_artista_en_biblioteca"] == 25
+    assert medida["temas_en_biblioteca"] == 0
+
+
+def test_medir_set_pares_en_biblioteca():
+    dato = t.parsear_set(SET_HTML)
+    # Orden sin la fila tocada encima: Hardt Antoine, Biblio Artista, ID, C.
+    juntos = {t.clave_tema("Hardt Antoine", "Dreamstate"), t.clave_tema("Biblio Artista & Otro", "Tema")}
+    medida = t.medir_set(dato, set(), set(), juntos)
+    assert (medida["temas_en_biblioteca"], medida["pares_consecutivos_en_biblioteca"], medida["pares_mismo_set_en_biblioteca"]) == (2, 1, 1)
+    separados = {t.clave_tema("Biblio Artista", "Tema"), t.clave_tema("C", "D")}
+    medida = t.medir_set(dato, set(), set(), separados)
+    assert (medida["temas_en_biblioteca"], medida["pares_consecutivos_en_biblioteca"], medida["pares_mismo_set_en_biblioteca"]) == (2, 0, 1)
+    # La versión cuenta: otra mezcla del mismo tema no es el mismo tema.
+    assert t.clave_tema("YOTTO", "Walls (Joris Voorn Unreleased Mix)") != t.clave_tema("YOTTO", "Walls")
+
+
+def test_uso_pares_en_bajar_toma_solo_los_de_pares():
+    # Los de trayectoria también dan pares, pero --uso pares pide los otros.
+    filas = [{"uso": "trayectoria+pares"}, {"uso": "pares"}, {"uso": "trayectoria"}]
+    assert [f["uso"] for f in filas if t.sirve_para(f, "pares")] == ["pares"]
+    assert [f["uso"] for f in filas if t.sirve_para(f, "trayectoria")] == ["trayectoria+pares", "trayectoria"]
+    assert len([f for f in filas if t.sirve_para(f, None)]) == 3

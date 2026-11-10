@@ -45,8 +45,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    Colección. Solo el escritorio (laptop retirada, 11-04), todo en D:: `artifacts/v4/datasets/musica`
    apunta a `D:\TRAKTOR ML datos\musica` y `Música/` a `D:\TRAKTOR ML\Musica` (package_library.py);
    el pendrive manda. LOCAL: probar «Agregar» con Workout Delft.
-3. GABRIEL: vetar `1001tracklists/candidatos.csv` (`tracklists_1001.py`, DECISIONS 11-09); faltan 74
-   búsquedas (el sitio cortó; de a 40 por corrida). El audio se consulta antes de implementar.
+3. GABRIEL: vetar `1001tracklists/candidatos.csv` (1549 sets, `tracklists_1001.py`, DECISIONS 11-09);
+   piloto de 30 hecho. El audio se consulta antes de implementar.
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
 5. Recomendación en vivo (DECISIONS 11-06/07/08): parecidos (`recomendador.py`, D#0+D0). Plan § 11; A1
