@@ -31,6 +31,12 @@ control de 40 temas con `same_cut` (semilla 0). Todos los previews duran 120 s y
      ver el resultado; no cambia el veredicto): coincide con la de Traktor o los tags en el 47 % de los temas, y el
      factor clave da Spearman 0,22 entre los dos lados. El BPM coincide (a ±1) en el 94 % y el género en el 100 %.
      Con los metadatos de la biblioteca y el audio de los previews, el mismo puntaje da 0,947.
+     **Un metadato por vez** (pedido de la auditoría; `medir` corrido de nuevo el 2026-11-10 con
+     `dominio_previews.py` del commit del informe `codec_clap_2026-11-10.md`, mismos embeddings): con todo de la
+     biblioteca salvo la tonalidad de Beatport, 0,815; salvo el BPM, 0,909; salvo el género, 0,947 (el género es el
+     mismo). La tonalidad explica casi toda la caída; el BPM, el resto. **Tónica y modo**: la tónica coincide en el
+     73 % de los 146 y el modo en el 64 %; Beatport dice «menor» en el 64 % y la biblioteca en el 91 %. De la
+     biblioteca a Beatport: misma 69, paralela 38, vecina 18, relativa 6, otras 15.
 3. **La ventana**: la regla elige **V4** (el preview entero en 4 segmentos de 30 s); V4 y el tramo 35-65 % empatan
    (0,7825 frente a 0,7804). La regla del extractor tal cual es mucho peor (Spearman de las tres vistas 0,63 frente a
    0,85 en la misma submuestra): confirma la inferencia de la auditoría y no se usa.
@@ -68,6 +74,7 @@ filtros en vivo; del lado del preview, BPM, tonalidad y género de Beatport.
 | **Spearman, todos los factores** | **0,783** | 0,780 |
 | Spearman, todos los factores con los metadatos de la biblioteca | 0,947 | 0,946 |
 | Spearman de cada metadato: BPM / tonalidad / género | 0,85 / 0,22 / 1,00 | igual |
+| Todos los factores, metadatos de la biblioteca salvo uno de Beatport: tonalidad / BPM / género | 0,815 / 0,909 / 0,947 | — |
 | Coseno con el mismo tema: CLAP crudo / MAEST centrado / estilos | 0,907 / 0,919 / 0,987 | 0,909 / 0,917 / 0,986 |
 | Diferencia de medias / dispersión: CLAP / MAEST / estilos | 0,69 / 0,13 / 0,09 | 0,69 / 0,13 / 0,08 |
 
@@ -82,6 +89,7 @@ del preview.
 | Spearman, tres vistas | 0,848 | 0,833 | 0,628 | 0,914 | 0,895 |
 | Spearman, todos los factores | 0,777 | 0,769 | 0,665 | 0,810 | 0,799 |
 | Spearman, todos los factores con metadatos de la biblioteca | 0,924 | — | — | 0,954 | — |
+| Ídem salvo la tonalidad de Beatport / salvo el BPM | 0,777 / 0,921 | — | — | 0,810 / 0,953 | — |
 | Coseno con el mismo tema, CLAP crudo | 0,901 | 0,902 | 0,870 | 0,988 | 0,988 |
 | Diferencia de medias / dispersión, CLAP | 0,78 | 0,77 | 0,79 | 0,06 | 0,06 |
 
@@ -90,6 +98,8 @@ Códec (preview frente al recorte, segmento a segmento, 160 segmentos, coseno si
 
 Metadatos de Beatport frente a los de la biblioteca (146 temas): BPM a ±1 en el 93,8 % (el doble o la mitad, 0,7 %);
 tonalidad igual en el 47,3 %; género igual en el 100 % (el género del índice es el de Beatport en estos temas).
+Tónica igual en el 73,3 % y modo igual en el 63,7 %; «menor» en el 64,4 % para Beatport y en el 91,1 % para la
+biblioteca. En el control de 40: tonalidad igual 60 %, tónica 82,5 %, modo 75 %.
 
 Sin `same_cut` (20 temas, V4): primero en CLAP centrado 60 %, en MAEST 100 %; Spearman de todos los factores 0,73.
 

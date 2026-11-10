@@ -6,6 +6,21 @@ anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_impl
 Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 `[REEMPLAZADO <fecha> por <decisión>: <lo que rige ahora>]` (o `[REFUTADO …]` si era un error).
 
+## 2026-11-10 (E17 y V8: el códec en CLAP)
+
+Informe: `docs/reports/codec_clap_2026-11-10.md`. Protocolo y umbrales fijados en `f863a9e` antes de medir.
+
+1. **El corrimiento de CLAP entre un preview y su archivo es de la compresión MP3** (agente, E17): el mismo audio de
+   20 archivos de 320 kbps recodificado a 96 kbps se corre sobre la dirección de E15 tanto como el preview (+3,20
+   frente a +2,53 desvíos), con dosis y respuesta (192 kbps +0,43; 128 +2,32), y su dirección tiene coseno 0,991
+   con la de E15. Con 6 dB menos, CLAP también cambia, pero en otra dirección.
+2. **V8 (CLAP sin esa dirección, estimada sin previews) pasa los umbrales fijados con D3** (agente): previews
+   primero en el 96,6 % sin centrarlos aparte; el agrupamiento por bitrate baja por debajo del de MAEST; en D3 no
+   pierde AUC. Es provisorio hasta medirlo con E16. Si pasa, v8c es el CLAP de la lista nueva de E12; los valores
+   por defecto del recomendador no cambian hasta que Gabriel lo diga.
+3. **E15, un metadato por vez** (agente, arreglo pedido por la auditoría): la tonalidad de Beatport baja el puntaje
+   de todos los factores de 0,947 a 0,815 y el BPM a 0,909; la tónica coincide en el 73 % y el modo en el 64 %.
+
 ## 2026-11-10 (después de E15: respuestas de Gabriel)
 
 Gabriel leyó el informe de E15 y la auditoría (`docs/reports/auditoria_e15_2026-11-10.md`, commit `9c28acf`).

@@ -45,6 +45,7 @@ PURPOSE: E15 del plan de playlists en vivo (sección 12.9): control de dominio d
              en menos de 0,01, la de más primeros puestos sumando clap_c y maest_c; si siguen iguales, V4.
 CHANGELOG:
   - 2026-11-10: Creación (E15, plan sección 12.9).
+  - 2026-11-10: medir: un metadato de Beatport por vez y la tonalidad en tónica y modo (auditoría de E15).
 """
 from __future__ import annotations
 
@@ -56,6 +57,7 @@ import subprocess
 import sys
 import tarfile
 import time
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -68,6 +70,7 @@ sys.path.insert(0, str(REPO_ROOT))
 import src.v4.common  # noqa: E402,F401  (salida UTF-8 en consolas cp1252)
 from src.v4.common import harmonic  # noqa: E402
 from src.v4.evaluation import fusion_vistas as fv  # noqa: E402
+from src.v4.evaluation import pares_texto as pt  # noqa: E402
 from src.v4.evaluation import zona_sets as zs  # noqa: E402
 from tools.dj_sets.piloto import unit  # noqa: E402
 from tools.traktor_live import recomendador as rc  # noqa: E402
@@ -421,6 +424,13 @@ def medir(root: Path) -> Dict[str, object]:
         lmix = puntajes_pares(fv.Lado({v: Pv[v] for v in ("clap",) + fv.VISTAS_P11}, sub_lado.bpm, sub_lado.clave, sub_lado.genero,
                                       sub_lado.artista), tablas, est)
         res["spearman"]["todos_los_factores_con_metadatos_de_la_biblioteca"] = round(spearman(lmix["todos_los_factores"], lb["todos_los_factores"]), 4)
+        # un metadato de Beatport por vez, el resto de la biblioteca (auditoría de E15)
+        pm = lado_previews({v: Pv[v] for v in ("clap",) + fv.VISTAS_P11}, sub, tablas)
+        for c in ("bpm", "clave", "genero"):
+            uno = fv.Lado({v: Pv[v] for v in ("clap",) + fv.VISTAS_P11}, pm.bpm if c == "bpm" else sub_lado.bpm,
+                          pm.clave if c == "clave" else sub_lado.clave, pm.genero if c == "genero" else sub_lado.genero, sub_lado.artista)
+            res["spearman"][f"todos_los_factores_solo_{c}_de_beatport"] = round(spearman(puntajes_pares(uno, tablas, est)["todos_los_factores"],
+                                                                                       lb["todos_los_factores"]), 4)
         lp_bpm = np.asarray([float(t.detalles.get("bpm") or np.nan) for t in sub])
         lp_key = np.asarray([fv.indice_clave(harmonic.to_camelot(t.detalles.get("key") or "")) for t in sub])
         gid = {g: k for k, g in enumerate(tablas.generos)}
@@ -433,6 +443,16 @@ def medir(root: Path) -> Dict[str, object]:
             "tonalidad_igual": round(float(np.mean(lp_key[key_ok] == sub_lado.clave[key_ok])), 3), "tonalidad_con_las_dos": int(key_ok.sum()),
             "genero_igual": round(float(np.mean([tablas.generos[a][0] == tablas.generos[b][0] for a, b in zip(lp_gen, sub_lado.genero) if a >= 0 and b >= 0])), 3),
             "genero_con_los_dos": int(np.sum((lp_gen >= 0) & (sub_lado.genero >= 0)))}
+        # la tonalidad separada en tónica y modo (auditoría de E15: el desacuerdo es de modo)
+        tb = [pt.tonica(fv.CAMELOT[k]) for k in lp_key[key_ok]]
+        tl = [pt.tonica(fv.CAMELOT[k]) for k in sub_lado.clave[key_ok]]
+        rel = Counter(pt.relacion_clave(fv.CAMELOT[a], fv.CAMELOT[b]) for a, b in zip(sub_lado.clave[key_ok], lp_key[key_ok]))
+        res["metadatos_beatport_frente_a_biblioteca"].update({
+            "tonalidad_misma_tonica": round(float(np.mean([x[0] == y[0] for x, y in zip(tb, tl)])), 3),
+            "tonalidad_mismo_modo": round(float(np.mean([x[1] == y[1] for x, y in zip(tb, tl)])), 3),
+            "menor_en_beatport": round(float(np.mean([x[1] == "A" for x in tb])), 3),
+            "menor_en_la_biblioteca": round(float(np.mean([y[1] == "A" for y in tl])), 3),
+            "relacion_de_la_biblioteca_a_beatport": {k: int(v) for k, v in rel.most_common()}})
         res["spearman_centrado_aparte"] = {c: round(spearman(lpa[c], lb[c]), 4) for c in fv.VISTAS_P11 + ("p11", "todos_los_factores")}
         res["coseno_con_el_mismo_tema"] = {v: round(float(np.median(np.sum(Pv[v] * E[v][idx], axis=1))), 4) for v in VISTAS}
         desp = {}
