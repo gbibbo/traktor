@@ -1,11 +1,65 @@
-// Traktor Concept AI, v4 (2026-11-09). Fuente unica en Git: cloudflare/README.md explica como se despliega.
-// v4 sobre v3: los trabajos abandonados por el ordenador vuelven a la cola (lease), guardar dos veces el
-// mismo borrador no crea otro trabajo, /api/device/claim acepta job_id y el telefono muestra los resultados.
+// Traktor Concept AI, v5. Fuente unica en Git; despliegue en cloudflare/README.md.
+// Del texto en el telefono a una playlist nueva en Traktor. El LLM (aca) reescribe lo que pide el DJ en textos que
+// CLAP sabe buscar y decide mirando lo que encontro cada busqueda; el ordenador (conceptos_agente.py) solo busca.
+// Por que las instrucciones dicen lo que dicen: docs/reports/clap_texto_2026-11-09.md.
 const MODEL = "@cf/google/gemma-4-26b-a4b-it";
-const MAX_MESSAGES = 12;
 const LEASE_MS = 5 * 60 * 1000;   // un trabajo reclamado y sin terminar vuelve a la cola pasado este tiempo
-const MAX_ATTEMPTS = 3;           // reclamos antes de darlo por fallido
+const MAX_ATTEMPTS = 3;           // reclamos seguidos antes de darlo por fallido
+const MAX_RONDAS = 2;             // reescrituras: una y, si no convence, otra
+const IDS = ["A", "B", "C"];
 const UUID_RE = /^[0-9a-f-]{36}$/i;
+
+const PROMPT_INTERPRETAR = `You rewrite a DJ's rough request into search texts for CLAP, a model that matches text to the SOUND of music.
+CLAP only hears audio. It does not know occasions, places, dates, artist names or song titles.
+
+The collection is club music: techno, tech house, melodic house and techno, deep house, house, indie dance, afro house, minimal, progressive house. There is little of anything else.
+
+Steps:
+1. Find what the DJ wants to HEAR.
+2. Anything that cannot be heard (birthday, beach, 6am, gym, an artist) must be replaced by how it sounds.
+3. Keep every instrument or sound the DJ named. If the word is rare, use the common name too. corneta -> trumpet, brass.
+4. Translate everything to English.
+5. Never add an instrument or sound the DJ did not ask for.
+
+Write exactly 3 texts. All 3 say the same idea with DIFFERENT words.
+Each text:
+- has 6 to 14 words and describes sound only;
+- starts with a genre word if there is one, otherwise with the main sound;
+- uses concrete words: instruments, voices, rhythm, how it feels;
+- never contains: "this is", "the sound of", "in the style of", "track", "song", "music by", names of people or places,
+  or words for moments and occasions (party, birthday, sunset, beach, night, summer, gym, vibes).
+To exclude voice, or to have less voice, write "without vocals" (never "few vocals" or "sparse vocals": any other mention of vocals adds voice).
+Never use "no", "not" or "without" for anything else: describe what IS there.
+
+Example
+Request: quiero musica de cumpleaños con cornetas
+{"entendi":"Música de fiesta alegre con trompetas","no_se_oye":["cumpleaños"],"nombre":"Fiesta con trompetas","textos":["festive house with bright trumpets and a bouncy cheerful groove","joyful festive music with loud brass instruments and hand claps","happy dance rhythm with a brass section and horn melodies"]}
+
+Example
+Request: algo oscuro tipo after sin voces
+{"entendi":"Techno oscuro, lento e hipnótico, sin voces","no_se_oye":["after"],"nombre":"After oscuro","textos":["dark hypnotic minimal techno without vocals, slow and sparse","deep dark techno with a rolling bassline, without vocals","slow gloomy trance-like electronic beat, minimal and repetitive, without vocals"]}
+
+Reply with JSON only, with these keys:
+"entendi": in Spanish, what the DJ wants to hear, max 12 words.
+"no_se_oye": in Spanish, only the words for things that cannot be heard (occasions, places, times, names) that you replaced. Usually empty.
+"nombre": in Spanish, a playlist title, 2 to 5 words.
+"textos": the 3 English texts.`;
+
+const PROMPT_ELEGIR = `You check whether searches in a music collection found what a DJ asked for. You cannot hear the music. For each search you get what it found: genres, BPM, share of tracks with voice, "sounds like" words, and example tracks.
+
+Decide using mainly the "sounds like" words and the genres. A search FITS if they match what the DJ wants. Ignore the artist names.
+The collection has little of some styles (trance, disco, ambient). If a search found the closest thing the collection has, it fits.
+
+If at least one search fits, answer:
+{"veredicto":"ok","quedan":["A","C"],"resumen":"..."}
+"quedan" lists only the searches that fit. "resumen" is in Spanish, max 15 words: what the playlist will sound like.
+
+If none fits, answer:
+{"veredicto":"mal","problema":"...","textos":["...","...","..."]}
+"problema" is in Spanish, max 12 words: what went wrong. "textos" are 3 new English search texts of 6 to 14 words that fix the problem.
+Rules for new texts: describe sound only, with concrete words (instruments, voices, rhythm). Never write "this is", "the sound of", "in the style of", "track", "song", or names. Do not repeat the texts that failed.
+
+Reply with JSON only.`;
 
 function reply(data, status = 200) {
   return Response.json(data, {
@@ -16,14 +70,6 @@ function reply(data, status = 200) {
 
 function fail(message, status = 400) {
   return reply({ error: message }, status);
-}
-
-function appAuthorized(request, env) {
-  return !!env.APP_PASSWORD && request.headers.get("X-App-Password") === env.APP_PASSWORD;
-}
-
-function deviceAuthorized(request, env) {
-  return !!env.DEVICE_TOKEN && request.headers.get("X-Device-Token") === env.DEVICE_TOKEN;
 }
 
 async function readJson(request) {
@@ -51,70 +97,114 @@ async function readOptionalJson(request) {
   }
 }
 
-function cleanMessages(messages) {
-  if (!Array.isArray(messages) || messages.length < 1 || messages.length > MAX_MESSAGES) return null;
-  if (!messages.every(m => m && (m.role === "user" || m.role === "assistant") &&
-    typeof m.content === "string" && m.content.trim().length > 0 && m.content.length <= 1500)) return null;
-  if (!messages.some(m => m.role === "user")) return null;
-  return messages.map(m => ({ role: m.role, content: m.content.trim() }));
+const PROHIBIDO = /\b(this is|sound of|in the style of|tracks?|songs?|music by)\b/i;
+// Lo que CLAP no oye: si el modelo lo escribe igual, ese texto se descarta.
+const NO_SE_OYE = /\b(birthday|wedding|beach|sunset|sunrise|gym|workout|christmas|funeral|dinner|summer|winter|night|morning|afternoon|vibes?|party)\b/i;
+
+// «Pocas voces» escrito de cualquier forma nombra la voz y la suma: lo único medido que la resta es "without vocals".
+const MENOS_VOZ = /\b(?:with\s+)?(?:very\s+)?(?:few|minimal|sparse|little|less|subtle|light|occasional|barely any|no)\s+(?:vocal\s+(?:snippets|chops|samples)|vocals?|voices?|singing)\b/gi;
+
+function textoValido(texto) {
+  if (typeof texto !== "string") return null;
+  const t = texto.trim().replace(/^["']|["']$/g, "").replace(/\.$/, "").replace(MENOS_VOZ, "without vocals");
+  const palabras = t.split(/\s+/).length;
+  // CLAP no entiende la negación (salvo "without vocals", medido): un texto con otra negación busca lo contrario.
+  const negacion = /\b(no|not|non|never|without)\b/i.test(t.replace(/\bwithout vocals\b/gi, ""));
+  return palabras >= 3 && palabras <= 20 && t.length <= 180 && !/[^\x20-\x7e]/.test(t) && !PROHIBIDO.test(t) &&
+    !NO_SE_OYE.test(t) && !negacion ? t : null;
 }
 
-function normalizeConcept(raw) {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const name = typeof raw.name === "string" ? raw.name.trim() : "";
-  const description = typeof raw.description === "string" ? raw.description.trim() : "";
-  const phrases = (value, min) => Array.isArray(value) && value.length >= min && value.length <= 4 &&
-    value.every(s => typeof s === "string" && s.trim().length >= 8 && s.length <= 180);
-  if (name.length < 3 || name.length > 100 || description.length < 15 || description.length > 700 ||
-    !phrases(raw.positive_prompts, 1) || !phrases(raw.negative_prompts, 0)) return null;
-  const c = raw.constraints;
-  if (!c || typeof c !== "object" || Array.isArray(c)) return null;
-  const energy = c.energy ?? "unspecified";
-  const vocals = c.vocals ?? "unspecified";
-  const bpm = c.bpm ?? "unspecified";
-  if (!["maintain", "increase", "decrease", "unspecified"].includes(energy) ||
-    !["present", "absent", "unspecified"].includes(vocals) ||
-    !["near_current", "unspecified"].includes(bpm)) return null;
-  return {
-    version: 1,
-    name,
-    description,
-    positive_prompts: raw.positive_prompts.map(s => s.trim()),
-    negative_prompts: raw.negative_prompts.map(s => s.trim()),
-    constraints: { energy, vocals, bpm }
-  };
+function validarTextos(lista) {
+  if (!Array.isArray(lista)) return null;
+  const textos = [...new Set(lista.map(textoValido).filter(Boolean))].slice(0, IDS.length);
+  return textos.length >= 2 ? textos.map((texto, i) => ({ id: IDS[i], texto })) : null;
 }
 
-async function keyFromSecret(secret) {
-  return crypto.subtle.importKey("raw", new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
+function textoCorto(value, min, max) {
+  if (typeof value !== "string") return null;
+  const t = value.trim();
+  return t.length >= min && t.length <= max ? t : null;
 }
 
-async function signDraft(env, concept, expires) {
-  const bytes = await crypto.subtle.sign("HMAC", await keyFromSecret(env.APP_PASSWORD),
-    new TextEncoder().encode(JSON.stringify({ concept, expires })));
-  return [...new Uint8Array(bytes)].map(x => x.toString(16).padStart(2, "0")).join("");
+function validarInterpretacion(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const entendi = textoCorto(raw.entendi, 3, 160);
+  const nombre = textoCorto(raw.nombre, 2, 60);
+  const textos = validarTextos(raw.textos);
+  if (!entendi || !nombre || !textos) return null;
+  const noSeOye = Array.isArray(raw.no_se_oye) ? raw.no_se_oye.map(x => textoCorto(x, 1, 40)).filter(Boolean).slice(0, 6) : [];
+  return { entendi, nombre, no_se_oye: noSeOye, textos };
 }
 
-async function verifyDraft(env, concept, expires, signature) {
-  if (!Number.isSafeInteger(expires) || expires < Date.now() ||
-    expires > Date.now() + 21 * 60 * 1000 ||
-    typeof signature !== "string" || !/^[0-9a-f]{64}$/i.test(signature)) return false;
-  const signatureBytes = Uint8Array.from(signature.match(/.{2}/g), x => parseInt(x, 16));
-  return crypto.subtle.verify("HMAC", await keyFromSecret(env.APP_PASSWORD), signatureBytes,
-    new TextEncoder().encode(JSON.stringify({ concept, expires })));
+function validarDecision(raw, ids) {
+  if (!raw || typeof raw !== "object") return null;
+  if (raw.veredicto === "ok" && Array.isArray(raw.quedan)) {
+    const quedan = ids.filter(id => raw.quedan.includes(id));
+    return quedan.length ? { veredicto: "ok", quedan, resumen: textoCorto(raw.resumen, 3, 160) || "" } : null;
+  }
+  if (raw.veredicto === "mal") {
+    const textos = validarTextos(raw.textos);
+    return textos ? { veredicto: "mal", textos, problema: textoCorto(raw.problema, 3, 120) || "" } : null;
+  }
+  return null;
 }
 
-function jobIdFromSignature(signature) {
-  // La misma firma siempre da el mismo id: guardar dos veces un borrador no crea dos trabajos.
-  const s = signature.toLowerCase();
-  return `${s.slice(0, 8)}-${s.slice(8, 12)}-4${s.slice(13, 16)}-8${s.slice(17, 20)}-${s.slice(20, 32)}`;
+async function llmJson(env, system, user, validar, maxTokens, temperature) {
+  let nota = "";
+  for (let intento = 0; intento < 2; intento++) {
+    try {
+      const answer = await env.AI.run(MODEL, {
+        messages: [{ role: "system", content: system }, { role: "user", content: user + nota }],
+        response_format: { type: "json_object" },
+        max_tokens: maxTokens,
+        temperature,
+        chat_template_kwargs: { enable_thinking: false }
+      });
+      const content = answer.choices?.[0]?.message?.content ?? answer.response;
+      const raw = typeof content === "string"
+        ? JSON.parse(content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""))
+        : content;
+      const valido = validar(raw);
+      if (valido) return valido;
+    } catch {
+      // un reintento si el modelo no devuelve JSON o se cae
+    }
+    nota = "\n\nYour previous answer broke the rules. Follow every rule and return valid JSON only.";
+  }
+  return null;
+}
+
+function interpretar(env, texto, anterior) {
+  let pedido = `Request: ${texto}`;
+  if (anterior) {
+    pedido = `The DJ first asked: ${anterior.original}\nYou searched: ${anterior.textos.map(t => t.texto).join(" | ")}\nNow the DJ says: ${texto}\nRewrite the 3 texts for the corrected request. The correction is about sound, so "no_se_oye" stays as before or empty.`;
+  }
+  return llmJson(env, PROMPT_INTERPRETAR, pedido, validarInterpretacion, 420, 0.3);
+}
+
+function describirBusquedas(concepto, busquedas) {
+  return concepto.textos.map(t => {
+    const b = busquedas[t.id];
+    const generos = Object.entries(b.generos).map(([g, n]) => `${g} ${n}`).join(", ") || "unknown";
+    const bpm = b.bpm ? `${b.bpm[0]}-${b.bpm[2]}, typical ${b.bpm[1]}` : "unknown";
+    const voz = b.voz === null ? "unknown" : `${Math.round(b.voz * 100)}%`;
+    return `Search ${t.id}: "${t.texto}"\nGenres found: ${generos}\nBPM: ${bpm}\nWith voice: ${voz}\nSounds like: ${b.suena_a.join(", ")}\nExamples: ${b.temas.join("; ")}`;
+  }).join("\n\n");
+}
+
+function elegir(env, concepto, busquedas) {
+  const user = `The DJ asked: ${concepto.original}\nMeaning: ${concepto.entendi}\n\n${describirBusquedas(concepto, busquedas)}`;
+  return llmJson(env, PROMPT_ELEGIR, user, raw => validarDecision(raw, concepto.textos.map(t => t.id)), 360, 0.1);
 }
 
 function validateResults(result) {
   if (!result || typeof result !== "object" || Array.isArray(result) || !Array.isArray(result.tracks) ||
     result.tracks.length > 30) return null;
   const optional = {};
+  if (result.playlist !== undefined && result.playlist !== null) {
+    if (typeof result.playlist !== "string" || result.playlist.length > 120) return null;
+    optional.playlist = result.playlist;
+  }
   for (const field of ["pool", "passed"]) {
     if (result[field] === undefined || result[field] === null) continue;
     if (!Number.isSafeInteger(result[field]) || result[field] < 0) return null;
@@ -151,9 +241,39 @@ function validateResults(result) {
   return { tracks, ...optional };
 }
 
+function validarBusquedas(result, ids) {
+  if (!result || typeof result !== "object" || !result.busquedas || typeof result.busquedas !== "object") return null;
+  const salida = {};
+  const cadenas = (lista, max, largo) => Array.isArray(lista) && lista.length <= max &&
+    lista.every(x => typeof x === "string" && x.length > 0 && x.length <= largo);
+  for (const id of ids) {
+    const b = result.busquedas[id];
+    if (!b || typeof b !== "object" || !cadenas(b.suena_a, 8, 40) || !cadenas(b.temas, 8, 140)) return null;
+    if (!b.generos || typeof b.generos !== "object" || Array.isArray(b.generos) || Object.keys(b.generos).length > 6 ||
+      !Object.entries(b.generos).every(([g, n]) => g.length <= 60 && Number.isSafeInteger(n) && n >= 0)) return null;
+    if (b.bpm !== null && !(Array.isArray(b.bpm) && b.bpm.length === 3 && b.bpm.every(x => Number.isFinite(x)))) return null;
+    if (b.voz !== null && !(typeof b.voz === "number" && b.voz >= 0 && b.voz <= 1)) return null;
+    salida[id] = { generos: b.generos, bpm: b.bpm, voz: b.voz, suena_a: b.suena_a, temas: b.temas };
+  }
+  return salida;
+}
+
+function siguientePaso(concepto, busquedas, decision) {
+  const ronda = { ronda: concepto.ronda, textos: concepto.textos, busquedas, decision };
+  const rondas = [...(concepto.rondas || []), ronda];
+  if (decision && decision.veredicto === "mal" && concepto.ronda < MAX_RONDAS) {
+    return { ...concepto, rondas, fase: "sondeo", ronda: concepto.ronda + 1, textos: decision.textos, problema: decision.problema };
+  }
+  // Se termina: con las que quedaron o, si el modelo no respondió o nada convenció, con todas.
+  const quedan = decision && decision.veredicto === "ok" ? decision.quedan : concepto.textos.map(t => t.id);
+  const textos = concepto.textos.filter(t => quedan.includes(t.id));
+  const nota = decision ? (decision.veredicto === "ok" ? decision.resumen : "No encontré nada que encaje del todo; es lo más cercano.") : "";
+  return { ...concepto, rondas, fase: "final", textos, resumen: nota };
+}
+
 async function handleDevice(request, env, path) {
   if (request.method !== "POST") return fail("Método no permitido", 405);
-  if (!deviceAuthorized(request, env)) return fail("No autorizado", 401);
+  if (!env.DEVICE_TOKEN || request.headers.get("X-Device-Token") !== env.DEVICE_TOKEN) return fail("No autorizado", 401);
 
   if (path === "/api/device/claim") {
     const data = await readOptionalJson(request);
@@ -200,19 +320,39 @@ async function handleDevice(request, env, path) {
       !Number.isSafeInteger(data.attempts) || data.attempts < 1) return fail("Solicitud inválida");
     const status = data.status;
     if (status !== "done" && status !== "failed") return fail("Estado inválido");
-    let resultJson = null;
-    let message = null;
-    if (status === "done") {
-      const result = validateResults(data.result);
-      if (!result) return fail("Resultados inválidos");
-      resultJson = JSON.stringify(result);
-    } else {
-      if (typeof data.error !== "string" || !data.error.trim() || data.error.length > 400) {
-        return fail("Descripción del error inválida");
-      }
-      message = data.error.trim();
-    }
     try {
+      const row = await env.DB.prepare("SELECT concept_json FROM jobs WHERE id = ? AND status = 'processing' AND attempts = ?")
+        .bind(data.id, data.attempts).first();
+      if (!row) return fail("Trabajo inexistente, no reclamado o ya finalizado", 409);
+      const concepto = JSON.parse(row.concept_json);
+
+      // Una ronda de búsquedas de prueba: decide el LLM y el trabajo vuelve a la cola para el paso siguiente.
+      if (status === "done" && concepto.version === 2 && concepto.fase === "sondeo") {
+        const busquedas = validarBusquedas(data.result, concepto.textos.map(t => t.id));
+        if (!busquedas) return fail("Resultados inválidos");
+        const decision = await elegir(env, concepto, busquedas);
+        const siguiente = siguientePaso(concepto, busquedas, decision);
+        const update = await env.DB.prepare(`
+          UPDATE jobs SET status = 'queued', attempts = 0, claimed_at = NULL, concept_json = ?, updated_at = ?
+          WHERE id = ? AND status = 'processing' AND attempts = ?
+          RETURNING id
+        `).bind(JSON.stringify(siguiente), Date.now(), data.id, data.attempts).first();
+        if (!update) return fail("Trabajo inexistente, no reclamado o ya finalizado", 409);
+        return reply({ id: data.id, status: "queued", fase: siguiente.fase });
+      }
+
+      let resultJson = null;
+      let message = null;
+      if (status === "done") {
+        const result = validateResults(data.result);
+        if (!result) return fail("Resultados inválidos");
+        resultJson = JSON.stringify(result);
+      } else {
+        if (typeof data.error !== "string" || !data.error.trim() || data.error.length > 400) {
+          return fail("Descripción del error inválida");
+        }
+        message = data.error.trim();
+      }
       const update = await env.DB.prepare(`
         UPDATE jobs SET status = ?, result_json = ?, error = ?, updated_at = ?
         WHERE id = ? AND status = 'processing' AND attempts = ?
@@ -228,7 +368,7 @@ async function handleDevice(request, env, path) {
 }
 
 async function handleApp(request, env, path) {
-  if (!appAuthorized(request, env)) return fail("No autorizado", 401);
+  if (!env.APP_PASSWORD || request.headers.get("X-App-Password") !== env.APP_PASSWORD) return fail("No autorizado", 401);
 
   if (path === "/api/health" && request.method === "GET") {
     try {
@@ -254,95 +394,38 @@ async function handleApp(request, env, path) {
     }
   }
 
-  if (request.method !== "POST") return fail("Método no permitido", 405);
-  const data = await readJson(request);
-  if (!data) return fail("JSON inválido o demasiado grande");
-
-  if (path === "/api/chat") {
-    const messages = cleanMessages(data.messages);
-    if (!messages) return fail("Mensajes inválidos");
-    const userTurns = messages.filter(m => m.role === "user").length;
-    const system = [
-      "Eres el asistente musical de Traktor ML, utilizado mientras un DJ está pinchando.",
-      "Responde en español, con frases muy breves.",
-      "Interpreta la intención musical, sin inventar preferencias ni mencionar canciones concretas.",
-      "Si es imprescindible, haz UNA pregunta de aclaración breve.",
-      "No afirmes haber buscado pistas."
-    ];
-    if (userTurns >= 2) system.push("No formules más preguntas. Resume la intención y pregunta si es correcta.");
-    try {
-      const answer = await env.AI.run(MODEL, {
-        messages: [{ role: "system", content: system.join("\n") }, ...messages],
-        max_tokens: 250,
-        chat_template_kwargs: { enable_thinking: false }
-      });
-      const content = answer.choices?.[0]?.message?.content;
-      if (typeof content !== "string" || !content.trim()) return fail("Respuesta vacía del modelo", 502);
-      return reply({ reply: content.trim() });
-    } catch {
-      return fail("No se pudo consultar el modelo", 502);
-    }
-  }
-
-  if (path === "/api/draft") {
-    const messages = cleanMessages(data.messages);
-    if (!messages) return fail("Primero describe el concepto musical");
-    const system = [
-      "Extrae del diálogo las preferencias musicales expresas del DJ.",
-      "Devuelve solamente un JSON válido con:",
-      "name: título corto en español, de 3 a 100 caracteres.",
-      "description: resumen específico afirmativo en español, de 15 a 700 caracteres.",
-      "positive_prompts: array de 1 a 4 frases completas en inglés, cada una de 8 a 180 caracteres, que describan el sonido musical para CLAP.",
-      "negative_prompts: array de 0 a 4 frases completas en inglés, cada una de 8 a 180 caracteres, SOLO para elementos que el DJ haya excluido expresamente.",
-      "constraints: objeto con energy, vocals y bpm.",
-      "energy: maintain, increase, decrease o unspecified. Agresivo no significa increase. Solo increase o decrease si pide un cambio respecto al tema actual.",
-      "vocals: present, absent o unspecified. bpm: near_current o unspecified.",
-      "No inventes preferencias ni negaciones y usa unspecified cuando no hay datos.",
-      "No hagas preguntas ni introduzcas resultados de búsqueda."
-    ].join("\n");
-    for (let attempt = 0; attempt < 2; attempt++) {
+  if (path === "/api/conceptos" && request.method === "POST") {
+    const data = await readJson(request);
+    if (!data) return fail("JSON inválido o demasiado grande");
+    const texto = textoCorto(data.texto, 2, 400);
+    if (!texto) return fail("Escribe qué quieres escuchar");
+    let anterior = null;
+    if (data.anterior !== undefined) {
+      if (typeof data.anterior !== "string" || !UUID_RE.test(data.anterior)) return fail("Solicitud inválida");
       try {
-        const answer = await env.AI.run(MODEL, {
-          messages: [{ role: "system", content: system }, ...messages,
-            { role: "user", content: "Escribe ahora únicamente el objeto JSON del concepto musical." }],
-          response_format: { type: "json_object" },
-          max_tokens: 650,
-          temperature: 0.2,
-          chat_template_kwargs: { enable_thinking: false }
-        });
-        const content = answer.choices?.[0]?.message?.content;
-        if (typeof content !== "string") continue;
-        const raw = JSON.parse(content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""));
-        const concept = normalizeConcept(raw);
-        if (!concept) continue;
-        const expires = Date.now() + 20 * 60 * 1000;
-        return reply({ concept, expires, signature: await signDraft(env, concept, expires) });
+        const row = await env.DB.prepare("SELECT concept_json FROM jobs WHERE id = ?").bind(data.anterior).first();
+        if (row) anterior = JSON.parse(row.concept_json);
+        if (anterior && anterior.version !== 2) anterior = null;
       } catch {
-        // Un único reintento si el modelo no devuelve JSON válido.
+        return fail("No se pudo leer el concepto anterior", 500);
       }
     }
-    return fail("El modelo no generó un concepto válido. Vuelve a prepararlo.", 502);
-  }
-
-  if (path === "/api/jobs") {
-    const concept = normalizeConcept(data.concept);
-    if (!concept || data.confirmed !== true ||
-      !(await verifyDraft(env, concept, data.expires, data.signature))) {
-      return fail("Prepara y confirma el concepto antes de guardarlo");
-    }
-    const id = jobIdFromSignature(data.signature);
+    const interpretado = await interpretar(env, texto, anterior);
+    if (!interpretado) return fail("El modelo no pudo interpretar el pedido. Prueba otra vez.", 502);
+    const original = anterior ? `${anterior.original} / ${texto}` : texto;
+    const concepto = { version: 2, fase: "sondeo", ronda: 1, original, ...interpretado };
+    const id = crypto.randomUUID();
     const now = Date.now();
     try {
       await env.DB.prepare(
-        "INSERT INTO jobs (id, created_at, updated_at, status, concept_json) VALUES (?, ?, ?, 'queued', ?) ON CONFLICT(id) DO NOTHING"
-      ).bind(id, now, now, JSON.stringify(concept)).run();
-      const row = await env.DB.prepare("SELECT status FROM jobs WHERE id = ?").bind(id).first();
-      return reply({ id, status: row.status }, 201);
+        "INSERT INTO jobs (id, created_at, updated_at, status, concept_json) VALUES (?, ?, ?, 'queued', ?)"
+      ).bind(id, now, now, JSON.stringify(concepto)).run();
+      return reply({ id, status: "queued", concept: concepto }, 201);
     } catch {
       return fail("No se pudo guardar en D1", 500);
     }
   }
-  return fail("No encontrado", 404);
+  return fail("No encontrado", request.method === "POST" || request.method === "GET" ? 404 : 405);
 }
 
 const HTML = `<!DOCTYPE html>
@@ -358,46 +441,31 @@ input,textarea,button{box-sizing:border-box;width:100%;padding:13px;margin-top:1
 input,textarea{background:#1f2937;color:white;border:1px solid #4b5563}
 button{background:#0d9488;color:white;border:0;cursor:pointer}
 button:disabled{opacity:.4;cursor:default}
-#prepare{background:#334155}#save{background:#2563eb}#again{background:#334155;display:none}#chat{min-height:120px;padding-top:15px}
-.msg{padding:12px;margin:10px 0;border-radius:10px;background:#1f2937;white-space:pre-wrap;overflow-wrap:anywhere}
-.user{background:#134e4a}#proposal,#results{display:none;margin-top:18px;border:1px solid #475569;border-radius:10px;padding:12px}
-#proposal pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:14px;margin:10px 0 0}
-#status{margin:8px 0 0;color:#cbd5e1}#notes{margin:10px 0 0;padding-left:18px;color:#fbbf24;font-size:14px}
+#adjust{background:#334155}#again{background:transparent;border:1px solid #475569}
+#card{display:none;margin-top:18px;border:1px solid #475569;border-radius:10px;padding:12px}
+#status{margin:8px 0 0;color:#cbd5e1}#detail{margin:10px 0 0;font-size:14px;color:#cbd5e1}#detail p{margin:6px 0}
+#detail ul{margin:4px 0 0;padding-left:18px;color:#9ca3af}
 #tracks{margin:12px 0 0;padding-left:30px}#tracks li{margin:0 0 11px;overflow-wrap:anywhere}
 #tracks .meta{display:block;color:#9ca3af;font-size:13px;font-variant-numeric:tabular-nums}
-#footnote{display:none;margin-top:6px}
+#after{display:none}
 </style>
 </head>
 <body>
 <h2>Traktor Concept AI</h2>
-<small>Describe lo que quieres escuchar y prepara el concepto. No hace falta responder a todas las preguntas.</small>
+<small>Escribe lo que quieres escuchar, como te salga. El asistente lo traduce a algo que tu música entienda y crea una playlist nueva en Traktor.</small>
 <input id="password" type="password" placeholder="Contraseña de acceso" autocomplete="off">
-<div id="chat" aria-live="polite"></div>
-<textarea id="message" rows="3" placeholder="Quiero techno oscuro e hipnótico, sin voces..."></textarea>
-<button id="send">Enviar</button>
-<button id="prepare" disabled>Preparar concepto</button>
-<div id="proposal"><strong>Concepto para revisar</strong><pre id="proposalText"></pre>
-<button id="save" disabled>Confirmar y buscar en mi música</button></div>
-<div id="results" aria-live="polite"><strong id="resultName"></strong>
-<p id="status"></p><ul id="notes"></ul><ol id="tracks"></ol>
-<small id="footnote">El número es el parecido entre el texto y el audio (CLAP). Sirve para ordenar; no es un porcentaje.</small>
-</div>
-<button id="again">Nuevo concepto</button>
+<textarea id="message" rows="3" placeholder="Quiero música de cumpleaños con cornetas..."></textarea>
+<button id="send">Buscar en mi música</button>
+<div id="card" aria-live="polite"><strong id="name"></strong>
+<p id="status"></p><div id="detail"></div><ol id="tracks"></ol></div>
+<div id="after"><textarea id="correction" rows="2" placeholder="¿Algo que corregir? Más oscuro, sin tanta voz..."></textarea>
+<button id="adjust">Ajustar</button><button id="again">Nuevo concepto</button></div>
 <script>
-let history=[],draft=null,followId=0;
+let currentId=null,followId=0;
 const $=id=>document.getElementById(id);
-const chat=$('chat'),sendButton=$('send'),prepareButton=$('prepare'),saveButton=$('save'),againButton=$('again');
-const input=$('message'),password=$('password'),proposal=$('proposal'),proposalText=$('proposalText');
-const results=$('results'),resultName=$('resultName'),statusText=$('status'),notesList=$('notes'),tracksList=$('tracks'),footnote=$('footnote');
-const ENERGY={maintain:'mantener',increase:'subir',decrease:'bajar'};
-const VOCALS={present:'con voces',absent:'sin voces'};
+const sendButton=$('send'),adjustButton=$('adjust'),againButton=$('again'),input=$('message'),correction=$('correction'),password=$('password');
+const card=$('card'),nameText=$('name'),statusText=$('status'),detail=$('detail'),tracksList=$('tracks'),after=$('after');
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-function show(role,content){
-  const div=document.createElement('div');div.className='msg '+role;div.textContent=content;
-  chat.appendChild(div);div.scrollIntoView({behavior:'smooth',block:'nearest'});
-}
-function clearDraft(){draft=null;saveButton.disabled=true;proposal.style.display='none'}
-function clearResults(){followId++;results.style.display='none';statusText.textContent='';notesList.replaceChildren();tracksList.replaceChildren();footnote.style.display='none';againButton.style.display='none'}
 async function call(path,options){
   const response=await fetch(path,options);
   const result=await response.json();
@@ -406,79 +474,65 @@ async function call(path,options){
 }
 const post=(path,data)=>call(path,{method:'POST',headers:{'Content-Type':'application/json','X-App-Password':password.value},body:JSON.stringify(data)});
 const get=path=>call(path,{headers:{'X-App-Password':password.value}});
-function describe(c){
-  const lines=[c.name,'',c.description,'','Lo que se va a buscar:',...c.positive_prompts.map(p=>'• '+p)];
-  if(c.negative_prompts.length)lines.push('','Excluir:',...c.negative_prompts.map(p=>'• '+p));
-  const k=c.constraints,extra=[];
-  if(ENERGY[k.energy])extra.push('energía: '+ENERGY[k.energy]);
-  if(VOCALS[k.vocals])extra.push(VOCALS[k.vocals]);
-  if(k.bpm==='near_current')extra.push('BPM cerca del tema actual');
-  if(extra.length)lines.push('','Condiciones: '+extra.join(', '));
-  return lines.join('\\n');
+function line(label,value){const p=document.createElement('p');const b=document.createElement('b');b.textContent=label+' ';p.append(b,value);return p}
+function showConcept(c){
+  nameText.textContent=c.nombre||c.name||'Concepto';
+  const parts=[];
+  if(c.entendi)parts.push(line('Entendí:',c.entendi));
+  if(c.no_se_oye&&c.no_se_oye.length)parts.push(line('Eso no se oye, lo traduje a sonido:',c.no_se_oye.join(', ')));
+  if(c.problema)parts.push(line('Primer intento:',c.problema));
+  if(c.resumen)parts.push(line('Va a sonar a:',c.resumen));
+  if(c.textos){const ul=document.createElement('ul');for(const t of c.textos){const li=document.createElement('li');li.textContent=t.texto;ul.append(li)}parts.push(line('Busqué:',''),ul)}
+  detail.replaceChildren(...parts);
 }
 function showTracks(result){
-  notesList.replaceChildren(...(result.notes||[]).map(text=>{const li=document.createElement('li');li.textContent=text;return li}));
   tracksList.replaceChildren(...result.tracks.map(t=>{
     const li=document.createElement('li');
     li.append((t.artist?t.artist+' — ':'')+t.title);
     const meta=document.createElement('span');meta.className='meta';
-    meta.textContent=[t.bpm?Math.round(t.bpm)+' BPM':null,t.key||null,t.vocal===true?'Vocal':null,t.score.toFixed(2)].filter(Boolean).join(' · ');
+    meta.textContent=[t.bpm?Math.round(t.bpm)+' BPM':null,t.key||null,t.vocal===true?'Vocal':null].filter(Boolean).join(' · ');
     li.append(meta);return li;
   }));
-  footnote.style.display=result.tracks.length?'block':'none';
 }
-async function follow(id,name){
+function progress(job,waited){
+  const c=job.concept;
+  if(job.status==='queued'&&waited>30000)return 'Sigue esperando. ¿Está encendido el ordenador, con Traktor abierto?';
+  if(c.fase==='final')return 'Creando la playlist...';
+  if(c.ronda>1)return 'No convenció; lo reescribió y prueba otra vez...';
+  return 'Probando '+c.textos.length+' maneras de decirlo en tu música... La primera vez de la noche puede tardar un minuto.';
+}
+async function follow(id){
   const mine=++followId,start=Date.now();
-  results.style.display='block';resultName.textContent=name;statusText.textContent='En cola...';
-  results.scrollIntoView({behavior:'smooth',block:'start'});
   while(mine===followId&&Date.now()-start<6*60*1000){
-    await sleep(2500);
+    await sleep(2000);
     if(mine!==followId)return;
     let job;
     try{job=await get('/api/jobs/'+id)}catch(e){statusText.textContent='Sin respuesta, reintentando... ('+e.message+')';continue}
+    showConcept(job.concept);
     if(job.status==='done'){
-      const n=job.result.tracks.length;
-      statusText.textContent=n?n+' temas de tu biblioteca, del más parecido al menos parecido.':'Ningún tema pasó las condiciones.';
-      showTracks(job.result);againButton.style.display='block';return;
+      const r=job.result;
+      statusText.textContent=r.tracks.length?(r.playlist?'Playlist nueva en Traktor: '+r.playlist:r.tracks.length+' temas'):'No se encontró ningún tema.';
+      showTracks(r);finish();return;
     }
-    if(job.status==='failed'){statusText.textContent='No se pudo completar: '+(job.error||'error desconocido');againButton.style.display='block';return}
-    const waited=Date.now()-start;
-    statusText.textContent=job.status==='processing'?'Buscando en tu biblioteca... La primera búsqueda de la noche puede tardar uno o dos minutos.':
-      waited>30000?'Sigue en cola. ¿Está encendido el ordenador, con Traktor abierto?':'En cola...';
+    if(job.status==='failed'){statusText.textContent='No se pudo completar: '+(job.error||'error desconocido');finish();return}
+    statusText.textContent=progress(job,Date.now()-start);
   }
-  if(mine===followId){statusText.textContent='El ordenador no respondió a tiempo. El concepto queda guardado y se procesará cuando vuelva.';againButton.style.display='block'}
+  if(mine===followId){statusText.textContent='El ordenador no respondió a tiempo. El pedido queda guardado y se hará cuando vuelva.';finish()}
 }
-sendButton.onclick=async()=>{
-  const content=input.value.trim();if(!content)return;
-  clearDraft();show('user',content);input.value='';
-  const messages=[...history,{role:'user',content}].slice(-12);
-  sendButton.disabled=true;prepareButton.disabled=true;
+function finish(){sendButton.disabled=false;adjustButton.disabled=false;after.style.display='block'}
+async function start(texto,anterior){
+  sendButton.disabled=true;adjustButton.disabled=true;after.style.display='none';followId++;
+  card.style.display='block';nameText.textContent=texto;detail.replaceChildren();tracksList.replaceChildren();statusText.textContent='Pensando cómo buscarlo...';
+  card.scrollIntoView({behavior:'smooth',block:'start'});
   try{
-    const result=await post('/api/chat',{messages});show('assistant',result.reply);
-    history=[...messages,{role:'assistant',content:result.reply}].slice(-12);
-  }catch(e){show('assistant','Error: '+e.message);history=messages}
-  finally{sendButton.disabled=false;prepareButton.disabled=!history.some(m=>m.role==='user')}
-};
-prepareButton.onclick=async()=>{
-  clearDraft();sendButton.disabled=true;prepareButton.disabled=true;prepareButton.textContent='Preparando...';
-  try{
-    draft=await post('/api/draft',{messages:history});
-    proposalText.textContent=describe(draft.concept);
-    proposal.style.display='block';saveButton.disabled=false;
-    proposal.scrollIntoView({behavior:'smooth',block:'start'});
-  }catch(e){show('assistant','Error al preparar concepto: '+e.message)}
-  finally{sendButton.disabled=false;prepareButton.disabled=false;prepareButton.textContent='Preparar concepto'}
-};
-saveButton.onclick=async()=>{
-  if(!draft||!confirm('¿Buscar este concepto en tu música?'))return;
-  saveButton.disabled=true;
-  try{
-    const name=draft.concept.name;
-    const result=await post('/api/jobs',{concept:draft.concept,expires:draft.expires,signature:draft.signature,confirmed:true});
-    clearDraft();follow(result.id,name);
-  }catch(e){show('assistant','Error al guardar: '+e.message);saveButton.disabled=false}
-};
-againButton.onclick=()=>{clearDraft();clearResults();history=[];chat.replaceChildren();prepareButton.disabled=true;input.focus()};
+    const body={texto};if(anterior)body.anterior=anterior;
+    const job=await post('/api/conceptos',body);
+    currentId=job.id;showConcept(job.concept);statusText.textContent='En cola...';follow(job.id);
+  }catch(e){statusText.textContent='Error: '+e.message;finish()}
+}
+sendButton.onclick=()=>{const t=input.value.trim();if(t)start(t,null)};
+adjustButton.onclick=()=>{const t=correction.value.trim();if(t&&currentId){correction.value='';start(t,currentId)}};
+againButton.onclick=()=>{followId++;currentId=null;card.style.display='none';after.style.display='none';tracksList.replaceChildren();input.value='';input.focus();sendButton.disabled=false};
 </script>
 </body>
 </html>`;

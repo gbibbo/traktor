@@ -177,7 +177,7 @@ Timestamps en milisegundos Unix. Estados: **queued** (esperando), **processing**
 
 ## 8. Adenda 2026-11-09 (Claude Code): agente local y Worker v4
 
-**Veredicto.** El flujo completo funciona en local con el código real del Worker, una D1 local, CLAP real sobre la biblioteca real y la página real a tamaño de teléfono. Lo único simulado fueron las dos llamadas al LLM. Falta publicar el Worker v4 y darle el `DEVICE_TOKEN` a este ordenador; ambas cosas requieren la cuenta de Gabriel. Si las listas son buenas lo decide Gabriel escuchando.
+**Veredicto.** [REEMPLAZADO 2026-11-09 por la sección 9: el Worker v5 reemplaza a la v4 antes de publicarse] El flujo completo funciona en local con el código real del Worker, una D1 local, CLAP real sobre la biblioteca real y la página real a tamaño de teléfono. Lo único simulado fueron las dos llamadas al LLM. Falta publicar el Worker v4 y darle el `DEVICE_TOKEN` a este ordenador; ambas cosas requieren la cuenta de Gabriel. Si las listas son buenas lo decide Gabriel escuchando.
 
 | Afirmación | Etiqueta | Evidencia (2026-11-09) |
 | --- | --- | --- |
@@ -189,10 +189,45 @@ Timestamps en milisegundos Unix. Estados: **queued** (esperando), **processing**
 | Conceptos distintos dan listas distintas | EVIDENCIA OBSERVADA | 10 conceptos × 30: 248 temas distintos, solapamiento medio 1,3 de 30, máximo 8 (industrial y peak time) |
 | Restar frases negativas no sirve para excluir voz | EVIDENCIA OBSERVADA, exploratoria | Vocal@30: 0,51 sin restar, 0,46 a 0,49 restando (peso 0,25 a 1); hasta 19 de 30 temas cambian. Solo voz, el único atributo con etiqueta |
 | La calidad musical de las listas | NO CONCLUYENTE | Los géneros de los 30 primeros son plausibles, pero no reemplazan escuchar. Sin medida contra sets; ver T18 en el plan |
-| El Worker v3 publicado hace lo mismo que el snapshot de Git | INFERENCIA, parcial | El HTML público tiene la misma lógica con otro formato. El backend no se pudo comparar sin credenciales |
+| [REFUTADO 2026-11-09 por la comparación con el código publicado, ya con credenciales: era una inferencia parcial y resultó cierta] El Worker v3 publicado hace lo mismo que el snapshot de Git | INFERENCIA, parcial | El HTML público tiene la misma lógica con otro formato. El backend no se pudo comparar sin credenciales |
+| El Worker v3 publicado es el snapshot de Git | EVIDENCIA OBSERVADA | Backend descargado con la API de Cloudflare y minificado igual que el de Git: idéntico salvo espacios. Bindings `AI`, `DB` (`8373aef7-…`), `APP_PASSWORD`, `DEVICE_TOKEN`; fecha de compatibilidad 2026-11-09 |
 
 **Qué cambió en el Worker (v4).** Lease de 5 minutos con 3 intentos; `job_id` opcional en `/api/device/claim`, para que una prueba no consuma conceptos reales; guardado idempotente (el id sale de la firma del borrador); resultados con `bpm`, `key`, `vocal`, `notes`, `pool` y `passed`, todos opcionales, así que el formato v3 sigue valiendo; y la página muestra la lista. No cambia la tabla de D1.
 
-**Lo que el teléfono avisa que no aplica.** Energía relativa, porque no hay coordenada validada, y exclusiones que no sean voz. Ver `docs/DECISIONS.md`, 2026-11-09.
+**Lo que el teléfono avisa que no aplica.** [REEMPLAZADO 2026-11-09 por la decisión de Gabriel de ese día: el trabajo es la arquitectura, no los filtros; la v5 no tiene condiciones ni filtros] Energía relativa, porque no hay coordenada validada, y exclusiones que no sean voz. Ver `docs/DECISIONS.md`, 2026-11-09.
 
 **Sigue abierto.** Límite de intentos de contraseña (punto 5) y despliegue automático desde GitHub (punto 7, apagado a propósito). Recetas: `cloudflare/README.md`.
+
+## 9. Adenda 2026-11-09 (Claude Code): el circuito con el LLM (Worker v5)
+
+**Pedido de Gabriel.** La tarea no es aplicar filtros sino montar la arquitectura: del concepto escrito en el teléfono a
+una playlist nueva en Traktor, con el LLM de Cloudflare encontrando la mejor forma de definir el concepto. Una persona
+escribe mal; el LLM tiene que reescribir, lanzar búsquedas, mirar qué devolvieron y decidir, y la comunicación va y
+viene. Además, las instrucciones tienen que ser claras porque el LLM gratuito razona poco.
+
+**Veredicto.** Hecho y probado de punta a punta en local, con el LLM real (Gemma por `wrangler dev`, D1 local), CLAP real
+sobre la biblioteca y la página real a tamaño de teléfono, incluido «Ajustar». Con las instrucciones finales, el texto
+curado ordena mejor que el texto escrito por la persona en 14 de 16 pedidos medidos contra estilos de MAEST (+0,078 AP,
+IC95 [0,029; 0,125]). Falta publicarlo: el control de permisos de la sesión bloqueó el despliegue a producción, que
+queda en un paso para Gabriel (`python cloudflare/publicar.py`). Detalle de las medidas: `docs/reports/clap_texto_2026-11-09.md`.
+
+| Afirmación | Etiqueta | Evidencia (2026-11-09) |
+| --- | --- | --- |
+| El circuito pedido → sondeo → decisión → final funciona, también cuando el LLM rompe el JSON, rechaza dos veces o no responde | EVIDENCIA OBSERVADA | `tests/v4/test_concept_worker_e2e.py`: 24 pasan, LLM simulado inyectado desde afuera del Worker |
+| Con el LLM real, un concepto sale en 4 a 7 s; la primera vez de la noche, unos 30 s más (carga CLAP y el vocabulario) | EVIDENCIA OBSERVADA | Banco de 18 pedidos (5 corridas) y dos pasadas de la página con el agente real |
+| En la página a 390×844: se ven la propuesta, el progreso, qué entendió, qué no se oye, qué buscó, cómo va a sonar y los 30 temas; «Ajustar» crea otra playlist en 6 s; sin errores de consola | EVIDENCIA OBSERVADA | Edge sin cabeza, capturas revisadas |
+| Cada concepto escribe un `.nml` nuevo y válido | EVIDENCIA OBSERVADA, sin abrir en Traktor | `tests/v4/test_conceptos_agente.py` y dos playlists escritas en una carpeta temporal |
+| Un concepto guardado con la v3 (el de Techno Industrial que quedó en cola) se procesa como lista final | EVIDENCIA OBSERVADA en local | Test de punta a punta con el mismo id y formato |
+
+**Qué cambió (v5).** Se quitan el chat, el borrador firmado y `/api/jobs`. Entra `POST /api/conceptos` (pedido y, para
+ajustar, el id anterior). El trabajo pasa por las fases `sondeo` y `final` en la misma fila de D1; `/api/device/complete`
+de un sondeo llama al LLM y deja el trabajo en cola para el paso siguiente. La tabla no cambia. El agente pierde los
+filtros y gana `sondear()`, `crear_lista()` y `buscar()`, que es la pieza que se reemplaza cuando exista otro buscador.
+
+**Sigue abierto.**
+
+- Publicar (Gabriel).
+- Abrir una playlist «Concepto …» en Traktor (Gabriel).
+- Escuchar a ciegas listas crudas frente a curadas para decidir si el LLM ayuda al oído.
+- Terminar AST para las palabras de instrumento: trabajo de gpuq, a la espera del visto bueno de Gabriel.
+- Puntos 5 y 7 de la sección 5.

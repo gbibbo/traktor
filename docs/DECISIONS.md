@@ -78,20 +78,47 @@ Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 
 Gabriel armó el Worker de Cloudflare en otra sesión (LLM solo en Cloudflare; audio, embeddings y rutas solo en el
 ordenador) y pidió completarlo con la mayor autonomía posible. Lo que sigue lo decidió el agente y Gabriel puede
-cambiarlo. Evidencia: `docs/reports/traktor_concept_ai_cloudflare_2026-11-09.md`, sección 8.
+cambiarlo. Evidencia: `docs/reports/traktor_concept_ai_cloudflare_2026-11-09.md`, secciones 8 y 9.
 
-1. **Las frases negativas no se restan en CLAP** (agente; exploratorio, solo voz, el único atributo con etiqueta). Restar
+1. [REEMPLAZADO 2026-11-09 por el punto 6: sin filtros; menos voz se pide con «without vocals» en el texto, que sí la baja (medido en `clap_texto_2026-11-09.md`)] **Las frases negativas no se restan en CLAP** (agente; exploratorio, solo voz, el único atributo con etiqueta). Restar
    una negativa de voz en 10 conceptos sobre los 1760 temas dejó la voz en los 30 primeros casi igual (0,51 sin restar;
    0,46 a 0,49 con peso 0,25 a 1) y cambió hasta 19 de 30 temas. La voz se filtra con la etiqueta Vocal; las demás
    exclusiones se informan en el teléfono como sin aplicar.
-2. **La energía relativa no se aplica todavía** (agente): no hay coordenada validada (plan, sección 11), y el teléfono lo
+2. [REEMPLAZADO 2026-11-09 por el punto 6: el circuito no tiene condiciones; la candidata de energía la descartó Gabriel (algoritmo, punto 3)] **La energía relativa no se aplica todavía** (agente): no hay coordenada validada (plan, sección 11), y el teléfono lo
    dice. Candidata que decide Gabriel: el Energy de Mixed In Key de los tags (1408 de 1770 temas, valores 2 a 8).
-3. **BPM cerca del actual es ±20, la regla de Parecidos; sin esa condición el BPM no filtra** (agente: se respeta lo que
+3. [REEMPLAZADO 2026-11-09 por el punto 6: en el circuito el BPM no filtra; los filtros en vivo de Parecidos siguen (algoritmo, punto 6)] **BPM cerca del actual es ±20, la regla de Parecidos; sin esa condición el BPM no filtra** (agente: se respeta lo que
    pide el concepto). El BPM se muestra en la lista.
-4. **Cada lista se escribe también en `TRAKTOR ML Concepto NML.nml`, en la carpeta de sugerencias** (agente): es una
+4. [REEMPLAZADO 2026-11-09 por el punto 9: una playlist nueva por concepto] **Cada lista se escribe también en `TRAKTOR ML Concepto NML.nml`, en la carpeta de sugerencias** (agente): es una
    playlist más, como las de dirección (2026-11-07, punto 8). El botón D#0+D0 no cambia. Sin probar dentro de Traktor.
 5. **CLAP se carga con el primer concepto y se libera a los 20 min sin uso** (agente): ocupa cerca de 950 MB y este PC
    tenía 2 GB libres. Prioridad baja y dos hilos, para no competir con el audio.
+6. **El trabajo de esta etapa es la arquitectura, no los filtros** (Gabriel). El punto de partida es un concepto escrito en
+   el teléfono y el resultado, una playlist nueva en Traktor. Cómo se eligen los temas no entra en esta etapa (es el punto
+   5 de «algoritmo de recomendación»). Sí entra la parte en que el LLM de Cloudflare encuentra la mejor forma de definir
+   el concepto: una persona escribe mal, y dos textos que para nosotros dicen lo mismo dan listas muy distintas en CLAP.
+   El LLM se ocupa de todo lo necesario, puede lanzar varias búsquedas y decidir con lo que devuelven. Las instrucciones
+   tienen que ser claras, porque el LLM gratuito razona poco.
+7. **El circuito** (agente). El Worker piensa (LLM, decisiones, cola) y el ordenador oye: busca y describe lo que
+   encontró, sin puntajes. Interpretar → tres textos → sondeo → elegir, o reescribir una vez como máximo → lista final.
+   Si el LLM no responde, sigue con todos los textos. `buscar()` es la única pieza que decide qué temas salen.
+   Detalle: `cloudflare/README.md`.
+8. **Reglas para escribir los textos, medidas sobre la biblioteca** (agente; exploratorio):
+   - inglés;
+   - sin plantillas;
+   - lo que no se oye se traduce a sonido, y el teléfono lo dice;
+   - género más sonido, de 6 a 14 palabras;
+   - tres redacciones, promediadas;
+   - la única negación es «without vocals»;
+   - no agregar sonidos que nadie pidió.
+
+   El validador del Worker hace cumplir lo que el modelo no respeta. Con estas reglas, el texto curado ordena mejor
+   que el texto de la persona en 14 de 16 pedidos (+0,078 AP contra estilos de MAEST, IC95 [0,029; 0,125]).
+   Evidencia: `docs/reports/clap_texto_2026-11-09.md`.
+9. **Cada concepto crea una playlist nueva, `Concepto <MMDD-HHMM> <nombre>.nml`, en la carpeta de sugerencias** (agente,
+   por «una playlist nueva en Traktor»). No se pisan ni se borran solas. Sin probar dentro de Traktor.
+10. **Publicar en producción lo hace Gabriel** (agente). El control de permisos de la sesión bloqueó el despliegue y no
+    se buscó otra vía. `python cloudflare/publicar.py` publica, deja un `DEVICE_TOKEN` nuevo en Cloudflare y en el
+    ordenador y activa el agente con Traktor.
 
 ## 2026-11-09 (sets de 1001Tracklists)
 

@@ -1,14 +1,14 @@
 """
-PURPOSE: Tests del agente local de conceptos (tools/traktor_live/conceptos_agente.py) sin red real, sin Cloudflare y
-         sin CLAP: un servidor HTTP de prueba con el contrato del Worker y un codificador falso. Cubren el orden por
-         parecido, cada condición (y las notas de lo que no se aplica), el registro de la sesión, la playlist de
-         Traktor, los códigos del Worker y que a Cloudflare no vayan rutas ni el token.
+PURPOSE: Tests del ordenador en el circuito de conceptos (tools/traktor_live/conceptos_agente.py) sin red real, sin Cloudflare
+         y sin CLAP: un servidor HTTP de prueba con el contrato del Worker y un codificador falso. Cubren el formato de los
+         trabajos, buscar(), el informe de un sondeo, la lista final, la playlist nueva por concepto, los códigos del Worker
+         y que a Cloudflare no vayan rutas ni el token.
 CHANGELOG:
   - 2026-11-09: Creación inicial.
+  - 2026-11-09: Circuito con el LLM: sondeo y final, playlist nueva por concepto, sin filtros.
 """
+import datetime as dt
 import json
-import math
-import os
 import sys
 import threading
 import time
@@ -31,164 +31,121 @@ def unit(*values):
     return (v / np.linalg.norm(v)).tolist()
 
 
-def item(uid, vec, bpm=125.0, key="8A", title=None, artist="Artista"):
+def item(uid, vec, bpm=125.0, key="8A", title=None, artist="Artista", genre="Techno"):
     return rc.Item(uid=uid, rel=f"Musica\\{uid}.mp3", original=f"orig\\{uid}.mp3", artist=artist,
-                   title=title or f"Tema {uid}", bpm=bpm, key=key, vec=vec)
+                   title=title or f"Tema {uid}", bpm=bpm, key=key, vec=vec, genre=genre)
 
 
 def biblioteca(items, vocal=None, version=None):
     return ca.Biblioteca(items=items, matrix=np.array([it.vec for it in items], dtype=np.float32),
-                         vocal=vocal or {}, recommender=rc.Recommender(items, {}, 30), nml_version=version)
+                         vocal=vocal or {}, nml_version=version)
 
 
-ITEMS = [item("a", unit(1, 0, 0)), item("b", unit(0.8, 0.6, 0)), item("c", unit(0, 1, 0)),
+ITEMS = [item("a", unit(1, 0, 0)), item("b", unit(0.8, 0.6, 0), genre="House"), item("c", unit(0, 1, 0), genre="House"),
          item("d", unit(-1, 0, 0), bpm=170.0)]
 VOCAL = {"a": True, "b": False, "c": False, "d": True}
+WORDS = {"trompeta": [1.0, 0.0, 0.0], "cuerdas": [0.0, 1.0, 0.0], "ruido": [-1.0, 0.0, 0.0]}
 
 
-def concepto(**kw):
-    return ca.Concepto(name="prueba", positive=("una frase larga",), **kw)
+def codificar(frases):
+    """Un codificador de juguete: conoce las palabras de WORDS; lo demás es el primer eje."""
+    return np.array([unit(*WORDS.get(f, [1.0, 0.0, 0.0])) for f in frases])
 
 
-def codificar(_frases):
-    return np.array([[1.0, 0.0, 0.0]])
+def oido(bib):
+    return ca.Oido(bib, codificar, vocabulario=list(WORDS))
 
 
-# ---------------------------------------------------------------- ranking y condiciones
-
-def test_ranking_by_cosine_with_raw_scores_in_range():
-    result, chosen = ca.resolver(concepto(), biblioteca(ITEMS), codificar, ca.Sesion())
-    assert [t["track_id"] for t in result["tracks"]] == ["a", "b", "c", "d"]
-    assert result["tracks"][0]["score"] == pytest.approx(1.0)
-    assert result["tracks"][-1]["score"] == pytest.approx(-1.0)
-    assert all(-1 <= t["score"] <= 1 for t in result["tracks"])
-    assert (result["pool"], result["passed"]) == (4, 4)
-    assert [it.uid for it in chosen] == ["a", "b", "c", "d"]
+def sondeo_job(textos=("trompeta", "cuerdas")):
+    return {"version": 2, "fase": "sondeo", "ronda": 1, "nombre": "Fiesta", "textos": [{"id": c, "texto": t} for c, t in zip("ABC", textos)]}
 
 
-def test_query_is_the_mean_of_the_normalized_phrases():
+def final_job(textos=("trompeta",)):
+    return {"version": 2, "fase": "final", "nombre": "Fiesta", "textos": [{"id": c, "texto": t} for c, t in zip("ABC", textos)]}
+
+
+# ---------------------------------------------------------------- formato de los trabajos
+
+def test_parse_reads_sondeo_and_final():
+    t = ca.parse_tarea(sondeo_job())
+    assert (t.fase, t.nombre, t.textos) == ("sondeo", "Fiesta", (("A", "trompeta"), ("B", "cuerdas")))
+    assert ca.parse_tarea(final_job()).fase == "final"
+
+
+def test_parse_reads_concepts_saved_before_the_circuit_as_final():
+    t = ca.parse_tarea({"version": 1, "name": "Viejo", "positive_prompts": [" una frase "], "negative_prompts": [], "constraints": {}})
+    assert (t.fase, t.nombre, t.textos) == ("final", "Viejo", (("A", "una frase"),))
+
+
+@pytest.mark.parametrize("raw", [None, [], {"version": 9}, {"version": 2, "fase": "raro", "textos": [{"id": "A", "texto": "x"}]},
+                                 {"version": 2, "fase": "final", "textos": []}, {"version": 2, "fase": "final", "textos": [{"id": "A"}]},
+                                 {"version": 1, "positive_prompts": []}])
+def test_parse_rejects_unusable_jobs(raw):
+    with pytest.raises(ca.TareaInvalida):
+        ca.parse_tarea(raw)
+
+
+# ---------------------------------------------------------------- buscar, sondeo y lista
+
+def test_buscar_orders_by_cosine_and_is_the_only_ranking():
+    indices, sims = ca.buscar(biblioteca(ITEMS), np.array(unit(1, 0, 0), dtype=np.float64), n=3)
+    assert indices == [0, 1, 2] and sims[0] == pytest.approx(1.0)
+
+
+def test_query_is_the_mean_of_the_phrases():
     bib = biblioteca(ITEMS)
-    two = lambda _: np.array([unit(1, 0, 0), unit(0, 1, 0)])      # noqa: E731
-    result, _ = ca.resolver(concepto(), bib, two, ca.Sesion())
-    assert result["tracks"][0]["track_id"] == "b"                  # el del medio entre las dos frases
-    assert result["tracks"][0]["score"] == pytest.approx((0.8 + 0.6) / math.sqrt(2), abs=1e-4)
+    dos = lambda frases: np.array([unit(1, 0, 0), unit(0, 1, 0)])    # noqa: E731
+    result, _ = ca.crear_lista(ca.Tarea("final", "x", (("A", "uno"), ("B", "dos"))), bib, dos)
+    assert result["tracks"][0]["track_id"] == "b"                     # el que queda entre las dos frases
 
 
-def test_vocals_filter_uses_the_vocal_tag_and_says_so():
-    result, _ = ca.resolver(concepto(vocals="absent"), biblioteca(ITEMS, VOCAL), codificar, ca.Sesion())
-    assert [t["track_id"] for t in result["tracks"]] == ["b", "c"]
-    assert result["passed"] == 2 and any("Sin voces" in n and "2" in n for n in result["notes"])
-    assert all(t["vocal"] is False for t in result["tracks"])
-    result, _ = ca.resolver(concepto(vocals="present"), biblioteca(ITEMS, VOCAL), codificar, ca.Sesion())
-    assert [t["track_id"] for t in result["tracks"]] == ["a", "d"]
+def test_oido_describes_what_is_near_the_group_and_not_the_library():
+    bib = biblioteca(ITEMS)
+    assert ca.Oido(bib, codificar, vocabulario=list(WORDS)).suena_a([0], k=1) == ["trompeta"]
+    assert ca.Oido(bib, codificar, vocabulario=list(WORDS)).suena_a([3], k=1) == ["ruido"]
 
 
-def test_vocals_filter_without_the_tag_is_not_applied_and_says_so():
-    result, _ = ca.resolver(concepto(vocals="absent"), biblioteca(ITEMS), codificar, ca.Sesion())
-    assert result["passed"] == 4 and any("sin aplicar" in n for n in result["notes"])
+def test_vocabulary_excludes_words_that_do_not_describe_a_sound():
+    bib = biblioteca(ITEMS)
+    o = ca.Oido(bib, lambda f: np.array([unit(1, 0, 0)] * len(f)))
+    assert "birthday" not in o.palabras and "brass instruments" in o.palabras and "breakdown" not in o.palabras
 
 
-def test_track_missing_from_the_vocal_tag_does_not_pass_either_filter():
-    result, _ = ca.resolver(concepto(vocals="absent"), biblioteca(ITEMS, {"b": False}), codificar, ca.Sesion())
-    assert [t["track_id"] for t in result["tracks"]] == ["b"]
+def test_sondeo_reports_each_text_separately():
+    bib = biblioteca(ITEMS, VOCAL)
+    r = ca.sondear(ca.parse_tarea(sondeo_job()), bib, codificar, oido(bib))
+    assert set(r["busquedas"]) == {"A", "B"} and r["pool"] == 4
+    a = r["busquedas"]["A"]
+    assert a["generos"] == {"Techno": 2, "House": 2} and a["voz"] == 0.5
+    assert a["temas"][0] == "Artista - Tema a" and len(a["temas"]) == 4
+    assert a["bpm"][0] <= a["bpm"][1] <= a["bpm"][2]
+    assert a["suena_a"] and all(isinstance(w, str) for w in a["suena_a"])
+    assert "score" not in json.dumps(r)
 
 
-def test_bpm_near_current_uses_the_pitched_bpm_of_the_main_track():
-    sesion = ca.Sesion(principal={"path": "X:/otra/cosa.mp3", "bpm": 150.0, "tempo": 1.1})   # 165
-    result, _ = ca.resolver(concepto(bpm="near_current"), biblioteca(ITEMS), codificar, sesion)
-    assert [t["track_id"] for t in result["tracks"]] == ["d"]
-    assert any("165" in n for n in result["notes"])
+def test_sondeo_without_tags_says_unknown():
+    bib = biblioteca([item("x", unit(1, 0, 0), bpm=None, genre=None)])
+    r = ca.sondear(ca.parse_tarea(sondeo_job(("trompeta",))), bib, codificar, oido(bib))
+    b = r["busquedas"]["A"]
+    assert b["bpm"] is None and b["voz"] is None and b["generos"] == {}
 
 
-def test_bpm_near_current_without_a_playing_track_is_not_applied_and_says_so():
-    result, _ = ca.resolver(concepto(bpm="near_current"), biblioteca(ITEMS), codificar, ca.Sesion())
-    assert result["passed"] == 4 and any("no hay un tema sonando" in n for n in result["notes"])
+def test_final_list_order_and_track_fields():
+    result, chosen = ca.crear_lista(ca.parse_tarea(final_job()), biblioteca(ITEMS, VOCAL), codificar)
+    assert [t["track_id"] for t in result["tracks"]] == ["a", "b", "c", "d"] and [it.uid for it in chosen] == ["a", "b", "c", "d"]
+    assert result["tracks"][0]["score"] == pytest.approx(1.0) and all(-1 <= t["score"] <= 1 for t in result["tracks"])
+    assert set(result["tracks"][0]) == {"track_id", "title", "artist", "score", "bpm", "key", "vocal"}
 
 
-def test_main_and_played_tracks_are_left_out():
-    sesion = ca.Sesion(principal={"path": "C:\\TRAKTOR ML\\Musica\\a.mp3"}, tocados=["D:\\x\\orig\\b.mp3"])
-    result, _ = ca.resolver(concepto(), biblioteca(ITEMS), codificar, sesion)
-    assert [t["track_id"] for t in result["tracks"]] == ["c", "d"]
-    assert any("2 ya tocados" in n for n in result["notes"])
-
-
-def test_energy_and_negatives_are_reported_as_not_applied_without_changing_the_list():
-    plain, _ = ca.resolver(concepto(), biblioteca(ITEMS), codificar, ca.Sesion())
-    result, _ = ca.resolver(concepto(energy="increase", negative=("distorted screaming guitars",)),
-                            biblioteca(ITEMS), codificar, ca.Sesion())
-    assert result["tracks"] == plain["tracks"]
-    assert any("Energía (subir): sin aplicar" in n for n in result["notes"])
-    assert any("Exclusiones sin aplicar" in n and "guitars" in n for n in result["notes"])
-
-
-def test_voice_negative_is_covered_by_the_vocals_filter():
-    result, _ = ca.resolver(concepto(vocals="absent", negative=("singing vocals",)), biblioteca(ITEMS, VOCAL),
-                            codificar, ca.Sesion())
-    assert not any("Exclusiones" in n for n in result["notes"])
-
-
-def test_no_track_passes():
-    result, chosen = ca.resolver(concepto(bpm="near_current"), biblioteca(ITEMS), codificar,
-                                 ca.Sesion(principal={"path": "x", "bpm": 60.0, "tempo": 1.0}))
-    assert result["tracks"] == [] and result["passed"] == 0 and chosen == []
-
-
-def test_result_limits_and_title_fallback():
-    long = item("e", unit(1, 0, 0), bpm=None, key="?", title="x" * 400, artist="y" * 400)
-    nameless = item("f", unit(1, 0, 0), title="", artist="")
-    nameless.title = ""
-    result, _ = ca.resolver(concepto(), biblioteca([long, nameless]), codificar, ca.Sesion(), n=30)
-    by_id = {t["track_id"]: t for t in result["tracks"]}
-    assert len(by_id["e"]["title"]) == 160 and len(by_id["e"]["artist"]) == 120
-    assert "bpm" not in by_id["e"] and "key" not in by_id["e"]
-    assert by_id["f"]["title"] == "f"
-
-
-def test_n_tracks_is_capped():
+def test_final_list_is_capped_and_titles_are_clipped():
     items = [item(f"t{i}", unit(1, i / 100, 0)) for i in range(40)]
-    result, _ = ca.resolver(concepto(), biblioteca(items), codificar, ca.Sesion())
-    assert len(result["tracks"]) == 30 and result["passed"] == 40
-
-
-@pytest.mark.parametrize("raw", [None, [], {"version": 2, "positive_prompts": ["hola mundo"]},
-                                 {"version": 1, "positive_prompts": []}, {"version": 1},
-                                 {"version": 1, "positive_prompts": ["ok ok ok"], "negative_prompts": "x"}])
-def test_parse_rejects_unusable_concepts(raw):
-    with pytest.raises(ca.ConceptoInvalido):
-        ca.parse_concepto(raw)
-
-
-def test_parse_reads_the_worker_contract():
-    c = ca.parse_concepto({"version": 1, "name": "N", "positive_prompts": [" uno dos tres "], "negative_prompts": ["x y z w"],
-                           "constraints": {"energy": "decrease", "vocals": "absent", "bpm": "near_current"}})
-    assert c == ca.Concepto("N", ("uno dos tres",), ("x y z w",), "decrease", "absent", "near_current")
-
-
-# ---------------------------------------------------------------- sesión
-
-def test_session_reads_last_main_track_and_all_played(tmp_path):
-    (tmp_path / "sugerencias_vivo_20260101_000000.jsonl").write_text("{}\n", encoding="utf-8")
-    log = tmp_path / "sugerencias_vivo_20260102_000000.jsonl"
-    lines = [
-        {"t": "1", "kind": "principal", "target": "A", "data": {"path": "uno.mp3", "bpm": 120}},
-        {"t": "2", "kind": "fader", "target": "A", "data": {"canal": 1}},
-        {"t": "3", "kind": "tocado", "target": "A", "data": {"path": "uno.mp3"}},
-        {"t": "4", "kind": "principal", "target": "B", "data": {"path": "dos.mp3", "bpm": 124}},
-    ]
-    log.write_text("\n".join(json.dumps(x) for x in lines) + '\n{"t": "5", "kind": "princ', encoding="utf-8")
-    now = log.stat().st_mtime
-    os.utime(tmp_path / "sugerencias_vivo_20260101_000000.jsonl", (now - 1000, now - 1000))
-    s = ca.leer_sesion(tmp_path, running=lambda: True, now=lambda: now + 5)
-    assert s.principal["path"] == "dos.mp3" and s.tocados == ["uno.mp3"]
-
-
-def test_session_is_empty_when_traktor_is_closed_or_the_log_is_old(tmp_path):
-    log = tmp_path / "sugerencias_vivo_20260102_000000.jsonl"
-    log.write_text(json.dumps({"t": "1", "kind": "principal", "target": "A", "data": {"path": "x"}}) + "\n", encoding="utf-8")
-    assert ca.leer_sesion(tmp_path, running=lambda: False).principal is None
-    now = log.stat().st_mtime
-    assert ca.leer_sesion(tmp_path, running=lambda: True, now=lambda: now + ca.SESSION_FRESH_S + 1).principal is None
-    assert ca.leer_sesion(tmp_path / "vacio", running=lambda: True).principal is None
+    assert len(ca.crear_lista(ca.parse_tarea(final_job()), biblioteca(items), codificar)[0]["tracks"]) == 30
+    largo = item("e", unit(1, 0, 0), bpm=None, key="?", title="x" * 400, artist="y" * 400)
+    sin_nombre = item("f", unit(1, 0, 0), title="", artist="")
+    sin_nombre.title = ""
+    tracks = {t["track_id"]: t for t in ca.crear_lista(ca.parse_tarea(final_job()), biblioteca([largo, sin_nombre]), codificar)[0]["tracks"]}
+    assert len(tracks["e"]["title"]) == 160 and len(tracks["e"]["artist"]) == 120 and "bpm" not in tracks["e"] and "key" not in tracks["e"]
+    assert tracks["f"]["title"] == "f"
 
 
 # ---------------------------------------------------------------- playlist de Traktor
@@ -199,24 +156,33 @@ def entry(artist, title, directory, filename):
     return e
 
 
-def test_nml_lists_the_entries_in_order_and_rewrites_itself(tmp_path):
+@pytest.mark.parametrize("nombre,esperado", [
+    ("Fiesta con trompetas", "Concepto 1109-2315 Fiesta con trompetas"),
+    ('Mal: nom/bre\\con*cosas?"<>|', "Concepto 1109-2315 Mal nom bre con cosas"),
+    ("   ", "Concepto 1109-2315 Sin nombre"),
+    ("x" * 300, "Concepto 1109-2315 " + "x" * 60),
+])
+def test_playlist_name_is_safe_for_a_windows_file(nombre, esperado):
+    assert ca.nombre_playlist(nombre, dt.datetime(2026, 11, 9, 23, 15)) == esperado
+
+
+def test_each_concept_gets_its_own_new_playlist(tmp_path):
     a = item("a", unit(1, 0, 0)); a.entry = entry("A", "Uno", "/:Musica/:", "uno.mp3")
     b = item("b", unit(0, 1, 0)); b.entry = entry("B", "Dos", "/:Musica/:", "dos.mp3")
     bib = biblioteca([a, b], version="20")
-    out = ca.escribir_nml(bib, [b, a], tmp_path)
-    assert out.name == "TRAKTOR ML Concepto NML.nml"
-    root = ET.parse(out).getroot()
+    primero = ca.escribir_nml(bib, [b, a], "Fiesta", tmp_path)
+    segundo = ca.escribir_nml(bib, [a], "Oscuro", tmp_path)
+    assert primero != segundo and len(list(tmp_path.glob("*.nml"))) == 2
+    root = ET.parse(tmp_path / f"{primero}.nml").getroot()
+    assert root.find(".//NODE[@TYPE='PLAYLIST']").get("NAME") == primero
     assert [e.get("TITLE") for e in root.find("COLLECTION")] == ["Dos", "Uno"]
     keys = [k.get("KEY") for k in root.iter("PRIMARYKEY")]
     assert keys[0].endswith("dos.mp3") and keys[1].endswith("uno.mp3")
-    assert root.find(".//NODE[@TYPE='PLAYLIST']").get("NAME") == "TRAKTOR ML Concepto NML"
-    assert ca.escribir_nml(bib, [a], tmp_path) == out                # la segunda lista pisa la primera
-    assert [e.get("TITLE") for e in ET.parse(out).getroot().find("COLLECTION")] == ["Uno"]
 
 
-def test_nml_is_skipped_without_collection_entries(tmp_path):
-    assert ca.escribir_nml(biblioteca(ITEMS, version=None), ITEMS, tmp_path) is None
-    assert ca.escribir_nml(biblioteca(ITEMS, version="20"), ITEMS, tmp_path) is None
+def test_no_playlist_without_collection_entries(tmp_path):
+    assert ca.escribir_nml(biblioteca(ITEMS, version=None), ITEMS, "x", tmp_path) is None
+    assert ca.escribir_nml(biblioteca(ITEMS, version="20"), ITEMS, "x", tmp_path) is None
 
 
 # ---------------------------------------------------------------- cliente HTTP
@@ -280,10 +246,9 @@ def test_client_sends_token_and_user_agent(worker):
     assert headers["X-Device-Token"] == "secreto" and "Python-urllib" not in headers["User-Agent"]
 
 
-def test_accented_titles_travel_as_utf8_not_as_escapes(worker):
+def test_accented_titles_travel_as_utf8(worker):
     ca.WorkerClient(worker.url, "secreto").complete("x", 1, "done", result={"tracks": [{"title": "Ñandú — Böhmer"}]})
     assert worker.bodies("/api/device/complete")[0]["result"]["tracks"][0]["title"] == "Ñandú — Böhmer"
-    assert ca.json.dumps("Ñ", ensure_ascii=False).encode("utf-8") == '"Ñ"'.encode("utf-8")
 
 
 def test_client_claims_only_the_requested_job(worker):
@@ -292,9 +257,8 @@ def test_client_claims_only_the_requested_job(worker):
 
 
 def test_client_maps_worker_codes(worker):
-    bad = ca.WorkerClient(worker.url, "mal")
     with pytest.raises(ca.NoAutorizado):
-        bad.claim()
+        ca.WorkerClient(worker.url, "mal").claim()
     client = ca.WorkerClient(worker.url, "secreto")
     worker.reply = (409, {"error": "ya no"})
     assert client.complete("x", 1, "failed", error="e") is False
@@ -310,53 +274,63 @@ def test_client_maps_worker_codes(worker):
 
 # ---------------------------------------------------------------- agente y bucle
 
-CONCEPT = {"version": 1, "name": "Prueba", "positive_prompts": ["una frase larga"], "negative_prompts": [],
-           "constraints": {"energy": "unspecified", "vocals": "unspecified", "bpm": "unspecified"}}
-JOB = {"id": "1234", "attempts": 2, "concept": CONCEPT}
+def job(concept=None, attempts=2):
+    return {"id": "1234", "attempts": attempts, "concept": concept or final_job()}
 
 
 def agente(client, tmp_path, said=None, **kw):
     said = [] if said is None else said
-    defaults = dict(cargar=lambda: biblioteca(ITEMS), codificar=codificar, sesion=ca.Sesion, nml=lambda b, c: tmp_path / "x.nml",
+    bib = kw.pop("bib", None) or biblioteca(ITEMS)
+    defaults = dict(cargar=lambda: bib, codificar=codificar, nml=lambda b, c, n: f"Concepto {n}",
                     results_log=tmp_path / "res.jsonl", sleep=lambda s: None)
     defaults.update(kw)
-    return ca.Agente(client, lambda lvl, txt: said.append((lvl, txt)), **defaults)
+    ag = ca.Agente(client, lambda lvl, txt: said.append((lvl, txt)), **defaults)
+    return ag
 
 
-def test_job_completes_done_with_the_claim_generation(worker, tmp_path):
-    ag = agente(ca.WorkerClient(worker.url, "secreto"), tmp_path)
-    ag.atender(dict(JOB))
+def patch_oido(monkeypatch):
+    monkeypatch.setattr(ca, "VOCABULARIO", {"instrumentos": list(WORDS)})
+
+
+def test_sondeo_job_reports_searches_with_the_claim_generation(worker, tmp_path, monkeypatch):
+    patch_oido(monkeypatch)
+    agente(ca.WorkerClient(worker.url, "secreto"), tmp_path).atender(job(sondeo_job()))
     body = worker.bodies("/api/device/complete")[0]
-    assert body["id"] == "1234" and body["attempts"] == 2 and body["status"] == "done"
-    assert [t["track_id"] for t in body["result"]["tracks"]] == ["a", "b", "c", "d"]
+    assert body["attempts"] == 2 and body["status"] == "done" and set(body["result"]["busquedas"]) == {"A", "B"}
+
+
+def test_final_job_writes_the_playlist_and_reports_its_name(worker, tmp_path, monkeypatch):
+    patch_oido(monkeypatch)
+    agente(ca.WorkerClient(worker.url, "secreto"), tmp_path).atender(job())
+    body = worker.bodies("/api/device/complete")[0]
+    assert body["result"]["playlist"] == "Concepto Fiesta" and [t["track_id"] for t in body["result"]["tracks"]] == ["a", "b", "c", "d"]
     logged = json.loads((tmp_path / "res.jsonl").read_text(encoding="utf-8").splitlines()[0])
-    assert logged["job"] == "1234" and logged["uids"][0] == "a"
+    assert logged["fase"] == "final" and logged["job"] == "1234"
 
 
-def test_nothing_local_goes_to_cloudflare(worker, tmp_path):
-    """Por el contrato, al Worker solo van título, artista, parecido, BPM, tonalidad y Vocal."""
+def test_nothing_local_goes_to_cloudflare(worker, tmp_path, monkeypatch):
+    patch_oido(monkeypatch)
     it = item("a", unit(1, 0, 0))
     it.path = Path("C:/TRAKTOR ML/Musica/secreto.mp3")
-    ag = agente(ca.WorkerClient(worker.url, "secreto"), tmp_path, cargar=lambda: biblioteca([it], {"a": True}))
-    ag.atender(dict(JOB))
-    body = worker.bodies("/api/device/complete")[0]
-    text = json.dumps(body)
-    assert "secreto.mp3" not in text and "Musica" not in text and "orig" not in text
-    assert set(body["result"]["tracks"][0]) <= {"track_id", "title", "artist", "score", "bpm", "key", "vocal"}
+    ag = agente(ca.WorkerClient(worker.url, "secreto"), tmp_path, bib=biblioteca([it], {"a": True}))
+    ag.atender(job(sondeo_job(("trompeta",))))
+    ag.atender(job())
+    text = json.dumps([r[2] for r in worker.requests])
+    assert "secreto.mp3" not in text and "Musica" not in text and "orig" not in text and worker.requests[0][1]["X-Device-Token"] not in text
 
 
-def test_invalid_concept_fails_with_a_public_message(worker, tmp_path):
-    ag = agente(ca.WorkerClient(worker.url, "secreto"), tmp_path)
-    ag.atender({"id": "1", "attempts": 1, "concept": {"version": 9}})
+def test_invalid_job_fails_with_a_public_message(worker, tmp_path, monkeypatch):
+    patch_oido(monkeypatch)
+    agente(ca.WorkerClient(worker.url, "secreto"), tmp_path).atender({"id": "1", "attempts": 1, "concept": {"version": 9}})
     body = worker.bodies("/api/device/complete")[0]
     assert body["status"] == "failed" and "formato" in body["error"]
 
 
-def test_internal_error_fails_without_leaking_details(worker, tmp_path, capsys):
+def test_internal_error_fails_without_leaking_details(worker, tmp_path, capsys, monkeypatch):
+    patch_oido(monkeypatch)
     def boom(_):
         raise RuntimeError(r"C:\ruta\privada\archivo.mp3 no se pudo")
-    ag = agente(ca.WorkerClient(worker.url, "secreto"), tmp_path, codificar=boom)
-    ag.atender(dict(JOB))
+    agente(ca.WorkerClient(worker.url, "secreto"), tmp_path, codificar=boom).atender(job())
     body = worker.bodies("/api/device/complete")[0]
     assert body["status"] == "failed" and "privada" not in body["error"] and "registro" in body["error"]
     assert "privada" in capsys.readouterr().err                   # el detalle queda en el registro local
@@ -365,28 +339,28 @@ def test_internal_error_fails_without_leaking_details(worker, tmp_path, capsys):
 def test_missing_index_tells_the_phone(worker, tmp_path):
     def missing():
         raise ca.BibliotecaNoDisponible("El ordenador no tiene el índice de la biblioteca.")
-    ag = agente(ca.WorkerClient(worker.url, "secreto"), tmp_path, cargar=missing)
-    ag.atender(dict(JOB))
-    assert worker.bodies("/api/device/complete")[0]["status"] == "failed"
-    assert "índice" in worker.bodies("/api/device/complete")[0]["error"]
-
-
-def test_playlist_failure_still_returns_the_list(worker, tmp_path):
-    def no_nml(_b, _c):
-        raise FileExistsError("existe y no lo escribió este script")
-    ag = agente(ca.WorkerClient(worker.url, "secreto"), tmp_path, nml=no_nml)
-    ag.atender(dict(JOB))
+    agente(ca.WorkerClient(worker.url, "secreto"), tmp_path, cargar=missing).atender(job())
     body = worker.bodies("/api/device/complete")[0]
-    assert body["status"] == "done" and any("playlist" in n for n in body["result"]["notes"])
+    assert body["status"] == "failed" and "índice" in body["error"]
 
 
-def test_no_collection_says_no_playlist(worker, tmp_path):
-    ag = agente(ca.WorkerClient(worker.url, "secreto"), tmp_path, nml=lambda b, c: None)
-    ag.atender(dict(JOB))
-    assert any("colección" in n for n in worker.bodies("/api/device/complete")[0]["result"]["notes"])
+def test_playlist_failure_still_returns_the_list(worker, tmp_path, monkeypatch):
+    patch_oido(monkeypatch)
+    def no_nml(_b, _c, _n):
+        raise FileExistsError("existe y no lo escribió este script")
+    agente(ca.WorkerClient(worker.url, "secreto"), tmp_path, nml=no_nml).atender(job())
+    body = worker.bodies("/api/device/complete")[0]
+    assert body["status"] == "done" and "playlist" not in body["result"] and "playlist" in body["result"]["notes"][0]
 
 
-def test_rejected_result_becomes_a_failed_job(worker, tmp_path):
+def test_no_collection_says_no_playlist(worker, tmp_path, monkeypatch):
+    patch_oido(monkeypatch)
+    agente(ca.WorkerClient(worker.url, "secreto"), tmp_path, nml=lambda b, c, n: None).atender(job())
+    assert "colección" in worker.bodies("/api/device/complete")[0]["result"]["notes"][0]
+
+
+def test_rejected_result_becomes_a_failed_job(worker, tmp_path, monkeypatch):
+    patch_oido(monkeypatch)
     class Client(ca.WorkerClient):
         calls = []
 
@@ -397,11 +371,12 @@ def test_rejected_result_becomes_a_failed_job(worker, tmp_path):
             return True
 
     client = Client(worker.url, "secreto")
-    agente(client, tmp_path).atender(dict(JOB))
+    agente(client, tmp_path).atender(job())
     assert client.calls == ["done", "failed"]
 
 
-def test_complete_retries_transient_errors_then_gives_up_to_the_lease(worker, tmp_path):
+def test_complete_retries_transient_errors_then_gives_up_to_the_lease(worker, tmp_path, monkeypatch):
+    patch_oido(monkeypatch)
     class Flaky(ca.WorkerClient):
         tries = 0
 
@@ -410,21 +385,39 @@ def test_complete_retries_transient_errors_then_gives_up_to_the_lease(worker, tm
             raise OSError("sin red")
 
     said = []
-    agente(Flaky(worker.url, "secreto"), tmp_path, said).atender(dict(JOB))
+    agente(Flaky(worker.url, "secreto"), tmp_path, said).atender(job())
     assert Flaky.tries == 5 and any("lease" in t for _, t in said)
 
 
-def test_loop_handles_a_job_and_stops_with_una_vez(worker, tmp_path):
-    worker.jobs.append(dict(JOB))
-    ag = agente(ca.WorkerClient(worker.url, "secreto"), tmp_path)
-    assert ca.bucle(ag, threading.Event(), poll_s=0.01, una_vez=True) == 0
+def test_loop_stops_after_one_job_with_una_vez(worker, tmp_path, monkeypatch):
+    patch_oido(monkeypatch)
+    worker.jobs.append(job())
+    assert ca.bucle(agente(ca.WorkerClient(worker.url, "secreto"), tmp_path), threading.Event(), poll_s=0.01, una_vez=True) == 0
     assert len(worker.bodies("/api/device/complete")) == 1
+
+
+def test_loop_with_a_job_id_follows_that_concept_to_the_end(worker, tmp_path, monkeypatch):
+    patch_oido(monkeypatch)
+    worker.jobs.extend([job(sondeo_job()), job()])
+    ag = agente(ca.WorkerClient(worker.url, "secreto"), tmp_path)
+    assert ca.bucle(ag, threading.Event(), poll_s=0.01, job_id="1234", una_vez=True, poll_activo_s=0.01) == 0
+    assert len(worker.bodies("/api/device/complete")) == 2
+    assert all(b == {"job_id": "1234"} for b in worker.bodies("/api/device/claim"))
+
+
+def test_loop_with_an_unknown_job_id_gives_up():
+    class Client:
+        def claim(self, _job):
+            return None
+
+    ag = ca.Agente(Client(), lambda *a: None, results_log=None, sleep=lambda s: None)
+    t = iter(range(0, 100000, 100))
+    assert ca.bucle(ag, threading.Event(), job_id="x", una_vez=True, clock=lambda: next(t), poll_activo_s=0.001) == 0
 
 
 def test_loop_exits_on_rejected_token(worker, tmp_path):
     said = []
-    ag = agente(ca.WorkerClient(worker.url, "mal"), tmp_path, said)
-    assert ca.bucle(ag, threading.Event(), poll_s=0.01) == 2
+    assert ca.bucle(agente(ca.WorkerClient(worker.url, "mal"), tmp_path, said), threading.Event(), poll_s=0.01) == 2
     assert any(lvl == "error" for lvl, _ in said) and not any("mal" in t.split() for _, t in said)
 
 
@@ -436,7 +429,6 @@ def test_loop_frees_memory_only_after_clap_was_loaded():
     stop = threading.Event()
     clock = iter(range(0, 100000, 1000))
     ag = ca.Agente(Client(), lambda *a: None, results_log=None, sleep=lambda s: None)
-    ag.bib = None
     timer = threading.Timer(0.3, stop.set)
     timer.start()
     assert ca.bucle(ag, stop, poll_s=0.01, idle_exit_s=10.0, clock=lambda: next(clock)) == 0   # liviano: sigue hasta stop

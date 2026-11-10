@@ -1,15 +1,15 @@
 """
-PURPOSE: Prueba de punta a punta del Worker de conceptos (cloudflare/concept-ai-worker.js, el código real, en
-         `wrangler dev` con una D1 local) y del agente del ordenador (conceptos_agente.py, con un codificador falso).
+PURPOSE: Prueba de punta a punta del circuito de conceptos: el Worker real (cloudflare/concept-ai-worker.js) en `wrangler dev`
+         con una D1 local y el agente del ordenador (conceptos_agente.py, con un codificador falso). El LLM es un doble que
+         se inyecta envolviendo al Worker (no hay código de prueba en producción) y responde según palabras del pedido, para
+         forzar cada camino: JSON roto, reintento, juez que rechaza, juez caído, textos prohibidos, ajuste.
          No toca Cloudflare ni necesita cuenta. Se activa con TRAKTOR_WORKER_E2E=1 porque arranca Node y wrangler:
            TRAKTOR_WORKER_E2E=1 python -m pytest tests/v4/test_concept_worker_e2e.py -q
-         Cubre: crear un trabajo con la firma real, idempotencia al guardar, reclamar y completar, el contrato de
-         resultados, job_id para no consumir conceptos reales, lease y tope de intentos, generación del reclamo.
 CHANGELOG:
-  - 2026-11-09: Creación inicial.
+  - 2026-11-09: Creación inicial (Worker v4: firma, idempotencia, lease, contrato de resultados).
+  - 2026-11-09: Worker v5: circuito con el LLM (pedido, sondeo, decisión, final), validadores, ajuste, conceptos viejos.
 """
 import hashlib
-import hmac
 import json
 import os
 import shutil
@@ -40,6 +40,37 @@ LEASE_MS = 1200
 WRANGLER = "wrangler@4.159.0"
 DUMMY_ID = "00000000-0000-0000-0000-000000000000"
 
+# El doble del LLM. Interpretar: lee el pedido; elegir: lee lo que pidió el DJ. Palabras clave en el pedido:
+#   ROTO (nunca JSON), MALO_UNA (JSON roto la primera vez), PROHIBIDO (un texto con envoltura y otro con ocasión),
+#   RECHAZA (el juez dice mal siempre), QUEDA_A (el juez deja solo A), JUEZ_CAIDO (el juez nunca responde bien).
+STUB = r"""
+import worker from "%(worker)s";
+const counts = {};
+function texts(prefix) {
+  return [prefix + " dark techno with a rolling bassline", prefix + " hypnotic techno with deep kick drums", prefix + " minimal techno with metallic percussion"];
+}
+const AI = { async run(model, input) {
+  const system = input.messages[0].content, user = input.messages[1].content;
+  const key = (user.match(/Request: (.*)/) || user.match(/The DJ asked: (.*)/) || [null, user])[1];
+  counts[key + system.length] = (counts[key + system.length] || 0) + 1;
+  const first = counts[key + system.length] === 1;
+  const json = o => ({ choices: [{ message: { content: JSON.stringify(o) } }] });
+  if (system.startsWith("You rewrite")) {
+    if (user.includes("ROTO") || (user.includes("MALO_UNA") && first)) return { choices: [{ message: { content: "no es json" } }] };
+    let textos = texts("round one");
+    if (user.includes("POCA_VOZ")) textos = ["mellow house with minimal vocal snippets", "soft house with very few vocals", "warm house with female vocals"];
+    if (user.includes("PROHIBIDO")) textos = ["this is a track of dark techno", "dark techno for a birthday party", "ambient pads with no percussion", "hypnotic techno with deep kick drums", "minimal techno with metallic percussion"];
+    const entendi = user.includes("Now the DJ says") ? "ajuste: " + user.split("Now the DJ says: ")[1].split("\n")[0] : "Techno oscuro";
+    return json({ entendi, no_se_oye: ["after"], nombre: "After oscuro", textos });
+  }
+  if (user.includes("JUEZ_CAIDO")) return { choices: [{ message: { content: "{" } }] };
+  if (user.includes("RECHAZA")) return json({ veredicto: "mal", problema: "Salió house", textos: texts("round two") });
+  if (user.includes("QUEDA_A")) return json({ veredicto: "ok", quedan: ["A", "Z"], resumen: "Solo la primera" });
+  return json({ veredicto: "ok", quedan: ["A", "C"], resumen: "Techno oscuro con bajos" });
+} };
+export default { fetch(request, env, ctx) { return worker.fetch(request, { ...env, AI }, ctx); } };
+"""
+
 
 def free_port() -> int:
     with socket.socket() as s:
@@ -54,23 +85,20 @@ def server(tmp_path_factory):
         pytest.skip("hace falta Node (npx)")
     work = tmp_path_factory.mktemp("worker")
     state = work / "state"
-    # Sin el binding AI: en local, wrangler lo manda a la cuenta de Cloudflare y esta prueba no la usa.
-    config = {"name": "traktor-concept-ai-e2e", "main": os.path.relpath(WORKER_DIR / "concept-ai-worker.js", work),
-              "compatibility_date": "2026-11-01",
+    (work / "stub.js").write_text(STUB % {"worker": (WORKER_DIR / "concept-ai-worker.js").as_posix()}, encoding="utf-8")
+    config = {"name": "traktor-concept-ai-e2e", "main": "stub.js", "compatibility_date": "2026-11-09",
               "d1_databases": [{"binding": "DB", "database_name": "traktor-concepts", "database_id": DUMMY_ID}]}
     config_path = work / "wrangler.jsonc"
     config_path.write_text(json.dumps(config), encoding="utf-8")
     env = {**os.environ, "CI": "1", "WRANGLER_SEND_METRICS": "false", "NO_COLOR": "1"}
-    subprocess.run([npx, "--yes", WRANGLER, "d1", "execute", "traktor-concepts", "--local", "--persist-to", str(state),
-                    "--config", str(config_path), "--file", str(WORKER_DIR / "schema.sql")],
-                   check=True, cwd=work, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace",
-                   timeout=240)
+    base = [npx, "--yes", WRANGLER]
+    d1 = base + ["d1", "execute", "traktor-concepts", "--local", "--persist-to", str(state), "--config", str(config_path)]
+    subprocess.run(d1 + ["--file", str(WORKER_DIR / "schema.sql")], check=True, cwd=work, env=env, capture_output=True, timeout=240)
     port = free_port()
     log = open(work / "wrangler.log", "w", encoding="utf-8", errors="replace")
-    process = subprocess.Popen([npx, "--yes", WRANGLER, "dev", "--local", "--ip", "127.0.0.1", "--port", str(port),
-                                "--persist-to", str(state), "--config", str(config_path),
-                                "--var", f"APP_PASSWORD:{APP}", "--var", f"DEVICE_TOKEN:{DEVICE}",
-                                "--var", f"LEASE_MS:{LEASE_MS}", "--show-interactive-dev-session=false"],
+    process = subprocess.Popen(base + ["dev", "--local", "--ip", "127.0.0.1", "--port", str(port), "--persist-to", str(state),
+                                       "--config", str(config_path), "--var", f"APP_PASSWORD:{APP}", "--var", f"DEVICE_TOKEN:{DEVICE}",
+                                       "--var", f"LEASE_MS:{LEASE_MS}", "--show-interactive-dev-session=false"],
                                cwd=work, env=env, stdout=log, stderr=log, stdin=subprocess.DEVNULL)
     url = f"http://127.0.0.1:{port}"
     try:
@@ -83,7 +111,7 @@ def server(tmp_path_factory):
         else:
             log.flush()
             pytest.fail("wrangler dev no arrancó: " + (work / "wrangler.log").read_text(encoding="utf-8", errors="replace")[-1500:])
-        yield url
+        yield {"url": url, "d1": d1, "cwd": work, "env": env}
     finally:
         if os.name == "nt":
             subprocess.run(["taskkill", "/T", "/F", "/PID", str(process.pid)], capture_output=True)
@@ -98,191 +126,254 @@ def call(url, method, path, headers=None, body=None):
     request = urllib.request.Request(url + path, data=data, method=method, headers={
         "Content-Type": "application/json", "User-Agent": "e2e", **(headers or {})})
     try:
-        with urllib.request.urlopen(request, timeout=20) as r:
+        with urllib.request.urlopen(request, timeout=30) as r:
             return r.status, json.loads(r.read().decode("utf-8") or "{}")
     except urllib.error.HTTPError as exc:
         return exc.code, json.loads(exc.read().decode("utf-8") or "{}")
 
 
-def app(url, method, path, body=None):
-    return call(url, method, path, {"X-App-Password": APP}, body)
+def app(s, method, path, body=None):
+    return call(s["url"], method, path, {"X-App-Password": APP}, body)
 
 
-def device(url, path, body=None):
-    return call(url, "POST", path, {"X-Device-Token": DEVICE}, {} if body is None else body)
+def device(s, path, body=None):
+    return call(s["url"], "POST", path, {"X-Device-Token": DEVICE}, {} if body is None else body)
 
 
-counter = {"n": 0}
-
-
-def concept(name=None):
-    counter["n"] += 1
-    return {"version": 1, "name": name or f"Concepto {counter['n']}", "description": "Una descripción suficientemente larga.",
-            "positive_prompts": ["Dark hypnotic techno with a deep bassline"], "negative_prompts": [],
-            "constraints": {"energy": "unspecified", "vocals": "absent", "bpm": "unspecified"}}
-
-
-def signed(c, expires=None):
-    """La firma que arma /api/draft: HMAC de JSON.stringify({concept, expires}) con APP_PASSWORD."""
-    expires = expires or int(time.time() * 1000) + 10 * 60 * 1000
-    payload = json.dumps({"concept": c, "expires": expires}, ensure_ascii=False, separators=(",", ":"))
-    return {"concept": c, "expires": expires, "confirmed": True,
-            "signature": hmac.new(APP.encode(), payload.encode("utf-8"), hashlib.sha256).hexdigest()}
-
-
-def create_job(url, c=None):
-    status, data = app(url, "POST", "/api/jobs", signed(c or concept()))
+def pedido(s, texto="algo oscuro tipo after", anterior=None):
+    body = {"texto": texto}
+    if anterior:
+        body["anterior"] = anterior
+    status, data = app(s, "POST", "/api/conceptos", body)
     assert status == 201, data
-    return data["id"]
+    return data
 
 
-def drain(url):
+def drain(s):
     """Deja la cola vacía: la D1 es compartida entre tests."""
     while True:
-        _, data = device(url, "/api/device/claim")
+        _, data = device(s, "/api/device/claim")
         if data["job"] is None:
             return
-        device(url, "/api/device/complete", {"id": data["job"]["id"], "attempts": data["job"]["attempts"],
-                                             "status": "failed", "error": "limpieza"})
+        device(s, "/api/device/complete", {"id": data["job"]["id"], "attempts": data["job"]["attempts"], "status": "failed", "error": "limpieza"})
 
+
+def fake_codificar(frases):
+    """Un vector 2D estable por frase."""
+    out = []
+    for f in frases:
+        h = int(hashlib.md5(f.encode("utf-8")).hexdigest()[:8], 16) / 0xFFFFFFFF * 6.283
+        out.append([np.cos(h), np.sin(h)])
+    return np.array(out)
+
+
+@pytest.fixture
+def agent(tmp_path):
+    items = [rc.Item(uid=f"u{i}", rel=f"Musica\\{i}.mp3", original=f"o\\{i}.mp3", artist="Ben Böhmer" if i == 0 else f"Artista {i}",
+                     title="Beyond — Ñandú" if i == 0 else f"Tema {i}", bpm=120.0 + i, key="8A", vec=list(fake_codificar([f"t{i}"])[0]),
+                     genre="Techno" if i % 2 else "House") for i in range(12)]
+    bib = ca.Biblioteca(items=items, matrix=np.array([i.vec for i in items], dtype=np.float32), vocal={f"u{i}": i % 3 == 0 for i in range(12)})
+    escritas = []
+
+    def nml(b, chosen, nombre):
+        escritas.append((nombre, [it.uid for it in chosen]))
+        return ca.nombre_playlist(nombre)
+
+    def make(s):
+        ag = ca.Agente(ca.WorkerClient(s["url"], DEVICE), lambda *a: None, cargar=lambda: bib, codificar=fake_codificar, nml=nml, results_log=None)
+        ag.escritas = escritas
+        return ag
+    return make
+
+
+def correr(ag, job_id):
+    assert ca.bucle(ag, threading.Event(), job_id=job_id, una_vez=True, poll_s=0.05, poll_activo_s=0.05, activo_s=3.0) == 0
+
+
+# ---------------------------------------------------------------- página y acceso
 
 def test_page_is_served_with_its_security_headers(server):
-    with urllib.request.urlopen(server + "/", timeout=10) as r:
+    with urllib.request.urlopen(server["url"] + "/", timeout=10) as r:
         html = r.read().decode("utf-8")
-        assert "Nuevo concepto" in html and "default-src 'none'" in r.headers["Content-Security-Policy"]
+        assert "Buscar en mi música" in html and "default-src 'none'" in r.headers["Content-Security-Policy"]
         assert r.headers["X-Frame-Options"] == "DENY"
 
 
 def test_auth_is_required(server):
-    assert call(server, "GET", "/api/health")[0] == 401
-    assert call(server, "POST", "/api/device/claim", {"X-Device-Token": "mal"}, {})[0] == 401
-    assert call(server, "GET", "/api/device/claim", {"X-Device-Token": DEVICE})[0] == 405
+    assert call(server["url"], "GET", "/api/health")[0] == 401
+    assert call(server["url"], "POST", "/api/conceptos", {}, {"texto": "hola"})[0] == 401
+    assert call(server["url"], "POST", "/api/device/claim", {"X-Device-Token": "mal"}, {})[0] == 401
+    assert call(server["url"], "GET", "/api/device/claim", {"X-Device-Token": DEVICE})[0] == 405
+    assert app(server, "POST", "/api/chat", {"messages": []})[0] == 404          # las rutas de la v4 ya no existen
 
 
-def test_bad_signature_and_expired_draft_are_rejected(server):
-    body = signed(concept())
-    body["signature"] = "0" * 64
-    assert app(server, "POST", "/api/jobs", body)[0] == 400
-    assert app(server, "POST", "/api/jobs", signed(concept(), expires=int(time.time() * 1000) - 1000))[0] == 400
-    tampered = signed(concept())
-    tampered["concept"] = {**tampered["concept"], "name": "Otro nombre"}
-    assert app(server, "POST", "/api/jobs", tampered)[0] == 400
+# ---------------------------------------------------------------- el pedido
 
-
-def test_saving_the_same_draft_twice_creates_one_job(server):
+def test_request_is_interpreted_and_queued_for_searches(server):
     drain(server)
-    before = app(server, "GET", "/api/health")[1]["jobs"]
-    body = signed(concept())
-    first = app(server, "POST", "/api/jobs", body)
-    second = app(server, "POST", "/api/jobs", body)
-    assert first[0] == second[0] == 201
-    assert first[1]["id"] == second[1]["id"] and first[1]["status"] == "queued"
-    assert app(server, "GET", "/api/health")[1]["jobs"] == before + 1
+    job = pedido(server)
+    c = job["concept"]
+    assert job["status"] == "queued" and c["version"] == 2 and c["fase"] == "sondeo" and c["ronda"] == 1
+    assert c["original"] == "algo oscuro tipo after" and c["entendi"] == "Techno oscuro" and c["nombre"] == "After oscuro"
+    assert [t["id"] for t in c["textos"]] == ["A", "B", "C"] and c["no_se_oye"] == ["after"]
     drain(server)
 
 
-def test_agent_completes_a_job_end_to_end(server, tmp_path):
-    """Trabajo real -> agente real -> done -> el teléfono lo lee. Con caracteres que no son ASCII."""
+def test_empty_request_and_broken_llm(server):
+    assert app(server, "POST", "/api/conceptos", {"texto": " "})[0] == 400
+    status, data = app(server, "POST", "/api/conceptos", {"texto": "ROTO"})
+    assert status == 502 and "interpretar" in data["error"]
+    assert pedido(server, "MALO_UNA")["concept"]["textos"]                    # un reintento alcanza
     drain(server)
-    job_id = create_job(server, concept("Techno oscuro"))
-    items = [rc.Item(uid="u1", rel="Musica\\a.mp3", original="o\\a.mp3", artist="Ben Böhmer", title="Beyond Beliefs — Ñandú",
-                     bpm=124.0, key="8A", vec=[1.0, 0.0]),
-             rc.Item(uid="u2", rel="Musica\\b.mp3", original="o\\b.mp3", artist="", title="Sin artista", bpm=None, key="?", vec=[0.6, 0.8]),
-             rc.Item(uid="u3", rel="Musica\\c.mp3", original="o\\c.mp3", artist="Vocal", title="Con voz", bpm=128.0, key="9A", vec=[1.0, 0.0])]
-    bib = ca.Biblioteca(items=items, matrix=np.array([i.vec for i in items], dtype=np.float32),
-                        vocal={"u1": False, "u2": False, "u3": True}, recommender=rc.Recommender(items, {}, 30))
-    client = ca.WorkerClient(server, DEVICE)
-    agent = ca.Agente(client, lambda *a: None, cargar=lambda: bib, codificar=lambda _: np.array([[1.0, 0.0]]),
-                      sesion=ca.Sesion, nml=lambda b, c: tmp_path / "x.nml", results_log=None)
-    assert ca.bucle(agent, threading.Event(), una_vez=True) == 0
-    status, job = app(server, "GET", f"/api/jobs/{job_id}")
-    assert status == 200 and job["status"] == "done" and job["error"] is None
-    assert job["concept"]["name"] == "Techno oscuro"
-    tracks = job["result"]["tracks"]
-    assert [t["track_id"] for t in tracks] == ["u1", "u2"]          # sin el Vocal
-    assert tracks[0] == {"track_id": "u1", "title": "Beyond Beliefs — Ñandú", "artist": "Ben Böhmer", "score": 1.0,
-                         "bpm": 124.0, "key": "8A", "vocal": False}
-    assert "bpm" not in tracks[1] and "key" not in tracks[1]
-    assert job["result"]["pool"] == 3 and job["result"]["passed"] == 2
-    assert any("Sin voces" in n for n in job["result"]["notes"])
 
+
+def test_texts_with_wrappers_or_occasions_are_dropped(server):
+    drain(server)
+    textos = [t["texto"] for t in pedido(server, "PROHIBIDO")["concept"]["textos"]]
+    assert textos == ["hypnotic techno with deep kick drums", "minimal techno with metallic percussion"]
+    drain(server)
+
+
+def test_less_voice_is_always_written_as_without_vocals(server):
+    drain(server)
+    textos = [t["texto"] for t in pedido(server, "POCA_VOZ")["concept"]["textos"]]
+    assert textos == ["mellow house without vocals", "soft house without vocals", "warm house with female vocals"]
+    drain(server)
+
+
+# ---------------------------------------------------------------- el circuito
+
+def test_full_circuit_ends_in_a_playlist(server, agent):
+    drain(server)
+    ag = agent(server)
+    job = pedido(server)
+    correr(ag, job["id"])
+    status, final = app(server, "GET", f"/api/jobs/{job['id']}")
+    c = final["concept"]
+    assert final["status"] == "done" and c["fase"] == "final" and final["error"] is None
+    assert [t["id"] for t in c["textos"]] == ["A", "C"] and c["resumen"] == "Techno oscuro con bajos"
+    ronda = c["rondas"][0]
+    assert ronda["decision"]["veredicto"] == "ok" and set(ronda["busquedas"]) == {"A", "B", "C"}
+    b = ronda["busquedas"]["A"]
+    assert b["temas"] and b["suena_a"] and sum(b["generos"].values()) == 12 and 0 <= b["voz"] <= 1
+    r = final["result"]
+    assert r["playlist"].startswith("Concepto ") and r["playlist"].endswith("After oscuro") and len(r["tracks"]) == 12
+    assert any(t["title"] == "Beyond — Ñandú" and t["artist"] == "Ben Böhmer" for t in r["tracks"])
+    assert ag.escritas[-1][0] == "After oscuro"
+
+
+def test_judge_rejects_twice_then_the_second_round_is_used(server, agent):
+    drain(server)
+    job = pedido(server, "RECHAZA")
+    correr(agent(server), job["id"])
+    c = app(server, "GET", f"/api/jobs/{job['id']}")[1]["concept"]
+    assert c["fase"] == "final" and c["ronda"] == 2 and len(c["rondas"]) == 2 and c["problema"] == "Salió house"
+    assert all(t["texto"].startswith("round two") for t in c["textos"]) and len(c["textos"]) == 3
+
+
+def test_judge_keeps_only_valid_ids(server, agent):
+    drain(server)
+    job = pedido(server, "QUEDA_A")
+    correr(agent(server), job["id"])
+    c = app(server, "GET", f"/api/jobs/{job['id']}")[1]["concept"]
+    assert [t["id"] for t in c["textos"]] == ["A"]
+
+
+def test_broken_judge_falls_back_to_all_texts(server, agent):
+    drain(server)
+    job = pedido(server, "JUEZ_CAIDO")
+    correr(agent(server), job["id"])
+    final = app(server, "GET", f"/api/jobs/{job['id']}")[1]
+    assert final["status"] == "done" and len(final["concept"]["textos"]) == 3 and final["concept"]["rondas"][0]["decision"] is None
+
+
+def test_adjusting_reuses_the_previous_concept(server, agent):
+    drain(server)
+    primero = pedido(server)
+    segundo = pedido(server, "más oscuro", anterior=primero["id"])
+    c = segundo["concept"]
+    assert c["original"] == "algo oscuro tipo after / más oscuro" and c["entendi"] == "ajuste: más oscuro"
+    assert app(server, "POST", "/api/conceptos", {"texto": "x y", "anterior": "nope"})[0] == 400
+    drain(server)
+
+
+def test_invalid_search_report_is_rejected_and_the_job_stays_open(server):
+    drain(server)
+    job = pedido(server)
+    claimed = device(server, "/api/device/claim", {"job_id": job["id"]})[1]["job"]
+    malo = {"busquedas": {"A": {"generos": {}, "bpm": None, "voz": 2, "suena_a": [], "temas": []}}}
+    assert device(server, "/api/device/complete", {"id": job["id"], "attempts": claimed["attempts"], "status": "done", "result": malo})[0] == 400
+    assert app(server, "GET", f"/api/jobs/{job['id']}")[1]["status"] == "processing"
+    drain(server)
+
+
+def test_a_concept_saved_before_the_circuit_still_becomes_a_playlist(server, agent):
+    drain(server)
+    old = {"version": 1, "name": "Techno viejo", "description": "Concepto guardado con la versión anterior.",
+           "positive_prompts": ["heavy industrial techno"], "negative_prompts": [], "constraints": {"energy": "unspecified"}}
+    job_id = "4810286b-c784-4634-b8df-b5c71342a2d4"
+    now = int(time.time() * 1000)
+    sql = f"INSERT INTO jobs (id, created_at, updated_at, status, concept_json) VALUES ('{job_id}', {now}, {now}, 'queued', '{json.dumps(old)}')"
+    subprocess.run(server["d1"] + ["--command", sql], check=True, cwd=server["cwd"], env=server["env"], capture_output=True, timeout=120)
+    correr(agent(server), job_id)
+    final = app(server, "GET", f"/api/jobs/{job_id}")[1]
+    assert final["status"] == "done" and final["result"]["playlist"].endswith("Techno viejo")
+
+
+# ---------------------------------------------------------------- la cola
 
 def test_claim_with_job_id_leaves_older_jobs_queued(server):
     drain(server)
-    older = create_job(server)
-    newer = create_job(server)
-    status, data = device(server, "/api/device/claim", {"job_id": newer})
-    assert status == 200 and data["job"]["id"] == newer
+    older, newer = pedido(server)["id"], pedido(server)["id"]
+    assert device(server, "/api/device/claim", {"job_id": newer})[1]["job"]["id"] == newer
     assert app(server, "GET", f"/api/jobs/{older}")[1]["status"] == "queued"
-    assert device(server, "/api/device/claim", {"job_id": newer})[1]["job"] is None   # ya no está en cola
+    assert device(server, "/api/device/claim", {"job_id": newer})[1]["job"] is None
     assert device(server, "/api/device/claim", {"job_id": "x"})[0] == 400
-    device(server, "/api/device/complete", {"id": newer, "attempts": 1, "status": "failed", "error": "fin"})
     drain(server)
 
 
 def test_claim_is_fifo_and_empty_body_is_accepted(server):
     drain(server)
-    first = create_job(server)
+    first = pedido(server)["id"]
     time.sleep(0.01)
-    second = create_job(server)
-    assert call(server, "POST", "/api/device/claim", {"X-Device-Token": DEVICE})[1]["job"]["id"] == first
+    second = pedido(server)["id"]
+    assert call(server["url"], "POST", "/api/device/claim", {"X-Device-Token": DEVICE})[1]["job"]["id"] == first
     assert device(server, "/api/device/claim")[1]["job"]["id"] == second
     drain(server)
 
 
-def test_v3_result_shape_is_still_accepted(server):
+def test_after_a_search_round_the_claim_count_starts_again(server, agent):
     drain(server)
-    job_id = create_job(server)
-    job = device(server, "/api/device/claim", {"job_id": job_id})[1]["job"]
-    code, _ = device(server, "/api/device/complete", {"id": job_id, "attempts": job["attempts"], "status": "done",
-                                                      "result": {"tracks": [{"track_id": "a", "title": "T", "artist": "", "score": 0.5}]}})
-    assert code == 200
-    assert app(server, "GET", f"/api/jobs/{job_id}")[1]["result"] == {"tracks": [{"track_id": "a", "title": "T", "artist": "", "score": 0.5}]}
-
-
-@pytest.mark.parametrize("bad", [
-    {"tracks": [{"track_id": "a", "title": "T", "artist": "", "score": 1.5}]},
-    {"tracks": [{"track_id": "a", "title": "T", "artist": "", "score": 0.5, "bpm": -3}]},
-    {"tracks": [{"track_id": "a", "title": "T", "artist": "", "score": 0.5, "vocal": "si"}]},
-    {"tracks": [], "notes": ["x" * 201]},
-    {"tracks": [], "pool": -1},
-    {"tracks": [{"track_id": "a", "title": "T", "artist": "", "score": 0.5}] * 31},
-])
-def test_invalid_results_are_rejected_and_the_job_stays_open(server, bad):
+    job = pedido(server)
+    ag = agent(server)
+    claimed = device(server, "/api/device/claim", {"job_id": job["id"]})[1]["job"]
+    ag.atender(claimed)
+    again = device(server, "/api/device/claim", {"job_id": job["id"]})[1]["job"]
+    assert again["attempts"] == 1 and again["concept"]["fase"] == "final"
     drain(server)
-    job_id = create_job(server)
-    job = device(server, "/api/device/claim", {"job_id": job_id})[1]["job"]
-    assert device(server, "/api/device/complete", {"id": job_id, "attempts": job["attempts"], "status": "done", "result": bad})[0] == 400
-    assert app(server, "GET", f"/api/jobs/{job_id}")[1]["status"] == "processing"
-    device(server, "/api/device/complete", {"id": job_id, "attempts": job["attempts"], "status": "failed", "error": "fin"})
 
 
 def test_abandoned_job_returns_to_the_queue_and_a_late_complete_is_refused(server):
     drain(server)
-    job_id = create_job(server)
-    first = device(server, "/api/device/claim", {"job_id": job_id})[1]["job"]
-    assert first["attempts"] == 1
+    job_id = pedido(server)["id"]
+    assert device(server, "/api/device/claim", {"job_id": job_id})[1]["job"]["attempts"] == 1
     time.sleep(LEASE_MS / 1000 + 0.4)
-    second = device(server, "/api/device/claim", {"job_id": job_id})[1]["job"]
-    assert second is not None and second["attempts"] == 2
-    result = {"tracks": []}
-    assert device(server, "/api/device/complete", {"id": job_id, "attempts": 1, "status": "done", "result": result})[0] == 409
-    assert device(server, "/api/device/complete", {"id": job_id, "attempts": 2, "status": "done", "result": result})[0] == 200
-    assert app(server, "GET", f"/api/jobs/{job_id}")[1]["status"] == "done"
+    assert device(server, "/api/device/claim", {"job_id": job_id})[1]["job"]["attempts"] == 2
+    assert device(server, "/api/device/complete", {"id": job_id, "attempts": 1, "status": "failed", "error": "tarde"})[0] == 409
+    assert device(server, "/api/device/complete", {"id": job_id, "attempts": 2, "status": "failed", "error": "fin"})[0] == 200
 
 
 def test_a_processing_job_within_its_lease_is_not_taken_again(server):
     drain(server)
-    job_id = create_job(server)
+    job_id = pedido(server)["id"]
     assert device(server, "/api/device/claim", {"job_id": job_id})[1]["job"]["attempts"] == 1
     assert device(server, "/api/device/claim")[1]["job"] is None
-    assert app(server, "GET", f"/api/jobs/{job_id}")[1]["status"] == "processing"
     device(server, "/api/device/complete", {"id": job_id, "attempts": 1, "status": "failed", "error": "fin"})
 
 
 def test_job_fails_after_max_attempts(server):
     drain(server)
-    job_id = create_job(server)
+    job_id = pedido(server)["id"]
     for attempt in (1, 2, 3):
         assert device(server, "/api/device/claim", {"job_id": job_id})[1]["job"]["attempts"] == attempt
         time.sleep(LEASE_MS / 1000 + 0.4)
@@ -291,10 +382,26 @@ def test_job_fails_after_max_attempts(server):
     assert job["status"] == "failed" and "no terminó" in job["error"]
 
 
+@pytest.mark.parametrize("bad", [
+    {"tracks": [{"track_id": "a", "title": "T", "artist": "", "score": 1.5}]},
+    {"tracks": [{"track_id": "a", "title": "T", "artist": "", "score": 0.5, "bpm": -3}]},
+    {"tracks": [], "playlist": "x" * 121},
+    {"tracks": [{"track_id": "a", "title": "T", "artist": "", "score": 0.5}] * 31},
+])
+def test_invalid_final_results_are_rejected(server, agent, bad):
+    drain(server)
+    job = pedido(server)
+    ag = agent(server)
+    ag.atender(device(server, "/api/device/claim", {"job_id": job["id"]})[1]["job"])     # sondeo
+    claimed = device(server, "/api/device/claim", {"job_id": job["id"]})[1]["job"]      # final
+    assert device(server, "/api/device/complete", {"id": job["id"], "attempts": claimed["attempts"], "status": "done", "result": bad})[0] == 400
+    device(server, "/api/device/complete", {"id": job["id"], "attempts": claimed["attempts"], "status": "failed", "error": "fin"})
+
+
 def test_completing_a_finished_job_twice_is_refused(server):
     drain(server)
-    job_id = create_job(server)
-    job = device(server, "/api/device/claim", {"job_id": job_id})[1]["job"]
-    body = {"id": job_id, "attempts": job["attempts"], "status": "done", "result": {"tracks": []}}
+    job_id = pedido(server)["id"]
+    claimed = device(server, "/api/device/claim", {"job_id": job_id})[1]["job"]
+    body = {"id": job_id, "attempts": claimed["attempts"], "status": "failed", "error": "fin"}
     assert device(server, "/api/device/complete", body)[0] == 200
     assert device(server, "/api/device/complete", body)[0] == 409

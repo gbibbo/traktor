@@ -3,7 +3,7 @@
 {
   "name": "traktor-concept-ai",
   "main": "concept-ai-worker.js",
-  "compatibility_date": "2026-11-01",
+  "compatibility_date": "2026-11-09",
   "workers_dev": true,
   "keep_vars": true,
   "ai": { "binding": "AI" },
@@ -11,7 +11,7 @@
     {
       "binding": "DB",
       "database_name": "traktor-concepts",
-      "database_id": "REEMPLAZAR_CON_EL_ID_REAL"
+      "database_id": "8373aef7-c7c1-4648-9bff-be1ef9ea3e9b"
     }
   ]
 }

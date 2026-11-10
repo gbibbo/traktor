@@ -1,28 +1,26 @@
 """
-PURPOSE: Agente local de «Traktor Concept AI» (docs/reports/traktor_concept_ai_cloudflare_2026-11-09.md). El DJ
-         escribe en el teléfono qué quiere escuchar; el Worker de Cloudflare arma un concepto (frases en inglés
-         para CLAP y condiciones) y lo deja en una cola. Este proceso consulta la cola por HTTPS, sin abrir
-         puertos, ordena la biblioteca por parecido texto-audio y devuelve los temas. Audio, embeddings y rutas
-         se quedan en este ordenador: a Cloudflare solo van título, artista, BPM, tonalidad, Vocal y parecido.
-         - Ranking: coseno entre el promedio de las frases positivas (CLAP de texto) y el embedding clap_full
-           del índice de recomendación (indice_recomendacion.py). Sirve para ordenar; no es una probabilidad.
-         - Candidatos: los del recomendador, es decir los temas del paquete que están en la colección de
-           Traktor (con su BPM y su tonalidad de Traktor); sin colección, todos los del índice.
-         - Condiciones aplicadas: voces (etiqueta Vocal de clap_probe), BPM cerca del tema que suena (±20, la
-           regla de Parecidos) y fuera el tema principal y lo tocado (registro de la sesión en vivo).
-         - Sin aplicar, y lo dice en el teléfono: la energía relativa (no hay coordenada validada: plan,
-           sección 11) y las frases negativas (DECISIONS 2026-11-09: restarlas en CLAP cambia la lista sin
-           sacar lo excluido).
-         - Cada lista se escribe en «TRAKTOR ML Concepto NML.nml», en la carpeta de las sugerencias en vivo.
-         CLAP ocupa cerca de 1 GB: se carga con el primer concepto y, sin conceptos por 20 min, el proceso
-         termina y libera la memoria (el servicio lo vuelve a lanzar, liviano). Corre con prioridad baja y dos
-         hilos, para no competir con el audio de Traktor.
-         Subcomandos: correr (la cola, en primer plano), probar (una frase, sin red), servicio (lo que corre
-         el inicio automático: el agente solo mientras Traktor está abierto), instalar, quitar, estado.
+PURPOSE: El ordenador en «Traktor Concept AI»: del concepto escrito en el teléfono a una playlist nueva en Traktor
+         (arquitectura: cloudflare/README.md). El Worker tiene el LLM y decide; este proceso es el oído: consulta la cola por
+         HTTPS, sin abrir puertos, y hace dos tipos de trabajo.
+         - sondeo: busca cada texto candidato y cuenta qué encontró (géneros, BPM, voz, ejemplos y «suena a»: las palabras
+           del vocabulario que más describen esos temas). Con eso el LLM juzga sin oír.
+         - final: busca con los textos elegidos y escribe la playlist «Concepto <fecha> <nombre>.nml» en la carpeta de
+           las sugerencias en vivo, que Traktor muestra en su Explorer.
+         La búsqueda es buscar(), la única pieza que decide qué temas salen. Hoy: coseno entre el promedio de los textos
+         (CLAP) y el embedding clap_full del índice de recomendación. Cambiar el buscador es cambiar esa función.
+         Audio, embeddings y rutas se quedan en este ordenador: a Cloudflare solo van título, artista, género, BPM,
+         tonalidad, Vocal y palabras del vocabulario.
+         CLAP ocupa cerca de 1 GB: se carga con el primer trabajo y, sin trabajos por 20 min, el proceso termina y libera la
+         memoria (el servicio lo vuelve a lanzar, liviano). Corre con prioridad baja y dos hilos, para no competir con el
+         audio de Traktor.
+         Subcomandos: correr (la cola, en primer plano), probar (una frase, sin red), servicio (lo que corre el inicio
+         automático: el agente solo mientras Traktor está abierto), instalar, quitar, estado.
          URL y DEVICE_TOKEN: variables TRAKTOR_CONCEPT_URL y TRAKTOR_CONCEPT_DEVICE_TOKEN, o
          artifacts/v4/traktor_live/conceptos_agente.json ({"url": ..., "device_token": ...}), fuera de Git.
 CHANGELOG:
-  - 2026-11-09: Creación inicial.
+  - 2026-11-09: Creación inicial (un trabajo: concepto -> lista, con filtros de voces y BPM).
+  - 2026-11-09: Rearmado para el circuito con el LLM (Gabriel: el trabajo es la arquitectura, no los filtros): trabajos
+                de sondeo y final, buscar() como pieza cambiable y una playlist nueva por concepto. Sin filtros.
 """
 from __future__ import annotations
 
@@ -41,7 +39,8 @@ import traceback
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass, field
+from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
@@ -50,6 +49,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 import src.v4.common  # noqa: E402,F401  (salida UTF-8 en consolas cp1252)
 from src.v4.common.traktor_nml import find_collection, traktor_running  # noqa: E402
+from src.v4.evaluation.clap_texto_frases import VOCABULARIO  # noqa: E402
 from tools.traktor_live import recomendador as rc  # noqa: E402
 from tools.traktor_live import sugerencias_servicio as ss  # noqa: E402
 from tools.traktor_live import sugerencias_vivo as sv  # noqa: E402
@@ -65,16 +65,17 @@ PID_FILE = te.DEFAULT_LOG_DIR / "conceptos_agente.pid"
 STOP_FILE = te.DEFAULT_LOG_DIR / "conceptos_agente.stop"
 RESULTS_LOG = te.DEFAULT_LOG_DIR / "conceptos_resultados.jsonl"
 VOCAL_FILE = REPO_ROOT / "artifacts" / "v4" / "datasets" / "musica" / "features" / "vocals_clap_probe.parquet"
-NML_NAME = "TRAKTOR ML Concepto NML"
 MAX_TRACKS = 30                             # el tope del Worker y el tamaño de la lista de Parecidos
+EJEMPLOS = 6                                # temas de muestra por búsqueda de prueba
+SUENA_A = 6                                 # palabras «suena a» por búsqueda de prueba
+GRUPOS_FUERA = {"ocasion", "estructura"}    # no describen cómo suena un tema
 POLL_S = 4.0
+POLL_ACTIVO_S = 1.0                         # mientras dura una conversación con el LLM
+ACTIVO_S = 45.0
 IDLE_EXIT_S = 20 * 60.0
-SESSION_FRESH_S = 600.0                     # un registro de sesión más viejo no es la sesión de ahora
 THREADS = 2
 BELOW_NORMAL_PRIORITY_CLASS = 0x00004000
 LOG_MAX_BYTES = 1_000_000
-ENERGY_TEXT = {"maintain": "mantener", "increase": "subir", "decrease": "bajar"}
-VOICE_WORDS = re.compile(r"\b(vocals?|voices?|voz|voces|sing\w*|lyrics?|rapp\w*)\b", re.IGNORECASE)
 TRANSIENT = (OSError, http.client.HTTPException, ValueError)   # red caída, respuesta cortada o ilegible
 Say = Callable[[str, str], None]
 
@@ -87,8 +88,8 @@ class ResultadoRechazado(Exception):
     """El Worker no aceptó el resultado (HTTP 400): reintentarlo igual no sirve."""
 
 
-class ConceptoInvalido(ValueError):
-    """El trabajo no trae un concepto usable. El texto se muestra en el teléfono."""
+class TareaInvalida(ValueError):
+    """El trabajo no se puede interpretar. El texto se muestra en el teléfono."""
 
 
 class BibliotecaNoDisponible(RuntimeError):
@@ -119,8 +120,8 @@ def load_ajustes(path: Path = CONFIG_FILE, env: Optional[Dict[str, str]] = None)
 class WorkerClient:
     """Las dos rutas del ordenador. Nunca escribe el token en mensajes ni en el registro."""
 
-    def __init__(self, url: str, token: str, timeout: float = 20.0):
-        self.url, self.token, self.timeout = url.rstrip("/"), token, timeout
+    def __init__(self, url: str, token: str, timeout: float = 90.0):
+        self.url, self.token, self.timeout = url.rstrip("/"), token, timeout    # complete espera al LLM
 
     def _post(self, path: str, body: dict) -> Tuple[int, dict]:
         request = urllib.request.Request(
@@ -164,73 +165,36 @@ class WorkerClient:
         return True
 
 
-# ---------------------------------------------------------------- concepto y sesión
+# ---------------------------------------------------------------- tarea
 
 @dataclass(frozen=True)
-class Concepto:
-    name: str
-    positive: Tuple[str, ...]
-    negative: Tuple[str, ...] = ()
-    energy: str = "unspecified"
-    vocals: str = "unspecified"
-    bpm: str = "unspecified"
+class Tarea:
+    fase: str                                   # "sondeo" o "final"
+    nombre: str
+    textos: Tuple[Tuple[str, str], ...]         # (id, texto en inglés)
 
 
-def parse_concepto(raw) -> Concepto:
-    """El concepto de un trabajo (versión 1 del contrato del Worker) o ConceptoInvalido."""
-    if not isinstance(raw, dict) or raw.get("version") != 1:
-        raise ConceptoInvalido("Este concepto tiene un formato que el ordenador no conoce.")
-    positive = raw.get("positive_prompts")
-    negative = raw.get("negative_prompts") or []
-    constraints = raw.get("constraints") or {}
-    if not isinstance(positive, list) or not positive or not all(isinstance(p, str) and p.strip() for p in positive):
-        raise ConceptoInvalido("El concepto no trae frases para buscar.")
-    if not isinstance(negative, list) or not isinstance(constraints, dict):
-        raise ConceptoInvalido("El concepto está mal formado.")
-    return Concepto(name=str(raw.get("name") or "Concepto"), positive=tuple(p.strip() for p in positive),
-                    negative=tuple(str(p).strip() for p in negative),
-                    energy=str(constraints.get("energy", "unspecified")),
-                    vocals=str(constraints.get("vocals", "unspecified")),
-                    bpm=str(constraints.get("bpm", "unspecified")))
+def parse_tarea(raw) -> Tarea:
+    """El trabajo de la cola. El formato 1 (conceptos guardados antes del circuito) es directamente un final."""
+    if not isinstance(raw, dict):
+        raise TareaInvalida("El trabajo tiene un formato que el ordenador no conoce.")
+    if raw.get("version") == 1:
+        frases = raw.get("positive_prompts")
+        if isinstance(frases, list) and frases and all(isinstance(f, str) and f.strip() for f in frases):
+            return Tarea("final", str(raw.get("name") or "Concepto"),
+                         tuple((chr(65 + i), f.strip()) for i, f in enumerate(frases)))
+        raise TareaInvalida("El concepto no trae frases para buscar.")
+    if raw.get("version") != 2 or raw.get("fase") not in ("sondeo", "final"):
+        raise TareaInvalida("El trabajo tiene un formato que el ordenador no conoce.")
+    textos = raw.get("textos")
+    if not isinstance(textos, list) or not textos or not all(
+            isinstance(t, dict) and isinstance(t.get("id"), str) and isinstance(t.get("texto"), str) and t["texto"].strip()
+            for t in textos):
+        raise TareaInvalida("El trabajo no trae textos para buscar.")
+    return Tarea(raw["fase"], str(raw.get("nombre") or "Concepto"), tuple((t["id"], t["texto"].strip()) for t in textos))
 
 
-@dataclass
-class Sesion:
-    principal: Optional[dict] = None
-    tocados: List[str] = field(default_factory=list)
-
-
-def leer_sesion(log_dir: Path = te.DEFAULT_LOG_DIR, running: Callable[[], bool] = traktor_running,
-                now: Callable[[], float] = time.time) -> Sesion:
-    """Tema principal y tocados, del registro de la sesión en vivo más reciente. Vacío si Traktor está
-    cerrado o el registro no se escribió hace rato: esa no es la sesión de ahora."""
-    if not running():
-        return Sesion()
-    logs = list(Path(log_dir).glob("sugerencias_vivo_*.jsonl"))
-    if not logs:
-        return Sesion()
-    newest = max(logs, key=lambda p: p.stat().st_mtime)
-    if now() - newest.stat().st_mtime > SESSION_FRESH_S:
-        return Sesion()
-    sesion = Sesion()
-    with open(newest, encoding="utf-8", errors="replace") as f:
-        for line in f:
-            head = line[:80]
-            if '"kind": "principal"' not in head and '"kind": "tocado"' not in head:
-                continue
-            try:
-                event = json.loads(line)
-            except ValueError:
-                continue                                # la última línea puede estar a medio escribir
-            data = event.get("data") or {}
-            if event.get("kind") == "principal":
-                sesion.principal = data
-            elif data.get("path"):
-                sesion.tocados.append(str(data["path"]))
-    return sesion
-
-
-# ---------------------------------------------------------------- biblioteca y ranking
+# ---------------------------------------------------------------- biblioteca y búsqueda
 
 class CodificadorTexto:
     """CLAP de texto (el mismo modelo que los embeddings de audio). Se carga la primera vez que hace falta."""
@@ -259,13 +223,13 @@ class Biblioteca:
     items: List[rc.Item]
     matrix: object                              # numpy, una fila por item, con norma 1
     vocal: Dict[str, bool]
-    recommender: rc.Recommender
     nml_version: Optional[str] = None           # None: sin colección de Traktor, no se escribe playlist
     descripcion: str = ""
 
 
 def cargar_biblioteca(index_path: Path = rc.DEFAULT_INDEX, collection: Optional[Path] = None,
                       vocal_path: Path = VOCAL_FILE, say: Optional[Say] = None) -> Biblioteca:
+    """Candidatos = los temas del paquete que están en la colección de Traktor; sin colección, todo el índice."""
     import numpy as np
     say = say or (lambda level, text: None)
     collection = collection if collection is not None else find_collection()
@@ -277,65 +241,56 @@ def cargar_biblioteca(index_path: Path = rc.DEFAULT_INDEX, collection: Optional[
         version = ET.parse(collection).getroot().get("VERSION", "20")
     else:
         try:
-            _, todos = rc.load_index(Path(index_path))
+            _, items = rc.load_index(Path(index_path))
         except (OSError, ValueError, KeyError) as exc:
             raise BibliotecaNoDisponible("El ordenador no tiene el índice de la biblioteca.") from exc
-        rec, items = rc.Recommender(todos, {}, MAX_TRACKS), todos
     con_vector = [it for it in items if it.vec is not None]
     if not con_vector:
         raise BibliotecaNoDisponible("El índice de la biblioteca no tiene embeddings.")
-    matrix = np.array([it.vec for it in con_vector], dtype=np.float32)
     vocal: Dict[str, bool] = {}
     try:
         import pandas as pd
         table = pd.read_parquet(vocal_path, columns=["track_uid", "is_vocal"])
         vocal = {str(u): bool(v) for u, v in zip(table["track_uid"], table["is_vocal"])}
     except (OSError, ValueError, KeyError, ImportError) as exc:
-        say("aviso", f"Sin etiqueta Vocal ({type(exc).__name__}): el filtro de voces no se va a aplicar")
-    return Biblioteca(items=con_vector, matrix=matrix, vocal=vocal, recommender=rec, nml_version=version,
-                      descripcion=text)
+        say("aviso", f"Sin etiqueta Vocal ({type(exc).__name__}): la voz no se va a informar")
+    return Biblioteca(items=con_vector, matrix=np.array([it.vec for it in con_vector], dtype=np.float32), vocal=vocal,
+                      nml_version=version, descripcion=text)
 
 
-def filtrar(concepto: Concepto, items: Sequence[rc.Item], vocal: Dict[str, bool], sesion: Sesion,
-            recommender: rc.Recommender) -> Tuple[List[bool], List[str]]:
-    """Qué temas pasan y las notas para el teléfono: lo aplicado y, sobre todo, lo que no se aplicó."""
-    principal = sesion.principal or {}
-    main = recommender.identify(str(principal["path"])) if principal.get("path") else None
-    fuera = {it.uid for it in (recommender.identify(p) for p in sesion.tocados) if it is not None}
-    if main is not None:
-        fuera.add(main.uid)
-    keep = [it.uid not in fuera for it in items]
-    notas: List[str] = []
+def consulta(frases, np) -> object:
+    """El promedio de las frases, con norma 1."""
+    q = np.asarray(frases, dtype=np.float64).mean(axis=0)
+    return q / np.linalg.norm(q)
 
-    if concepto.vocals in ("present", "absent"):
-        if vocal:
-            wanted = concepto.vocals == "present"
-            keep = [k and vocal.get(it.uid) is wanted for k, it in zip(keep, items)]
-            notas.append(f"{'Con voces' if wanted else 'Sin voces'} (etiqueta Vocal): {sum(keep)} temas.")
-        else:
-            notas.append("Voces: sin aplicar, en este ordenador no está la etiqueta Vocal.")
 
-    if concepto.bpm == "near_current":
-        tempo = float(principal.get("tempo") or 1.0) or 1.0
-        base = float(principal.get("bpm") or 0.0)
-        if base <= 0 and main is not None and main.bpm:
-            base = main.bpm
-        if base > 0:
-            actual = base * tempo
-            keep = [k and it.bpm is not None and abs(it.bpm - actual) <= rc.BPM_RANGE for k, it in zip(keep, items)]
-            notas.append(f"BPM a ±{rc.BPM_RANGE:.0f} de {actual:.0f}: {sum(keep)} temas.")
-        else:
-            notas.append("BPM cerca del actual: sin aplicar, no hay un tema sonando.")
+def buscar(bib: Biblioteca, query, n: int = MAX_TRACKS) -> Tuple[List[int], object]:
+    """EL BUSCADOR: qué temas salen para una consulta, en orden, y el parecido de cada tema. Hoy, coseno con CLAP sobre
+    toda la biblioteca, que es el caso «antes de empezar a tocar». Es la pieza que se reemplaza cuando exista un buscador
+    mejor: los dos casos de uso, la zona de Parecidos y el puntaje de concepto (DECISIONS 2026-11-09, algoritmo, punto 5;
+    plan § 12) entran acá, y ni el Worker ni el LLM se enteran. El registro de la sesión en vivo para el caso «con el set
+    en curso» ya se leyó una vez: leer_sesion() en el commit 73d042d."""
+    import numpy as np
+    sims = np.asarray(bib.matrix @ query, dtype=np.float64)
+    return [int(i) for i in np.argsort(-sims, kind="stable")[:n]], sims
 
-    if concepto.energy in ENERGY_TEXT:
-        notas.append(f"Energía ({ENERGY_TEXT[concepto.energy]}): sin aplicar, todavía no hay una medida validada.")
 
-    negativas = [n for n in concepto.negative if not (concepto.vocals == "absent" and VOICE_WORDS.search(n))]
-    if negativas:
-        notas.append(("Exclusiones sin aplicar (CLAP no las separa bien): " + "; ".join(negativas))[:200])
-    if fuera:
-        notas.append(f"Fuera de la lista: {len(fuera)} ya tocados o sonando.")
-    return keep, notas
+class Oido:
+    """Dice con palabras cómo suena un grupo de temas: las del vocabulario que más se acercan a ese grupo y no al resto."""
+
+    def __init__(self, bib: Biblioteca, codificar: Callable[[Sequence[str]], object], vocabulario: Optional[Sequence[str]] = None):
+        import numpy as np
+        self.np = np
+        self.bib = bib
+        self.palabras = list(vocabulario) if vocabulario is not None else [
+            p for grupo, lista in VOCABULARIO.items() if grupo not in GRUPOS_FUERA for p in lista]
+        self.W = np.asarray(codificar(self.palabras), dtype=np.float64)
+        self.media = np.asarray(bib.matrix, dtype=np.float64).mean(axis=0)
+
+    def suena_a(self, indices: Sequence[int], k: int = SUENA_A) -> List[str]:
+        np = self.np
+        centro = np.asarray(self.bib.matrix[list(indices)], dtype=np.float64).mean(axis=0)
+        return [self.palabras[int(i)] for i in np.argsort(-(self.W @ (centro - self.media)), kind="stable")[:k]]
 
 
 def titulo_artista(it: rc.Item) -> Tuple[str, str]:
@@ -347,24 +302,46 @@ def titulo_artista(it: rc.Item) -> Tuple[str, str]:
     return title[:160], (artist or "")[:120]         # holgado para el tope de 24 KB del Worker
 
 
-def resolver(concepto: Concepto, bib: Biblioteca, codificar: Callable[[Sequence[str]], object], sesion: Sesion,
-             n: int = MAX_TRACKS) -> Tuple[dict, List[rc.Item]]:
-    """(resultado para el Worker, los temas elegidos en orden)."""
+def resumir(indices: Sequence[int], bib: Biblioteca, oido: Oido) -> dict:
+    """Lo que el LLM necesita saber de una búsqueda: qué trajo, sin puntajes (no dicen si el concepto existe)."""
     import numpy as np
-    frases = np.asarray(codificar(concepto.positive), dtype=np.float64)
-    query = frases.mean(axis=0)
-    query = query / np.linalg.norm(query)
-    sims = np.asarray(bib.matrix @ query, dtype=np.float64)
-    keep, notas = filtrar(concepto, bib.items, bib.vocal, sesion, bib.recommender)
-    passing = np.flatnonzero(np.asarray(keep, dtype=bool))
-    order = passing[np.argsort(-sims[passing], kind="stable")][:n]
-    tracks = []
-    chosen = []
-    for i in order:
-        it = bib.items[int(i)]
+    items = [bib.items[i] for i in indices]
+    generos = Counter(it.genre for it in items if it.genre)
+    bpms = sorted(it.bpm for it in items if it.bpm)
+    voces = [bib.vocal[it.uid] for it in items if it.uid in bib.vocal]
+    temas = []
+    for it in items[:EJEMPLOS]:
         title, artist = titulo_artista(it)
-        track = {"track_id": it.uid, "title": title, "artist": artist,
-                 "score": round(float(np.clip(sims[int(i)], -1.0, 1.0)), 4)}
+        temas.append(f"{artist} - {title}"[:140] if artist else title[:140])
+    return {"generos": {g[:60]: n for g, n in generos.most_common(5)},
+            "bpm": None if not bpms else [round(float(np.quantile(bpms, q))) for q in (0.1, 0.5, 0.9)],
+            "voz": None if not voces else round(sum(voces) / len(voces), 2),
+            "suena_a": oido.suena_a(indices), "temas": temas}
+
+
+def sondear(tarea: Tarea, bib: Biblioteca, codificar: Callable, oido: Oido) -> dict:
+    """Una búsqueda por texto, separadas, para que el LLM pueda compararlas."""
+    import numpy as np
+    busquedas: Dict[str, dict] = {}
+    conjuntos = []
+    for ident, texto in tarea.textos:
+        indices, _ = buscar(bib, consulta(codificar([texto]), np))
+        busquedas[ident] = resumir(indices, bib, oido)
+        conjuntos.append(set(indices))
+    comunes = set.intersection(*conjuntos) if conjuntos else set()
+    return {"busquedas": busquedas, "comunes": len(comunes), "pool": len(bib.items)}
+
+
+def crear_lista(tarea: Tarea, bib: Biblioteca, codificar: Callable, n: int = MAX_TRACKS) -> Tuple[dict, List[rc.Item]]:
+    """La lista definitiva: el promedio de los textos elegidos."""
+    import numpy as np
+    query = consulta(codificar([t for _, t in tarea.textos]), np)
+    indices, sims = buscar(bib, query, n)
+    tracks, chosen = [], []
+    for i in indices:
+        it = bib.items[i]
+        title, artist = titulo_artista(it)
+        track = {"track_id": it.uid, "title": title, "artist": artist, "score": round(float(np.clip(sims[i], -1.0, 1.0)), 4)}
         if it.bpm and 0 < it.bpm <= 400:
             track["bpm"] = round(float(it.bpm), 1)
         if it.key and it.key != "?":
@@ -373,21 +350,27 @@ def resolver(concepto: Concepto, bib: Biblioteca, codificar: Callable[[Sequence[
             track["vocal"] = bib.vocal[it.uid]
         tracks.append(track)
         chosen.append(it)
-    return {"tracks": tracks, "pool": len(bib.items), "passed": int(passing.size), "notes": notas[:8]}, chosen
+    return {"tracks": tracks, "pool": len(bib.items), "passed": len(bib.items)}, chosen
 
 
 def carpeta_sugerencias() -> Path:
     return Path(sv.load_settings().get("dir") or sv.default_live_dir())
 
 
-def escribir_nml(bib: Biblioteca, chosen: Sequence[rc.Item], carpeta: Optional[Path] = None) -> Optional[Path]:
-    """La lista como playlist del Explorer de Traktor, con las entradas copiadas de la colección."""
+def nombre_playlist(nombre: str, ahora: Optional[dt.datetime] = None) -> str:
+    """«Concepto 1109-2315 Fiesta con trompetas»: una playlist nueva por concepto, ordenadas por fecha."""
+    limpio = re.sub(r"\s+", " ", re.sub(r'[<>:"/\\|?*\x00-\x1f]', " ", nombre)).strip(" .") or "Sin nombre"
+    return f"Concepto {(ahora or dt.datetime.now()):%m%d-%H%M} {limpio[:60].strip(' .')}"
+
+
+def escribir_nml(bib: Biblioteca, chosen: Sequence[rc.Item], nombre: str, carpeta: Optional[Path] = None) -> Optional[str]:
+    """La playlist nueva, con las entradas copiadas de la colección. Devuelve su nombre; None sin colección."""
     entries = [it.entry for it in chosen if it.entry is not None]
     if bib.nml_version is None or not entries:
         return None
-    destino = (carpeta or carpeta_sugerencias()) / f"{NML_NAME}.nml"
-    write_atomic(nml_bytes(entries, int(time.time()), bib.nml_version, name=NML_NAME), destino)
-    return destino
+    titulo = nombre_playlist(nombre)
+    write_atomic(nml_bytes(entries, int(time.time()), bib.nml_version, name=titulo), (carpeta or carpeta_sugerencias()) / f"{titulo}.nml")
+    return titulo
 
 
 # ---------------------------------------------------------------- el trabajo
@@ -395,48 +378,56 @@ def escribir_nml(bib: Biblioteca, chosen: Sequence[rc.Item], carpeta: Optional[P
 class Agente:
     """Atiende trabajos reclamados: arma la biblioteca con el primero y devuelve el resultado al Worker."""
 
-    def __init__(self, client: WorkerClient, say: Say,
-                 cargar: Optional[Callable[[], Biblioteca]] = None,
+    def __init__(self, client: WorkerClient, say: Say, cargar: Optional[Callable[[], Biblioteca]] = None,
                  codificar: Optional[Callable[[Sequence[str]], object]] = None,
-                 sesion: Callable[[], Sesion] = leer_sesion,
-                 nml: Callable[[Biblioteca, Sequence[rc.Item]], Optional[Path]] = escribir_nml,
+                 nml: Callable[[Biblioteca, Sequence[rc.Item], str], Optional[str]] = escribir_nml,
                  results_log: Optional[Path] = RESULTS_LOG, sleep: Callable[[float], None] = time.sleep):
         self.client, self.say = client, say
         self.cargar = cargar or (lambda: cargar_biblioteca(say=say))
         self.codificar = codificar or CodificadorTexto()
-        self.sesion, self.nml, self.results_log, self.sleep = sesion, nml, results_log, sleep
+        self.nml, self.results_log, self.sleep = nml, results_log, sleep
         self.bib: Optional[Biblioteca] = None
+        self.oido: Optional[Oido] = None
 
-    def _procesar(self, job: dict) -> dict:
-        concepto = parse_concepto(job.get("concept"))
-        t0 = time.perf_counter()
+    def _preparar(self) -> None:
         if self.bib is None:
             self.bib = self.cargar()
             self.say("info", f"Biblioteca: {len(self.bib.items)} temas. {self.bib.descripcion}")
-        result, chosen = resolver(concepto, self.bib, self.codificar, self.sesion())
-        try:
-            destino = self.nml(self.bib, chosen)
-            if destino is None:
-                result["notes"] = (result["notes"] + ["No se escribió la playlist: no encontré la colección de Traktor."])[:8]
-        except OSError as exc:
-            self.say("aviso", f"No pude escribir la playlist de Traktor: {type(exc).__name__}: {exc}")
-            result["notes"] = (result["notes"] + ["No se pudo escribir la playlist en Traktor."])[:8]
+        if self.oido is None:
+            self.oido = Oido(self.bib, self.codificar)
+
+    def _procesar(self, job: dict) -> dict:
+        tarea = parse_tarea(job.get("concept"))
+        t0 = time.perf_counter()
+        self._preparar()
+        if tarea.fase == "sondeo":
+            result = sondear(tarea, self.bib, self.codificar, self.oido)
+            texto = f"sondeo de {len(tarea.textos)} textos"
+        else:
+            result, chosen = crear_lista(tarea, self.bib, self.codificar)
+            try:
+                titulo = self.nml(self.bib, chosen, tarea.nombre)
+                if titulo:
+                    result["playlist"] = titulo
+                else:
+                    result["notes"] = ["No se escribió la playlist: no encontré la colección de Traktor."]
+            except OSError as exc:
+                self.say("aviso", f"No pude escribir la playlist de Traktor: {type(exc).__name__}: {exc}")
+                result["notes"] = ["No se pudo escribir la playlist en Traktor."]
+            texto = f"playlist «{result.get('playlist', '?')}», {len(result['tracks'])} temas"
         ms = round((time.perf_counter() - t0) * 1000)
-        self.say("ok", f"«{concepto.name}»: {len(result['tracks'])} temas de {result['passed']} ({ms} ms)")
-        self._anotar(job, concepto, result, ms)
+        self.say("ok", f"«{tarea.nombre}»: {texto} ({ms} ms)")
+        self._anotar(job, tarea, result, ms)
         return result
 
-    def _anotar(self, job: dict, concepto: Concepto, result: dict, ms: int) -> None:
+    def _anotar(self, job: dict, tarea: Tarea, result: dict, ms: int) -> None:
         if self.results_log is None:
             return
         try:
             self.results_log.parent.mkdir(parents=True, exist_ok=True)
             with open(self.results_log, "a", encoding="utf-8") as f:
-                f.write(json.dumps({"t": dt.datetime.now().isoformat(timespec="seconds"), "job": job.get("id"),
-                                    "concepto": job.get("concept"), "notas": result["notes"], "pool": result["pool"],
-                                    "pasan": result["passed"], "ms": ms,
-                                    "uids": [t["track_id"] for t in result["tracks"]],
-                                    "parecido": [t["score"] for t in result["tracks"]]}, ensure_ascii=False) + "\n")
+                f.write(json.dumps({"t": dt.datetime.now().isoformat(timespec="seconds"), "job": job.get("id"), "fase": tarea.fase,
+                                    "concepto": job.get("concept"), "resultado": result, "ms": ms}, ensure_ascii=False) + "\n")
         except OSError as exc:
             self.say("aviso", f"No pude anotar el resultado: {type(exc).__name__}")
 
@@ -444,7 +435,7 @@ class Agente:
         job_id, attempts = job["id"], job["attempts"]
         try:
             result = self._procesar(job)
-        except (ConceptoInvalido, BibliotecaNoDisponible) as exc:
+        except (TareaInvalida, BibliotecaNoDisponible) as exc:
             self.say("aviso", f"Trabajo {job_id}: {exc}")
             self._completar(job_id, attempts, "failed", error=str(exc))
             return
@@ -479,11 +470,13 @@ class Agente:
 
 
 def bucle(agente: Agente, stop: threading.Event, poll_s: float = POLL_S, idle_exit_s: Optional[float] = None,
-          job_id: Optional[str] = None, una_vez: bool = False, clock: Callable[[], float] = time.monotonic) -> int:
-    """Consulta la cola hasta que stop se active. Devuelve el código de salida: 0 bien (también al liberar
-    memoria), 2 token rechazado."""
+          job_id: Optional[str] = None, una_vez: bool = False, clock: Callable[[], float] = time.monotonic,
+          activo_s: float = ACTIVO_S, poll_activo_s: float = POLL_ACTIVO_S) -> int:
+    """Consulta la cola hasta que stop se active. Devuelve el código de salida: 0 bien (también al liberar memoria),
+    2 token rechazado. Con --una-vez y un job_id, sigue ese concepto hasta que no quede nada que hacer con él."""
     last_job = clock()
     fallos = 0
+    atendidos = 0
     while not stop.is_set():
         try:
             job = agente.client.claim(job_id)
@@ -502,18 +495,22 @@ def bucle(agente: Agente, stop: threading.Event, poll_s: float = POLL_S, idle_ex
             stop.wait(min(60.0, poll_s * (2 ** min(fallos, 4))))
             continue
         if job is None:
-            if una_vez:
-                agente.say("info", "No hay trabajos en cola")
+            if una_vez and (job_id is None or atendidos):
+                agente.say("info", "No hay trabajos en cola" if not atendidos else "Listo")
+                return 0
+            if una_vez and clock() - last_job > activo_s:
+                agente.say("info", "Ese trabajo no está en cola")
                 return 0
             if idle_exit_s is not None and agente.bib is not None and clock() - last_job > idle_exit_s:
                 agente.say("info", "Sin conceptos hace rato: libero la memoria de CLAP")
                 return 0
-            stop.wait(poll_s)
+            stop.wait(poll_activo_s if clock() - last_job < activo_s and (atendidos or una_vez) else poll_s)
             continue
-        agente.say("info", f"Trabajo {job['id']} (intento {job['attempts']})")
+        agente.say("info", f"Trabajo {job['id']} ({(job.get('concept') or {}).get('fase', 'final')}, intento {job['attempts']})")
         agente.atender(job)
         last_job = clock()
-        if una_vez:
+        atendidos += 1
+        if una_vez and job_id is None:
             return 0
     return 0
 
@@ -539,27 +536,26 @@ def cmd_correr(args: argparse.Namespace) -> int:
 
 
 def cmd_probar(args: argparse.Namespace) -> int:
-    """Una frase contra la biblioteca real, sin red y sin escribir nada salvo con --nml."""
-    concepto = Concepto(name="prueba", positive=tuple(args.frase), negative=tuple(args.excluir), vocals=args.voces,
-                        bpm="near_current" if args.bpm_cerca else "unspecified", energy=args.energia)
+    """Unas frases contra la biblioteca real, sin red y sin escribir nada salvo con --nml."""
+    tarea = Tarea("final", args.nombre, tuple((chr(65 + i), f) for i, f in enumerate(args.frase)))
     t0 = time.perf_counter()
     bib = cargar_biblioteca(say=console_say)
     t1 = time.perf_counter()
     codificar = CodificadorTexto()
-    result, chosen = resolver(concepto, bib, codificar, leer_sesion(), n=args.n)
+    oido = Oido(bib, codificar)
     t2 = time.perf_counter()
-    resolver(concepto, bib, codificar, leer_sesion(), n=args.n)
+    sondeo = sondear(Tarea("sondeo", args.nombre, tarea.textos), bib, codificar, oido)
+    result, chosen = crear_lista(tarea, bib, codificar, n=args.n)
     t3 = time.perf_counter()
     print(f"[INFO] {bib.descripcion}")
-    print(f"[INFO] biblioteca {t1 - t0:.1f} s; primera búsqueda (con carga de CLAP) {t2 - t1:.1f} s; "
-          f"siguiente {1000 * (t3 - t2):.0f} ms; pasan {result['passed']} de {result['pool']}")
-    for note in result["notes"]:
-        print(f"[NOTA] {note}")
+    print(f"[INFO] biblioteca {t1 - t0:.1f} s; CLAP y vocabulario {t2 - t1:.1f} s; búsquedas {1000 * (t3 - t2):.0f} ms")
+    for ident, texto in tarea.textos:
+        b = sondeo["busquedas"][ident]
+        print(f"[{ident}] {texto}\n    géneros {b['generos']}  bpm {b['bpm']}  voz {b['voz']}\n    suena a {b['suena_a']}")
     for i, t in enumerate(result["tracks"], 1):
-        print(f"{i:>3}  {t['score']:.3f}  {t.get('bpm', 0):>5.0f}  {t.get('key', '?'):>3}  "
-              f"{'V' if t.get('vocal') else ' '}  {t['artist'][:30]} - {t['title'][:60]}")
+        print(f"{i:>3}  {t['score']:.3f}  {t.get('bpm', 0):>5.0f}  {t.get('key', '?'):>3}  {'V' if t.get('vocal') else ' '}  {t['artist'][:30]} - {t['title'][:60]}")
     if args.nml:
-        print(f"[OK] Playlist: {escribir_nml(bib, chosen)}")
+        print(f"[OK] Playlist: {escribir_nml(bib, chosen, args.nombre)}")
     return 0
 
 
@@ -701,20 +697,17 @@ def cmd_estado(_args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(description="Agente local de los conceptos que se escriben desde el teléfono")
+    ap = argparse.ArgumentParser(description="El ordenador en el circuito de conceptos escritos en el teléfono")
     sub = ap.add_subparsers(dest="accion", required=True)
     correr = sub.add_parser("correr", help="Consultar la cola en primer plano")
     correr.add_argument("--cada", type=float, default=POLL_S, help="Segundos entre consultas")
-    correr.add_argument("--una-vez", action="store_true", help="Atender como mucho un trabajo y salir")
+    correr.add_argument("--una-vez", action="store_true", help="Sin --job: atender un trabajo y salir. Con --job: seguir ese concepto hasta el final")
     correr.add_argument("--job", default=None, help="Reclamar solo este trabajo (pruebas: no consume otros)")
     correr.add_argument("--salir-sin-uso", type=float, default=None, help="Con CLAP cargado y sin trabajos por estos segundos, salir")
     correr.set_defaults(func=cmd_correr)
-    probar = sub.add_parser("probar", help="Una frase contra la biblioteca, sin red")
-    probar.add_argument("--frase", action="append", required=True, help="Frase en inglés para CLAP (repetible)")
-    probar.add_argument("--excluir", action="append", default=[], help="Se anota como sin aplicar")
-    probar.add_argument("--voces", choices=("unspecified", "present", "absent"), default="unspecified")
-    probar.add_argument("--energia", choices=("unspecified", "maintain", "increase", "decrease"), default="unspecified")
-    probar.add_argument("--bpm-cerca", action="store_true")
+    probar = sub.add_parser("probar", help="Unas frases contra la biblioteca, sin red")
+    probar.add_argument("--frase", action="append", required=True, help="Texto en inglés (repetible: se promedian)")
+    probar.add_argument("--nombre", default="prueba")
     probar.add_argument("--n", type=int, default=MAX_TRACKS)
     probar.add_argument("--nml", action="store_true", help="Escribir también la playlist de Traktor")
     probar.set_defaults(func=cmd_probar)
