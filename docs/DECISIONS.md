@@ -6,6 +6,22 @@ anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_impl
 Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 `[REEMPLAZADO <fecha> por <decisión>: <lo que rige ahora>]` (o `[REFUTADO …]` si era un error).
 
+## 2026-11-10 (E15: los previews frente a la biblioteca)
+
+Informe: `docs/reports/dominio_previews_2026-11-10.md`. Protocolo fijado en el commit `269af4c` antes de medir.
+
+1. **Los previews no pasan E15 con los umbrales fijados de antemano** (agente): el Spearman de todos los factores da
+   0,78 (umbral 0,90), el códec de CLAP 0,92 (umbral 0,97) y CLAP pone primero al tema verdadero en el 32 % (umbral
+   90 %). Por el protocolo, V7 no arranca hasta que Gabriel decida.
+2. **Por partes** (agente): MAEST pasa todo (primero en el 100 % de 146, códec 0,988); los estilos casi no se mueven
+   con el códec (0,993); CLAP se corre como bloque con el preview de 96 kbps y, centrado aparte, queda primero en el
+   92 %. Lo que baja el puntaje de todos los factores es la tonalidad: la de Beatport coincide con la de Traktor o
+   los tags en el 47 % de los temas; con los metadatos de la biblioteca, ese puntaje da 0,947.
+3. **La ventana de los previews es el preview entero en 4 segmentos de 30 s** (V4, por la regla fijada); la regla
+   del extractor tal cual es mucho peor y no se usa.
+4. **Pregunta para Gabriel** (agente): si V7 sigue con MAEST y estilos como vistas del juez y CLAP solo entre
+   previews y centrado aparte, y cómo se trata la tonalidad de los pares de previews, que en vivo es la de Traktor.
+
 ## 2026-11-10 (recomendación: mientras se baja el dataset)
 
 Plan, sección 12.9. Las medidas de la auditoría de este día son exploratorias (scripts fuera de Git).

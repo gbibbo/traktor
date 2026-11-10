@@ -415,6 +415,24 @@ def medir(root: Path) -> Dict[str, object]:
                            [lado_bib.artista[i] for i in idx])
         lb = puntajes_pares(sub_lado, tablas, est)
         res["spearman"] = {c: round(spearman(lp[c], lb[c]), 4) for c in ("clap",) + fv.VISTAS_P11 + ("p11", "todos_los_factores")}
+        # diagnóstico: cuánto del puntaje de todos los factores es el audio y cuánto los metadatos de Beatport
+        ok = {c: np.isfinite(lp[c]) & np.isfinite(lb[c]) for c in ("bpm", "clave", "genero")}
+        res["spearman_metadatos"] = {c: round(spearman(lp[c][ok[c]], lb[c][ok[c]]), 4) if ok[c].sum() > 2 else None for c in ok}
+        lmix = puntajes_pares(fv.Lado({v: Pv[v] for v in ("clap",) + fv.VISTAS_P11}, sub_lado.bpm, sub_lado.clave, sub_lado.genero,
+                                      sub_lado.artista), tablas, est)
+        res["spearman"]["todos_los_factores_con_metadatos_de_la_biblioteca"] = round(spearman(lmix["todos_los_factores"], lb["todos_los_factores"]), 4)
+        lp_bpm = np.asarray([float(t.detalles.get("bpm") or np.nan) for t in sub])
+        lp_key = np.asarray([fv.indice_clave(harmonic.to_camelot(t.detalles.get("key") or "")) for t in sub])
+        gid = {g: k for k, g in enumerate(tablas.generos)}
+        lp_gen = np.asarray([gid.get((t.detalles.get("genre"), None), -1) for t in sub])
+        bpm_ok = np.isfinite(lp_bpm) & np.isfinite(sub_lado.bpm)
+        key_ok = (lp_key >= 0) & (sub_lado.clave >= 0)
+        res["metadatos_beatport_frente_a_biblioteca"] = {
+            "bpm_a_1": round(float(np.mean(np.abs(lp_bpm[bpm_ok] - sub_lado.bpm[bpm_ok]) <= 1.0)), 3), "bpm_con_los_dos": int(bpm_ok.sum()),
+            "bpm_doble_o_mitad": round(float(np.mean(np.abs(np.abs(np.log2(lp_bpm[bpm_ok] / sub_lado.bpm[bpm_ok])) - 1) < 0.02)), 3),
+            "tonalidad_igual": round(float(np.mean(lp_key[key_ok] == sub_lado.clave[key_ok])), 3), "tonalidad_con_las_dos": int(key_ok.sum()),
+            "genero_igual": round(float(np.mean([tablas.generos[a][0] == tablas.generos[b][0] for a, b in zip(lp_gen, sub_lado.genero) if a >= 0 and b >= 0])), 3),
+            "genero_con_los_dos": int(np.sum((lp_gen >= 0) & (sub_lado.genero >= 0)))}
         res["spearman_centrado_aparte"] = {c: round(spearman(lpa[c], lb[c]), 4) for c in fv.VISTAS_P11 + ("p11", "todos_los_factores")}
         res["coseno_con_el_mismo_tema"] = {v: round(float(np.median(np.sum(Pv[v] * E[v][idx], axis=1))), 4) for v in VISTAS}
         desp = {}
