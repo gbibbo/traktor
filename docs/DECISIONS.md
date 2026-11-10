@@ -6,6 +6,25 @@ anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_impl
 Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 `[REEMPLAZADO <fecha> por <decisión>: <lo que rige ahora>]` (o `[REFUTADO …]` si era un error).
 
+## 2026-11-09 (algoritmo de recomendación)
+
+1. **El parecido de la playlist de D0 no cuenta BPM ni tonalidad** (Gabriel: «esos dos parámetros se pueden ajustar a
+   posteriori»). La playlist son temas parecidos al que suena y que con seguridad van a sonar bien mezclados con él.
+   - Cómo (agente auditor): BPM y tonalidad no entran al puntaje de parecido y toda medida de parecido lleva control de
+     tempo. Los filtros en vivo (BPM ±20 y tonalidad a ±2 semitonos; 2026-11-06, punto 7) quedan como están hasta que
+     Gabriel diga otra cosa: es una pregunta abierta para él.
+2. **Las otras playlists redirigen el set hacia un concepto escrito en lenguaje natural; cómo se eligen esos temas es
+   una pregunta abierta a optimizar** (Gabriel), con el paper «Guided Music Retrieval» (Brandão et al., enviado a IEEE
+   TASLP en 2026) como inspiración.
+3. **La sesión auditora propone la estrategia y entrega el prompt para un agente implementador** (Gabriel lo pidió).
+   - Propuesta (agente, pendiente de que Gabriel la apruebe): Parecidos como zona segura con varias vistas (CLAP, MAEST
+     capa 7 y estilos Discogs sumados; probabilidad de «van juntos» calibrada con sets profesionales), y cada concepto
+     como un paso dentro de esa zona, con el puntaje de concepto elegido en un banco local construido como el del paper.
+   - Informe con lo medido (exploratorio, sin escucha): `docs/reports/auditoria_recomendacion_2026-11-09.md`. Prompt:
+     `docs/plans/PROMPT_FUSION_Y_CONCEPTOS.md`.
+   - La candidata a energía del punto 2 de «conceptos desde el teléfono» (Energy de Mixed In Key) choca con el punto 3
+     del 2026-11-07: Gabriel la descartó. La coordenada sale de T19 y T20 del plan, con E11 de juez.
+
 ## 2026-11-09 (conceptos desde el teléfono)
 
 Gabriel armó el Worker de Cloudflare en otra sesión (LLM solo en Cloudflare; audio, embeddings y rutas solo en el
