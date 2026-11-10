@@ -20,7 +20,9 @@ Informe: `docs/reports/juez_d5_2026-11-10.md`. Regla fijada en `77d4434` antes d
 4. **Dato para Gabriel, sin propuesta** (agente): dentro del filtro de compatibilidad la tonalidad no ordena (peso
    0,01 [−0,19, 0,18]); con la tonalidad de Beatport, la «paralela» de los DJs es casi siempre la «misma» de Traktor.
 5. **V7 corre en gpuq** con el OK de Gabriel (trabajo corto `traktor-v7-prueba-1` igual a E15 y a la CPU; completos
-   `traktor-v7-1` en Colab, `lote_04`, y `traktor-v7-2` en Kaggle, el resto). Al terminar: pesos con los pares de
+   `traktor-v7-1` en Colab, `lote_04` [REEMPLAZADO 2026-11-10 por `traktor-v7-4`: Colab cortó la sesión a los 12-13 min
+   antes de terminar una tanda; el trabajo guarda ahora un parcial cada 96 previews y la interrupción a propósito siguió
+   desde él], y `traktor-v7-2` en Kaggle, el resto). Al terminar: pesos con los pares de
    previews y cuántos de los 30 cambian; otra escucha solo si cambian.
 
 ## 2026-11-10 (G13 y P12a: los DJs de D5, solo texto)

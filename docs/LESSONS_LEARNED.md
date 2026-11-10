@@ -428,3 +428,7 @@ tiene que mostrar solo los bloques ajenos. Si el otro no tiene nada sin commit, 
   en vez de 2,0 %.
 - **En audio mezclado el BPM identifica el disco.** El DJ iguala tempos: el 72 % de los pares de un disco están a 1 BPM o menos
   (5,8 % entre discos). Cualquier medida de «mismo set» por BPM sobre mezclas gana por construcción.
+- **En Colab gratis, ningún tramo de trabajo sin guardar debe durar más de unos 10 minutos.** El 2026-11-10 gpuq perdió
+  la sesión de Colab dos veces a los 12-13 min («Session 'gpuq' appears to be lost (404/401)») con RAM de sobra, justo
+  antes de que terminara una tanda de 387 previews: se relanzaba y empezaba de cero cada vez. Un parcial en el remoto cada
+  pocos minutos (V7, `vistas_previews.py`) lo resolvió; en Kaggle las mismas tandas corrieron enteras.
