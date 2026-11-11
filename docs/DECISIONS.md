@@ -147,7 +147,10 @@ Plan, sección 12.9. Las medidas de la auditoría de este día son exploratorias
 1. **Windows marca el pendrive `D:` (FAT32) como «Full Repair Needed»** (agente, 13:30, `Get-Volume`); no se sabe
    desde cuándo. Lo de D5/D6 que solo vivía ahí (sets de 1001Tracklists, listas y manifiestos de cada corrida, el
    registro) quedó respaldado en `erclm:traktor_ml/respaldo_d5_d6/respaldo_d5_d6_20261111_1329.tar` (3558 archivos,
-   174 MB, verificado por tamaño y MD5). La reparación (`chkdsk D: /f`) pide administrador: la decide y la corre
+   174 MB, verificado por tamaño y MD5). [REEMPLAZADO 2026-11-11 por la revisión de Gabriel: `chkdsk D:` de solo
+   lectura (13:40, con el pendrive en uso) no encontró problemas en archivos ni carpetas; no se repara y la descarga
+   sigue. «Full Repair Needed» sería la marca de sucio de FAT32 mientras está montado y en uso (inferencia, no
+   comprobada); se borraría al expulsarlo] La reparación (`chkdsk D: /f`) pide administrador: la decide y la corre
    Gabriel, con la descarga parada (`PARAR`); después se relanza y retoma.
 
 ## 2026-11-10 (sets y audio de los temas, de día)
