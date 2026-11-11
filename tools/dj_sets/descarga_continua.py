@@ -403,12 +403,19 @@ def copiar_al_drive(o: Orquesta) -> bool:
     destino = f"{remote_root(env)}/{COPIA_DRIVE}"
     t0 = time.monotonic()
     banderas = (subprocess.BELOW_NORMAL_PRIORITY_CLASS | subprocess.CREATE_NO_WINDOW) if os.name == "nt" else 0
-    proceso = subprocess.run(comando_copia(o.root, str(find_rclone(env)), destino), capture_output=True, text=True,
-                             encoding="utf-8", errors="replace", env=env, creationflags=banderas)
+    proceso = subprocess.Popen(comando_copia(o.root, str(find_rclone(env)), destino), stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", env=env,
+                               creationflags=banderas)
+    with o._cerrojo:  # PARAR también la corta: dos copias a la vez pueden duplicar archivos en el Drive
+        o._hijos["copia"] = proceso
+    _, errores = proceso.communicate()
+    with o._cerrojo:
+        o._hijos.pop("copia", None)
     if proceso.returncode == 0:
         o.log("copia", f"copia de {o.root} al Drive ({destino}) al día, {time.monotonic() - t0:.0f} s")
         return True
-    o.log("copia", f"ERROR en la copia al Drive (salida {proceso.returncode}): {(proceso.stderr or '').strip()[-400:]}")
+    if not o.parar.is_set():
+        o.log("copia", f"ERROR en la copia al Drive (salida {proceso.returncode}): {(errores or '').strip()[-400:]}")
     return False
 
 

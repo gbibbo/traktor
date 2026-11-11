@@ -647,6 +647,8 @@ Cómo se retoma la bajada (D5 y D6), desde este PC, con `--root "D:\TRAKTOR ML d
   enlaces, bajar) y `yt_res_<lote>`, sin rendirse ante un corte. Ver cómo va: el mismo comando con `estado` (o
   `descarga_continua.log` en esa carpeta). Parar: crear el archivo `PARAR` ahí. Si el PC se reinicia, se vuelve a
   lanzar y retoma por el disco y el Drive. Playwright para 1001Tracklists: `~/.traktor_ml/pw_venv` y `pw_browsers`.
+  Desde el 2026-11-11 (DECISIONS 11-11): se lanza `guardian` en vez de `correr` (relanza `correr` si se muere; con
+  `PARAR` no relanza, y borrar `PARAR` reanuda), y `correr` copia la carpeta entera a `erclm:traktor_ml/dj_sets/` cada 2 h.
 
 [REEMPLAZADO 2026-11-09 por las 158 búsquedas y el piloto: 2540 sets distintos, **1549 candidatos** (385 para trayectoria, 1164 solo para pares; 354 DJs; 1489 con grabación); piloto de 30 sets sin cortes (DECISIONS 2026-11-09, sets de 1001Tracklists)] [REEMPLAZADO 2026-11-09 por el criterio de comercial de Gabriel: 84 de 158 búsquedas, 1269 sets distintos, **831 candidatos** (142 para trayectoria, 689 solo para pares; 156 DJs; 798 con grabación) y faltan 74 búsquedas] Estado del 2026-11-09: 84 de 147 búsquedas, 1269 sets distintos, **740 candidatos** (135 para trayectoria, 605 solo para
 pares; 139 DJs; 709 con grabación). Lo que falta incluye casi todos los términos y eventos y a varios DJs de noches largas

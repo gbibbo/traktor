@@ -152,6 +152,18 @@ Plan, sección 12.9. Las medidas de la auditoría de este día son exploratorias
    sigue. «Full Repair Needed» sería la marca de sucio de FAT32 mientras está montado y en uso (inferencia, no
    comprobada); se borraría al expulsarlo] La reparación (`chkdsk D: /f`) pide administrador: la decide y la corre
    Gabriel, con la descarga parada (`PARAR`); después se relanza y retoma.
+2. **Nada del dataset solo en el pendrive** (Gabriel: «obviamente que los datos del dataset no pueden estar
+   únicamente en el pendrive; si hiciste eso, estuvo mal»). Error del agente: las tandas de Beatport y YouTube iban al
+   Drive, pero los 1549 sets de 1001Tracklists, las listas de cada corrida y D7 (518 compilados de YouTube, CLAP,
+   MAEST, MusicBrainz) vivían solo en `D:`. Ahora `descarga_continua.py` copia `D:\TRAKTOR ML datos\dj_sets` entero a
+   `erclm:traktor_ml/dj_sets/` al arrancar y cada 2 h (`rclone copy`, nunca borra allá), menos la caché de Beatport y
+   lo temporal.
+3. **YouTube desde Colab o Kaggle: no** (Gabriel: si YouTube va a bloquear, seguir como está). Las IP de los
+   servidores de Google suelen recibir la verificación anti-robots enseguida; Beatport ya rechazó a Kaggle.
+4. **`correr` murió a las 13:28 sin dejar rastro** y la descarga quedó parada 19 min (agente). Coincide con señales de
+   que D: dejó de responder un momento (inferencia, no comprobada). Ahora un `guardian` (cada 5 min, registro en C:)
+   la relanza si se murió sin terminar, salvo que exista `PARAR`; escribir el registro o mirar el disco ya no pueden
+   tumbarla.
 
 ## 2026-11-10 (sets y audio de los temas, de día)
 
