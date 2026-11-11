@@ -28,6 +28,8 @@ CHANGELOG:
                 YouTube adelanta los temas sin botón de los lotes (se quedaba sin trabajo hasta la madrugada).
                 Las esperas ante un sitio quedan en espera_<carril>.txt: un reinicio no las acorta. La pausa de
                 YouTube sube solo si la corrida bajó al menos 10 min antes del bloqueo (si no, es el mismo bloqueo).
+  - 2026-11-11: un bloqueo de YouTube después de una corrida que bajó al menos 10 min cuenta como el primero (espera
+                1 h), no como uno más seguido.
 """
 from __future__ import annotations
 
@@ -486,8 +488,11 @@ def carril_youtube(o: Orquesta) -> None:
                 return
             continue
         if codigo == 2:
-            cortes += 1
-            nueva = nueva_pausa_yt(pausa, time.monotonic() - t0)
+            corrida_s = time.monotonic() - t0
+            # Seguidas son las que llegan sin haber bajado nada entre medio (2026-11-11 05:50: tras 8 h bajando, el
+            # bloqueo contó como el segundo seguido del de las 20:58 y esperó 90 min en vez de 60).
+            cortes = 1 if corrida_s >= MIN_CORRIDA_YT_S else cortes + 1
+            nueva = nueva_pausa_yt(pausa, corrida_s)
             if nueva != pausa:
                 pausa = nueva
                 yt_dir.mkdir(parents=True, exist_ok=True)
