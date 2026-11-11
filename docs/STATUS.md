@@ -45,8 +45,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    Colección. Solo el escritorio (laptop retirada, 11-04), todo en D:: `artifacts/v4/datasets/musica`
    apunta a `D:\TRAKTOR ML datos\musica` y `Música/` a `D:\TRAKTOR ML\Musica` (package_library.py);
    el pendrive manda. LOCAL: probar «Agregar» con Workout Delft.
-3. LOCAL: D5/D6 (DECISIONS 11-10; plan § 6): `descarga_continua.py correr` encadena sets, previews,
-   rescates y YouTube sin rendirse; `estado`: qué falta. GABRIEL: vetos; ¿YouTube con su sesión?
+3. LOCAL: D5/D6 (plan § 6): sets y Beatport hechos (30 251 de 36 611 temas); `descarga_continua.py`
+   sigue con YouTube (~3300 temas, 1-2 días; `estado`). GABRIEL: vetos; ¿su sesión en YouTube?
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
 5. Recomendación en vivo (`recomendador.py`, D#0+D0): plan § 12, `PROMPT_FUSION_Y_CONCEPTOS.md`. Unidad 1
