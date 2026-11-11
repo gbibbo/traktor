@@ -21,8 +21,10 @@ PURPOSE: D5/D6 sin pausas muertas (Gabriel, 2026-11-10: «que la descarga comple
          Parar: crear el archivo <root>/PARAR (corta lo que esté corriendo; las tandas subidas quedan y todo se
          retoma al volver a lanzar). Termina solo cuando no queda nada. Mantiene el PC despierto mientras corre;
          los procesos van con prioridad baja (Traktor y Rekordbox primero). Registro: <root>/descarga_continua.log.
-           correr  -> los tres carriles (una sola instancia: descarga_continua.pid)
-           estado  -> qué falta en cada corrida, sin red
+           correr    -> los carriles (una sola instancia: descarga_continua.pid)
+           guardian  -> relanza correr si se murió sin terminar, cada 5 min (no si existe PARAR); lanzarlo en vez
+                        de correr deja todo andando aunque correr se caiga
+           estado    -> qué falta en cada corrida, sin red
          lote_01..03 ya los rescató rescate_01 (sin enlaces): ese rescate es un origen más (res_rescate_01).
 CHANGELOG:
   - 2026-11-10: Creación.
@@ -34,6 +36,8 @@ CHANGELOG:
                 1 h), no como uno más seguido.
   - 2026-11-11: carril copia (Gabriel: los datos del dataset no pueden estar solo en el pendrive; los sets de
                 1001Tracklists, las listas de las corridas y D7 vivían solo en D:).
+  - 2026-11-11: guardian (correr murió a las 13:28 sin dejar rastro y la descarga quedó parada 19 min); escribir el
+                registro y mirar el disco ya no pueden tumbar correr; descarga_terminada.txt al terminar.
 """
 from __future__ import annotations
 
@@ -70,6 +74,7 @@ PAUSA_YT_INICIAL, PAUSA_YT_TOPE = 6.0, 30.0
 # (rclone copy: sube lo nuevo o cambiado y nunca borra allá), menos la caché de búsquedas de Beatport (se rehace) y lo
 # temporal (el audio de las tandas ya va al Drive por su cuenta).
 COPIA_DRIVE, COPIA_CADA_S = "dj_sets", 2 * 3600
+FIN_MARCA = "descarga_terminada.txt"  # la deja correr al terminar todo; el guardián deja de relanzar
 EXCLUIR_COPIA = ("beatport_previews/cache/**", "beatport_previews/tmp/**", "youtube_temas/tmp/**", "descarga_continua.pid",
                  "espera_*.txt", "PARAR", "*.tmp")
 
@@ -293,10 +298,16 @@ class Orquesta:
 
     def log(self, carril: str, texto: str) -> None:
         linea = f"{time.strftime('%m-%d %H:%M:%S')} [{carril}] {texto}"
-        with self._cerrojo:
-            with self.log_ruta.open("a", encoding="utf-8") as archivo:
-                archivo.write(linea + "\n")
-            print(linea, flush=True)
+        with self._cerrojo:  # escribir el registro nunca tumba el programa (D: es un pendrive: 2026-11-11 13:28)
+            try:
+                with self.log_ruta.open("a", encoding="utf-8") as archivo:
+                    archivo.write(linea + "\n")
+            except OSError:
+                pass
+            try:
+                print(linea, flush=True)
+            except (OSError, ValueError):
+                pass
 
     def esperar(self, segundos: float, carril: str = "", motivo: str = "") -> bool:
         """Espera sin bloquear la parada. False si hay que parar."""
@@ -308,7 +319,10 @@ class Orquesta:
         """Una espera ante un sitio (tras un corte, o entre corridas de 1001Tracklists): queda en espera_<carril>.txt
         para que un reinicio no la acorte (2026-11-10: reiniciar a las 16:32 habría vuelto a pedirle a YouTube
         enseguida, con la verificación anti-robots de las 16:28 todavía encima)."""
-        (self.root / f"espera_{carril}.txt").write_text(f"{time.time() + segundos:.0f}", encoding="utf-8")
+        try:
+            (self.root / f"espera_{carril}.txt").write_text(f"{time.time() + segundos:.0f}", encoding="utf-8")
+        except OSError:
+            pass
         return self.esperar(segundos, carril, motivo)
 
     def retomar_espera(self, carril: str) -> bool:
@@ -580,17 +594,20 @@ def cmd_correr(args) -> int:
     try:
         while True:
             time.sleep(15)
-            if o.parar_ruta.exists():
-                o.log("main", "PARAR: corto lo que esté corriendo; las tandas subidas quedan")
-                break
-            caidos = [h.name for h in hilos if not h.is_alive()]
-            if caidos:
-                o.log("main", f"un carril se cayó ({', '.join(caidos)}); ver la salida del proceso. Paro todo para que se note.")
-                break
-            if todo_hecho(o):
-                o.log("main", "FIN: no queda nada por bajar")
-                fin = True
-                break
+            try:  # un error al mirar el disco (D: es un pendrive) no corta todo: se anota y se vuelve a mirar
+                if o.parar_ruta.exists():
+                    o.log("main", "PARAR: corto lo que esté corriendo; las tandas subidas quedan")
+                    break
+                caidos = [h.name for h in hilos if not h.is_alive()]
+                if caidos:
+                    o.log("main", f"un carril se cayó ({', '.join(caidos)}); ver la salida del proceso. Paro todo para que se note.")
+                    break
+                if todo_hecho(o):
+                    o.log("main", "FIN: no queda nada por bajar")
+                    fin = True
+                    break
+            except Exception:
+                o.log("main", "ERROR inesperado al revisar el estado:\n" + traceback.format_exc())
     finally:
         o.parar.set()
         o.cortar_todo()
@@ -598,11 +615,81 @@ def cmd_correr(args) -> int:
             hilo.join(timeout=60)
         if fin:
             copiar_al_drive(o)  # la última, con todo terminado
+            try:
+                (args.root / FIN_MARCA).write_text(time.strftime("%Y-%m-%d %H:%M"), encoding="utf-8")
+            except OSError:
+                pass
         mantener_despierto(False)
-        if pid_ruta.exists():
+        try:
             pid_ruta.unlink()
+        except OSError:
+            pass
         o.log("main", "TERMINA")
     return 0
+
+
+def que_hace_el_guardian(root: Path, esta_vivo) -> Tuple[str, int]:
+    """('fin' | 'sin_disco' | 'pausa' | 'corre' | 'relanzar', PID que figura en descarga_continua.pid o 0)."""
+    if (root / FIN_MARCA).exists():
+        return "fin", 0
+    if not root.exists():
+        return "sin_disco", 0
+    if (root / "PARAR").exists():
+        return "pausa", 0
+    try:
+        pid = int((root / "descarga_continua.pid").read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        pid = 0
+    return ("corre" if pid and esta_vivo(pid) else "relanzar"), pid
+
+
+def cmd_guardian(args) -> int:
+    """Relanza `correr` si se murió sin terminar (2026-11-11 13:28: el proceso murió sin dejar rastro, quizá por un
+    corte del pendrive D:, y la descarga quedó parada 19 min). No relanza si existe PARAR (pausa de Gabriel: borrarlo
+    reanuda) ni después de terminar (descarga_terminada.txt). Mira cada 5 min; su registro y la salida de `correr`
+    van a C: (~/.traktor_ml), no al pendrive."""
+    carpeta = NAVEGADOR
+    carpeta.mkdir(parents=True, exist_ok=True)
+    registro, propio = carpeta / "descarga_guardian.log", carpeta / "descarga_guardian.pid"
+
+    def anotar(texto: str) -> None:
+        try:
+            with registro.open("a", encoding="utf-8") as archivo:
+                archivo.write(f"{time.strftime('%m-%d %H:%M:%S')} {texto}\n")
+        except OSError:
+            pass
+
+    try:
+        otro = int(propio.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        otro = 0
+    if otro and otro != os.getpid() and vivo(otro):
+        print(f"Ya corre otro guardián (PID {otro}).")
+        return 2
+    propio.write_text(str(os.getpid()), encoding="utf-8")
+    anotar(f"EMPIEZA el guardián (PID {os.getpid()}) sobre {args.root}")
+    while True:
+        try:
+            decision, pid = que_hace_el_guardian(args.root, vivo)
+            if decision == "fin":
+                anotar("la descarga terminó: el guardián también")
+                return 0
+            if decision == "sin_disco":
+                anotar(f"no veo {args.root} (¿el pendrive?): espero")
+            elif decision == "relanzar":
+                banderas = 0
+                if os.name == "nt":
+                    banderas = (subprocess.BELOW_NORMAL_PRIORITY_CLASS | subprocess.CREATE_NO_WINDOW
+                                | subprocess.CREATE_NEW_PROCESS_GROUP)
+                with (carpeta / "descarga_continua.salida.txt").open("a", encoding="utf-8") as salida, \
+                        (carpeta / "descarga_continua.errores.txt").open("a", encoding="utf-8") as errores:
+                    nuevo = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--root", str(args.root), "correr",
+                                              "--python-navegador", str(args.python_navegador), "--navegadores", str(args.navegadores)],
+                                             cwd=REPO_ROOT, stdout=salida, stderr=errores, creationflags=banderas)
+                anotar(f"descarga_continua no corría (PID anterior {pid or '-'}): la relanzo, PID {nuevo.pid}")
+        except Exception:
+            anotar("ERROR del guardián:\n" + traceback.format_exc())
+        time.sleep(args.cada)
 
 
 def cmd_estado(args) -> int:
@@ -642,6 +729,11 @@ def main() -> int:
                    help="Python con Playwright (fuera del repo)")
     p.add_argument("--navegadores", type=Path, default=NAVEGADOR / "pw_browsers", help="PLAYWRIGHT_BROWSERS_PATH")
     p.set_defaults(func=cmd_correr)
+    p = comandos.add_parser("guardian", help="relanza correr si se murió sin terminar (no si existe PARAR)")
+    p.add_argument("--python-navegador", type=Path, default=NAVEGADOR / "pw_venv" / "Scripts" / "python.exe")
+    p.add_argument("--navegadores", type=Path, default=NAVEGADOR / "pw_browsers")
+    p.add_argument("--cada", type=float, default=300, help="segundos entre revisiones")
+    p.set_defaults(func=cmd_guardian)
     p = comandos.add_parser("estado")
     p.add_argument("--lineas", type=int, default=15)
     p.set_defaults(func=cmd_estado)

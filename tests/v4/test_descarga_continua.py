@@ -104,6 +104,28 @@ def test_corrida_completa_por_nombre_de_tanda(tmp_path):
     assert not dc.completa(tmp_path / "vacia", 500)
 
 
+def test_el_guardian_relanza_solo_si_correr_murio_sin_terminar_ni_pausa(tmp_path):
+    # 2026-11-11 13:28: correr murió sin dejar rastro y la descarga quedó parada 19 min.
+    vivos = {111}
+    root = tmp_path / "dj_sets"
+    assert dc.que_hace_el_guardian(root, vivos.__contains__) == ("sin_disco", 0)
+    root.mkdir()
+    assert dc.que_hace_el_guardian(root, vivos.__contains__) == ("relanzar", 0)  # nunca arrancó
+    (root / "descarga_continua.pid").write_text("111", encoding="utf-8")
+    assert dc.que_hace_el_guardian(root, vivos.__contains__) == ("corre", 111)
+    vivos.clear()
+    assert dc.que_hace_el_guardian(root, vivos.__contains__) == ("relanzar", 111)  # se murió
+    (root / "PARAR").write_text("", encoding="utf-8")
+    assert dc.que_hace_el_guardian(root, vivos.__contains__)[0] == "pausa"  # pausa de Gabriel: no se relanza
+    (root / dc.FIN_MARCA).write_text("", encoding="utf-8")
+    assert dc.que_hace_el_guardian(root, vivos.__contains__)[0] == "fin"
+
+
+def test_el_registro_no_tumba_el_programa_si_el_disco_falla(tmp_path):
+    o = dc.Orquesta(tmp_path / "no_existe", Path("python"), Path("navegadores"))
+    o.log("main", "esto no se puede escribir y no debe romper nada")  # la carpeta no existe: OSError, ignorado
+
+
 def test_la_copia_al_drive_deja_afuera_solo_cache_y_temporales():
     # 2026-11-11 (Gabriel): nada del dataset solo en el pendrive. rclone copy (nunca sync: no borra en el Drive).
     cmd = dc.comando_copia(Path("D:/datos/dj_sets"), "rclone", "erclm:traktor_ml/dj_sets")
