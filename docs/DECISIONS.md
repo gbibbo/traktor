@@ -142,6 +142,14 @@ Plan, sección 12.9. Las medidas de la auditoría de este día son exploratorias
    análisis** (Gabriel). Queda como idea P14 del plan, sin diseñar: una lista de exclusión armada al paso, sin
    etiquetado previo.
 
+## 2026-11-11 (pendrive D: con errores)
+
+1. **Windows marca el pendrive `D:` (FAT32) como «Full Repair Needed»** (agente, 13:30, `Get-Volume`); no se sabe
+   desde cuándo. Lo de D5/D6 que solo vivía ahí (sets de 1001Tracklists, listas y manifiestos de cada corrida, el
+   registro) quedó respaldado en `erclm:traktor_ml/respaldo_d5_d6/respaldo_d5_d6_20261111_1329.tar` (3558 archivos,
+   174 MB, verificado por tamaño y MD5). La reparación (`chkdsk D: /f`) pide administrador: la decide y la corre
+   Gabriel, con la descarga parada (`PARAR`); después se relanza y retoma.
+
 ## 2026-11-10 (sets y audio de los temas, de día)
 
 1. **Gabriel autoriza** cambiar el filtro de la búsqueda en Beatport, con la condición de que el agente supervise
