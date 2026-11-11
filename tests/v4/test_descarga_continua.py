@@ -104,6 +104,16 @@ def test_corrida_completa_por_nombre_de_tanda(tmp_path):
     assert not dc.completa(tmp_path / "vacia", 500)
 
 
+def test_la_copia_al_drive_deja_afuera_solo_cache_y_temporales():
+    # 2026-11-11 (Gabriel): nada del dataset solo en el pendrive. rclone copy (nunca sync: no borra en el Drive).
+    cmd = dc.comando_copia(Path("D:/datos/dj_sets"), "rclone", "erclm:traktor_ml/dj_sets")
+    assert cmd[:4] == ["rclone", "copy", str(Path("D:/datos/dj_sets")), "erclm:traktor_ml/dj_sets"]
+    excluidos = [cmd[i + 1] for i, x in enumerate(cmd) if x == "--exclude"]
+    assert set(excluidos) == set(dc.EXCLUIR_COPIA)
+    assert all("cache" in e or "tmp" in e or e in ("descarga_continua.pid", "espera_*.txt", "PARAR") for e in excluidos)
+    assert "sync" not in cmd and "--delete-excluded" not in cmd
+
+
 def test_la_espera_ante_un_sitio_sobrevive_a_un_reinicio(tmp_path):
     o = dc.Orquesta(tmp_path, Path("python"), Path("navegadores"))
     o.parar.set()  # que no espere de verdad

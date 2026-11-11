@@ -13,6 +13,8 @@ PURPOSE: D5/D6 sin pausas muertas (Gabriel, 2026-11-10: «que la descarga comple
                      rescate bajado, yt_res_<lote> con lo que sigue sin resolver (youtube_temas.py elegir). Cada
                      verificación anti-robots alarga la pausa entre pedidos (x1,5, tope 30 s; queda guardada en
                      youtube_temas/pausa_s.txt).
+           copia     al arrancar y cada 2 h, rclone copy de <root> entero a erclm:traktor_ml/dj_sets/ (menos la caché de
+                     Beatport y lo temporal): nada del dataset queda solo en el pendrive (Gabriel, 2026-11-11).
          Nunca se rinde: si un sitio corta (salida 2), espera (1001: 2 h, 3 h, 4 h; Beatport: 30 min a 2 h; YouTube:
          1 h a 2 h) y vuelve a probar, sin límite de intentos; un error del programa (otra salida) se reintenta a los
          10 min (hasta 1 h). No esquiva verificaciones ni usa otra cuenta.
@@ -30,6 +32,8 @@ CHANGELOG:
                 YouTube sube solo si la corrida bajó al menos 10 min antes del bloqueo (si no, es el mismo bloqueo).
   - 2026-11-11: un bloqueo de YouTube después de una corrida que bajó al menos 10 min cuenta como el primero (espera
                 1 h), no como uno más seguido.
+  - 2026-11-11: carril copia (Gabriel: los datos del dataset no pueden estar solo en el pendrive; los sets de
+                1001Tracklists, las listas de las corridas y D7 vivían solo en D:).
 """
 from __future__ import annotations
 
@@ -62,6 +66,12 @@ SCRIPTS = {"sets": "tools/dj_sets/tracklists_1001.py", "previews": "tools/dj_set
            "youtube": "tools/dj_sets/youtube_temas.py"}
 NAVEGADOR = Path.home() / ".traktor_ml"
 PAUSA_YT_INICIAL, PAUSA_YT_TOPE = 6.0, 30.0
+# Gabriel (2026-11-11): los datos del dataset no pueden estar solo en el pendrive. Copia de <root> entero al Drive
+# (rclone copy: sube lo nuevo o cambiado y nunca borra allá), menos la caché de búsquedas de Beatport (se rehace) y lo
+# temporal (el audio de las tandas ya va al Drive por su cuenta).
+COPIA_DRIVE, COPIA_CADA_S = "dj_sets", 2 * 3600
+EXCLUIR_COPIA = ("beatport_previews/cache/**", "beatport_previews/tmp/**", "youtube_temas/tmp/**", "descarga_continua.pid",
+                 "espera_*.txt", "PARAR", "*.tmp")
 
 Tarea = Tuple[str, List[str]]
 
@@ -367,6 +377,34 @@ def vigilar(o: Orquesta, nombre: str, carril) -> None:
                 return
 
 
+def comando_copia(root: Path, rclone: str, destino: str) -> List[str]:
+    excluir = [x for patron in EXCLUIR_COPIA for x in ("--exclude", patron)]
+    return [rclone, "copy", str(root), destino, *excluir, "--transfers", "8", "--checkers", "16", "-q"]
+
+
+def copiar_al_drive(o: Orquesta) -> bool:
+    from src.v4.common.remote_storage import find_rclone, remote_root
+
+    env = o.entorno(False)
+    destino = f"{remote_root(env)}/{COPIA_DRIVE}"
+    t0 = time.monotonic()
+    banderas = (subprocess.BELOW_NORMAL_PRIORITY_CLASS | subprocess.CREATE_NO_WINDOW) if os.name == "nt" else 0
+    proceso = subprocess.run(comando_copia(o.root, str(find_rclone(env)), destino), capture_output=True, text=True,
+                             encoding="utf-8", errors="replace", env=env, creationflags=banderas)
+    if proceso.returncode == 0:
+        o.log("copia", f"copia de {o.root} al Drive ({destino}) al día, {time.monotonic() - t0:.0f} s")
+        return True
+    o.log("copia", f"ERROR en la copia al Drive (salida {proceso.returncode}): {(proceso.stderr or '').strip()[-400:]}")
+    return False
+
+
+def carril_copia(o: Orquesta) -> None:
+    while not o.parar.is_set():
+        copiar_al_drive(o)
+        if not o.esperar(COPIA_CADA_S):
+            return
+
+
 def carril_1001(o: Orquesta) -> None:
     cortes = errores = 0
     avisado = False
@@ -534,9 +572,11 @@ def cmd_correr(args) -> int:
     mantener_despierto(True)
     o.log("main", f"EMPIEZA (PID {os.getpid()}); para parar: crear {o.parar_ruta}")
     hilos = [threading.Thread(target=vigilar, args=(o, n, f), name=n, daemon=True)
-             for n, f in (("1001", carril_1001), ("beatport", carril_beatport), ("youtube", carril_youtube))]
+             for n, f in (("1001", carril_1001), ("beatport", carril_beatport), ("youtube", carril_youtube),
+                          ("copia", carril_copia))]
     for hilo in hilos:
         hilo.start()
+    fin = False
     try:
         while True:
             time.sleep(15)
@@ -549,12 +589,15 @@ def cmd_correr(args) -> int:
                 break
             if todo_hecho(o):
                 o.log("main", "FIN: no queda nada por bajar")
+                fin = True
                 break
     finally:
         o.parar.set()
         o.cortar_todo()
         for hilo in hilos:
             hilo.join(timeout=60)
+        if fin:
+            copiar_al_drive(o)  # la última, con todo terminado
         mantener_despierto(False)
         if pid_ruta.exists():
             pid_ruta.unlink()
