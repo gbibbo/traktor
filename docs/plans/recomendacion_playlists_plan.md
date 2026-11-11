@@ -1227,3 +1227,15 @@ sets y previews midió. **Espera al dataset completo:** fijar los pesos de la ec
 previews) [REEMPLAZADO 2026-11-10 por Gabriel (DECISIONS 2026-11-10, punto 8): los pesos se deciden con datos;
 los de la escucha salen de E16 y los definitivos, de los pares de previews de V7], cambiar los pesos por
 defecto del recomendador, que además pasa por la escucha, y M3 y M4.
+
+### 12.10 Pools de concepto con ajenos y consulta con campos (2026-11-11; esperan a Gabriel)
+
+Propuesta de Gabriel del 11-11 y opinión de la auditoría: `docs/reports/pools_de_concepto_2026-11-11.md`. Regla de
+Gabriel: los pools son de evaluación, nunca de entrenamiento. Medido ese día, exploratorio: la biblioteca no tiene bossa
+nova y pedirla devuelve 30 temas igual; con texto, el género de Beatport dentro de la electrónica casi no se separa (AUC
+0,59; sonda sobre CLAP de audio 0,79); el género es un campo en 1602 de los 1760 temas.
+
+| Id | Idea | Origen | Contrato | Depende de | Etapa | Estado |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| E18 | Pools de concepto con ajenos: grupos de 10 a 20 temas armados por personas (playlists de Spotify que elige Gabriel), en un dataset aparte, fuera de la biblioteca y de Traktor. Cuatro escalones: otro mundo (bossa nova), vecinos de la electrónica, subestilos de su música y conceptos que no son género. Medidas: cuántos temas del grupo quedan entre los primeros con +10, +100 y la biblioteca entera de ajenos; cuántos ajenos aguanta antes de que entre el primero; cuántos temas entrega el sistema; qué hace cuando el grupo no está. Una parte de los grupos no se mira hasta el final. Compara sobre los mismos pools: texto crudo, los tres textos del LLM, T24, estilos Discogs, sonda (T25) y filtro por campo (T31). Es el juez de E13 que no depende de ningún modelo del proyecto | Gabriel 11-11; auditoría 11-11 (escalones, corte, grupos sin tocar) | Eval | Bajada por `download_JIJIJI`; CLAP, MAEST y estilos de esos temas (CPU); control de calidad de archivo (v8c) | Unidad 4 | Propuesta; espera a Gabriel |
+| T31 | Consulta con campos: el LLM devuelve, además de los textos, campos de listas cerradas (los géneros que existen en la biblioteca, rango de BPM, voz); el ordenador filtra por esos campos y ordena lo que queda con el puntaje de texto; lista más corta si quedan menos de 30, y aviso en el teléfono si no queda nada. Para géneros que Beatport no tiene, los 400 estilos Discogs como detector. Entra en `buscar()`; cambia el formato de salida del LLM del Worker (otra sesión) | Gabriel 11-11 (filtrar por género y más filtros); auditoría 11-11 | Perfil de concepto; Comp `texto_clap` | E18 para medirlo; T29 (largo variable) | Unidad 4 | Propuesta; espera a Gabriel. Si el filtro por género es duro o blando lo decide Gabriel |
