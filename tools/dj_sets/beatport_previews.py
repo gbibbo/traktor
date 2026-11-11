@@ -30,6 +30,8 @@ CHANGELOG:
   - 2026-11-10: una conexión cortada al bajar un MP3 se reintenta (15 s, 1 min, 3 min) y después para la corrida limpia
                 en vez de tumbarla con una excepción (lote_04, 13:00); enlaces --n (pedidos por corrida); bajar
                 --max-tandas (descarga_continua.py baja de a una para atender los rescates entre tanda y tanda).
+  - 2026-11-11: estados_http_mp3 con claves de texto: un corte de conexión mezclaba «ConnectionError» con los códigos
+                numéricos y put_json (que ordena las claves) falló después de subir el .tar (res_lote_04, tanda 3).
 """
 from __future__ import annotations
 
@@ -329,7 +331,7 @@ class Descargador:
                 time.sleep(ESPERAS_CORTE_S[cortes])
                 cortes += 1
                 continue
-            self.estados[respuesta.status_code] += 1
+            self.estados[str(respuesta.status_code)] += 1  # claves de texto: put_json las ordena (no mezclar con int)
             if respuesta.status_code == 200:
                 return respuesta.content
             if respuesta.status_code in (403, 429):
@@ -511,7 +513,7 @@ def procesar_tandas(filas: List[Dict[str, str]], remoto, carpeta_remota: str, te
             print(f"PARO en {nombre}: {exc}. Lo ya subido queda.", flush=True)
             return 2
         manifiesto["segundos_tanda"] = round(time.monotonic() - t0, 1)
-        manifiesto["estados_http_mp3"] = dict(descargador.estados)
+        manifiesto["estados_http_mp3"] = {str(k): v for k, v in descargador.estados.items()}
         manifiesto["pedidos_beatport"] = cliente.n_requests
         remoto.put(str(tar), f"{carpeta_remota}/{nombre}.tar")
         remoto.put_json(manifiesto, f"{carpeta_remota}/{nombre}.json")

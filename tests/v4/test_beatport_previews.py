@@ -206,6 +206,8 @@ def test_descargador_reintenta_la_conexion_cortada_y_despues_para_limpio(monkeyp
     sesion = SesionFalsa([corte, corte, RespuestaFalsa(200, b"ID3mp3")])
     descargador = bpv.Descargador(pausa_s=0, sesion=sesion)
     assert descargador("u") == b"ID3mp3" and sesion.pedidos == 3 and descargador.estados["ConnectionError"] == 2
+    # 2026-11-11: el manifiesto ordena las claves (put_json): todas de texto, aunque haya cortes y códigos HTTP.
+    assert sorted(descargador.estados) == ["200", "ConnectionError"] and json.dumps(descargador.estados, sort_keys=True)
     sesion = SesionFalsa([corte] * (len(bpv.ESPERAS_CORTE_S) + 1))
     with pytest.raises(bp.BeatportBlocked):
         bpv.Descargador(pausa_s=0, sesion=sesion)("u")
