@@ -55,9 +55,14 @@ para todo, y si todo falla, el camino de hoy. El reglamento vive en un solo arch
 
 - **El banco antes que las reglas.** Arma el banco de regresión (de 150 a 200 pedidos con su formulario esperado)
   antes de afinar instrucciones, y fija el umbral antes de medir. Un cambio de reglas no entra si empeora una casilla.
-  La semilla es `docs/plans/pedidos_telefono_borrador.md`: 82 pedidos con lo que el sistema debería entender, que
-  Gabriel revisa editando el archivo. Usa la versión que él haya corregido, pásala al formulario cuando el esquema
-  esté fijo y amplíala; no le pidas que escriba pedidos a mano, salvo los que quiera agregar.
+  La semilla es `docs/plans/pedidos_telefono_borrador.md`: 82 pedidos con lo que el sistema debería entender.
+  Gabriel no la revisa; la revisa la auditoría. Sus pedidos reales se juntan del registro del ordenador
+  (`conceptos_resultados.jsonl`) a medida que usa el teléfono. Pasa la semilla al formulario cuando el esquema esté
+  fijo y amplíala.
+- **Presupuesto humano** (Gabriel, 11-13). Toda tarea que le pidas a Gabriel, sea una revisión, una elección o una
+  prueba, dice antes cuánto lleva, entra en 15 minutos y tiene una decisión por pantalla. Lo que puedas decidir con
+  un valor por defecto, decídelo y díselo en una línea; no le des listas largas para corregir. Regla completa:
+  `docs/reports/escucha_corta_e12_2026-11-13.md`.
 - **Género duro o blando** (Gabriel, 11-13; puede cambiar): blando si el género viene del texto, duro si se eligió en
   un preset. Blando quiere decir que ese género va primero y entran también sus vecinos.
 - **Listas cerradas.** El LLM nunca escribe un género, un nombre de perfil ni un número que no esté en su lista.

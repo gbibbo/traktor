@@ -70,6 +70,17 @@ Plan vigente: `docs/plans/plan_recomendacion_v2.md`. Inventario de ideas: `docs/
 
 ## 2026-11-10 (E16: la ecuación con D5 y la escucha E12 lista)
 
+9. **Los ejercicios que se le piden a Gabriel se adaptan a una persona ocupada, que se cansa** (Gabriel, a la
+   auditoría: la escucha E12 de 10 × 60 temas, con la cuenta hecha de memoria, «es inviable», y no abrió los 82 pedidos
+   porque esperaba el mismo error). Error del agente auditor, que propuso las dos cosas. Cómo (agente), regla
+   «presupuesto humano» en `docs/reports/escucha_corta_e12_2026-11-13.md` y en el plan, 2.4: toda tarea para Gabriel
+   dice antes cuánto lleva, entra en 15 minutos y tiene una decisión por pantalla; lo que un agente puede decidir con
+   un valor por defecto o revisar por su cuenta no se le pregunta; sus pedidos reales se juntan del registro del
+   teléfono.
+   - **E12 corta,** fijada antes de cualquier respuesta: por tema principal, los 3 primeros temas propios de cada
+     lista, 10 s cada uno, y una elección; unos 12 minutos. Se lee igual: 9 o 10 de 10 deciden. Mide el comienzo de
+     las listas, no los 30 temas. Página: `artifacts\v4\escucha\e12\escucha.html`.
+   - **Los 82 pedidos** los revisa la auditoría. Sus cuatro preguntas quedaron como valores por defecto del agente.
 Informe: `docs/reports/juez_d5_2026-11-10.md`. Regla fijada en `77d4434` antes de medir.
 
 1. **La lista nueva de la escucha usa pesos iguales** (por la regla de Gabriel del punto 8 de «mientras se baja el

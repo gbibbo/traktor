@@ -42,6 +42,10 @@ iguales. Intervalos remuestreando DJs.
   Lo que agregues después de ver los datos va marcado como exploratorio.
 - **Nada se ajusta con los sets ni con la biblioteca de Gabriel.** Son solo para medir.
 - **Un mejor número no cambia el recomendador.** No toques los valores por defecto de `recomendador.py`.
+- **Presupuesto humano** (Gabriel, 11-13). Toda tarea que le pidas a Gabriel, sea una escucha, una revisión o una
+  elección, dice antes cuánto lleva, entra en 15 minutos y tiene una decisión por pantalla. Las escuchas usan el
+  formato corto de `tools/playlist_review/pagina_escucha.py`. Lo que puedas decidir con un valor por defecto,
+  decídelo y díselo en una línea. Regla completa: `docs/reports/escucha_corta_e12_2026-11-13.md`.
 - **gpuq:** prueba chica en CPU con el mismo código, y antes del primer envío de cada tipo de trabajo, pide el OK a
   Gabriel en el chat con el tiempo por ítem, las horas de GPU, el espacio en el Drive y las rutas.
 - **gpuq usa Kaggle y Colab según la demanda** (Gabriel, 11-13). Colab perdió la sesión a los 13 minutos en el

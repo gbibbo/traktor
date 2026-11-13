@@ -49,11 +49,11 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    (`datasets/djsets/README.md`; rama unida a `main`). GABRIEL: vetos de `candidatos.csv`.
 4. LOCAL: modelo de representación propio: es la línea A del plan v2 (`representation_model_plan.md`
    queda de contexto).
-5. Recomendación: plan vigente `docs/plans/plan_recomendacion_v2.md` (11-13); línea A, DJSets en gpuq.
-   GABRIEL: escucha E12 (`e12\escucha.html`) y la sección 6 del plan; Traktor,
-   «TRAKTOR ML sin tonalidad», Analyze solo Key. TIV aparte.
+5. Recomendación: plan `plan_recomendacion_v2.md`; línea A en gpuq. GABRIEL: escucha corta E12,
+   12 min (`artifacts\v4\escucha\e12\escucha.html`); Traktor, «TRAKTOR ML sin tonalidad», Analyze solo
+   Key. TIV aparte. Pedidos a Gabriel: 15 min o menos (`escucha_corta_e12_2026-11-13.md`).
 6. Teléfono, línea B: formulario, ejecutor y Worker v6 (presets) en local. GABRIEL: momentos
-   (`momentos_djsets_2026-11-13.md`), `pedidos_telefono_borrador.md`, publicar.
+   (`momentos_djsets_2026-11-13.md`), publicar.
 
 ## RUN RECIPES
 

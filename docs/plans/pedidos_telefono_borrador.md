@@ -1,30 +1,33 @@
-# Pedidos del teléfono: borrador para que Gabriel lo revise
+# Pedidos del teléfono: semilla del banco
 
 **Para qué sirve.** Son los ejemplos y el banco de regresión de la línea B del plan (`plan_recomendacion_v2.md`,
 sección 3; idea L11). Cada fila es un pedido como se escribiría en el teléfono y lo que el sistema debería entender.
-Gabriel pidió ayuda para producirlos el 2026-11-13: los escribió el agente auditor, salvo los tres que dicen
-«tuyo», que son pedidos que Gabriel escribió de verdad. La palabra final sobre cómo se piden las cosas es de Gabriel.
+Los escribió el agente auditor el 2026-11-13, salvo los tres que dicen «tuyo», que Gabriel escribió de verdad.
 
-**Cómo revisarlo.** Editando este archivo, sin más herramienta:
+**Gabriel no tiene que revisar esta lista.** [REEMPLAZADO 2026-11-13 por Gabriel: revisar 82 filas es el mismo error
+que la escucha de 600 temas; los ejercicios se adaptan a una persona ocupada] La primera versión le pedía corregirla
+fila por fila. Ahora:
 
-- Si una fila está bien, no la toques.
-- Si no lo escribirías así, corrige el texto del pedido.
-- Si el sistema debería entender otra cosa, corrige la segunda columna.
-- Si el pedido no tiene sentido para ti, borra la fila.
-- Agrega al final los tuyos, aunque sean pocos. Con el pedido alcanza; la segunda columna la completa el agente.
+- La revisa la sesión auditora, no él.
+- Sus pedidos reales se juntan solos: el ordenador ya guarda cada pedido que llega del teléfono
+  (`conceptos_resultados.jsonl`). Cada pedido real entra al banco con lo que el sistema entendió, y se corrige solo
+  si él dice que la lista salió mal.
+- Si quiere agregar alguno, lo escribe al final, sin la segunda columna.
 
-**Reglas que usa el borrador** (decididas por Gabriel el 11-13, pueden cambiar):
+**Reglas** (Gabriel, 11-13; pueden cambiar):
 
 - Un género escrito en el texto es **blando**: ese género va primero y entran también los géneros vecinos.
 - Un género elegido en un preset del teléfono es **duro**: solo ese género. Los presets no están en esta lista, porque
   no pasan por el LLM.
 
-**Preguntas para ti**, marcadas con «¿?» en las filas:
+**Cuatro valores por defecto que eligió el agente.** Gabriel los cambia cuando quiera; no hace falta que conteste:
 
-1. Un número de BPM solo, ¿es ese número ±2?
-2. Si pides algo que no hay, ¿prefieres que el teléfono diga «no hay» o que ofrezca lo más cercano?
-3. «Ignora la tonalidad», ¿puede sacar el filtro de tonalidad del vivo para ese pedido?
-4. «Que contraste con esto» y «bajar un cambio», ¿qué esperarías que traigan?
+1. Un número de BPM solo es ese número ±2.
+2. Si se pide algo que no hay, el teléfono dice que no hay. Si existe algo cercano, lo ofrece con un toque; nunca arma
+   por su cuenta una lista de otra cosa.
+3. «Ignora la tonalidad» baja el peso de la tonalidad en el orden. El filtro del vivo queda, porque es regla de Gabriel.
+4. Ante un pedido ambiguo («que contraste», «bajar un cambio»), el teléfono pregunta con dos o tres opciones de un
+   toque, en vez de adivinar.
 
 Lo que hoy existe como dato por tema: género (1602 de 1760 temas), BPM, tonalidad, voz y artista. Sello y fecha de
 lanzamiento existen para 1461 temas en los datos de Beatport, pero no están en el índice del recomendador. El momento
@@ -47,7 +50,7 @@ de la noche y «como tal DJ» llegan con la línea A.
 
 | # | Pedido | Lo que debería entender |
 | --: | :--- | :--- |
-| 9 | 126 bpm | BPM de 124 a 128 ¿? |
+| 9 | 126 bpm | BPM de 124 a 128 |
 | 10 | entre 120 y 124 | BPM de 120 a 124 |
 | 11 | más rápido que esto | BPM más rápido que lo que suena |
 | 12 | bajemos un poco las revoluciones | BPM más lento que lo que suena |
@@ -101,7 +104,7 @@ de la noche y «como tal DJ» llegan con la línea A.
 | 35 | lo mismo pero sin voz | Referencia: lo que suena. Voz: sin |
 | 36 | algo parecido pero más melódico | Referencia: lo que suena. Texto: «more melodic» |
 | 37 | seguir en esta línea pero subiendo | Referencia: lo que suena. Momento: subida |
-| 38 | algo que contraste con esto, cambiar de clima | ¿? |
+| 38 | algo que contraste con esto, cambiar de clima | Ambiguo: el teléfono pregunta con opciones (otro género, otro clima, otra energía) |
 
 ## 8. Momento de la noche
 
@@ -113,7 +116,7 @@ de la noche y «como tal DJ» llegan con la línea A.
 | 42 | after, seis de la mañana | Momento: after |
 | 43 | warm up tranquilo sin voces | Momento: apertura. Voz: sin |
 | 44 | recién se está llenando la pista | Momento: subida |
-| 45 | la gente está cansada, bajar un cambio | ¿? |
+| 45 | la gente está cansada, bajar un cambio | Ambiguo: el teléfono pregunta con opciones (más lento, más tranquilo, momento de cierre) |
 
 ## 9. Cómo suena
 
@@ -160,7 +163,7 @@ de la noche y «como tal DJ» llegan con la línea A.
 | 64 | que pese más el género | Perfil de pesos: género |
 | 65 | me importa más que suene parecido que el bpm | Perfil de pesos: sonido. BPM: nivel bajo |
 | 66 | que sea bien armónico | Perfil de pesos: armónico |
-| 67 | ignora la tonalidad | Tonalidad: nivel bajo ¿? |
+| 67 | ignora la tonalidad | Tonalidad: nivel bajo. El filtro del vivo queda |
 
 ## 14. Excluir, limitar y ordenar
 
@@ -175,9 +178,9 @@ de la noche y «como tal DJ» llegan con la línea A.
 
 | # | Pedido | Lo que debería entender |
 | --: | :--- | :--- |
-| 72 | bossa nova brasilera (tuyo) | No hay: el teléfono lo dice y no arma una lista de otra cosa ¿? |
-| 73 | reggaeton | No hay ¿? |
-| 74 | drum and bass | No hay. Lo más cercano es Breaks / Breakbeat / UK Bass, con 7 temas ¿? |
+| 72 | bossa nova brasilera (tuyo) | No hay: el teléfono lo dice y no arma una lista de otra cosa |
+| 73 | reggaeton | No hay |
+| 74 | drum and bass | No hay. El teléfono ofrece lo más cercano con un toque: Breaks / Breakbeat / UK Bass, 7 temas |
 | 75 | rock | Género Rock: lista corta, hay 2 temas |
 
 ## 16. Vagos, largos o mal escritos

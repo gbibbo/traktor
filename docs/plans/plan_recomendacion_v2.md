@@ -106,6 +106,10 @@ calcular esos vectores (A0) y afinar un modelo entero (A4), y lo segundo solo se
 - **Un mejor número no cambia el recomendador.** Lo que pasa el tablero va a una escucha a ciegas; el valor por
   defecto cambia cuando Gabriel lo dice.
 - **Cada informe dice** la versión del dataset, cuántos sets y temas midió, y el commit.
+- **Presupuesto humano** (Gabriel, 11-13, tras rechazar una escucha de 600 temas). Toda tarea que se le pida a
+  Gabriel dice antes cuánto lleva, entra en 15 minutos y tiene una decisión por pantalla. Lo que un agente puede
+  decidir con un valor por defecto o revisar por su cuenta, no se le pregunta. Las escuchas usan el formato corto de
+  `tools/playlist_review/pagina_escucha.py`. Regla completa: `docs/reports/escucha_corta_e12_2026-11-13.md`.
 
 ### 2.5 Presupuesto de GPU
 
@@ -236,9 +240,9 @@ agregando solo las líneas propias y con `git add` de rutas explícitas.
 | 1 | Confirmar que «la GPU del cluster» es gpuq (Kaggle), o decir si quiere otra máquina [REEMPLAZADO 2026-11-13 por Gabriel: es gpuq, con Kaggle y Colab según la demanda; sección 2.5] | Presupuesto de la línea A |
 | 2 | Confirmar que se entrenan modelos con el dataset, de uso privado. Beatport declara `ai-train=no`, que es una señal y no una licencia. El agente lee el pedido del 11-13 como un sí [REEMPLAZADO 2026-11-13 por Gabriel: sí, se usa el dataset completo, de uso privado] | A2 en adelante |
 | 3 | Unir la rama `dataset-djsets` a `main` [REEMPLAZADO 2026-11-13: Gabriel lo pidió y está hecho; `main` quedó en `dcd93a3`] | Que todas las sesiones trabajen sobre lo mismo |
-| 4 | La escucha E12: 10 temas, A o B. Página con las indicaciones: `D:\TRAKTOR ML datos\dj_sets\e12\escucha.html` (la arma `tools/playlist_review/pagina_escucha.py`) | Es lo que decide si Parecidos deja de usar solo CLAP |
-| 5 | Teléfono: de 30 a 50 pedidos escritos como los escribiría de verdad [REEMPLAZADO 2026-11-13 por Gabriel: no puede escribir 50; los produce el agente y él supervisa. Borrador de 82 en `pedidos_telefono_borrador.md`: revisarlo y agregar los suyos] | Ejemplos y banco de la línea B |
-| 6 | Teléfono: filtro de género duro o blando por defecto [REEMPLAZADO 2026-11-13 por Gabriel: blando desde el texto, duro desde un preset]; la tabla de momentos; de 8 a 12 conceptos con una playlist de Spotify cada uno; y las cuatro preguntas del borrador de pedidos | B1, L10 y E18 |
+| 4 | La escucha E12: 10 temas, A o B. Página con las indicaciones: `D:\TRAKTOR ML datos\dj_sets\e12\escucha.html` (la arma `tools/playlist_review/pagina_escucha.py`) [REEMPLAZADO 2026-11-13 por Gabriel: oír 10 × 60 temas es inviable. Versión corta, unos 12 minutos: 3 temas por lista y una decisión por pantalla, en `artifacts\v4\escucha\e12\escucha.html`; protocolo en `docs/reports/escucha_corta_e12_2026-11-13.md`. Es lo único de esta tabla que hace falta de Gabriel ahora] | Es lo que decide si Parecidos deja de usar solo CLAP |
+| 5 | Teléfono: de 30 a 50 pedidos escritos como los escribiría de verdad [REEMPLAZADO 2026-11-13 por Gabriel: no puede escribir 50; los produce el agente y él supervisa. Borrador de 82 en `pedidos_telefono_borrador.md`: revisarlo y agregar los suyos] [REEMPLAZADO 2026-11-13 por Gabriel: tampoco revisa 82 filas. Los revisa la auditoría, y sus pedidos reales se juntan del registro del teléfono] | Ejemplos y banco de la línea B |
+| 6 | Teléfono: filtro de género duro o blando por defecto [REEMPLAZADO 2026-11-13 por Gabriel: blando desde el texto, duro desde un preset]; la tabla de momentos; de 8 a 12 conceptos con una playlist de Spotify cada uno; y las cuatro preguntas del borrador de pedidos [REEMPLAZADO 2026-11-13 por el presupuesto humano (2.4): las playlists las proponen los agentes y Gabriel dice sí o no; las cuatro preguntas pasaron a valores por defecto del agente] | B1, L10 y E18 |
 | 7 | Si el factor de género pasa a ser la coaparición aprendida de los sets | Ecuación (pregunta abierta desde el 11-10) |
 | 8 | Vetos en `candidatos.csv` | Si veta sets, sale DJSets v2; los experimentos arrancan con v1 |
 | 9 | `python cloudflare/publicar.py` | El teléfono en producción |

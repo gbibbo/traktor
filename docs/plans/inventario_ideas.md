@@ -33,7 +33,7 @@ Cómo leerlo:
 | L8 | Un tema o archivo nombrado lo resuelve el ordenador por coincidencia aproximada; el teléfono muestra candidatos | Gabriel 11-13 | En parte 11-13: el ordenador resuelve y el teléfono muestra candidatos; falta que el texto llene `referencia` (B3) | B3 |
 | L9 | Perfiles de pesos con nombre y tres niveles por factor; el LLM nunca escribe números | Gabriel 11-13; P6 | Pendiente | B1, B3 |
 | L10 | «Momento de la noche» como preset y como texto; tabla fija hasta que exista A5 | Gabriel 11-13 | Tabla medida en DJSets 11-13, propuesta (`momentos_djsets_2026-11-13.md`); espera a Gabriel | B3, B6 |
-| L11 | Banco de regresión del LLM: de 150 a 200 pedidos con su formulario esperado | Plan v2 | Semilla de 82 pedidos en `pedidos_telefono_borrador.md`; espera la revisión de Gabriel | B3 |
+| L11 | Banco de regresión del LLM: de 150 a 200 pedidos con su formulario esperado | Plan v2 | Semilla de 82 pedidos en `pedidos_telefono_borrador.md`; la revisa la auditoría, no Gabriel | B3 |
 | L12 | El teléfono muestra qué entendió y cuántos temas pasaron cada filtro, con un toque para corregir | Plan v2 | Hecho en local 11-13 (Worker v6), salvo el toque para corregir: hoy se corrige con «Ajustar» | B4 |
 
 ## Ideas del plan viejo
@@ -84,7 +84,7 @@ Cómo leerlo:
 | E9 | Compacidad de los sets en CLAP | Adenda 11-08 | Medido 11-08 | Referencia |
 | E10 | Precisión de zona y pureza fuera de muestra | Adenda 11-08 | Medido 11-08 | Referencia |
 | E11 | Validar una coordenada en tres pasos: ordena, se mueve con la noche, acuerda con Gabriel | Adenda 11-08 | Regla vigente | A5 |
-| E12 | Escucha a ciegas de listas enteras, de a dos | Adenda 11-08 | Lista desde el 11-10; sin respuestas (v). Página con indicaciones hecha el 11-13 (`pagina_escucha.py`) | Sección 6, punto 4 |
+| E12 | Escucha a ciegas de listas enteras, de a dos | Adenda 11-08 | Lista desde el 11-10; sin respuestas (v). Versión corta de 12 minutos desde el 11-13 (`pagina_escucha.py`, `escucha_corta_e12_2026-11-13.md`) | Sección 6, punto 4 |
 | E13 | Banco de conceptos local, con y sin referencia | Adenda 11-09 | Versión exploratoria medida | B5 |
 | E14 | Control de tempo al medir los modelos | Adenda 11-09 | Medido 11-09 | A1: negativos del mismo BPM |
 | E15 | Control de dominio: preview frente a biblioteca | Auditoría 11-09 | Medido 11-10: CLAP sufre el códec, MAEST pasa | Lo continúa E20 |
