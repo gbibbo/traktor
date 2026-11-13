@@ -114,6 +114,8 @@ Copia local de las tablas y de las 60 salidas de V7 en `D:\TRAKTOR ML datos\line
       así que **el umbral 4 pasa y V7 se reutiliza**.
     - `youtube_000`: 88 de 88 más 10 de control; ventana correcta en todos; **4,65 s por tema, por encima de 4,5**. Los
       trabajos completos de YouTube esperan el OK de Gabriel. Los de Beatport salen.
+    - Gabriel dio el OK para YouTube el mismo día (DECISIONS, punto 14). Trabajos: `traktor-a0-1` a `traktor-a0-7`
+      (Beatport) y `traktor-a0-8` a `traktor-a0-13` (YouTube).
     - Sin el corte a propósito: en Kaggle cancelar exige un paso a mano de Gabriel en kaggle.com. La reanudación la
       cubren el test unitario y el primer corte natural de Colab, que se revisa en el log.
     - `beatport_060` y `youtube_000` se copiaron de `a0_prueba/` a `a0/`, con md5 verificado.
@@ -260,6 +262,8 @@ lo encontró por su lado (commit `cd049e7`).
 - Con esa regla, P1 principal frente a N4 en test tiene **1480 positivos de 33 DJs**: 20 menos que el mínimo de 1500.
   Por la regla de arriba, se informa y se pregunta a Gabriel antes de cambiar nada; mientras tanto no se mide ningún
   modelo con el tablero (A0 todavía no terminó).
+- **Decisión (2026-11-13; DECISIONS, punto 14):** Gabriel lo dejó en manos del agente. P1 principal frente a N4 sigue
+  como resultado principal con 1480 positivos, y el informe lo dice.
 - En validation, 2133 positivos de 32 DJs; en train, 18 907.
 
 Conteos del primer armado con estos cambios (N4 con ±1; 2026-11-13, todavía sin medir ninguna línea de base):

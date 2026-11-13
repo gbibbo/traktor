@@ -151,6 +151,14 @@ Plan vigente: `docs/plans/plan_recomendacion_v2.md`. Inventario de ideas: `docs/
     apenas se editan, y ya no se separan bloques a mano. Reglas en `AGENTS.md`, «Several sessions on one working
     tree»; tests en `tests/test_subir.py`. No se usan árboles separados por sesión (`git worktree`) porque el código
     busca los datos dentro de la carpeta del repositorio y un árbol aparte no los tiene.
+14. **Línea A: A0 sigue con YouTube, y el tablero de A1 se queda como está** (Gabriel, el mismo día). Protocolo:
+    `docs/plans/linea_a_protocolo_a0_a1.md`.
+    - **YouTube.** Sus trabajos cuestan 4,65 s por tema en Kaggle, por encima del límite de 4,5 s que se había puesto
+      el agente. Gabriel dijo que se lancen igual. Son unas 3,8 h de GPU en lugar de 2,5, y A0 entero queda en unas 9 h.
+    - **Tamaño del resultado principal de A1.** Tiene 1480 positivos, 20 menos que el mínimo de 1500 que había fijado el
+      agente. Gabriel lo dejó en manos del agente.
+    - Decisión (agente): se mantiene como resultado principal, y el informe lo dice. El intervalo remuestrea los 33
+      DJs, y 20 positivos menos casi no cambian su ancho.
 
 ## 2026-11-10 (E16: la ecuación con D5 y la escucha E12 lista)
 
