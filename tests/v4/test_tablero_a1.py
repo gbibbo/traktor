@@ -126,7 +126,7 @@ def test_negativos_cumplen_cada_nivel(armado):
         if tab["nivel"][i] in ("N3", "N4"):
             assert T[c].genero == T[b].genero
         if tab["nivel"][i] == "N4":
-            assert abs(T[c].anio - T[b].anio) <= ta.TOL_ANIO
+            assert abs(abs(T[c].anio - T[a].anio) - abs(T[b].anio - T[a].anio)) <= ta.TOL_ANIO
 
 
 def test_marcas_y_n4(armado):

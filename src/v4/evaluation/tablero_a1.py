@@ -50,7 +50,7 @@ GRUPOS = ("principal", "vistos", "sin_metadatos")
 K_NEG = 20
 K_NEG_TRAIN = 5          # train solo ajusta (A2, medias y desvíos): 5 negativos por nivel alcanzan y la tabla entra en memoria
 TOL_BPM = 1.0           # N2: | |BPM(c) − BPM(a)| − |BPM(b) − BPM(a)| | ≤ 1
-TOL_ANIO = 1             # N4 (auditoría del 11-13): N3 y el año de lanzamiento del candidato a ±1 del de b
+TOL_ANIO = 0             # N4: N3 y | |año(c) − año(a)| − |año(b) − año(a)| | ≤ 0 (la distancia en años al ancla, igual)
 TOPE_P3 = 50             # positivos P3 por set (sorteados con la semilla), para que las tablas no crezcan con n²
 SEMILLA = 0
 BOOT = 1000
@@ -237,8 +237,13 @@ def candidatos(p: Pool, a: str, b: str, dj: str, T: Dict[str, Tema], co: Dict[st
         out["N2"] = np.flatnonzero(n2)
         n3 = n2 & (p.genero == codigos_genero.get(T[b].genero, -2))
         out["N3"] = np.flatnonzero(n3)
-        with np.errstate(invalid="ignore"):
-            n4 = n3 & (np.abs(p.anio - T[b].anio) <= TOL_ANIO) if np.isfinite(T[b].anio) else np.zeros_like(n3)
+        # N4 iguala la distancia en años al ancla, como N2 con el BPM. La primera versión (año de c a ±1 del de b)
+        # falló el control C5: la fecha sola daba 0,571 en N4 (2026-11-13, antes de medir ningún modelo).
+        if np.isfinite(T[a].anio) and np.isfinite(T[b].anio):
+            with np.errstate(invalid="ignore"):
+                n4 = n3 & (np.abs(np.abs(p.anio - T[a].anio) - abs(T[b].anio - T[a].anio)) <= TOL_ANIO)
+        else:
+            n4 = np.zeros_like(n3)
         out["N4"] = np.flatnonzero(n4)
     return out
 

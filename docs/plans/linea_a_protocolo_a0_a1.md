@@ -239,7 +239,21 @@ Controles nuevos:
 - C3 se extiende a N4: bpm entre 0,47 y 0,53, y género 0,500 ± 0,005.
 - C5: en N4, el AUC de fecha está entre 0,47 y 0,53.
 
-Conteos del armado con estos cambios (2026-11-13, todavía sin medir ninguna línea de base):
+**N4 corregido por el control C5 (2026-11-13, antes de medir ningún modelo).** Con la definición de arriba (año del
+candidato a ±1 del de b), C3 y C4 pasaron pero C5 falló: la fecha sola daba 0,571 [0,540; 0,606] en N4. Lo midió
+`medir` solo con metadatos (`D:\TRAKTOR ML datos\linea_a\a1_medir_metadatos.json`, commit `d598fcb`), y la auditoría
+lo encontró por su lado (commit `cd049e7`).
+- La causa es la misma que con el BPM: igualar el año a b deja que un b del mismo año que a le gane a un candidato un
+  año más lejos de a.
+- [REEMPLAZADO 2026-11-13 por el fallo de C5] N4 = N3 y el año del candidato a ±1 del de b.
+- **N4 vigente: N3 y |año(c) − año(a)| = |año(b) − año(a)|, en años enteros.** Iguala la distancia al ancla, como N2
+  con el BPM, así la fecha empata por construcción. Necesita el año de a y el de b.
+- Con esa regla, P1 principal frente a N4 en test tiene **1480 positivos de 33 DJs**: 20 menos que el mínimo de 1500.
+  Por la regla de arriba, se informa y se pregunta a Gabriel antes de cambiar nada; mientras tanto no se mide ningún
+  modelo con el tablero (A0 todavía no terminó).
+- En validation, 2133 positivos de 32 DJs; en train, 18 907.
+
+Conteos del primer armado con estos cambios (N4 con ±1; 2026-11-13, todavía sin medir ninguna línea de base):
 - C1 y C2 pasan.
 - **test:** P1 principal tiene 2067 positivos; eran 2076 y 9 pasan a vistos por las filas «w/».
   - Con negativos N4: **1660 positivos de 33 DJs**, así que el tamaño mínimo se cumple.
