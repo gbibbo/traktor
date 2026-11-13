@@ -75,6 +75,11 @@ medí si alcanzaba para igualar la fecha. Corrección:
 - **Si quedan menos de 1500 positivos,** recomiendo mantenerlo igual como resultado principal y decirlo. El intervalo
   se calcula remuestreando DJs, y los DJs siguen siendo 33.
 
+**Corrección aplicada y verificada** (commit `27991df` de la línea A; tabla de test con md5 `1d35d31f`): el 100 % de
+los negativos N4 está a la misma distancia en años del ancla que b, y en N4 el AUC de fecha es 0,500, el de BPM 0,500 y
+el de género 0,500. Quedan 1480 positivos de 33 DJs y 162 sets. La auditoría del protocolo queda cerrada; falta la del
+código.
+
 ## Revisión hostil
 
 - **Un error mío, corregido.** La primera corrida usó la columna `split` y no `parte_tablero`, y dio 106 temas
