@@ -19,6 +19,8 @@ for E4; then --sin-bajadas and --sin-subidas for E5, which split the Drive traff
     ... --cmd "python tools/gpuq/diag_colab/carga_gpu.py --min 20 --drive 6 --sin-subidas --run e5-bajadas" ...
     ... --cmd "RCLONE_MULTI_THREAD_STREAMS=0 python tools/gpuq/diag_colab/carga_gpu.py --min 20 --drive 6
             --sin-subidas --run e5-1hilo" ...
+All three E5 were cut at 12.2 min, so any Drive call through rclone does it. --rclone-http URL (E6) has rclone
+download a public file over HTTP every 3 min without touching the Drive, to tell the Drive from the rclone binary.
 """
 import argparse
 import os
@@ -69,6 +71,29 @@ class Traffic:
         print(f"E4 drive: partial {self.puts} up", flush=True)
 
 
+class RcloneHttp:
+    """E6: the rclone binary downloading a public file over HTTP every EVERY_S seconds, without Google Drive."""
+
+    def __init__(self, url: str):
+        sys.path.insert(0, str(ROOT))
+        from src.v4.common.remote_storage import find_rclone
+        self.exe, self.url, self.next, self.n = find_rclone(), url, 0.0, 0
+        self.tmp = Path(tempfile.mkdtemp(prefix="e6_"))
+
+    def tick(self):
+        if time.time() < self.next:
+            return
+        self.next = time.time() + EVERY_S
+        import subprocess
+        local, t = self.tmp / "file.bin", time.time()
+        res = subprocess.run([self.exe, "copyurl", self.url, str(local)], capture_output=True, text=True)
+        mb = local.stat().st_size / 2**20 if local.exists() else 0
+        local.unlink(missing_ok=True)
+        self.n += 1
+        print(f"E6 rclone http: download {self.n}, {mb:.0f} MB in {time.time() - t:.0f} s, rc {res.returncode}",
+              flush=True)
+
+
 def download_models():
     from huggingface_hub import snapshot_download
     for name in MODELS:
@@ -85,6 +110,7 @@ def main() -> None:
     ap.add_argument("--hf", action="store_true", help="download CLAP and MAEST from Hugging Face at the start")
     ap.add_argument("--sin-bajadas", action="store_true", help="with --drive: only the partials, no tar downloads")
     ap.add_argument("--sin-subidas", action="store_true", help="with --drive: only the tar downloads, no partials")
+    ap.add_argument("--rclone-http", metavar="URL", help="E6: rclone downloads this public URL every 3 min, no Drive")
     ap.add_argument("--run", default="e3", help="name of the run, for the partials on the Drive")
     a = ap.parse_args()
     import torch  # on the VM; not needed to read --help here
@@ -100,11 +126,14 @@ def main() -> None:
     if traffic:
         print(f"E4 drive: {len(traffic.tars)} tars to get, partials {'on' if traffic.up else 'off'}, "
               f"RCLONE_MULTI_THREAD_STREAMS={os.environ.get('RCLONE_MULTI_THREAD_STREAMS', 'default')}", flush=True)
+    http = RcloneHttp(a.rclone_http) if a.rclone_http else None
     x = torch.randn(4096, 4096, device="cuda")
     n = 0
     while time.time() - t0 < a.min * 60:
         if traffic:
             traffic.tick((time.time() - t0) / 60)
+        if http:
+            http.tick()
         s = time.time()
         while time.time() - s < 30:
             x @ x
