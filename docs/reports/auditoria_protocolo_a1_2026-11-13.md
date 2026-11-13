@@ -52,6 +52,29 @@ menores, todos baratos.
    sin umbral.
 6. **Los 6 temas «w/»:** contarlos como vistos, o dejar escrito que ningún entrenamiento usa esas filas.
 
+## Control del cambio aplicado (commit `d598fcb`)
+
+La línea A aplicó las seis recomendaciones antes de medir. Verificado sobre la tabla nueva de test (md5 `540adcce`),
+otra vez solo con metadatos:
+
+| Afirmación | Etiqueta | Evidencia |
+| :--- | :--- | :--- |
+| P1 principal tiene 2067 positivos; 1660 con negativos N4, de 33 DJs y 166 sets | EVIDENCIA OBSERVADA | `pares_test.csv.gz` |
+| En N4 ningún candidato está a más de 1 año de b | EVIDENCIA OBSERVADA | Diferencia máxima: 1 |
+| En N4 el BPM y el género ya no separan: AUC 0,503 y 0,500 | EVIDENCIA OBSERVADA | Mismo AUC pesado |
+| **En N4 la fecha todavía separa: AUC 0,571.** El control C5 del protocolo (entre 0,47 y 0,53) va a fallar | EVIDENCIA OBSERVADA | El candidato queda más lejos de a que b en el 46 % de los negativos, igual en el 35 % y más cerca en el 19 % |
+| La causa es el margen de ±1 que recomendó esta auditoría | INFERENCIA | En el 43 % de los positivos a y b son del mismo año; un candidato a ±1 de b queda entonces a 0 o a 1 año de a, nunca más cerca |
+
+**La recomendación 1 estaba incompleta: fue un error de esta auditoría.** Medí que ±1 dejaba tamaño suficiente y no
+medí si alcanzaba para igualar la fecha. Corrección:
+
+- **Igualar la distancia al ancla, como hace N2 con el BPM:** el candidato cumple
+  |año(c) − año(a)| = |año(b) − año(a)|. Con eso «fecha cercana» empata siempre y su AUC es 0,5 por construcción.
+- **Tamaño.** Dentro de lo ya sorteado, 1381 de los 1660 positivos conservan algún negativo así (33 DJs, 161 sets). Es
+  una cota inferior: sorteando del pool entero entran también los candidatos del otro lado de a.
+- **Si quedan menos de 1500 positivos,** recomiendo mantenerlo igual como resultado principal y decirlo. El intervalo
+  se calcula remuestreando DJs, y los DJs siguen siendo 33.
+
 ## Revisión hostil
 
 - **Un error mío, corregido.** La primera corrida usó la columna `split` y no `parte_tablero`, y dio 106 temas
