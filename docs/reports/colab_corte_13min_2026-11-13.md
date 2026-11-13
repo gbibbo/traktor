@@ -16,7 +16,9 @@ no leer credenciales). El 13-nov sigue: `traktor-a0-1` se cortó a los 12,2 y a 
 Ese mismo día, en cambio, tres pruebas que solo usan la GPU vivieron más de 30 min, una de ellas con el esquema exacto
 de consultas de gpuq. Lo que dispara el corte está en algo que hacen los trabajos reales y las pruebas no: el arranque
 de gpuq (subir las credenciales, instalar rclone, clonar el repo) o el trabajo en sí (bajar del Drive y de Hugging
-Face, decodificar audio en la CPU). La prueba E3, encolada con el OK de Gabriel, separa las dos cosas. Por qué Colab
+Face, decodificar audio en la CPU). [REEMPLAZADO 2026-11-13 por E3, que vivió 35 min con el arranque completo de
+gpuq: no es el arranque; es algo que hacen los trabajos, y E4 prueba por separado su tráfico al Drive y a Hugging
+Face] La prueba E3, encolada con el OK de Gabriel, separa las dos cosas. Por qué Colab
 lo hace no se puede saber desde acá, ni si es para todos o solo para esta cuenta. Mientras tanto, en Colab cada
 intento rinde unos 10 min útiles: sirve para trabajos que guardan cada pocos minutos, y lo que necesita horas va a
 Kaggle (sección «Cómo usar Colab»).
@@ -37,7 +39,8 @@ De paso apareció un error de gpuq que cortaba intentos sanos: un corte de red p
 | El 13-nov los trabajos reales de gpuq se siguen cortando: `traktor-a0-1` a los 12,2 y 12,6 min, con el mensaje propio del CLI | EVIDENCIA OBSERVADA | `docker logs gpuq`; `cola.py logs traktor-a0-1` |
 | El corte empezó del lado de Colab, no de nuestro código | INFERENCIA | mismo cliente con resultados opuestos antes y después del 2-nov; trabajos distintos de dos proyectos cortados igual |
 | Lo dispara algo que hacen los trabajos reales y las pruebas no | INFERENCIA | el mismo día, 3 de 3 pruebas sintéticas vivieron más de 30 min y 2 de 2 intentos reales se cortaron a los 12 min; muestra chica |
-| Si es el arranque de gpuq o el trabajo en sí | NO CONCLUYENTE | lo decide E3 (`traktor-diag-e3-1`): el trabajo sintético mandado por el camino completo de gpuq |
+| No es el arranque de gpuq (credenciales, rclone, clonado, sesión `gpuq`, consulta por minuto) | EVIDENCIA OBSERVADA | E3 (`traktor-diag-e3-1`) vivió 35 min por ese camino con la GPU al 100 % |
+| Qué de lo que hacen los trabajos lo dispara: tráfico al Drive, descargas de Hugging Face o la combinación | NO CONCLUYENTE | lo deciden E4 (`traktor-diag-e4-drive-1`, `traktor-diag-e4-hf-1`) |
 | Es una poda por inactividad | HIPÓTESIS, debilitada | coincide con los 12-13 min de las sesiones sin keep-alive de junio, pero E0 vivió con el kernel quieto y una consulta por minuto |
 | Fue para todos o solo para esta cuenta | NO CONCLUYENTE | no hay reportes públicos; haría falta otra cuenta, y usar varias cuentas para esquivar límites va contra las reglas de Colab |
 
@@ -94,7 +97,14 @@ T4 durante 35 min. Scripts en `tools/gpuq/diag_colab/`.
 - E3 (`tools/gpuq/diag_colab/carga_gpu.py`, trabajo `traktor-diag-e3-1`) deja fijo el trabajo sintético y lo manda
   por el camino completo de gpuq: subir credenciales, instalar rclone, clonar el repo, desprenderlo y consultarlo cada
   minuto. Si se corta a los 13 min, el disparador está en el arranque de gpuq; si vive, en lo que hacen los trabajos.
-  Encolado el 13-nov a las 18:55 UTC con `--platform colab`; corre cuando le toque el turno.
+  Encolado el 13-nov a las 18:55 UTC con `--platform colab`; corre cuando le toque el turno. [REEMPLAZADO 2026-11-13
+  por su resultado: corrió de 19:50:51 a 20:27:32, con la sesión `gpuq`, las credenciales subidas, rclone instalado
+  y el repo clonado en `79cf199`; la GPU al 100 % y 11,4 GB de RAM libres en cada latido; terminó «E3 DONE» a los
+  35 min. El arranque de gpuq no es]
+- E4 (`carga_gpu.py --drive 6` y `--hf`, encolados el 13-nov a las 20:30 UTC) suma al trabajo sintético una cosa por
+  vez de lo que hacen los trabajos reales de A0: bajar tars reales de `djsets_v1/audio/beatport` (unos 550 MB cada
+  uno, uno cada 3 min) y subir un parcial cada 3 min, o bajar CLAP y MAEST de Hugging Face. CPU sola ya vivió más de
+  15 min en las pruebas de ERC-LM de octubre.
 - Mientras la causa no esté, E2 (`run_diag.sh e2`, consultas largas con la conexión abierta) queda para después de E3.
 
 ## Un error de gpuq: un corte de red se lee como VM perdida
@@ -179,10 +189,19 @@ T4 durante 35 min. Scripts en `tools/gpuq/diag_colab/`.
   las T4 duraron lo mismo que esas CPU.
 - [REEMPLAZADO 2026-11-13 por E3, con el OK de Gabriel para usar el carril de Colab cuando quede libre] LOCAL: si el
   corte vuelve, correr E0 y E2 con su OK y completar este informe.
-- LOCAL: leer el resultado de `traktor-diag-e3-1` (`cola.py logs traktor-diag-e3-1`) y completar este informe. Si se
-  corta, partir el arranque de gpuq (credenciales, rclone, clonado) para ver cuál lo dispara; si vive, probar el
-  trabajo sintético con tráfico al Drive.
-- LÍNEA A: decidir si sus `traktor-a0` pendientes van a Kaggle mientras dure el corte (avisado el 13-nov).
+- [REEMPLAZADO 2026-11-13 por el resultado de E3: vivió, así que siguen las E4 con tráfico] LOCAL: leer el resultado
+  de `traktor-diag-e3-1` (`cola.py logs traktor-diag-e3-1`) y completar este informe. Si se corta, partir el arranque
+  de gpuq (credenciales, rclone, clonado) para ver cuál lo dispara; si vive, probar el trabajo sintético con tráfico
+  al Drive.
+- LOCAL: leer `traktor-diag-e4-drive-1` y `traktor-diag-e4-hf-1`. La que se corte a los 12-14 min señala el
+  disparador; entonces se prueba una forma de hacer eso mismo que Colab no corte. Si viven las dos, probar las dos
+  juntas y con decodificación en la CPU, como hace A0.
+- [REEMPLAZADO 2026-11-13 por la regla de Gabriel «Colab primero»: la línea A pasó todo A0 a `--platform colab`, en
+  trabajos de unos 25 min útiles] LÍNEA A: decidir si sus `traktor-a0` pendientes van a Kaggle mientras dure el corte
+  (avisado el 13-nov).
+- Hecho el 13-nov, con el OK de Gabriel: gpuq `6394eb5`, traído a `gpuq-personal` en `5684481` y en marcha desde las
+  20:27 UTC. Un trabajo `auto` de GPU espera a Colab mientras está ocupado y toma Kaggle solo si Colab no puede
+  correrlo (`kaggle.auto_gpu`).
 
 ## Reproducir
 

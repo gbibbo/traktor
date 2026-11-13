@@ -27,8 +27,9 @@ Informe completo: `docs/reports/colab_corte_13min_2026-11-13.md`.
 - Desde el 2-nov a las 17 UTC, Colab corta a los 12-14 min de asignada toda VM T4 que corre un trabajo real de gpuq,
   también en el despachador de ERC-LM, que en octubre corría horas con el mismo cliente. El 13-nov seguía:
   `traktor-a0-1` se cortó a los 12,2 y 12,6 min. No es la falta de GPU ni el esquema de consultas de gpuq: ese mismo
-  día, un trabajo que solo usa la GPU vivió 35 min con ese esquema. Qué lo dispara, el arranque de gpuq o lo que hace
-  el trabajo, lo dice la prueba E3 (`traktor-diag-e3-1`).
+  día, un trabajo que solo usa la GPU vivió 35 min con ese esquema, y también mandado por el camino completo de gpuq
+  (E3). No lo dispara el arranque de gpuq sino algo que hacen los trabajos; las pruebas E4 separan el tráfico al
+  Drive de las descargas de Hugging Face.
 - Mientras tanto, en Colab cada intento rinde unos 10 min útiles. Entra lo que guarda un parcial al Drive cada pocos
   minutos, nunca más de 10 sin guardar. [REEMPLAZADO 2026-11-13 por Gabriel, «Colab primero» (sección «Kaggle»):
   un trabajo largo que guarda cada pocos minutos también va a Colab] Lo que necesita horas va con `--platform kaggle`.
@@ -50,8 +51,11 @@ renueve la cuota.
 - Kaggle da unas 30 h de GPU por semana para todos los proyectos de Gabriel: ERC-LM usa la misma cuenta. Colab no
   tiene cuota semanal; corta cada intento a los 12-13 min mientras dure el corte (sección «Colab»), y un trabajo
   que guarda cada pocos minutos igual avanza.
-- Todo trabajo de GPU que guarda cada pocos minutos va con `--platform colab`. `auto` no prefiere Colab: toma el
-  carril que se libere primero, así que gasta Kaggle cada vez que Colab está ocupado.
+- Todo trabajo de GPU que guarda cada pocos minutos va con `--platform colab`. Desde el 13-nov a las 20:27 UTC
+  (gpuq `6394eb5`, con el OK de Gabriel) `auto` también prefiere Colab: un trabajo `auto` de GPU espera mientras
+  Colab está ocupado y toma Kaggle solo si Colab no da GPU o perdió el login (`kaggle.auto_gpu` en `gpuq.toml`).
+  [REEMPLAZADO 2026-11-13 por ese cambio] `auto` no prefiere Colab: toma el carril que se libere primero, así que
+  gasta Kaggle cada vez que Colab está ocupado.
 - `--platform kaggle` solo para lo que Colab no puede hacer: un paso que no puede guardar en menos de unos 10 min,
   más memoria de GPU que una T4 (Kaggle da dos) o Colab sin dar GPU durante horas. Los trabajos solo de CPU van a
   Kaggle y no gastan cuota de GPU.

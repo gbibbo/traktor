@@ -172,6 +172,10 @@ Plan vigente: `docs/plans/plan_recomendacion_v2.md`. Inventario de ideas: `docs/
       `docs/GPUQ.md` («Kaggle»).
     - Corrige una sugerencia del agente del mismo día: había propuesto pasar los trabajos de YouTube de A0 a Kaggle por
       el corte de Colab, cuando A0 todavía no guardaba cada 3 min.
+    - Forzado en gpuq, con el OK de Gabriel el mismo día (gpuq `6394eb5`, `gpuq-personal` `5684481`, en marcha desde
+      las 20:27 UTC): un trabajo `auto` de GPU espera a Colab mientras está ocupado y toma Kaggle solo si Colab no da
+      GPU o perdió el login. `kaggle.auto_gpu = "colab_busy"` en `gpuq.toml` vuelve al comportamiento anterior.
+      Gabriel pidió además seguir buscando cómo correr en Colab sin el corte (informe del corte, E3 y E4).
 
 ## 2026-11-10 (E16: la ecuación con D5 y la escucha E12 lista)
 
