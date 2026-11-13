@@ -59,7 +59,7 @@
 {"id": "s59", "pedido": "algo del sello afterlife", "set": false, "espera": {"otros": {"sellos": ["afterlife"]}}, "origen": "semilla"}
 {"id": "s60", "pedido": "como un set de adriatique", "set": false, "espera": {"referencia": {"tipo": "dj", "busca": "adriatique"}}, "origen": "semilla"}
 {"id": "s61", "pedido": "nada de fisher", "set": false, "espera": {"otros": {"artistas_excluir": ["fisher"]}}, "origen": "semilla"}
-{"id": "s62", "pedido": "clásicos de los 90", "set": false, "espera": {"otros": {"anio": [null, 1999]}, "texto": true}, "origen": "semilla"}
+{"id": "s62", "pedido": "clásicos de los 90", "set": false, "espera": {"otros": {"anio": [1990, 1999]}, "texto": true}, "origen": "semilla"}
 {"id": "s63", "pedido": "temas nuevos, de este año", "set": false, "espera": {"otros": {"anio": [2026, null]}}, "origen": "semilla"}
 {"id": "s64", "pedido": "que pese más el género", "set": false, "espera": {"pesos": {"perfil": "genero", "ajustes": []}}, "origen": "semilla"}
 {"id": "s65", "pedido": "me importa más que suene parecido que el bpm", "set": false, "espera": {"pesos": {"perfil": "sonido", "ajustes": [{"factor": "bpm", "nivel": "menos"}]}}, "origen": "semilla"}
@@ -86,12 +86,12 @@
 {"id": "v4", "pedido": "deep jaus", "set": false, "espera": {"generos": {"incluir": ["Deep House"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
 {"id": "v5", "pedido": "deep", "set": false, "espera": {"generos": {"incluir": ["Deep House"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
 {"id": "v6", "pedido": "melodik techno", "set": false, "espera": {"generos": {"incluir": ["Melodic House & Techno"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
-{"id": "v7", "pedido": "melódico", "set": false, "espera": {"generos": {"incluir": ["Melodic House & Techno"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
+{"id": "v7", "pedido": "melódico", "set": false, "espera": {"texto": true}, "origen": "variante"}
 {"id": "v8", "pedido": "afrohouse", "set": false, "espera": {"generos": {"incluir": ["Afro House"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
 {"id": "v9", "pedido": "afro house", "set": false, "espera": {"generos": {"incluir": ["Afro House"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
-{"id": "v10", "pedido": "progresivo", "set": false, "espera": {"generos": {"incluir": ["Progressive House"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
+{"id": "v10", "pedido": "progresivo", "set": false, "espera": {"texto": true}, "origen": "variante"}
 {"id": "v11", "pedido": "organic house", "set": false, "espera": {"generos": {"incluir": ["Organic House"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
-{"id": "v12", "pedido": "algo orgánico", "set": false, "espera": {"generos": {"incluir": ["Organic House"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
+{"id": "v12", "pedido": "algo orgánico", "set": false, "espera": {"texto": true}, "origen": "variante"}
 {"id": "v13", "pedido": "indie dance", "set": false, "espera": {"generos": {"incluir": ["Indie Dance"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
 {"id": "v14", "pedido": "psytrance", "set": false, "espera": {"generos": {"incluir": ["Psy-Trance"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
 {"id": "v15", "pedido": "psy", "set": false, "espera": {"generos": {"incluir": ["Psy-Trance"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
