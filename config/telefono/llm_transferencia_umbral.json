@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "fijado": "2026-11-13, antes de correr el modelo en gpuq y en Workers AI. Decide si las conclusiones medidas con Gemma 4 26B A4B en gpuq (llama.cpp, GGUF Q8_0) valen para el mismo modelo en Workers AI.",
+  "pedidos": "llm_banco/pedidos/interpretar_t0_v1.jsonl: los 43 pedidos del banco que las reglas no leen enteros, con las instrucciones de producción y temperatura 0 en los dos servidores.",
+  "valido_diferencia_max": 0.05,
+  "no_se_oye_acuerdo_min": 0.90,
+  "solapamiento_top30_mediana_min": 0.50,
+  "por_que": "0,50 de los 30 primeros temas es lo que coinciden dos promedios de tres redacciones del mismo pedido (docs/reports/clap_texto_2026-11-09.md, ensamble). Si los dos servidores coinciden al menos así, cambiar de servidor pesa menos que cambiar la redacción, y se itera en gpuq. Un cambio que gane en gpuq se confirma una vez en Workers AI antes de publicarse."
+}
