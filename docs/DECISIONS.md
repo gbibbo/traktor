@@ -142,6 +142,16 @@ Plan, sección 12.9. Las medidas de la auditoría de este día son exploratorias
    análisis** (Gabriel). Queda como idea P14 del plan, sin diseñar: una lista de exclusión armada al paso, sin
    etiquetado previo.
 
+## 2026-11-13 (D5/D6 terminados)
+
+1. **La descarga terminó** a las 05:09 (`descarga_continua.py`: FIN, copia final al Drive, `descarga_terminada.txt`).
+   De 36 611 temas distintos de los 1549 sets, 33 323 tienen audio (91 %): 30 251 previews de Beatport (43,1 GB en
+   `erclm:traktor_ml/beatport_previews/`) y 3072 audios completos de YouTube (19,0 GB en `youtube_temas/`). Los 3288
+   restantes no están en Beatport ni en YouTube en la misma versión. Las listas, los manifiestos, los sets y D7 están
+   copiados en `erclm:traktor_ml/dj_sets/`. YouTube a 20,2 s entre pedidos no volvió a pedir la verificación desde
+   el 11-11 05:50 (unas 47 h); la sesión de Chrome de Gabriel no se pudo usar (cifrado app-bound, yt-dlp #10927).
+   Un apagado normal de Windows el 11-11 a las 22:19 la paró 9 h (el guardián no sobrevive a un apagado).
+
 ## 2026-11-11 (pendrive D: con errores)
 
 1. **Windows marca el pendrive `D:` (FAT32) como «Full Repair Needed»** (agente, 13:30, `Get-Volume`); no se sabe
