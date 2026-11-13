@@ -42,7 +42,8 @@ De paso apareció un error de gpuq que cortaba intentos sanos: un corte de red p
 | No es el arranque de gpuq (credenciales, rclone, clonado, sesión `gpuq`, consulta por minuto) | EVIDENCIA OBSERVADA | E3 (`traktor-diag-e3-1`) vivió 35 min por ese camino con la GPU al 100 % |
 | Lo dispara el tráfico con el Drive por rclone, no las descargas de Hugging Face | EVIDENCIA OBSERVADA | E4-drive (4 tars reales, 1,3 GB en 9 min, y un parcial subido cada 3 min) se cortó a los 12,2 min; E4-hf (1,25 GB de Hugging Face) vivió 20 min. Un solo cambio frente a E3 en cada una |
 | Basta cualquier acceso al Drive por rclone: bajadas en 4 hilos, bajadas en un solo hilo o solo 4 subidas de pocos bytes | EVIDENCIA OBSERVADA | las tres E5 se cortaron a los 12,2 min (`traktor-diag-e5-bajadas-1`, `-1hilo-1`, `-subidas-1`); no hay un ajuste de rclone que lo evite |
-| Si es el Drive o el programa rclone | NO CONCLUYENTE | lo decide E6 (`traktor-diag-e6-rclonehttp-1`): rclone baja un archivo público por HTTP, sin Drive |
+| rclone corta aunque no toque el Drive | EVIDENCIA OBSERVADA | E6 (`traktor-diag-e6-rclonehttp-1`): rclone bajó 4 veces un archivo público de Hugging Face (586 MB en 5 a 7 s) y la VM se cortó a los 12,3 min |
+| El disparador es ejecutar rclone, no las bajadas repetidas | NO CONCLUYENTE | lo decide E7 (`traktor-diag-e7-pythonhttp-1`): las mismas bajadas de E6, hechas por Python. Hasta ahora, toda prueba que ejecutó rclone se cortó y ninguna que no lo ejecutó (E0, E1, E3, E4-hf; gpuq instala rclone pero no lo corre) |
 | Es una poda por inactividad | HIPÓTESIS, debilitada | coincide con los 12-13 min de las sesiones sin keep-alive de junio, pero E0 vivió con el kernel quieto y una consulta por minuto |
 | Fue para todos o solo para esta cuenta | NO CONCLUYENTE | no hay reportes públicos; haría falta otra cuenta, y usar varias cuentas para esquivar límites va contra las reglas de Colab |
 
