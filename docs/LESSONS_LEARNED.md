@@ -431,4 +431,6 @@ tiene que mostrar solo los bloques ajenos. Si el otro no tiene nada sin commit, 
 - **En Colab gratis, ningún tramo de trabajo sin guardar debe durar más de unos 10 minutos.** El 2026-11-10 gpuq perdió
   la sesión de Colab dos veces a los 12-13 min («Session 'gpuq' appears to be lost (404/401)») con RAM de sobra, justo
   antes de que terminara una tanda de 387 previews: se relanzaba y empezaba de cero cada vez. Un parcial en el remoto cada
-  pocos minutos (V7, `vistas_previews.py`) lo resolvió; en Kaggle las mismas tandas corrieron enteras.
+  pocos minutos (V7, `vistas_previews.py`) lo resolvió; en Kaggle las mismas tandas corrieron enteras. El corte no era
+  del trabajo ni de la CPU: fue de Colab con el CLI del 2 al 10-nov, en todos los trabajos, y puede volver
+  (`docs/reports/colab_corte_13min_2026-11-13.md`).

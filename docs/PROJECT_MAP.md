@@ -160,7 +160,8 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | `test_package_tags.py` | package_tags.py sin red: limpieza local de artista/título/mezcla, verificación de Deezer y de la 2.ª búsqueda, reglas del plan, escritura y reversión en un MP3 mínimo (audio intacto) |
 
 En `tests/` (raíz): `test_check_staged.py` (chequeo pre-commit sobre repos git temporales),
-`test_status_doc.py` (`docs/STATUS.md` con sus tres secciones y a lo sumo 6 KB) y
+`test_status_doc.py` (`docs/STATUS.md` con sus tres secciones y a lo sumo 6 KB),
+`test_diag_colab_duraciones.py` (`tools/gpuq/diag_colab/duraciones.py`: intentos de Colab y su resumen por período) y
 `test_spotify_soulseek_orchestrator.py` (`download_JIJIJI/`) y `test_soulseek_safety.py`
 (tamaño/duración, descarga exacta, límites de procesos, carátulas y antivirus en consolidación), y
 `test_descargas_app.py` (app de descargas: estado de cada tema por fase, guardado parcial, run
@@ -184,6 +185,7 @@ Organización).
 | :--- | :--- |
 | `tools/gpuq/cola.py` | Encola y sigue trabajos de gpuq desde este repo (`add`, `status`, `logs`, `cancel`); `add` fija el repo y el commit actual y se niega si no está en GitHub. Usa el clon `../gpuq-personal` (o `GPUQ_HOME`) |
 | `tools/gpuq/smoke_drive.py` | Prueba de punta a punta PC → Drive → VM con GPU → Drive → PC (`prepare`, `run`, `check`); pasó en una T4 de Colab el 2026-11-09 |
+| `tools/gpuq/diag_colab/` | Diagnóstico del corte de Colab a los 13 min (informe `docs/reports/colab_corte_13min_2026-11-13.md`): `duraciones.py` mide cuánto duró cada intento de Colab a partir de `docker logs` de los despachadores; `run_diag.sh` corre en la Raspberry las pruebas E1 (trabajo dentro de un exec largo, conexión abierta) y E0 (trabajo desprendido y una consulta por minuto, como gpuq) con `e1.py`, `e0_start.py`, `e0_poll.py` y `read_log.py`. Usa la cuenta de Colab de Gabriel: pedirle el OK antes de correrlo |
 | `tools/gpuq/rclone_desde_raspberry.ps1` | Lo corre Gabriel: copia el remoto de rclone del despachador (Raspberry) al `rclone.conf` de esta PC sin mostrarlo; `-Prueba` solo lista los nombres de las claves |
 
 ## Artifacts (generados, no en git)

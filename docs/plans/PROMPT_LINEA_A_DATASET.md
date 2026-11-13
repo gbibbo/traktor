@@ -52,7 +52,9 @@ iguales. Intervalos remuestreando DJs.
   único trabajo largo que corrió ahí, y gpuq lo dio por fallido en el intento 11; gpuq relanza y el trabajo retoma,
   pero no evita el corte. Escribe todo trabajo para sesiones cortas: guarda en el Drive cada pocos minutos, nunca más
   de 10 sin guardar, y parte el trabajo en varios trabajos chicos, de una hora de trabajo útil o menos. Lo que
-  necesite horas seguidas va con `--platform kaggle`. Detalle: plan, sección 2.5.
+  necesite horas seguidas va con `--platform kaggle`. Detalle: plan, sección 2.5. Antes de mandar a Colab, leé
+  `docs/GPUQ.md`, sección «Colab»: el corte fue de Colab del 2 al 10-nov, el 13-nov el diseño de gpuq volvió a
+  durar, y ahí dice cómo reconocer el corte si vuelve.
 - **Datos:** todo resultado va al Drive, bajo `erclm:traktor_ml/`, apenas se produce. `djsets_v1` no se modifica.
   Al repositorio, que es público, va solo código e informes.
 - **Sin pedidos nuevos** a Beatport, 1001Tracklists ni YouTube.

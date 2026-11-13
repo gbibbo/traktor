@@ -127,6 +127,9 @@ que no puede es evitar que Colab corte. Por eso todo trabajo se escribe para ses
 
 Kaggle da unas 30 horas por semana en sesiones de 12. Colab suma lo que dure cada sesión.
 
+Por qué cortaba Colab y cómo reconocer el corte si vuelve: `docs/GPUQ.md`, sección «Colab» (2026-11-13). El corte
+fue de Colab del 2 al 10-nov, no de nuestros trabajos; el 13-nov el diseño de gpuq volvió a durar 35 min en una T4.
+
 ## 3. Línea B: el teléfono y el LLM
 
 ### 3.1 El principio

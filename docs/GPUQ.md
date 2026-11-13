@@ -20,6 +20,22 @@ Kaggle, dataset privado de credenciales en Kaggle, rclone, Hugging Face y ntfy. 
 nuevas: el token de GitHub del despachador lee este repo porque es público, y el Drive ya era el de Gabriel
 (dueño de las carpetas según rclone y según el conector de Drive, por separado).
 
+## Colab: leer antes de mandarle trabajo
+
+Informe completo: `docs/reports/colab_corte_13min_2026-11-13.md`.
+
+- Del 2-nov a las 17 UTC al 10-nov, Colab cortó toda VM T4 lanzada por el CLI a los 12-14 min de asignada, en gpuq y
+  en el despachador de ERC-LM. No lo provocaba nuestro trabajo, ni la falta de GPU, ni el diseño de gpuq: el mismo
+  cliente corría horas en octubre, y el 13-nov el patrón de gpuq volvió a durar 35 min con la GPU al 100 %.
+- Colab sirve con gpuq tal como está. Igual, todo trabajo se retoma: parcial al Drive cada pocos minutos, nunca más
+  de 10 sin guardar.
+- El corte puede volver sin aviso. Se reconoce en `cola.py logs <id>`: dos intentos seguidos con
+  `appears to be lost (404/401)` a los 12-15 min de empezados. Si pasa, cancelar y mandar con `--platform kaggle`, y
+  anotar la fecha en el informe. Un `RuntimeError`, un `ReadTimeout` o un traceback son cortes de red, no ese corte.
+- gpuq da por perdida una VM viva cuando una consulta falla por red (su marcador `"not found"` aparece en el
+  traceback del CLI); la corrección espera el OK de Gabriel. Hasta entonces, un intento cortado así se relanza solo.
+- Para volver a medir: `tools/gpuq/diag_colab/` (con el OK de Gabriel: usa su cuenta de Colab).
+
 ## Puesta en marcha en una PC nueva
 
 1. `git clone https://github.com/gbibbo/gpuq-personal.git` al lado de este repo (o definir `GPUQ_HOME`).
