@@ -45,8 +45,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    Colección. Solo el escritorio (laptop retirada, 11-04), todo en D:: `artifacts/v4/datasets/musica`
    apunta a `D:\TRAKTOR ML datos\musica` y `Música/` a `D:\TRAKTOR ML\Musica` (package_library.py);
    el pendrive manda. LOCAL: probar «Agregar» con Workout Delft.
-3. D5/D6 terminados 11-13: 33 323 de 36 611 temas con audio (30 251 previews de Beatport, 3072 de YouTube),
-   todo en `erclm:traktor_ml/` (plan § 6, DECISIONS 11-13). GABRIEL: vetos de `candidatos.csv`.
+3. Dataset DJSets v1 (11-13): 1549 sets, 36 611 temas, 33 321 con audio, en `erclm:traktor_ml/djsets_v1/`
+   (`datasets/djsets/README.md`, rama `dataset-djsets`). GABRIEL: vetos de `candidatos.csv`; merge.
 4. LOCAL, después del MVP: modelo de representación propio (`docs/plans/representation_model_plan.md`,
    fases 3 a 5).
 5. Recomendación en vivo (`recomendador.py`, D#0+D0): plan § 12, `PROMPT_FUSION_Y_CONCEPTOS.md`. Unidad 1

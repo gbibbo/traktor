@@ -273,6 +273,17 @@ guarda lo conseguido y termina como `partial` (código 3).
 | `crear_acceso_directo.ps1` | Crea «Descargar playlists» en el Escritorio (`.venv\Scripts\pythonw.exe`, `icon.ico`) |
 | `icon.svg`, `icon.ico` | Icono de la ventana y del acceso directo |
 
+## Dataset DJSets (`datasets/djsets/`)
+
+D5 y D6 armados como un dataset en una sola carpeta, `erclm:traktor_ml/djsets_v1/`. Formato, columnas y procedencia:
+`datasets/djsets/README.md`, que también es la ficha que viaja con el dataset.
+
+| Archivo | Descripción |
+| :--- | :--- |
+| `datasets/djsets/djsets.py` | Lector sin dependencias, que viaja con el dataset: tablas, audio desde el `.tar` o desempaquetado, pares consecutivos, `validate [--full]`, `unpack` |
+| `datasets/djsets/build_djsets.py` | Armador: `build` (tablas desde los sets y los manifiestos del Drive), `publish` (copia las tandas dentro del Drive como shards, más `raw/`, y verifica los md5), `verify` |
+| `datasets/djsets/tests/test_djsets.py` | Arma un D5/D6 en miniatura y prueba el lector, la validación y el desempaquetado |
+
 ## Sets de DJ (`tools/dj_sets/`)
 
 Fuentes de trayectorias de DJs para las playlists de dirección (`docs/plans/recomendacion_playlists_plan.md`,

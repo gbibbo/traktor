@@ -145,12 +145,25 @@ Plan, sección 12.9. Las medidas de la auditoría de este día son exploratorias
 ## 2026-11-13 (D5/D6 terminados)
 
 1. **La descarga terminó** a las 05:09 (`descarga_continua.py`: FIN, copia final al Drive, `descarga_terminada.txt`).
-   De 36 611 temas distintos de los 1549 sets, 33 323 tienen audio (91 %): 30 251 previews de Beatport (43,1 GB en
+   [REFUTADO 2026-11-13 por `build_djsets.py`, que cuenta temas distintos y no archivos: 33 321 temas con audio, 30 255
+   de Beatport y 3066 de YouTube, y 3290 sin audio; 33 323 sumaba archivos, contaba dos veces 7 temas bajados de las dos
+   fuentes y no contaba 5 que comparten el audio de otro tema de su tanda] De 36 611 temas distintos de los 1549 sets,
+   33 323 tienen audio (91 %): 30 251 previews de Beatport (43,1 GB en
    `erclm:traktor_ml/beatport_previews/`) y 3072 audios completos de YouTube (19,0 GB en `youtube_temas/`). Los 3288
    restantes no están en Beatport ni en YouTube en la misma versión. Las listas, los manifiestos, los sets y D7 están
    copiados en `erclm:traktor_ml/dj_sets/`. YouTube a 20,2 s entre pedidos no volvió a pedir la verificación desde
    el 11-11 05:50 (unas 47 h); la sesión de Chrome de Gabriel no se pudo usar (cifrado app-bound, yt-dlp #10927).
    Un apagado normal de Windows el 11-11 a las 22:19 la paró 9 h (el guardián no sobrevive a un apagado).
+2. **Dataset DJSets v1 en una sola carpeta** (Gabriel: una única ubicación fácil de usar, con el código en una rama nueva
+   y un README; el formato lo eligió el agente siguiendo FMA, MTG-Jamendo, mirdata y las fichas de datasets).
+   `erclm:traktor_ml/djsets_v1/` tiene:
+   - las tablas CSV `sets`, `set_tracks`, `tracks`, `shards` y `split_by_dj`;
+   - las 132 tandas como shards `.tar`, copiadas dentro del Drive con nombre nuevo, sin bajar el audio;
+   - `raw/` con lo original y `checksums.md5`;
+   - el lector `djsets.py`, sin dependencias, que lee del `.tar` o desempaqueta.
+   El código y la ficha están en `datasets/djsets/`. Verificado: el md5 de cada archivo publicado coincide, y 541 audios
+   reales de dos shards se leyeron y compararon por md5 contra `tracks.csv`. Las carpetas originales de la descarga
+   quedan como estaban. Gabriel lo copia a su NAS y a su pendrive.
 
 ## 2026-11-11 (pendrive D: con errores)
 
