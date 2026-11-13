@@ -25,6 +25,7 @@ PURPOSE: A0 de la línea A (docs/plans/linea_a_protocolo_a0_a1.md, fijado en el 
 CHANGELOG:
   - 2026-11-13: Creación (A0).
   - 2026-11-13: Parcial también cada 3 min (PARCIAL_SEG), por el corte de Colab a los 12-13 min.
+  - 2026-11-13: planear con --minutos y --plataforma (colab por defecto: Colab primero, Kaggle de reserva).
 """
 from __future__ import annotations
 
@@ -459,7 +460,7 @@ def agrupar(shards: Sequence[str], pob: Dict[str, List[dict]], s_por_tema: Dict[
     return trabajos
 
 
-def planear(destino: str, primero: int) -> int:
+def planear(destino: str, primero: int, minutos: float = MIN_POR_TRABAJO, plataforma: str = "colab") -> int:
     from src.v4.common.remote_storage import open_remote
     remote = open_remote()
     with tempfile.TemporaryDirectory() as d:
@@ -469,13 +470,13 @@ def planear(destino: str, primero: int) -> int:
           for n in remote.ls(f"{V7}/{c}")}
     hechos = {f: set(remote.ls(f"{destino}/{f}")) for f in ("beatport", "youtube")}
     pend = pendientes(shards, v7, hechos)
-    trabajos = agrupar(pend, pob)
+    trabajos = agrupar(pend, pob, minutos=minutos)
     n = sum(len(pob.get(s, [])) for s in pend)
-    print(f"{len(pend)} shards sin vistas ({n} grabaciones) en {len(trabajos)} trabajos de {MIN_POR_TRABAJO:.0f} min o menos")
+    print(f"{len(pend)} shards sin vistas ({n} grabaciones) en {len(trabajos)} trabajos de {minutos:.0f} min o menos")
     for i, t in enumerate(trabajos):
         lista = ",".join(stem(s) for s in t)
         print(f'python tools/gpuq/cola.py add traktor-a0-{primero + i} --cmd "python tools/dj_sets/vistas_djsets.py '
-              f'correr --shards {lista} --destino {destino}" --gpu T4 --platform auto --setup "{SETUP}" --timeout-h 2')
+              f'correr --shards {lista} --destino {destino}" --gpu T4 --platform {plataforma} --setup "{SETUP}" --timeout-h 2')
     return 0
 
 
@@ -684,6 +685,8 @@ def main() -> int:
     p = sub.add_parser("planear")
     p.add_argument("--destino", default=DESTINO)
     p.add_argument("--primero", type=int, default=1, help="Número del primer trabajo (traktor-a0-N)")
+    p.add_argument("--minutos", type=float, default=MIN_POR_TRABAJO, help="Trabajo útil por trabajo de gpuq")
+    p.add_argument("--plataforma", default="colab", help="colab primero, Kaggle de reserva (AGENTS.md, 2026-11-13)")
     j = sub.add_parser("juntar")
     j.add_argument("--destino", default=DESTINO)
     j.add_argument("--salida", default=SALIDA)
@@ -698,7 +701,7 @@ def main() -> int:
     if a.cmd == "correr":
         return correr([x for x in a.shards.split(",") if x], a.max_temas, a.device, a.hf_cache, a.lote, a.destino, a.hilos)
     if a.cmd == "planear":
-        return planear(a.destino, a.primero)
+        return planear(a.destino, a.primero, a.minutos, a.plataforma)
     if a.cmd == "juntar":
         from src.v4.common.remote_storage import open_remote
         juntar(open_remote(), a.destino, a.salida, Path(a.cache), subir=not a.no_subir)
