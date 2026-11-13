@@ -33,7 +33,7 @@ Cómo leerlo:
 | L8 | Un tema o archivo nombrado lo resuelve el ordenador por coincidencia aproximada; el teléfono muestra candidatos | Gabriel 11-13 | Pendiente | B3 |
 | L9 | Perfiles de pesos con nombre y tres niveles por factor; el LLM nunca escribe números | Gabriel 11-13; P6 | Pendiente | B1, B3 |
 | L10 | «Momento de la noche» como preset y como texto; tabla fija hasta que exista A5 | Gabriel 11-13 | Pendiente | B3, B6 |
-| L11 | Banco de regresión del LLM: de 150 a 200 pedidos con su formulario esperado | Plan v2 | Pendiente | B3 |
+| L11 | Banco de regresión del LLM: de 150 a 200 pedidos con su formulario esperado | Plan v2 | Semilla de 82 pedidos en `pedidos_telefono_borrador.md`; espera la revisión de Gabriel | B3 |
 | L12 | El teléfono muestra qué entendió y cuántos temas pasaron cada filtro, con un toque para corregir | Plan v2 | Pendiente | B4 |
 
 ## Ideas del plan viejo
@@ -42,7 +42,7 @@ Cómo leerlo:
 
 | Id | Idea | Origen | Estado al 11-13 | En el plan v2 |
 | :--- | :--- | :--- | :--- | :--- |
-| C1 | Metadatos de Beatport para los temas de los sets | Auditoría 11-07 | Bajados para 30 655 temas (v). Entrenar con ellos: el agente lee el pedido del 11-13 como un sí | Sección 6, punto 2 |
+| C1 | Metadatos de Beatport para los temas de los sets | Auditoría 11-07 | Bajados para 30 655 temas (v). Entrenar con ellos: Gabriel confirmó el 11-13 que se usa el dataset completo, de uso privado | Sección 6, punto 2 |
 | D0 | Botón: la primera pulsación refresca las playlists y abre Parecidos | Gabriel 11-07 | En uso | Fuera de las dos líneas |
 | D1 | Historia de Traktor de Gabriel como sets | Local | Hecho 11-07: 21 sets, 592 temas | Solo para medir (2.4) |
 | D2 | Registro en vivo de sesiones | Local | Crece por sesión; falta el lector | A8 |
@@ -84,7 +84,7 @@ Cómo leerlo:
 | E9 | Compacidad de los sets en CLAP | Adenda 11-08 | Medido 11-08 | Referencia |
 | E10 | Precisión de zona y pureza fuera de muestra | Adenda 11-08 | Medido 11-08 | Referencia |
 | E11 | Validar una coordenada en tres pasos: ordena, se mueve con la noche, acuerda con Gabriel | Adenda 11-08 | Regla vigente | A5 |
-| E12 | Escucha a ciegas de listas enteras, de a dos | Adenda 11-08 | Lista desde el 11-10; sin respuestas (v) | Sección 6, punto 4 |
+| E12 | Escucha a ciegas de listas enteras, de a dos | Adenda 11-08 | Lista desde el 11-10; sin respuestas (v). Página con indicaciones hecha el 11-13 (`pagina_escucha.py`) | Sección 6, punto 4 |
 | E13 | Banco de conceptos local, con y sin referencia | Adenda 11-09 | Versión exploratoria medida | B5 |
 | E14 | Control de tempo al medir los modelos | Adenda 11-09 | Medido 11-09 | A1: negativos del mismo BPM |
 | E15 | Control de dominio: preview frente a biblioteca | Auditoría 11-09 | Medido 11-10: CLAP sufre el códec, MAEST pasa | Lo continúa E20 |

@@ -46,14 +46,14 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    apunta a `D:\TRAKTOR ML datos\musica` y `Música/` a `D:\TRAKTOR ML\Musica` (package_library.py);
    el pendrive manda. LOCAL: probar «Agregar» con Workout Delft.
 3. Dataset DJSets v1 (11-13): 1549 sets, 36 611 temas, 33 321 con audio, en `erclm:traktor_ml/djsets_v1/`
-   (`datasets/djsets/README.md`, rama `dataset-djsets`). GABRIEL: vetos de `candidatos.csv`; merge.
+   (`datasets/djsets/README.md`; rama unida a `main`). GABRIEL: vetos de `candidatos.csv`.
 4. LOCAL: modelo de representación propio: es la línea A del plan v2 (`representation_model_plan.md`
    queda de contexto).
 5. Recomendación: plan vigente `docs/plans/plan_recomendacion_v2.md` (11-13); línea A, DJSets en gpuq.
-   GABRIEL: escucha E12 (`juez_d5_2026-11-10.md`) y la sección 6 del plan; Traktor,
+   GABRIEL: escucha E12 (`e12\escucha.html`) y la sección 6 del plan; Traktor,
    «TRAKTOR ML sin tonalidad», Analyze solo Key. TIV aparte.
-6. Teléfono, línea B del plan: formulario y reglas del LLM; hoy, Worker v5 probado en local.
-   GABRIEL: `python cloudflare/publicar.py` (`cloudflare/README.md`).
+6. Teléfono, línea B del plan: formulario y reglas del LLM; Worker v5 en local. GABRIEL: revisar
+   `pedidos_telefono_borrador.md`; `python cloudflare/publicar.py` (`cloudflare/README.md`).
 
 ## RUN RECIPES
 

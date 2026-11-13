@@ -44,7 +44,7 @@ Verificado el 2026-11-13 salvo donde dice «según».
 | Género y tonalidad en los sets | La coaparición de géneros aprendida le gana a la taxonomía (AUC 0,72 frente a 0,68). Los DJs repiten la tonalidad 2,0 veces el azar | Según `pares_texto_2026-11-10.md` |
 | Dataset DJSets v1 | 1549 sets, 573 DJs, 36 611 temas; 33 321 con audio (30 255 previews de Beatport de 2 min, 3066 temas enteros de YouTube); 30 655 con metadatos de Beatport; 42 493 pares consecutivos, 36 327 con audio en los dos | `datasets/djsets/README.md`; carpeta listada en el Drive |
 | Vistas de los previews (V7) | 60 archivos de vistas en `erclm:traktor_ml/v7_vistas/` (472 MB). No se contó cuántos de los 33 321 audios cubren | Listado del Drive; `cola.py status` |
-| GPU | Kaggle terminó dos trabajos largos; el último hizo 10 266 previews a 2,04 s cada uno. En Colab un trabajo falló tras 11 intentos interrumpidos (las sesiones se cortaban a los 12 o 13 minutos, según DECISIONS 11-10) | `cola.py status` y `logs traktor-v7-5` |
+| GPU | Kaggle terminó dos trabajos largos; el último hizo 10 266 previews a 2,04 s cada uno, 5 h 50 min sin cortes. En Colab el mismo trabajo fue más rápido (1,10 s por preview) y retomó bien desde su parcial, pero la sesión se perdió a los 13 minutos y gpuq lo dio por fallido en el intento 11 | `cola.py status`; `logs traktor-v7-5` y `traktor-v7-4` |
 | Teléfono | Worker v5 con un LLM chico (Gemma en Workers AI): escribe 3 textos, el ordenador los sondea y arma una lista de 30 por coseno. Probado en local; publicar es paso de Gabriel | `cloudflare/README.md`, `conceptos_agente.py` |
 | Búsqueda por texto | Dentro de la electrónica casi no separa géneros (AUC 0,59; un clasificador sobre CLAP, 0,79). Pedir algo que no hay devuelve 30 temas igual | `pools_de_concepto_2026-11-11.md` |
 | Repositorio | El árbol de trabajo está en la rama `dataset-djsets`, 2 commits delante de `main` | `git status` |
@@ -109,9 +109,19 @@ calcular esos vectores (A0) y afinar un modelo entero (A4), y lo segundo solo se
 
 ### 2.5 Presupuesto de GPU
 
-La cuota confiable es la de Kaggle, unas 30 horas por semana en sesiones de 12. A0, A3 y A5 entran en la primera
-semana. A7 lleva otra. A4 consume una semana por corrida. Si Gabriel quiere otra máquina (cómputo pago o el HPC de
-Surrey), lo decide él; el plan no cambia, cambian los tiempos.
+[REEMPLAZADO 2026-11-13 por la respuesta de Gabriel: la GPU es gpuq, que reparte entre Kaggle y Colab según la
+demanda; no se fija una sola plataforma] La cuota confiable es la de Kaggle, unas 30 horas por semana en sesiones de
+12. A0, A3 y A5 entran en la primera semana. A7 lleva otra. A4 consume una semana por corrida. Si Gabriel quiere otra
+máquina (cómputo pago o el HPC de Surrey), lo decide él; el plan no cambia, cambian los tiempos.
+
+Lo que rige: gpuq usa las dos plataformas. gpuq detecta el corte, relanza y el trabajo sigue desde lo guardado; lo
+que no puede es evitar que Colab corte. Por eso todo trabajo se escribe para sesiones cortas:
+
+- guarda en el Drive cada pocos minutos, nunca más de 10 sin guardar (`docs/LESSONS_LEARNED.md`);
+- se parte en trabajos chicos, de una hora de trabajo útil o menos, para no agotar los intentos de gpuq;
+- lo que necesita horas seguidas, como A4, se pide con `--platform kaggle`.
+
+Kaggle da unas 30 horas por semana en sesiones de 12. Colab suma lo que dure cada sesión.
 
 ## 3. Línea B: el teléfono y el LLM
 
@@ -132,7 +142,7 @@ Tres consecuencias:
 | Casilla | Valores | Quién la llena |
 | :--- | :--- | :--- |
 | `filtros.bpm` | Rango exacto, o «más lento, igual o más rápido que lo que suena» | Preset, reglas o LLM |
-| `filtros.generos` | Lista cerrada: los géneros que existen en la biblioteca. Modo duro o blando | Preset, reglas o LLM |
+| `filtros.generos` | Lista cerrada: los géneros que existen en la biblioteca. Duro si viene de un preset; blando si viene del texto, porque nadie escribe las etiquetas de Beatport tal cual (Gabriel 11-13; puede cambiar) | Preset, reglas o LLM |
 | `filtros.tonalidad` | Compatible con lo que suena (la regla del vivo) o una tonalidad dada | Preset o reglas |
 | `filtros.voz` | Con voz, sin voz, da igual | Preset o LLM |
 | `filtros.otros` | Año, sello, artista; excluir lo ya tocado esta noche | Preset o LLM |
@@ -213,12 +223,12 @@ agregando solo las líneas propias y con `git add` de rutas explícitas.
 
 | # | Qué | Para qué |
 | :--- | :--- | :--- |
-| 1 | Confirmar que «la GPU del cluster» es gpuq (Kaggle), o decir si quiere otra máquina | Presupuesto de la línea A |
-| 2 | Confirmar que se entrenan modelos con el dataset, de uso privado. Beatport declara `ai-train=no`, que es una señal y no una licencia. El agente lee el pedido del 11-13 como un sí | A2 en adelante |
-| 3 | Unir la rama `dataset-djsets` a `main` | Que todas las sesiones trabajen sobre lo mismo |
-| 4 | La escucha E12: 10 temas, A o B | Es lo que decide si Parecidos deja de usar solo CLAP |
-| 5 | Teléfono: de 30 a 50 pedidos escritos como los escribiría de verdad | Ejemplos y banco de la línea B |
-| 6 | Teléfono: filtro de género duro o blando por defecto; la tabla de momentos; de 8 a 12 conceptos con una playlist de Spotify cada uno | B1, L10 y E18 |
+| 1 | Confirmar que «la GPU del cluster» es gpuq (Kaggle), o decir si quiere otra máquina [REEMPLAZADO 2026-11-13 por Gabriel: es gpuq, con Kaggle y Colab según la demanda; sección 2.5] | Presupuesto de la línea A |
+| 2 | Confirmar que se entrenan modelos con el dataset, de uso privado. Beatport declara `ai-train=no`, que es una señal y no una licencia. El agente lee el pedido del 11-13 como un sí [REEMPLAZADO 2026-11-13 por Gabriel: sí, se usa el dataset completo, de uso privado] | A2 en adelante |
+| 3 | Unir la rama `dataset-djsets` a `main` [REEMPLAZADO 2026-11-13: Gabriel lo pidió y está hecho; `main` quedó en `dcd93a3`] | Que todas las sesiones trabajen sobre lo mismo |
+| 4 | La escucha E12: 10 temas, A o B. Página con las indicaciones: `D:\TRAKTOR ML datos\dj_sets\e12\escucha.html` (la arma `tools/playlist_review/pagina_escucha.py`) | Es lo que decide si Parecidos deja de usar solo CLAP |
+| 5 | Teléfono: de 30 a 50 pedidos escritos como los escribiría de verdad [REEMPLAZADO 2026-11-13 por Gabriel: no puede escribir 50; los produce el agente y él supervisa. Borrador de 82 en `pedidos_telefono_borrador.md`: revisarlo y agregar los suyos] | Ejemplos y banco de la línea B |
+| 6 | Teléfono: filtro de género duro o blando por defecto [REEMPLAZADO 2026-11-13 por Gabriel: blando desde el texto, duro desde un preset]; la tabla de momentos; de 8 a 12 conceptos con una playlist de Spotify cada uno; y las cuatro preguntas del borrador de pedidos | B1, L10 y E18 |
 | 7 | Si el factor de género pasa a ser la coaparición aprendida de los sets | Ecuación (pregunta abierta desde el 11-10) |
 | 8 | Vetos en `candidatos.csv` | Si veta sets, sale DJSets v2; los experimentos arrancan con v1 |
 | 9 | `python cloudflare/publicar.py` | El teléfono en producción |

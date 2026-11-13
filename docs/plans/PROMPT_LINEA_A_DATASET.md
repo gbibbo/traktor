@@ -43,8 +43,12 @@ iguales. Intervalos remuestreando DJs.
 - **Nada se ajusta con los sets ni con la biblioteca de Gabriel.** Son solo para medir.
 - **Un mejor número no cambia el recomendador.** No toques los valores por defecto de `recomendador.py`.
 - **gpuq:** prueba chica en CPU con el mismo código, y antes del primer envío de cada tipo de trabajo, pide el OK a
-  Gabriel en el chat con el tiempo por ítem, las horas de GPU, el espacio en el Drive y las rutas. Usa Kaggle: Colab
-  cortó las sesiones a los 12 o 13 minutos. Trabajos que se retoman, por shards, con parciales.
+  Gabriel en el chat con el tiempo por ítem, las horas de GPU, el espacio en el Drive y las rutas.
+- **gpuq usa Kaggle y Colab según la demanda** (Gabriel, 11-13). Colab perdió la sesión a los 13 minutos en el
+  único trabajo largo que corrió ahí, y gpuq lo dio por fallido en el intento 11; gpuq relanza y el trabajo retoma,
+  pero no evita el corte. Escribe todo trabajo para sesiones cortas: guarda en el Drive cada pocos minutos, nunca más
+  de 10 sin guardar, y parte el trabajo en varios trabajos chicos, de una hora de trabajo útil o menos. Lo que
+  necesite horas seguidas va con `--platform kaggle`. Detalle: plan, sección 2.5.
 - **Datos:** todo resultado va al Drive, bajo `erclm:traktor_ml/`, apenas se produce. `djsets_v1` no se modifica.
   Al repositorio, que es público, va solo código e informes.
 - **Sin pedidos nuevos** a Beatport, 1001Tracklists ni YouTube.

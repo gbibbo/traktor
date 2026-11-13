@@ -29,6 +29,22 @@ Plan vigente: `docs/plans/plan_recomendacion_v2.md`. Inventario de ideas: `docs/
 6. **Estado encontrado ese día** (agente): la escucha E12 sigue sin respuestas; V7 dejó 60 archivos de vistas en el
    Drive y no se contó cuántos audios cubren; Kaggle hizo 10 266 previews a 2,04 s cada uno y Colab cortó las
    sesiones; el árbol de trabajo está en la rama `dataset-djsets`, que Gabriel tiene que unir a `main`.
+7. **Respuestas de Gabriel, el mismo día.**
+   - **La GPU es gpuq, con Kaggle y Colab según la demanda.** Preguntó si Colab se cortaría a mitad de camino; creía
+     que gpuq era robusto frente a eso. Lo que muestra el registro (agente): gpuq hizo su parte, porque detectó cada
+     corte, relanzó y el trabajo siguió desde su parcial; no puede evitar el corte. En `traktor-v7-4`, Colab perdió la
+     sesión a los 13 minutos y gpuq dio el trabajo por fallido en el intento 11; el mismo trabajo en Kaggle corrió
+     5 h 50 min sin cortes. Regla que sale de ahí (plan, 2.5): guardar cada pocos minutos, partir en trabajos chicos,
+     y pedir Kaggle para lo que necesita horas seguidas. Por qué Colab corta a los 13 minutos no se sabe.
+   - **Se entrena con el dataset completo, de uso privado.** Cierra C1.
+   - **Unir la rama:** hecho por el agente, con avance rápido; `main` quedó en `dcd93a3`.
+   - **Pidió el HTML de la escucha con las indicaciones.** Cómo (agente): `tools/playlist_review/pagina_escucha.py`
+     arma `e12\escucha.html` desde las listas; no lee `clave.json`.
+   - **No puede escribir 50 pedidos de ejemplo; supervisa y agrega algunos.** Cómo (agente): borrador de 82 pedidos
+     en `docs/plans/pedidos_telefono_borrador.md`, que Gabriel corrige editando el archivo.
+   - **El filtro de género es blando cuando el género viene del texto,** porque las etiquetas son las de Beatport y
+     es difícil que alguien las escriba tal cual, **y duro cuando se eligió en un preset del teléfono.** Puede cambiar
+     más adelante.
 
 ## 2026-11-10 (E16: la ecuación con D5 y la escucha E12 lista)
 

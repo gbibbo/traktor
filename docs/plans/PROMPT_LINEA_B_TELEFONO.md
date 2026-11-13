@@ -55,7 +55,11 @@ para todo, y si todo falla, el camino de hoy. El reglamento vive en un solo arch
 
 - **El banco antes que las reglas.** Arma el banco de regresión (de 150 a 200 pedidos con su formulario esperado)
   antes de afinar instrucciones, y fija el umbral antes de medir. Un cambio de reglas no entra si empeora una casilla.
-  Gabriel va a dar de 30 a 50 pedidos escritos por él; pídeselos.
+  La semilla es `docs/plans/pedidos_telefono_borrador.md`: 82 pedidos con lo que el sistema debería entender, que
+  Gabriel revisa editando el archivo. Usa la versión que él haya corregido, pásala al formulario cuando el esquema
+  esté fijo y amplíala; no le pidas que escriba pedidos a mano, salvo los que quiera agregar.
+- **Género duro o blando** (Gabriel, 11-13; puede cambiar): blando si el género viene del texto, duro si se eligió en
+  un preset. Blando quiere decir que ese género va primero y entran también sus vecinos.
 - **Listas cerradas.** El LLM nunca escribe un género, un nombre de perfil ni un número que no esté en su lista.
   Nunca escribe pesos como números.
 - **Privacidad.** La música, los embeddings, las rutas y la lista de temas no salen del ordenador. Al Worker va el
