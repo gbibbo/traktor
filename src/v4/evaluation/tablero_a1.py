@@ -45,17 +45,19 @@ import src.v4.common  # noqa: E402,F401  (salida UTF-8 en consolas cp1252)
 
 PARTES = ("train", "validation", "test")
 FAMILIAS = ("P1", "P2", "P3")
-NIVELES = ("N1", "N2", "N3")
+NIVELES = ("N1", "N2", "N3", "N4")
 GRUPOS = ("principal", "vistos", "sin_metadatos")
 K_NEG = 20
 K_NEG_TRAIN = 5          # train solo ajusta (A2, medias y desvíos): 5 negativos por nivel alcanzan y la tabla entra en memoria
 TOL_BPM = 1.0           # N2: | |BPM(c) − BPM(a)| − |BPM(b) − BPM(a)| | ≤ 1
+TOL_ANIO = 1             # N4 (auditoría del 11-13): N3 y el año de lanzamiento del candidato a ±1 del de b
 TOPE_P3 = 50             # positivos P3 por set (sorteados con la semilla), para que las tablas no crezcan con n²
 SEMILLA = 0
 BOOT = 1000
 REMOTO = "linea_a/a1_tablero"
-COLUMNAS = ("pid", "parte", "familia", "grupo", "nivel", "y", "set_id", "dj", "a", "x", "n_N1", "n_N2", "n_N3", "peso_N1",
-            "peso_N2", "peso_N3")
+MARCAS = ("otra_version", "mismo_artista", "mismo_sello")   # subconjunto limpio (auditoría): solo en los positivos
+COLUMNAS = ("pid", "parte", "familia", "grupo", "nivel", "y", "set_id", "dj", "a", "x", "n_N1", "n_N2", "n_N3", "n_N4",
+            "peso_N1", "peso_N2", "peso_N3", "peso_N4") + MARCAS
 
 
 # ---------------------------------------------------------------------------
@@ -102,21 +104,47 @@ class Tema:
     genero: str
     clave: str
     fuente: str
+    anio: float = float("nan")
+    artistas: frozenset = frozenset()
+    version: Tuple[str, str] = ("", "")
+    isrc: str = ""
+    sello: str = ""
+    n_sets: float = float("nan")
 
     @property
     def meta(self) -> bool:
         return self.audio and np.isfinite(self.bpm) and bool(self.genero)
 
 
+def _num(x: Optional[str]) -> float:
+    try:
+        return float(x) if x not in (None, "") else float("nan")
+    except ValueError:
+        return float("nan")
+
+
+def artistas_de(texto: str) -> frozenset:
+    """Los artistas de un campo «A & B», «A, B», «A ft. B», «A x B», en minúsculas."""
+    return frozenset(p.strip().lower() for p in re.split(r"\s*(?:&|,|ft\.?|feat\.?|vs\.?|x)\s*", texto or "",
+                                                         flags=re.IGNORECASE) if p.strip())
+
+
+def titulo_base(titulo: str) -> str:
+    """El título sin lo que va entre paréntesis o corchetes (la mezcla), en minúsculas."""
+    return re.sub(r"\s+", " ", re.sub(r"\s*[\(\[][^\)\]]*[\)\]]", "", titulo or "")).strip().lower()
+
+
 def temas(tracks: Sequence[Dict[str, str]]) -> Dict[str, Tema]:
     out = {}
     for t in tracks:
-        try:
-            bpm = float(t.get("bp_bpm") or "nan")
-        except ValueError:
-            bpm = float("nan")
-        out[t["track_id"]] = Tema(t["track_id"], t.get("recording_id", ""), t.get("has_audio") == "1", bpm,
-                                  t.get("bp_genre", ""), t.get("bp_key", ""), t.get("audio_source", ""))
+        fecha = (t.get("bp_release_date") or "")[:4]
+        out[t["track_id"]] = Tema(t["track_id"], t.get("recording_id", ""), t.get("has_audio") == "1", _num(t.get("bp_bpm")),
+                                  t.get("bp_genre", ""), t.get("bp_key", ""), t.get("audio_source", ""),
+                                  anio=_num(fecha) if fecha.isdigit() else float("nan"),
+                                  artistas=artistas_de(t.get("artist", "")),
+                                  version=(" & ".join(sorted(artistas_de(t.get("artist", "")))), titulo_base(t.get("title", ""))),
+                                  isrc=(t.get("bp_isrc") or "").strip().upper(), sello=(t.get("bp_label") or "").strip().lower(),
+                                  n_sets=_num(t.get("n_sets")))
     return out
 
 
@@ -168,6 +196,7 @@ class Pool:
     bpm: np.ndarray
     genero: np.ndarray            # código del género, -1 sin género
     rec: np.ndarray               # código de la grabación
+    anio: np.ndarray = field(default_factory=lambda: np.zeros(0))   # año de lanzamiento, nan sin fecha
     djs: Dict[str, np.ndarray] = field(default_factory=dict)   # split_key -> máscara de temas que ese DJ tocó en la parte
     pos: Dict[str, int] = field(default_factory=dict)
 
@@ -177,7 +206,7 @@ class Pool:
         ids = list(ids)
         p = cls(ids, np.asarray([T[t].bpm for t in ids], float),
                 np.asarray([codigos_genero.get(T[t].genero, -1) for t in ids], int),
-                np.asarray([codigos_rec[T[t].rec] for t in ids], int))
+                np.asarray([codigos_rec[T[t].rec] for t in ids], int), np.asarray([T[t].anio for t in ids], float))
         p.pos = {t: i for i, t in enumerate(ids)}
         idx_dj: Dict[str, List[int]] = defaultdict(list)
         for i, t in enumerate(ids):
@@ -206,7 +235,11 @@ def candidatos(p: Pool, a: str, b: str, dj: str, T: Dict[str, Tema], co: Dict[st
         d = abs(T[b].bpm - T[a].bpm)
         n2 = ok & (np.abs(np.abs(p.bpm - T[a].bpm) - d) <= TOL_BPM)
         out["N2"] = np.flatnonzero(n2)
-        out["N3"] = np.flatnonzero(n2 & (p.genero == codigos_genero.get(T[b].genero, -2)))
+        n3 = n2 & (p.genero == codigos_genero.get(T[b].genero, -2))
+        out["N3"] = np.flatnonzero(n3)
+        with np.errstate(invalid="ignore"):
+            n4 = n3 & (np.abs(p.anio - T[b].anio) <= TOL_ANIO) if np.isfinite(T[b].anio) else np.zeros_like(n3)
+        out["N4"] = np.flatnonzero(n4)
     return out
 
 
@@ -280,8 +313,17 @@ def armar(dataset: Path, salida: Path, parte_de=None, semilla: int = SEMILLA, k:
             for _, t in filas:
                 en_parte[p].add(t)
                 dj_de[p][t].add(clave[s])
-    vistos_t = en_parte["train"]
+    # Vistos: todo tema de un set de train fuera de la cuarentena, también las filas «w/» (auditoría, punto 6)
+    vistos_t = set(en_parte["train"]) | {f["track_id"] for f in set_tracks
+                                         if f["track_id"] and parte.get(f["set_id"]) == "train"}
     vistos_r = {T[t].rec for t in vistos_t if t in T and T[t].rec}
+    # Otra versión en train (auditoría, punto 2): mismo artista y título sin la mezcla, o el mismo ISRC
+    versiones_train = {T[t].version for t in vistos_t if t in T and T[t].version[1]}
+    isrc_train = {T[t].isrc for t in vistos_t if t in T and T[t].isrc}
+
+    def otra_version(t: str) -> bool:
+        return t not in vistos_t and ((bool(T[t].version[1]) and T[t].version in versiones_train)
+                                      or (bool(T[t].isrc) and T[t].isrc in isrc_train))
 
     def visto(t: str) -> bool:
         return t in vistos_t or (bool(T[t].rec) and T[t].rec in vistos_r)
@@ -291,7 +333,7 @@ def armar(dataset: Path, salida: Path, parte_de=None, semilla: int = SEMILLA, k:
     rng = np.random.default_rng(semilla)
     salida.mkdir(parents=True, exist_ok=True)
     resumen: Dict[str, object] = {"dataset": str(dataset), "md5_tablas": md5s, "semilla": semilla, "k": k,
-                                  "tol_bpm": TOL_BPM, "tope_p3": tope_p3, "partes": {}}
+                                  "tol_bpm": TOL_BPM, "tol_anio": TOL_ANIO, "tope_p3": tope_p3, "partes": {}}
     for p in PARTES:
         sets_p = sorted(s for s in por_set if parte.get(s) == p)
         es_train = p == "train"
@@ -328,7 +370,10 @@ def armar(dataset: Path, salida: Path, parte_de=None, semilla: int = SEMILLA, k:
                     pid += 1
                     pos.append({"pid": pid, "parte": p, "familia": fam, "grupo": grupo, "nivel": "pos", "y": 1,
                                 "set_id": s, "dj": clave[s], "a": a, "x": b,
-                                **{f"n_{n}": len(elegidos.get(n, ())) for n in NIVELES}})
+                                **{f"n_{n}": len(elegidos.get(n, ())) for n in NIVELES},
+                                "otra_version": int(not es_train and (otra_version(a) or otra_version(b))),
+                                "mismo_artista": int(bool(T[a].artistas & T[b].artistas)),
+                                "mismo_sello": int(bool(T[a].sello) and T[a].sello == T[b].sello)})
                     negs.append((pool, elegidos))
                     cuenta[f"{fam}_{grupo}"] += 1
         pesar(pos)
@@ -340,7 +385,12 @@ def armar(dataset: Path, salida: Path, parte_de=None, semilla: int = SEMILLA, k:
             "md5": md5(ruta), "md5_contenido": md5_gz(ruta),
             "principal_P1": {"positivos": sum(1 for f in pos if f["familia"] == "P1" and f["grupo"] == "principal"),
                              "djs": len({f["dj"] for f in pos if f["familia"] == "P1" and f["grupo"] == "principal"}),
-                             "sets": len({f["set_id"] for f in pos if f["familia"] == "P1" and f["grupo"] == "principal"})},
+                             "sets": len({f["set_id"] for f in pos if f["familia"] == "P1" and f["grupo"] == "principal"}),
+                             **{f"con_{n}": {"positivos": sum(1 for f in pos if f["familia"] == "P1" and f["grupo"] == "principal" and f[f"n_{n}"] > 0),
+                                             "djs": len({f["dj"] for f in pos if f["familia"] == "P1" and f["grupo"] == "principal" and f[f"n_{n}"] > 0})}
+                                for n in ("N3", "N4")},
+                             "marcados": {m: sum(f[m] for f in pos if f["familia"] == "P1" and f["grupo"] == "principal") for m in MARCAS},
+                             "limpios": sum(1 for f in pos if f["familia"] == "P1" and f["grupo"] == "principal" and not any(f[m] for m in MARCAS))},
             "positivos_sin_negativos": {n: sum(1 for f in pos if f["grupo"] != "sin_metadatos" and f[f"n_{n}"] == 0)
                                         for n in NIVELES},
             "positivos_con_menos_de_k": {n: sum(1 for f in pos if f["grupo"] != "sin_metadatos" and 0 < f[f"n_{n}"] < k_p)
@@ -402,7 +452,7 @@ def escribir(ruta: Path, pos: Sequence[Dict[str, object]], negs: Sequence[Tuple[
                 pesos = {m: (pn if m == nivel else 0.0) for m in NIVELES}
                 for i in ii:
                     w.writerow([x["pid"], x["parte"], x["familia"], x["grupo"], nivel, 0, x["set_id"], x["dj"], x["a"],
-                                pool.ids[i], "", "", "", _fmt(pesos["N1"]), _fmt(pesos["N2"]), _fmt(pesos["N3"])])
+                                pool.ids[i], "", "", "", "", *[_fmt(pesos[m]) for m in NIVELES], "", "", ""])
                     n += 1
     return n
 
@@ -416,6 +466,9 @@ def leer_tablero(ruta: Path) -> Dict[str, np.ndarray]:
     out["y"] = df["y"].to_numpy(dtype=np.int64)
     for n in NIVELES:
         out[f"peso_{n}"] = df[f"peso_{n}"].to_numpy(dtype=np.float64)
+    for mm in MARCAS:            # las marcas están en el positivo; los negativos heredan las de su pid
+        v = pd.to_numeric(df[mm], errors="coerce").fillna(0)
+        out[mm] = v.groupby(df["pid"]).transform("max").to_numpy(dtype=np.int64)
     return out
 
 
@@ -508,6 +561,8 @@ def puntajes(tab: Dict[str, np.ndarray], T: Dict[str, Tema], vistas: Optional[Vi
         return gcache[(gp, gq)]
 
     out["genero"] = np.asarray([gen(p, q) for p, q in zip(a, x)])
+    out["fecha"] = -np.abs(np.asarray([T[t].anio for t in a]) - np.asarray([T[t].anio for t in x]))
+    out["popularidad"] = np.asarray([T[t].n_sets for t in x])
     out["azar"] = np.random.default_rng(semilla).random(len(a))
     if vistas is not None:
         ia = np.asarray([vistas.fila.get(t, -1) for t in a])
@@ -551,22 +606,49 @@ def mascara(tab: Dict[str, np.ndarray], familia_: str, grupo: str, nivel: str) -
     return m, tab[f"peso_{nivel}"]
 
 
+def _primero(s: np.ndarray, y: np.ndarray, u: np.ndarray, nu: int) -> np.ndarray:
+    """Por positivo (u: su índice compacto), 1 si b queda por encima de todos sus negativos, 0 si no; en un empate,
+    la parte que le toca (1 / (1 + negativos empatados))."""
+    pos, neg = y == 1, y == 0
+    smax = np.full(nu, -np.inf)
+    np.maximum.at(smax, u[neg], s[neg])
+    spos = np.full(nu, np.nan)
+    spos[u[pos]] = s[pos]
+    empates = np.zeros(nu)
+    np.add.at(empates, u[neg], (s[neg] == spos[u[neg]]).astype(float))
+    return np.where(spos > smax, 1.0, np.where(spos == smax, 1.0 / (1.0 + empates), 0.0))
+
+
 def medir_celda(S: Dict[str, np.ndarray], tab: Dict[str, np.ndarray], fam: str, grupo: str, nivel: str,
-                refs: Sequence[str], boot: int = BOOT, semilla: int = SEMILLA) -> Dict[str, object]:
+                refs: Sequence[str], boot: int = BOOT, semilla: int = SEMILLA,
+                filtro: Optional[np.ndarray] = None) -> Dict[str, object]:
+    """AUC pesado y acierto en el primer puesto de cada puntaje en una celda, con intervalos remuestreando DJs (los
+    mismos remuestreos para todos) y las diferencias pareadas con `refs`. `filtro` deja afuera filas (por pid)."""
     m, w = mascara(tab, fam, grupo, nivel)
+    if filtro is not None:
+        m = m & filtro
     idx = np.flatnonzero(m)
     if not len(idx) or not (tab["y"][idx] == 1).any():
         return {}
     y, ww, djs = tab["y"][idx], w[idx], tab["dj"][idx]
     ug, dj_i = np.unique(djs, return_inverse=True)
     dj_i = dj_i.ravel()
+    upid, u = np.unique(tab["pid"][idx], return_inverse=True)
+    u = u.ravel()
+    nu = len(upid)
+    pos = y == 1
+    wp = np.zeros(nu)
+    dj_p = np.zeros(nu, int)
+    wp[u[pos]] = ww[pos]
+    dj_p[u[pos]] = dj_i[pos]
     rng = np.random.default_rng(semilla)
     # Remuestrear DJs con reemplazo = multiplicar el peso de cada fila por cuántas veces salió su DJ (los mismos
     # remuestreos para todos los puntajes de la celda).
     veces = np.stack([np.bincount(rng.integers(0, len(ug), len(ug)), minlength=len(ug)) for _ in range(boot)])
-    out: Dict[str, object] = {"positivos": int((y == 1).sum()), "negativos": int((y == 0).sum()), "djs": len(ug),
+    out: Dict[str, object] = {"positivos": int(pos.sum()), "negativos": int((y == 0).sum()), "djs": len(ug),
                               "sets": int(len(np.unique(tab["set_id"][idx]))), "puntajes": {}}
     auc_boot: Dict[str, np.ndarray] = {}
+    pri_boot: Dict[str, np.ndarray] = {}
     for nombre, s in S.items():
         s = s[idx]
         ok = np.isfinite(s)
@@ -577,10 +659,16 @@ def medir_celda(S: Dict[str, np.ndarray], tab: Dict[str, np.ndarray], fam: str, 
         G = int(inv.max()) + 1
         a = _auc_grupos(inv, G, y, ww)
         b = np.asarray([_auc_grupos(inv, G, y, ww * v[dj_i]) or np.nan for v in veces])
-        auc_boot[nombre] = b
-        out["puntajes"][nombre] = {"auc": None if a is None else round(a, 4),
-                                   "ic95": [round(float(np.nanpercentile(b, 2.5)), 4), round(float(np.nanpercentile(b, 97.5)), 4)],
-                                   "sin_dato": int((~ok).sum())}
+        pr = _primero(s, y, u, nu)
+        p1 = float((wp * pr).sum() / wp.sum())
+        pb = np.asarray([float((wp * v[dj_p] * pr).sum() / max((wp * v[dj_p]).sum(), 1e-12)) for v in veces])
+        auc_boot[nombre], pri_boot[nombre] = b, pb
+        out["puntajes"][nombre] = {
+            "auc": None if a is None else round(a, 4),
+            "ic95": [round(float(np.nanpercentile(b, 2.5)), 4), round(float(np.nanpercentile(b, 97.5)), 4)],
+            "primero": round(p1, 4),
+            "primero_ic95": [round(float(np.percentile(pb, 2.5)), 4), round(float(np.percentile(pb, 97.5)), 4)],
+            "sin_dato": int((~ok).sum())}
     for r in refs:
         if r not in auc_boot:
             continue
@@ -588,9 +676,16 @@ def medir_celda(S: Dict[str, np.ndarray], tab: Dict[str, np.ndarray], fam: str, 
             if nombre == r:
                 continue
             d = auc_boot[nombre] - auc_boot[r]
+            dp = pri_boot[nombre] - pri_boot[r]
             out["puntajes"][nombre][f"dif_con_{r}"] = [round(float(np.nanpercentile(d, 2.5)), 4),
                                                         round(float(np.nanpercentile(d, 97.5)), 4)]
+            out["puntajes"][nombre][f"dif_primero_con_{r}"] = [round(float(np.percentile(dp, 2.5)), 4),
+                                                                round(float(np.percentile(dp, 97.5)), 4)]
     return out
+
+
+PRINCIPAL = "P1/principal/N4"
+REFERENCIAS = ("pesos iguales (v8c)", "clap", "bpm")
 
 
 def medir(tablero: Path, dataset: Path, vistas_dir: Optional[Path], partes: Sequence[str], u1_path: Optional[Path],
@@ -607,7 +702,7 @@ def medir(tablero: Path, dataset: Path, vistas_dir: Optional[Path], partes: Sequ
     st = z_stats(P_train, tab_train, cols)
     res: Dict[str, object] = {"tablero": str(tablero), "vistas": str(vistas_dir) if vistas_dir else None,
                               "z_de_train": {c: [round(v[0], 5), round(v[1], 5)] for c, v in st.items()},
-                              "commit": git_head(), "partes": {}}
+                              "principal": PRINCIPAL, "commit": git_head(), "partes": {}}
     for p in partes:
         tab = tab_train if p == "train" else leer_tablero(tablero / f"pares_{p}.csv.gz")
         P = P_train if p == "train" else puntajes(tab, T, vistas)
@@ -615,7 +710,7 @@ def medir(tablero: Path, dataset: Path, vistas_dir: Optional[Path], partes: Sequ
         if vistas is not None:
             for nombre, cs in PESOS_IGUALES.items():
                 S[nombre] = suma_z(P, cs, st)
-        refs = [r for r in ("pesos iguales (v8c)", "bpm") if r in S]
+        refs = [r for r in REFERENCIAS if r in S]
         celdas = {}
         for fam in FAMILIAS:
             for g in GRUPOS:
@@ -625,16 +720,25 @@ def medir(tablero: Path, dataset: Path, vistas_dir: Optional[Path], partes: Sequ
                         celdas[f"{fam}/{g}/{n}"] = c
                         print(f"  {p} {fam}/{g}/{n}: " + "  ".join(f"{k} {v['auc']}" for k, v in c["puntajes"].items()),
                               flush=True)
+        limpio = ~np.any(np.stack([tab[mm] > 0 for mm in MARCAS]), axis=0)
+        c = medir_celda(S, tab, "P1", "principal", "N4", refs, boot, filtro=limpio)
+        if c:
+            celdas[PRINCIPAL + "/limpio"] = c
         res["partes"][p] = celdas
     prin = res["partes"].get("test", {})
+
     def auc(celda, k):
         return prin.get(celda, {}).get("puntajes", {}).get(k, {}).get("auc")
-    res["c3"] = {"bpm_N2": auc("P1/principal/N2", "bpm"), "bpm_N3": auc("P1/principal/N3", "bpm"),
-                 "genero_N3": auc("P1/principal/N3", "genero")}
-    res["c3"]["pasa"] = (all(v is not None and 0.47 <= v <= 0.53 for v in (res["c3"]["bpm_N2"], res["c3"]["bpm_N3"]))
-                         and res["c3"]["genero_N3"] is not None and abs(res["c3"]["genero_N3"] - 0.5) <= 0.005)
-    ic = prin.get("P1/principal/N3", {}).get("puntajes", {}).get("azar", {}).get("ic95")
+
+    c3 = {f"bpm_{n}": auc(f"P1/principal/{n}", "bpm") for n in ("N2", "N3", "N4")}
+    c3.update({f"genero_{n}": auc(f"P1/principal/{n}", "genero") for n in ("N3", "N4")})
+    c3["pasa"] = (all(c3[f"bpm_{n}"] is not None and 0.47 <= c3[f"bpm_{n}"] <= 0.53 for n in ("N2", "N3", "N4"))
+                  and all(c3[f"genero_{n}"] is not None and abs(c3[f"genero_{n}"] - 0.5) <= 0.005 for n in ("N3", "N4")))
+    res["c3"] = c3
+    ic = prin.get(PRINCIPAL, {}).get("puntajes", {}).get("azar", {}).get("ic95")
     res["c4"] = {"azar_ic95": ic, "pasa": bool(ic) and ic[0] <= 0.5 <= ic[1]}
+    f4 = auc(PRINCIPAL, "fecha")
+    res["c5"] = {"fecha_N4": f4, "pasa": f4 is not None and 0.47 <= f4 <= 0.53}
     return res
 
 
@@ -671,7 +775,7 @@ def main() -> int:
     texto = json.dumps(r, ensure_ascii=False, indent=1)
     if args.json:
         Path(args.json).write_text(texto + "\n", encoding="utf-8")
-    print(json.dumps({k: r[k] for k in ("c3", "c4")}, ensure_ascii=False))
+    print(json.dumps({k: r[k] for k in ("c3", "c4", "c5")}, ensure_ascii=False))
     return 0
 
 

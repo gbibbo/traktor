@@ -200,10 +200,52 @@ Ninguna se entrena con pares. Solo se ajustan medias y desvíos, con train.
 ### Métrica e intervalos
 
 - AUC pesado de los positivos frente a los negativos, por familia (P1, P2, P3) y por nivel (N1, N2, N3).
-- **Resultado principal:** P1 frente a N3.
+- [REEMPLAZADO 2026-11-13 por la auditoría `auditoria_protocolo_a1_2026-11-13.md`: el resultado principal es P1 frente
+  a N4; ver «Cambios por la auditoría»] **Resultado principal:** P1 frente a N3.
 - **Intervalos del 95 %:** se remuestrean los DJs de test (`split_key`), 1000 veces con la semilla 0, los mismos
   remuestreos para todos los puntajes. Se dan para el AUC de cada uno y para su diferencia, pareada, con «pesos iguales
-  con v8c» y con «bpm».
+  con v8c» y con «bpm» (y, desde la auditoría, también con «clap»).
+
+### Cambios por la auditoría (2026-11-13, antes de medir)
+
+Vienen de `docs/reports/auditoria_protocolo_a1_2026-11-13.md` (commit `7e2fa76`). Con el tablero de antes, «fecha
+cercana» sola daba AUC 0,737 en P1 frente a N3, sin oír nada.
+
+1. **Nivel N4, igualado en fecha.** Es N3 y además el año de lanzamiento del candidato (`bp_release_date`) a ±1 del de
+   b. Un positivo cuyo b no tiene fecha no entra en N4. Se sortea del pool entero, con 20 negativos por positivo (5 en
+   train), en las tres partes.
+   - **Resultado principal: P1 principal frente a N4.** N3 se sigue informando.
+   - El tamaño mínimo pasa a medirse en P1 frente a N4: 1500 positivos o más, de 25 DJs o más.
+2. **Subconjunto limpio, informado aparte sin cambiar el tablero.** El resultado principal sin tres grupos de pares:
+   - los que tienen un tema con otra versión en train: mismo artista y mismo título sin lo que va entre paréntesis o
+     corchetes, o el mismo ISRC;
+   - los que comparten un artista;
+   - los que comparten sello de Beatport.
+3. **Líneas de base nuevas:**
+   - **fecha:** menos la diferencia de año entre a y el candidato;
+   - **popularidad:** `n_sets` del candidato.
+   - «clap» (CLAP crudo, el producto de hoy) se suma a las referencias de las diferencias pareadas.
+4. **Acierto en el primer puesto:** la fracción pesada de positivos en los que b queda por encima de todos sus
+   negativos del nivel (en un empate cuenta la parte que le toca). Lleva el mismo intervalo por DJs.
+   - **Regla para pedirle una escucha a Gabriel.** Solo cuando un candidato cumple dos condiciones en P1 frente a N4:
+     le gana a «clap» y a «pesos iguales (v8c)» con el intervalo de la diferencia entero sobre 0, y su acierto en el
+     primer puesto no es menor que el de los dos.
+   - Motivo: en la escucha corta del 11-13, 0,08 de AUC a favor no se oyó.
+5. **En A0, control de fuente.** Para cada vista se mide si los 10 vecinos de un tema de YouTube son de YouTube más de
+   lo esperado por su proporción. Se informa, sin umbral.
+6. **Los temas que en train solo aparecen encima de otro («w/») cuentan como vistos.** Son 6.
+
+Controles nuevos:
+- C3 se extiende a N4: bpm entre 0,47 y 0,53, y género 0,500 ± 0,005.
+- C5: en N4, el AUC de fecha está entre 0,47 y 0,53.
+
+Conteos del armado con estos cambios (2026-11-13, todavía sin medir ninguna línea de base):
+- C1 y C2 pasan.
+- **test:** P1 principal tiene 2067 positivos; eran 2076 y 9 pasan a vistos por las filas «w/».
+  - Con negativos N4: **1660 positivos de 33 DJs**, así que el tamaño mínimo se cumple.
+  - Marcados: 249 con otra versión en train, 259 con artista en común y 230 con el mismo sello. Limpios: 1442.
+- **validation:** 2286 positivos con negativos N4, de 32 DJs.
+- **train:** 19 339 positivos con negativos N4.
 
 ### Controles de construcción
 

@@ -36,9 +36,13 @@ def _dataset(raiz: Path) -> Path:
     for i in range(60):
         tracks.append({"track_id": f"t{i:02d}", "recording_id": f"bp_{i}", "has_audio": "1", "audio_source": "beatport",
                        "bp_bpm": str(int(rng.choice([124, 125, 126, 128]))), "bp_genre": str(rng.choice(["Techno", "House"])),
-                       "bp_key": "A Minor"})
+                       "bp_key": "A Minor", "bp_release_date": f"{int(rng.choice([2016, 2017, 2018, 2022]))}-05-01",
+                       "artist": f"Art{i % 7}", "title": f"Tema {i}", "bp_label": f"Sello {i % 5}", "bp_isrc": "",
+                       "n_sets": str(1 + i % 3)})
     tracks[59].update(bp_bpm="", bp_genre="", audio_source="youtube", recording_id="yt_x")      # sin metadatos
     tracks[58]["recording_id"] = "bp_44"                       # misma grabación que t44: t44 queda visto por su grabación
+    tracks[5].update(artist=tracks[30]["artist"], title="Tema 30 (Remix)")   # t30 (test) tiene otra versión en train
+    tracks[31]["bp_release_date"] = ""                         # sin fecha: los pares con b = t31 no tienen N4
     sets = {"s1": ("Ana", [f"t{i:02d}" for i in range(0, 10)]),
             "s2": ("Beto", ["t10", "t11", "W", "t12", "ID", "t13", "t14", "t15", "t16", "t17"]),
             "s3": ("Caro", ["t18", "t19", "t00", "t20", "t21", "t22", "t23", "t24"]),
@@ -119,8 +123,38 @@ def test_negativos_cumplen_cada_nivel(armado):
         assert T[c].rec not in (T[a].rec, T[b].rec)
         if tab["nivel"][i] in ("N2", "N3"):
             assert abs(abs(T[c].bpm - T[a].bpm) - abs(T[b].bpm - T[a].bpm)) <= ta.TOL_BPM
-        if tab["nivel"][i] == "N3":
+        if tab["nivel"][i] in ("N3", "N4"):
             assert T[c].genero == T[b].genero
+        if tab["nivel"][i] == "N4":
+            assert abs(T[c].anio - T[b].anio) <= ta.TOL_ANIO
+
+
+def test_marcas_y_n4(armado):
+    raiz, salida, r = armado
+    tab = ta.leer_tablero(salida / "pares_test.csv.gz")
+    pos = tab["y"] == 1
+    a, x = tab["a"][pos], tab["x"][pos]
+    ver = tab["otra_version"][pos]
+    con_t30 = (a == "t30") | (x == "t30")
+    assert con_t30.any() and ver[con_t30].all() and not ver[~con_t30].any()
+    T = ta.temas(ta.leer_csv(raiz / "metadata" / "tracks.csv"))
+    art = tab["mismo_artista"][pos]
+    assert all(bool(T[p].artistas & T[q].artistas) == bool(f) for p, q, f in zip(a, x, art))
+    sin_fecha = x == "t31"
+    assert (tab["peso_N4"][pos][sin_fecha] == 0).all()
+    # los negativos heredan las marcas de su positivo
+    neg = tab["y"] == 0
+    madre = {p: v for p, v in zip(tab["pid"][pos], ver)}
+    assert all(madre[p] == v for p, v in zip(tab["pid"][neg], tab["otra_version"][neg]))
+    assert "con_N4" in r["partes"]["test"]["principal_P1"]
+
+
+def test_primero_con_empates():
+    # positivo 0: gana; positivo 1: empata con 1 negativo; positivo 2: pierde
+    s = np.asarray([0.9, 0.1, 0.5, 0.5, 0.2, 0.3, 0.8])
+    y = np.asarray([1, 0, 1, 0, 1, 0, 0])
+    u = np.asarray([0, 0, 1, 1, 2, 2, 2])
+    assert list(ta._primero(s, y, u, 3)) == [1.0, 0.5, 0.0]
 
 
 def test_pesos_suman_uno_por_set(armado):
@@ -158,8 +192,9 @@ def test_medir_celda_intervalos():
     rng = np.random.default_rng(0)
     n = 400
     tab = {"familia": np.full(n, "P1"), "grupo": np.full(n, "principal"), "y": (np.arange(n) % 4 == 0).astype(int),
-           "nivel": np.where(np.arange(n) % 4 == 0, "pos", "N1"), "dj": np.asarray([f"d{i % 10}" for i in range(n)]),
-           "set_id": np.asarray([f"s{i % 20}" for i in range(n)])}
+           "nivel": np.where(np.arange(n) % 4 == 0, "pos", "N1"), "pid": np.arange(n) // 4,
+           "dj": np.asarray([f"d{(i // 4) % 10}" for i in range(n)]),
+           "set_id": np.asarray([f"s{(i // 4) % 20}" for i in range(n)])}
     for m in ta.NIVELES:
         tab[f"peso_{m}"] = np.ones(n) if m == "N1" else np.zeros(n)
     S = {"bueno": tab["y"] + rng.normal(scale=0.5, size=n), "azar": rng.random(n)}
@@ -168,3 +203,6 @@ def test_medir_celda_intervalos():
     b = c["puntajes"]["bueno"]
     assert b["ic95"][0] <= b["auc"] <= b["ic95"][1] and b["auc"] > 0.8
     assert b["dif_con_azar"][0] > 0
+    assert b["primero"] > c["puntajes"]["azar"]["primero"] and b["dif_primero_con_azar"][0] > 0
+    filtro = tab["pid"] < 50                                       # solo la mitad de los positivos
+    assert ta.medir_celda(S, tab, "P1", "principal", "N1", ["azar"], boot=50, filtro=filtro)["positivos"] == 50
