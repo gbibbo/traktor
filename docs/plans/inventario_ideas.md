@@ -84,7 +84,7 @@ Cómo leerlo:
 | E9 | Compacidad de los sets en CLAP | Adenda 11-08 | Medido 11-08 | Referencia |
 | E10 | Precisión de zona y pureza fuera de muestra | Adenda 11-08 | Medido 11-08 | Referencia |
 | E11 | Validar una coordenada en tres pasos: ordena, se mueve con la noche, acuerda con Gabriel | Adenda 11-08 | Regla vigente | A5 |
-| E12 | Escucha a ciegas de listas enteras, de a dos | Adenda 11-08 | Lista desde el 11-10; sin respuestas (v). Versión corta de 12 minutos desde el 11-13 (`pagina_escucha.py`, `escucha_corta_e12_2026-11-13.md`) | Sección 6, punto 4 |
+| E12 | Escucha a ciegas de listas enteras, de a dos | Adenda 11-08 | Lista desde el 11-10; sin respuestas (v). Versión corta hecha el 11-13: 5 a 5, no decide; Parecidos sigue con CLAP (`escucha_corta_e12_2026-11-13.md`) | Sección 6, punto 4 |
 | E13 | Banco de conceptos local, con y sin referencia | Adenda 11-09 | Versión exploratoria medida | B5 |
 | E14 | Control de tempo al medir los modelos | Adenda 11-09 | Medido 11-09 | A1: negativos del mismo BPM |
 | E15 | Control de dominio: preview frente a biblioteca | Auditoría 11-09 | Medido 11-10: CLAP sufre el códec, MAEST pasa | Lo continúa E20 |

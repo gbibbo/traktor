@@ -52,6 +52,50 @@ Protocolo fijado antes de que exista ninguna respuesta. La clave de cuál lista 
 - **Probado.** La página se abrió en un navegador sin pantalla con dos respuestas simuladas: guarda, avanza y cuenta.
   El sonido no se pudo probar así.
 
+## Resultado (2026-11-13)
+
+Gabriel hizo la escucha el mismo día. La clave se abrió después de recibir sus 10 respuestas.
+
+**5 a 5: no decide.** Eligió la lista nueva en 5 temas y la de hoy en 5. Ninguna vez contestó «no las distingo». Con la
+regla fijada, 9 o 10 de 10 deciden y 8 es un indicio; 5 de 10 es lo que da el azar (p = 1,0). De oído, en los primeros
+puestos, la ecuación de todos los factores con pesos iguales no se distingue de CLAP solo. **Parecidos sigue con CLAP
+por defecto.**
+
+| # | Tema principal | Género | Eligió |
+| --: | :--- | :--- | :--- |
+| 1 | Nicone, Miau On Acid | Deep House | la de hoy |
+| 2 | VSY, Aria | Electronica | la de hoy |
+| 3 | Adana Twins, The Curve | Indie Dance | la de hoy |
+| 4 | Kolombo, Nos Fuimos | Indie Tech | la nueva |
+| 5 | 8Kays, Lost Connection | Melodic House & Techno | la nueva |
+| 6 | Der Dritte Raum, Trommelmaschine (Martin Landsky Remix) | Minimal / Deep Tech | la de hoy |
+| 7 | Andre Butano, Get K | Tech House | la de hoy |
+| 8 | Lorenzo Silvano, Undertrack | Tech House | la nueva |
+| 9 | Emmanuel Top, This Is Cocaine (Shall Ocin Remix) | Techno (Peak Time / Driving) | la nueva |
+| 10 | Magnetic | sin género | la nueva |
+
+Respuestas: `artifacts\v4\escucha\e12\respuestas_e12_2026-11-10.json`, con copia en
+`erclm:traktor_ml/dj_sets/e12/`.
+
+| Afirmación | Etiqueta | Evidencia |
+| :--- | :--- | :--- |
+| La lista nueva no se prefiere a la de hoy en los primeros puestos | EVIDENCIA OBSERVADA | 5 de 10 para cada una; `clave.json` cruzada con las respuestas |
+| Las dos listas suenan distinto | INFERENCIA | Ninguna respuesta «no las distingo» en 10: Gabriel siempre encontró una preferencia, pero no para el mismo lado |
+| La ecuación gana en los números y no de oído | EVIDENCIA OBSERVADA | Juez «mismo set» con D5: 0,692 frente a 0,614 (`juez_d5_2026-11-10.md`, transcripto); escucha: 5 a 5 |
+| La ecuación no sirve | NO CONCLUYENTE | Con 10 temas solo se detecta una preferencia muy fuerte. Si la real fuera de 7 de cada 10, saldría 5 o menos el 15 % de las veces |
+| La de hoy gana en los temas lentos o suaves (1, 2 y 3) | HIPÓTESIS | Son 3 temas; no se ajusta nada con eso |
+
+Revisión hostil:
+
+- **Pocos temas.** 10 respuestas no distinguen «iguales» de «una algo mejor».
+- **Se oyó poco de cada lista:** 3 temas propios de cada una, 10 segundos de cada tema, desde el medio.
+- **Posición.** Eligió A en 7 de 10 y la lista que sonó primero en 6 de 10. Con 10 temas eso no se distingue del azar, y
+  cuál era A estaba sorteado.
+- **Pesos iguales.** Lo que se escuchó es la ecuación con pesos iguales, no una aprendida con el dataset.
+
+Qué sigue: no se pide otra escucha de estas dos listas. La próxima es para lo que salga de la línea A (A2 o A3),
+contra la lista de hoy y con este mismo formato.
+
 ## Los pedidos del teléfono
 
 Gabriel no revisa los 82 (`docs/plans/pedidos_telefono_borrador.md`). Los revisa la auditoría. Sus pedidos reales se

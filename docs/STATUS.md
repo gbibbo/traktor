@@ -49,8 +49,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    (`datasets/djsets/README.md`; rama unida a `main`). GABRIEL: vetos de `candidatos.csv`.
 4. LOCAL: modelo de representación propio: es la línea A del plan v2 (`representation_model_plan.md`
    queda de contexto).
-5. Recomendación: plan `plan_recomendacion_v2.md`; línea A en gpuq. GABRIEL: escucha corta E12,
-   12 min (`artifacts\v4\escucha\e12\escucha.html`); Traktor, «TRAKTOR ML sin tonalidad», Analyze solo
+5. Recomendación: plan `plan_recomendacion_v2.md`; línea A en gpuq. Escucha E12 hecha: 5 a 5,
+   Parecidos sigue con CLAP. GABRIEL: Traktor, «TRAKTOR ML sin tonalidad», Analyze solo
    Key. TIV aparte. Pedidos a Gabriel: 15 min o menos (`escucha_corta_e12_2026-11-13.md`).
 6. Teléfono, línea B: Worker v6 y presets, en local. LOCAL: momento como orden (DECISIONS 11-13,
    10), reglas del LLM. GABRIEL: `publicar.py`.

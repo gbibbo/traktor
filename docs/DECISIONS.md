@@ -92,6 +92,13 @@ Plan vigente: `docs/plans/plan_recomendacion_v2.md`. Inventario de ideas: `docs/
    - **Lo que se le pide a Gabriel en la línea B:** solo publicar, un paso de un minuto. El banco del LLM se arma con la
      semilla y con los pedidos reales del registro del teléfono.
 
+11. **Resultado de la escucha E12 corta: 5 a 5, no decide** (Gabriel escuchó el 11-13; la clave se abrió después).
+    De 10 temas principales eligió la lista nueva en 5 y la de hoy en 5, y ninguna vez «no las distingo». Con la regla
+    fijada, 9 o 10 de 10 deciden: de oído, en los primeros puestos, la ecuación de todos los factores con pesos iguales
+    no se distingue de CLAP solo. **Parecidos sigue con CLAP por defecto.** No se pide otra escucha de estas dos
+    listas (agente): la próxima es para lo que salga de la línea A (A2 o A3), contra la lista de hoy y con el mismo
+    formato corto. Informe: `docs/reports/escucha_corta_e12_2026-11-13.md`.
+
 ## 2026-11-10 (E16: la ecuación con D5 y la escucha E12 lista)
 
 Informe: `docs/reports/juez_d5_2026-11-10.md`. Regla fijada en `77d4434` antes de medir.
