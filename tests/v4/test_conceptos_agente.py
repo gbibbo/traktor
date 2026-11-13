@@ -6,6 +6,8 @@ PURPOSE: Tests del ordenador en el circuito de conceptos (tools/traktor_live/con
 CHANGELOG:
   - 2026-11-09: Creación inicial.
   - 2026-11-09: Circuito con el LLM: sondeo y final, playlist nueva por concepto, sin filtros.
+  - 2026-11-13: Línea B (B1): buscar() con formulario, trabajos de versión 3, sondeo dentro de los filtros, la sesión del
+                vivo y lo que viaja al Worker en el pedido de trabajo (tema que suena y catálogo).
 """
 import datetime as dt
 import json
@@ -87,9 +89,36 @@ def test_parse_rejects_unusable_jobs(raw):
 
 # ---------------------------------------------------------------- buscar, sondeo y lista
 
-def test_buscar_orders_by_cosine_and_is_the_only_ranking():
-    indices, sims = ca.buscar(biblioteca(ITEMS), np.array(unit(1, 0, 0), dtype=np.float64), n=3)
-    assert indices == [0, 1, 2] and sims[0] == pytest.approx(1.0)
+def test_buscar_runs_the_form_and_text_alone_orders_by_cosine():
+    res = ca.buscar(biblioteca(ITEMS), {**ca.fm.vacio(), "texto": ["trompeta"], "largo": 3}, None, codificar)
+    assert res.indices == [0, 1, 2] and res.puntajes[0] == pytest.approx(1.0) and res.pasos == [{"paso": "Biblioteca", "quedan": 4}]
+
+
+def test_parse_reads_version_3_with_its_form():
+    t = ca.parse_tarea({"version": 3, "fase": "final", "nombre": "Preset", "textos": [],
+                        "formulario": {"filtros": {"voz": "sin", "energia": 9}}})
+    assert t.textos == () and t.formulario["filtros"]["voz"] == "sin" and "energia" not in t.formulario["filtros"]
+    with pytest.raises(ca.TareaInvalida):
+        ca.parse_tarea({"version": 3, "fase": "final", "textos": [], "formulario": {}})          # nada que buscar
+    with pytest.raises(ca.TareaInvalida):
+        ca.parse_tarea({"version": 3, "fase": "sondeo", "textos": [], "formulario": {"filtros": {"voz": "sin"}}})
+    with pytest.raises(ca.TareaInvalida):
+        ca.parse_tarea({"version": 3, "fase": "final", "textos": [], "formulario": "voz sin"})
+
+
+def test_preset_list_filters_and_says_what_passed():
+    tarea = ca.parse_tarea({"version": 3, "fase": "final", "nombre": "Preset", "textos": [],
+                            "formulario": {"filtros": {"generos": {"incluir": ["House"], "modo": "duro"}, "voz": "sin"}}})
+    result, chosen = ca.crear_lista(tarea, biblioteca(ITEMS, VOCAL), codificar)
+    assert [t["track_id"] for t in result["tracks"]] == ["b", "c"] and result["passed"] == 2
+    assert [p["quedan"] for p in result["pasos"]] == [4, 2, 2] and result["aplicado"] == ["House", "Sin voces"]
+
+
+def test_sondeo_searches_inside_the_form_filters():
+    concepto = {**sondeo_job(), "version": 3, "formulario": {"filtros": {"generos": {"incluir": ["House"], "modo": "duro"}}}}
+    bib = biblioteca(ITEMS, VOCAL)
+    r = ca.sondear(ca.parse_tarea(concepto), bib, codificar, oido(bib))
+    assert r["busquedas"]["A"]["generos"] == {"House": 2} and r["pasan"] == 2
 
 
 def test_query_is_the_mean_of_the_phrases():
@@ -437,7 +466,7 @@ def test_loop_frees_memory_only_after_clap_was_loaded():
 
     stop2 = threading.Event()
     clock2 = iter(range(0, 100000, 1000))
-    ag.bib = object()                                              # CLAP cargado
+    ag.oido = object()                                             # CLAP cargado (la biblioteca sola no cuenta)
     t0 = time.monotonic()
     assert ca.bucle(ag, stop2, poll_s=0.01, idle_exit_s=10.0, clock=lambda: next(clock2)) == 0
     assert not stop2.is_set() and time.monotonic() - t0 < 1
@@ -518,3 +547,64 @@ def test_child_session_returns_the_child_code():
             raise AssertionError("ya terminó")
 
     assert ca.sesion_hija(None, threading.Event(), popen=lambda *a, **k: Child()) == 2
+
+
+# ---------------------------------------------------------------- sesión del vivo y lo que va al Worker
+
+def _evento(kind, data):
+    return json.dumps({"t": "2026-11-13T20:00:00", "kind": kind, "target": "A", "data": data}) + "\n"
+
+
+def test_live_session_is_read_incrementally(tmp_path):
+    log = tmp_path / "sugerencias_vivo_20261113_200000.jsonl"
+    principal = {"deck": "A", "path": "C:/TRAKTOR ML/Musica/x.mp3", "title": "Ñandú", "artist": "Böhmer", "bpm": 120.0,
+                 "tempo": 1.05, "clave_resultante": "4A"}
+    log.write_text(_evento("fader", {}) + _evento("principal", principal) + _evento("tocado", {"path": "C:/y.mp3"})
+                   + '{"kind": "fader", "da', encoding="utf-8")
+    now = [log.stat().st_mtime]
+    lector = ca.SesionVivo(tmp_path, now=lambda: now[0])
+    s = lector.actual()
+    assert s.principal["title"] == "Ñandú" and s.tocados == ["C:/y.mp3"]
+    with open(log, "a", encoding="utf-8") as f:
+        f.write('ta": {}}\n' + _evento("tocado", {"path": "C:/z.mp3"}))
+    now[0] = log.stat().st_mtime
+    assert lector.actual().tocados == ["C:/y.mp3", "C:/z.mp3"]
+    pub = ca.sonando_publico(lector.actual())
+    assert pub == {"titulo": "Ñandú", "artista": "Böhmer", "bpm": 126.0, "clave": "4A", "deck": "A"}
+    assert "path" not in json.dumps(pub) and "TRAKTOR" not in json.dumps(pub)
+    now[0] += ca.SESION_FRESCA_S + 1                                # registro viejo: no es la sesión de ahora
+    assert lector.actual().principal is None
+    assert ca.SesionVivo(tmp_path / "nada").actual().principal is None
+
+
+def test_claim_carries_catalog_once_and_playing_track_when_it_changes(worker, tmp_path):
+    sesion = [ca.ej.Sesion({"title": "Uno", "artist": "A", "bpm": 124.0, "tempo": 1.0, "clave_resultante": "8A", "path": "p"})]
+    t = [0.0]
+    ag = agente(ca.WorkerClient(worker.url, "secreto"), tmp_path, sesion=lambda: sesion[0], estado=True, clock=lambda: t[0])
+    for _ in range(3):
+        extra = ag.para_worker()
+        ag.client.claim(None, extra) if extra else ag.client.claim()
+        ag.enviado(extra)
+    bodies = worker.bodies("/api/device/claim")
+    assert "catalogo" in bodies[0] and bodies[0]["catalogo"]["temas"] == 4 and bodies[0]["sonando"]["titulo"] == "Uno"
+    assert bodies[1] == {} and bodies[2] == {}
+    sesion[0] = ca.ej.Sesion()                                      # se apagó el vivo
+    assert ag.para_worker() == {"sonando": None}
+    ag.enviado({"sonando": None})
+    assert ag.para_worker() is None
+    sesion[0] = ca.ej.Sesion({"title": "Dos", "path": "q"})
+    assert ag.para_worker()["sonando"]["titulo"] == "Dos"
+    ag.enviado(ag.para_worker())
+    t[0] += ca.SONANDO_LATIDO_S + 1                                 # latido: aunque no cambie
+    assert ag.para_worker()["sonando"]["titulo"] == "Dos"
+    assert agente(ca.WorkerClient(worker.url, "secreto"), tmp_path).para_worker() is None    # sin estado: nada
+
+
+def test_preset_job_does_not_load_clap(worker, tmp_path):
+    def sin_clap(_):
+        raise AssertionError("un preset sin texto no usa CLAP")
+    concepto = {"version": 3, "fase": "final", "nombre": "Sin voces", "textos": [], "formulario": {"filtros": {"voz": "sin"}}}
+    ag = agente(ca.WorkerClient(worker.url, "secreto"), tmp_path, codificar=sin_clap, bib=biblioteca(ITEMS, VOCAL))
+    ag.atender(job(concepto))
+    body = worker.bodies("/api/device/complete")[0]
+    assert body["status"] == "done" and {t["track_id"] for t in body["result"]["tracks"]} == {"b", "c"} and ag.oido is None

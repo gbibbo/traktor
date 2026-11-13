@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "descripcion": "Contrato del formulario de consulta del teléfono (plan de recomendación v2, sección 3.2; idea L1). Lo leen el Worker (cloudflare/concept-ai-worker.js) y el ordenador (tools/traktor_live/formulario.py). Cada lista es cerrada: lo que no está acá se descarta.",
+  "voz": ["con", "sin", "da_igual"],
+  "tonalidad": ["compatible", "igual", "libre"],
+  "bpm": {
+    "limites": [50, 220],
+    "margen_numero": 2,
+    "relativo": {"mas_lento": [-8, -2], "igual": [-2, 2], "mas_rapido": [2, 8]}
+  },
+  "generos": {"modos": ["duro", "blando"], "vecino_minimo": 0.75, "max": 6},
+  "referencia": ["ninguna", "sonando", "tema", "dj"],
+  "pesos": {
+    "perfiles": ["por_defecto", "equilibrado", "sonido", "genero", "armonico"],
+    "factores": ["sonido", "bpm", "tonalidad", "genero"],
+    "niveles": ["menos", "igual", "mas"],
+    "max_ajustes": 2
+  },
+  "momentos": ["apertura", "subida", "pico", "cierre", "after"],
+  "orden": ["puntaje", "bpm_sube", "bpm_baja", "momento"],
+  "largo": {"defecto": 30, "max": 30},
+  "texto": {"max": 3, "max_caracteres": 180},
+  "otros": {"anio": [1950, 2100], "max_nombres": 5, "max_caracteres": 60},
+  "pendiente": {
+    "momento": "El momento de la noche todavía no filtra: espera la tabla que aprueba Gabriel (L10) o la línea A (A5).",
+    "referencia.dj": "«Como tal DJ» todavía no existe: llega con la línea A (A6).",
+    "pesos.perfil": "Los perfiles de pesos todavía no existen: se usa el puntaje de Parecidos por defecto (los define la línea A).",
+    "orden.momento": "Ordenar por momento todavía no existe: se ordena por puntaje."
+  }
+}

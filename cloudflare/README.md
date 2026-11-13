@@ -22,11 +22,34 @@ Teléfono <-- qué entendió, qué buscó, la lista -----+
 Por qué las instrucciones del LLM dicen lo que dicen: `docs/reports/clap_texto_2026-11-09.md`. Antecedentes:
 `docs/reports/traktor_concept_ai_cloudflare_2026-11-09.md`.
 
+## v6 (2026-11-13): presets, formulario y lo que suena
+
+Es la línea B del plan (`docs/plans/plan_recomendacion_v2.md`, § 3). El pedido es un formulario con casillas de listas
+cerradas (`config/telefono/formulario.json`). El ordenador lo ejecuta siempre igual (`tools/traktor_live/ejecutor.py`).
+
+- **Presets** (`config/telefono/presets.json`): seguir lo que suena, más lento, más rápido, sin voces, los 6 géneros con
+  más temas (filtran duro) y los momentos, apagados hasta que Gabriel apruebe su tabla. Un pedido solo con presets va
+  directo a la cola como lista final: no llama al LLM y no gasta neuronas (lo comprueba un test de punta a punta).
+- **Texto libre**: el mismo circuito del LLM de la v5. Si además hay presets, viajan en el formulario: el sondeo y la lista
+  final buscan dentro de esos filtros.
+- **El resultado dice qué hizo**: cuántos temas quedaron después de cada filtro, lo aplicado en palabras, lo que no
+  pudo aplicar y por qué. Si un tema nombrado tiene dudas, el resultado trae los candidatos para elegir.
+- **Lo que suena, arriba de la pantalla.** El ordenador lo manda de paso en su pedido de trabajo, al cambiar y cada
+  5 min, junto con el catálogo de la biblioteca en números (géneros con su conteo). Nada de rutas ni de la lista de
+  temas. Se guarda en la tabla `estado` de D1. El teléfono lo pide (`GET /api/estado`) cada 20 s mientras la pantalla
+  está a la vista, y deja de pedirlo con la pantalla apagada.
+  - Costo de una noche de 6 h: unos 1100 pedidos del teléfono y unos 5400 del ordenador (uno cada 4 s, como en la v5),
+    con unas 100 escrituras en D1.
+  - Cupo gratuito: 100 000 pedidos y 100 000 escrituras por día. Sin LLM.
+- **Contraseña una sola vez**: el teléfono la recuerda (`localStorage`). «Salir» la olvida.
+
+Los trabajos guardados con la v5 (versión 2) siguen funcionando.
+
 | Archivo | Qué es |
 | --- | --- |
 | `concept-ai-worker.js` | El Worker completo: instrucciones y validadores del LLM, la cola y la página del teléfono. Fuente única: no editar en el dashboard |
 | `wrangler.jsonc` | Nombre y bindings de producción (`AI`, `DB`). Sin secretos |
-| `schema.sql` | Tabla `jobs` de D1 (no cambió desde la v3) |
+| `schema.sql` | Tablas de D1: `jobs` (no cambió desde la v3) y `estado` (v6: lo que suena y el catálogo) |
 | `publicar.py` | Publica y conecta este ordenador en un paso |
 
 Los secretos `APP_PASSWORD` (teléfono) y `DEVICE_TOKEN` (ordenador) viven en Cloudflare. No se pueden leer, solo
@@ -40,13 +63,14 @@ Publicar en producción lo decide Gabriel. Desde la raíz del repo, con el Pytho
 python cloudflare/publicar.py
 ```
 
-El script hace cuatro cosas:
+El script hace cinco cosas:
 
-1. Publica el Worker.
-2. Deja el mismo `DEVICE_TOKEN` en Cloudflare y en `artifacts/v4/traktor_live/conceptos_agente.json`, que está fuera de
+1. Aplica `schema.sql` en la D1 remota: crea la tabla `estado` si falta. No toca los trabajos.
+2. Publica el Worker.
+3. Deja el mismo `DEVICE_TOKEN` en Cloudflare y en `artifacts/v4/traktor_live/conceptos_agente.json`, que está fuera de
    Git.
-3. Comprueba la conexión sin consumir trabajos.
-4. Activa el agente para que arranque con Traktor.
+4. Comprueba la conexión sin consumir trabajos.
+5. Activa el agente para que arranque con Traktor.
 
 Requiere haber hecho `npx wrangler@4.159.0 login` una vez. Si algo sale mal, desde `cloudflare/`:
 `npx wrangler@4.159.0 rollback`. El despliegue automático desde GitHub sigue apagado a propósito.
@@ -57,6 +81,9 @@ Requiere haber hecho `npx wrangler@4.159.0 login` una vez. Si algo sale mal, des
   `$env:TRAKTOR_WORKER_E2E = "1"; python -m pytest tests/v4/test_concept_worker_e2e.py -q`
 - Con el LLM real: `wrangler dev` con el binding `AI` (gasta neuronas; nada se publica) y `src/v4/evaluation/clap_texto_llm.py`.
 - Unas frases contra la música, sin red: `python tools/traktor_live/conceptos_agente.py probar --frase "festive house with bright trumpets"`.
+- Un formulario contra la música, sin red (cuántos temas pasan cada filtro y la lista):
+  `python tools/traktor_live/conceptos_agente.py formulario '{"filtros": {"voz": "sin"}, "referencia": {"tipo": "sonando"}}' --sonando "Carl Craig The Melody"`.
+  `--sesion` lee lo que suena del registro del vivo.
 
 ## Operar
 

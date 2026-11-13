@@ -8,6 +8,8 @@ PURPOSE: Prueba de punta a punta del circuito de conceptos: el Worker real (clou
 CHANGELOG:
   - 2026-11-09: Creación inicial (Worker v4: firma, idempotencia, lease, contrato de resultados).
   - 2026-11-09: Worker v5: circuito con el LLM (pedido, sondeo, decisión, final), validadores, ajuste, conceptos viejos.
+  - 2026-11-13: Worker v6: presets sin LLM (formulario en el trabajo, versión 3), presets y texto juntos, la ruta /api/estado
+                con lo que suena y el catálogo que manda el ordenador, resultados con pasos, lo ignorado y candidatos.
 """
 import hashlib
 import json
@@ -49,7 +51,9 @@ const counts = {};
 function texts(prefix) {
   return [prefix + " dark techno with a rolling bassline", prefix + " hypnotic techno with deep kick drums", prefix + " minimal techno with metallic percussion"];
 }
+let llmCalls = 0;
 const AI = { async run(model, input) {
+  llmCalls++;
   const system = input.messages[0].content, user = input.messages[1].content;
   const key = (user.match(/Request: (.*)/) || user.match(/The DJ asked: (.*)/) || [null, user])[1];
   counts[key + system.length] = (counts[key + system.length] || 0) + 1;
@@ -68,7 +72,10 @@ const AI = { async run(model, input) {
   if (user.includes("QUEDA_A")) return json({ veredicto: "ok", quedan: ["A", "Z"], resumen: "Solo la primera" });
   return json({ veredicto: "ok", quedan: ["A", "C"], resumen: "Techno oscuro con bajos" });
 } };
-export default { fetch(request, env, ctx) { return worker.fetch(request, { ...env, AI }, ctx); } };
+export default { fetch(request, env, ctx) {
+  if (new URL(request.url).pathname === "/__llm_calls") return Response.json({ calls: llmCalls });
+  return worker.fetch(request, { ...env, AI }, ctx);
+} };
 """
 
 
@@ -213,7 +220,8 @@ def test_request_is_interpreted_and_queued_for_searches(server):
     drain(server)
     job = pedido(server)
     c = job["concept"]
-    assert job["status"] == "queued" and c["version"] == 2 and c["fase"] == "sondeo" and c["ronda"] == 1
+    assert job["status"] == "queued" and c["version"] == 3 and c["fase"] == "sondeo" and c["ronda"] == 1
+    assert c["formulario"] == ca.fm.vacio() and c["presets"] == []
     assert c["original"] == "algo oscuro tipo after" and c["entendi"] == "Techno oscuro" and c["nombre"] == "After oscuro"
     assert [t["id"] for t in c["textos"]] == ["A", "B", "C"] and c["no_se_oye"] == ["after"]
     drain(server)
@@ -405,3 +413,101 @@ def test_completing_a_finished_job_twice_is_refused(server):
     body = {"id": job_id, "attempts": claimed["attempts"], "status": "failed", "error": "fin"}
     assert device(server, "/api/device/complete", body)[0] == 200
     assert device(server, "/api/device/complete", body)[0] == 409
+
+
+# ---------------------------------------------------------------- v6: presets, estado y explicación
+
+def llm_calls(s):
+    with urllib.request.urlopen(s["url"] + "/__llm_calls", timeout=10) as r:
+        return json.loads(r.read())["calls"]
+
+
+def catalogo_de_prueba(s):
+    device(s, "/api/device/claim", {"catalogo": {"version": 1, "temas": 12, "sin_genero": 0,
+                                                 "generos": [{"nombre": "Techno", "temas": 6}, {"nombre": "House", "temas": 6}]}})
+
+
+def test_page_asks_the_password_once_and_shows_what_is_playing(server):
+    with urllib.request.urlopen(server["url"] + "/", timeout=10) as r:
+        html = r.read().decode("utf-8")
+    assert "localStorage" in html and 'id="now"' in html and "/api/estado" in html and "Buscar en mi música" in html
+
+
+def test_state_lists_the_presets(server):
+    assert call(server["url"], "GET", "/api/estado")[0] == 401
+    status, e = app(server, "GET", "/api/estado")
+    assert status == 200 and {p["id"] for p in e["presets"]} >= {"sonando", "mas_rapido", "mas_lento", "sin_voces", "pico"}
+    assert all(p["pendiente"] for p in e["presets"] if p["grupo"] == "momento")
+
+
+def test_the_computer_reports_what_is_playing_and_the_catalog(server):
+    drain(server)
+    sonando = {"titulo": "Beyond — Ñandú", "artista": "Ben Böhmer", "bpm": 122.5, "clave": "8A", "deck": "B"}
+    catalogo = {"version": 1, "temas": 12, "sin_genero": 0, "generos": [{"nombre": "Techno", "temas": 6}, {"nombre": "House", "temas": 6}],
+                "bpm": {"min": 120.0, "max": 131.0}, "voz": {"con": 4, "sin": 8}, "campos": {"genero": 12}}
+    assert device(server, "/api/device/claim", {"sonando": sonando, "catalogo": catalogo})[1]["job"] is None
+    e = app(server, "GET", "/api/estado")[1]
+    assert e["sonando"] == sonando and e["ordenador_conectado"] and e["ordenador_hace_s"] <= 5
+    assert e["generos_preset"] == ["Techno", "House"] and e["catalogo"]["temas"] == 12
+    # lo que no valida se ignora y el reclamo sigue andando
+    assert device(server, "/api/device/claim", {"sonando": {"titulo": 3}, "catalogo": {"version": 9}})[0] == 200
+    assert app(server, "GET", "/api/estado")[1]["sonando"] == sonando
+    assert device(server, "/api/device/claim", {"sonando": None})[0] == 200
+    e = app(server, "GET", "/api/estado")[1]
+    assert e["sonando"] is None and e["ordenador_conectado"]
+
+
+def test_presets_skip_the_llm_and_become_a_list(server, agent):
+    drain(server)
+    catalogo_de_prueba(server)
+    antes = llm_calls(server)
+    status, job = app(server, "POST", "/api/conceptos", {"presets": ["sin_voces"], "generos": ["House"]})
+    assert status == 201 and llm_calls(server) == antes                         # ni una neurona
+    c = job["concept"]
+    assert c["version"] == 3 and c["fase"] == "final" and c["textos"] == [] and c["entendi"] == "Sin voces · House"
+    assert c["formulario"]["filtros"]["voz"] == "sin" and c["formulario"]["filtros"]["generos"] == {"incluir": ["House"], "excluir": [], "modo": "duro"}
+    correr(agent(server), job["id"])
+    final = app(server, "GET", f"/api/jobs/{job['id']}")[1]
+    r = final["result"]
+    assert final["status"] == "done" and [p["quedan"] for p in r["pasos"]] == [12, 6, 4] and len(r["tracks"]) == 4
+    assert r["aplicado"] == ["House", "Sin voces"] and r["playlist"].endswith("Sin voces, House")
+
+
+def test_presets_and_text_together_keep_the_presets_through_the_llm(server, agent):
+    drain(server)
+    status, job = app(server, "POST", "/api/conceptos", {"texto": "algo oscuro tipo after", "presets": ["sin_voces"]})
+    assert status == 201 and job["concept"]["fase"] == "sondeo" and job["concept"]["formulario"]["filtros"]["voz"] == "sin"
+    correr(agent(server), job["id"])
+    final = app(server, "GET", f"/api/jobs/{job['id']}")[1]
+    assert final["status"] == "done" and final["concept"]["formulario"]["filtros"]["voz"] == "sin"
+    assert final["result"]["pasos"][-1]["paso"] == "Sin voces" and len(final["result"]["tracks"]) == 8
+
+
+def test_bad_presets_are_refused(server):
+    catalogo_de_prueba(server)
+    assert app(server, "POST", "/api/conceptos", {"presets": ["volar"]})[0] == 400
+    assert app(server, "POST", "/api/conceptos", {"presets": "sin_voces"})[0] == 400
+    assert app(server, "POST", "/api/conceptos", {"generos": ["Bossa Nova"]})[0] == 400       # no está en el catálogo
+    assert app(server, "POST", "/api/conceptos", {"presets": [], "generos": []})[0] == 400
+    assert app(server, "POST", "/api/conceptos", {"referencia_uid": "../x"})[0] == 400
+
+
+def test_results_with_steps_are_kept_and_bad_ones_refused(server):
+    drain(server)
+    job = app(server, "POST", "/api/conceptos", {"presets": ["sin_voces"]})[1]
+    claimed = device(server, "/api/device/claim", {"job_id": job["id"]})[1]["job"]
+    malo = {"tracks": [], "pasos": [{"paso": "x" * 121, "quedan": 1}]}
+    assert device(server, "/api/device/complete", {"id": job["id"], "attempts": claimed["attempts"], "status": "done", "result": malo})[0] == 400
+    bueno = {"tracks": [], "pasos": [{"paso": "Biblioteca", "quedan": 9}, {"paso": "Sin voces", "quedan": 0}],
+             "aplicado": ["Sin voces"], "ignorado": [{"casilla": "momento", "motivo": "todavía no"}],
+             "referencia": {"titulo": "Uno", "artista": ""}, "candidatos": [{"uid": "abc", "titulo": "Dos", "artista": "X"}]}
+    assert device(server, "/api/device/complete", {"id": job["id"], "attempts": claimed["attempts"], "status": "done", "result": bueno})[0] == 200
+    assert app(server, "GET", f"/api/jobs/{job['id']}")[1]["result"]["candidatos"][0]["uid"] == "abc"
+
+
+def test_choosing_a_candidate_sends_its_uid(server):
+    drain(server)
+    status, job = app(server, "POST", "/api/conceptos", {"referencia_uid": "u3", "referencia_titulo": "Tema 3"})
+    assert status == 201 and job["concept"]["formulario"]["referencia"] == {"tipo": "tema", "uid": "u3"}
+    assert job["concept"]["entendi"] == "Como «Tema 3»"
+    drain(server)

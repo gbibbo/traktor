@@ -45,6 +45,28 @@ Plan vigente: `docs/plans/plan_recomendacion_v2.md`. Inventario de ideas: `docs/
    - **El filtro de género es blando cuando el género viene del texto,** porque las etiquetas son las de Beatport y
      es difícil que alguien las escriba tal cual, **y duro cuando se eligió en un preset del teléfono.** Puede cambiar
      más adelante.
+8. **Respuestas de Gabriel a la línea B, el mismo día.**
+   - **Género escrito en el texto: blando, y se aceptan errores de escritura** («tecno» por techno). Preguntó si el
+     LLM debería leer «oscuro» como Techno (Raw / Deep / Hypnotic). Respuesta del agente: no. «Oscuro» describe un
+     sonido y va a la casilla texto («dark»), donde CLAP lo busca en cualquier género. Deducir un género sacaría temas
+     que el DJ no excluyó. La regla del reglamento será que solo una palabra de género, o una con un error de
+     escritura, llena la casilla de géneros. Blando (agente): el género pedido va primero y entran los vecinos de la
+     taxonomía con parecido de 0,75 o más; por ejemplo, Tech House trae House, Indie Tech y Minimal / Deep Tech, y no
+     Dance / Pop.
+   - **La tabla de momentos se mide en DJSets, no se escribe suponiendo.** Medida (agente):
+     `docs/reports/momentos_djsets_2026-11-13.md` y `config/telefono/momentos.json`, en `"estado": "propuesta"`. Espera
+     que Gabriel elija su forma y qué hacer con after. Hasta entonces el momento no filtra.
+   - **Los 50 pedidos los arma con el agente orquestador** (`pedidos_telefono_borrador.md`).
+   - **Los BPM a la mitad se corrigen en Traktor.** Hecho (agente): `traktor_collection.py bpm-doble`, con Traktor
+     cerrado y respaldo en `artifacts/v4/traktor_backups/collection_20261113_120543.nml`. Corrige 20 temas. Solo toca
+     un BPM de Traktor fuera de 90-180 que es la mitad o el doble del de Beatport o del tag original. En otros 9 temas
+     la referencia era la que estaba a la mitad, y esos no se tocaron.
+   - **Sus 15 carpetas no se usan como filtro** (Gabriel: tienen mucho ruido). El agente retira la propuesta: son
+     grupos de CLAP y BPM, así que no agregan nada a la búsqueda por parecido.
+   - **Presets aprobados:** seguir lo que suena, más rápido, más lento, sin voces, los 6 géneros grandes y los
+     momentos cuando apruebe la tabla. **Pantalla:** la contraseña se pide una vez y queda guardada; lo que suena va
+     arriba, en una línea, y se refresca sin gastar el cupo gratuito de Cloudflare. Hecho en el Worker v6, en local:
+     el teléfono pide el estado cada 20 s solo con la pantalla a la vista, y los presets no llaman al LLM.
 
 ## 2026-11-10 (E16: la ecuación con D5 y la escucha E12 lista)
 

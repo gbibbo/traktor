@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "descripcion": "Presets del teléfono (idea L3), aprobados por Gabriel el 2026-11-13: seguir lo que suena, más rápido, más lento, sin voces, los 6 géneros con más temas y los momentos cuando apruebe su tabla. Un preset es un pedazo del formulario (config/telefono/formulario.json): los elegidos se juntan y van al ordenador sin pasar por el LLM. Un género elegido acá filtra duro. Grupos: en «bpm» y «momento» se elige uno; «sonando» y «voz» se prenden o apagan; en «genero», varios.",
+  "presets": [
+    {"id": "sonando", "grupo": "sonando", "etiqueta": "Seguir lo que suena", "formulario": {"referencia": {"tipo": "sonando"}}},
+    {"id": "mas_lento", "grupo": "bpm", "etiqueta": "Más lento", "formulario": {"referencia": {"tipo": "sonando"}, "filtros": {"bpm": {"relativo": "mas_lento"}}}},
+    {"id": "mas_rapido", "grupo": "bpm", "etiqueta": "Más rápido", "formulario": {"referencia": {"tipo": "sonando"}, "filtros": {"bpm": {"relativo": "mas_rapido"}}}},
+    {"id": "sin_voces", "grupo": "voz", "etiqueta": "Sin voces", "formulario": {"filtros": {"voz": "sin"}}},
+    {"id": "apertura", "grupo": "momento", "etiqueta": "Apertura", "pendiente": true, "formulario": {"momento": "apertura"}},
+    {"id": "subida", "grupo": "momento", "etiqueta": "Subida", "pendiente": true, "formulario": {"momento": "subida"}},
+    {"id": "pico", "grupo": "momento", "etiqueta": "Pico", "pendiente": true, "formulario": {"momento": "pico"}},
+    {"id": "cierre", "grupo": "momento", "etiqueta": "Cierre", "pendiente": true, "formulario": {"momento": "cierre"}},
+    {"id": "after", "grupo": "momento", "etiqueta": "After", "pendiente": true, "formulario": {"momento": "after"}}
+  ],
+  "generos": {"cuantos": 6, "de_donde": "los géneros con más temas del catálogo que manda el ordenador"}
+}

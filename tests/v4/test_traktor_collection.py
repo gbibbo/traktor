@@ -2,9 +2,11 @@
 PURPOSE: Tests de traktor_collection.py con un paquete y una colección de Traktor falsos: prepare
          saca solo los temas sin carátula en Traktor, con carátula en el archivo y sin cues propios,
          y actualiza el texto de los demás; playlists se niega si falta un tema y, si están todos,
-         agrega la carpeta con sus playlists en orden (y la reemplaza al repetir).
+         agrega la carpeta con sus playlists en orden (y la reemplaza al repetir); bpm-doble corrige solo un BPM
+         de Traktor fuera de 90-180 que es la mitad o el doble de la referencia.
 CHANGELOG:
   - 2026-10-30: Creación inicial.
+  - 2026-11-13: bpm-doble.
 """
 import io
 import sys
@@ -120,3 +122,36 @@ def test_prepare_and_playlists():
             keys = [pk.get("KEY") for pk in p.iter("PRIMARYKEY")]
             assert p.find("PLAYLIST").get("ENTRIES") == str(len(s.track_uids)) and all(k in coll_keys for k in keys)
             assert [k.split("/:")[-1] for k in keys] == [path[u].name for u in s.track_uids]
+
+
+def test_octave_fix_only_moves_bpm_outside_club_range():
+    from src.v4.pipeline.traktor_collection import octave_fix
+    assert octave_fix(63.0, 126.0) == 126.0                  # mitad de la referencia: doble
+    assert octave_fix(208.0, 104.0) == 104.0                 # doble: mitad
+    assert octave_fix(133.0, 66.5) is None                   # la referencia está a la mitad: no se toca
+    assert octave_fix(88.3, 176.7) is None                   # el doble cae fuera de 90-160
+    assert octave_fix(70.0, 70.0) is None and octave_fix(70.0, None) is None
+    assert octave_fix(60.0, 128.0) is None                   # no es el doble dentro del 3 %
+
+
+def test_fix_half_bpm_writes_only_matching_entries():
+    from src.v4.pipeline.traktor_collection import _k, fix_half_bpm, package_prefix
+    with tempfile.TemporaryDirectory() as t:
+        t = Path(t)
+        pkg = t / "TRAKTOR ML"
+        musica = pkg / "Musica" / "A"
+        musica.mkdir(parents=True)
+        a, b, c = musica / "a.mp3", musica / "b.mp3", t / "afuera.mp3"
+        tempo = lambda bpm: f'<TEMPO BPM="{bpm}" BPM_QUALITY="100.000000"></TEMPO>'
+        col = t / "collection.nml"
+        col.write_text('<?xml version="1.0" encoding="UTF-8" standalone="no" ?>\n<NML VERSION="20"><COLLECTION ENTRIES="3">\n'
+                       + _entry(a, "A", False, tempo("63.000000")) + _entry(b, "B", False, tempo("133.000000"))
+                       + _entry(c, "C", False, tempo("63.000000")) + "</COLLECTION></NML>\n", encoding="utf-8")
+        prefix = package_prefix(pkg)
+        ref = {_k(prefix + "A/:a.mp3"): 126.0, _k(prefix + "A/:b.mp3"): 66.5}
+        bdir = t / "bk"
+        assert fix_half_bpm(col, pkg, bdir, ref, dry_run=True)["changed"] == 1 and not bdir.exists()
+        stats = fix_half_bpm(col, pkg, bdir, ref)
+        assert stats["changed"] == 1 and len(list(bdir.glob("collection_*.nml"))) == 1
+        bpm = {e.get("TITLE"): float(e.find("TEMPO").get("BPM")) for e in ET.parse(col).getroot().find("COLLECTION")}
+        assert bpm == {"A": 126.0, "B": 133.0, "C": 63.0}     # fuera del paquete no se toca

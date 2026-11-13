@@ -11,3 +11,9 @@ CREATE TABLE IF NOT EXISTS jobs (
   error TEXT
 );
 CREATE INDEX IF NOT EXISTS jobs_queue ON jobs(status, created_at);
+-- v6: lo que el ordenador cuenta de paso al pedir trabajo (claves "sonando" y "catalogo"), para la pantalla del telefono.
+CREATE TABLE IF NOT EXISTS estado (
+  clave TEXT PRIMARY KEY,
+  valor TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);

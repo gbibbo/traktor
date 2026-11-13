@@ -14,10 +14,13 @@ PURPOSE: Pone las playlists de un paquete portátil (usb_package.py) directament
              apuntando a las entradas de la colección; si falta algún tema en la colección, no
              escribe nada y lo informa.
          Entre los dos pasos, en Traktor: arrastrar la carpeta Musica del paquete a Track Collection.
+         Aparte, bpm-doble: los temas del paquete cuyo BPM de Traktor es la mitad (o el doble) del de sus tags
+         pasan al BPM del tag (Gabriel, 2026-11-13: corregirlos en Traktor).
 CHANGELOG:
   - 2026-10-30: Creación inicial (las playlists del pendrive no entraban en Traktor 4.4).
   - 2026-11-04: find_collection, traktor_running, entry_key, entry_path y _has_own_cues pasan a
                 src/v4/common/traktor_nml.py (sin pandas, para las herramientas en vivo).
+  - 2026-11-13: bpm-doble (26 temas con el BPM a la mitad no pasaban el filtro de BPM del vivo).
 """
 from __future__ import annotations
 
@@ -42,6 +45,9 @@ from src.v4.common.traktor_nml import (  # noqa: E402,F401
 from src.v4.pipeline.usb_package import _root_label, nml_dir_prefix, read_package_specs  # noqa: E402
 
 DECLARATION = '<?xml version="1.0" encoding="UTF-8" standalone="no" ?>'
+HALF_BPM_TOL = 0.03                     # bpm-doble: x2 o x0,5 del BPM de Traktor a un 3 % de la referencia
+KEEP_BPM = (90.0, 180.0)                # un BPM de Traktor en este rango no se toca
+CLUB_BPM = (90.0, 160.0)                # y el corregido tiene que caer en este
 
 
 def _k(s: str) -> str:
@@ -213,12 +219,79 @@ def add_playlists(collection: Path, package_dir: Path, backup_dir: Path,
     return stats
 
 
+def octave_fix(traktor_bpm: float, ref_bpm: Optional[float], tol: float = HALF_BPM_TOL) -> Optional[float]:
+    """El BPM corregido si Traktor leyó la mitad o el doble del de referencia (dentro de tol); None si no.
+    Solo mueve un BPM fuera de 90-180 a uno de pista (90-160): en 9 temas de la biblioteca la referencia era la
+    que estaba a la mitad (Dax J, «The Invisible Man»: Traktor 133, tags 66,5), y ese BPM de Traktor no se toca."""
+    if not traktor_bpm or not ref_bpm or traktor_bpm <= 0 or ref_bpm <= 0:
+        return None
+    if KEEP_BPM[0] <= traktor_bpm <= KEEP_BPM[1]:
+        return None
+    for factor in (2.0, 0.5):
+        fixed = traktor_bpm * factor
+        if abs(fixed - ref_bpm) <= tol * ref_bpm and CLUB_BPM[0] <= fixed <= CLUB_BPM[1]:
+            return fixed
+    return None
+
+
+def reference_bpm(package_dir: Path, data_dir: Path) -> Dict[str, float]:
+    """BPM de referencia por clave de entrada del paquete: el de Beatport confirmado y, si no hay, el de los tags
+    originales (features/bpm_key.parquet). Los tags del paquete no sirven: ya llevan el BPM que leyó Traktor."""
+    import pandas as pd
+    by_uid: Dict[str, float] = {}
+    bk = data_dir / "features" / "bpm_key.parquet"
+    if bk.exists():
+        for uid, bpm in pd.read_parquet(bk, columns=["track_uid", "bpm"]).itertuples(index=False):
+            if bpm == bpm and bpm:
+                by_uid[str(uid)] = float(bpm)
+    bp = data_dir / "features" / "beatport.parquet"
+    if bp.exists():
+        table = pd.read_parquet(bp, columns=["track_uid", "confirmed", "bp_bpm"])
+        for uid, ok, bpm in table.itertuples(index=False):
+            if ok is True and bpm == bpm and bpm:
+                by_uid[str(uid)] = float(bpm)
+    _, _, placements = read_package_specs(package_dir)
+    vol, dirp = nml_dir_prefix(PureWindowsPath(str(package_dir)))
+    return {_k(vol + dirp + p.rel_path.replace("\\", "/:")): by_uid[p.track_uid]
+            for p in placements if p.track_uid in by_uid}
+
+
+def fix_half_bpm(collection: Path, package_dir: Path, backup_dir: Path, reference: Dict[str, float],
+                 dry_run: bool = False) -> Dict[str, object]:
+    """Temas del paquete con el BPM de Traktor a la mitad (o al doble) del de referencia: el BPM de Traktor pasa a
+    ser el doble (o la mitad). Es lo mismo que el botón x2 de la grilla: el ancla de la grilla no se mueve."""
+    tree = load(collection)
+    prefix = _k(package_prefix(package_dir))
+    changes: List[Tuple[str, float, float]] = []
+    for e in tree.getroot().find("COLLECTION").findall("ENTRY"):
+        key = _k(entry_key(e))
+        if not key.startswith(prefix):
+            continue
+        tempo = e.find("TEMPO")
+        try:
+            bpm = float(tempo.get("BPM")) if tempo is not None and tempo.get("BPM") else 0.0
+        except ValueError:
+            continue
+        path = entry_path(e)
+        fixed = octave_fix(bpm, reference.get(key))
+        if fixed is not None:
+            tempo.set("BPM", f"{fixed:.6f}")
+            changes.append((path.name, round(bpm, 2), round(fixed, 2)))
+    stats: Dict[str, object] = {"changed": len(changes), "examples": changes}
+    if changes and not dry_run:
+        stats["backup"] = str(backup(collection, backup_dir))
+        save(tree, collection)
+    return stats
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Playlists de un paquete portátil en la colección de Traktor")
-    ap.add_argument("cmd", choices=("prepare", "playlists"))
+    ap.add_argument("cmd", choices=("prepare", "playlists", "bpm-doble"))
     ap.add_argument("--package", required=True, help="Carpeta del paquete, p. ej. C:\\TRAKTOR ML")
     ap.add_argument("--collection", default=None, help="collection.nml (por defecto la de Traktor más reciente)")
     ap.add_argument("--backup-dir", default=str(REPO_ROOT / "artifacts" / "v4" / "traktor_backups"))
+    ap.add_argument("--data-dir", default=str(REPO_ROOT / "artifacts" / "v4" / "datasets" / "musica"),
+                    help="bpm-doble: carpeta del dataset con features/bpm_key.parquet y beatport.parquet")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
     collection = Path(args.collection) if args.collection else find_collection()
@@ -232,6 +305,13 @@ def main() -> int:
     print(f"[INFO] Colección: {collection}")
     if args.cmd == "prepare":
         stats = prepare(collection, package, Path(args.backup_dir), args.dry_run)
+    elif args.cmd == "bpm-doble":
+        reference = reference_bpm(package, Path(args.data_dir))
+        print(f"[INFO] BPM de referencia para {len(reference)} temas del paquete")
+        stats = fix_half_bpm(collection, package, Path(args.backup_dir), reference, args.dry_run)
+        for name, old, new in stats["examples"]:
+            print(f"   {old:>7} -> {new:>7}  {name}")
+        stats = {k: v for k, v in stats.items() if k != "examples"}
     else:
         stats = add_playlists(collection, package, Path(args.backup_dir), args.dry_run)
     print(f"[INFO] {stats}")

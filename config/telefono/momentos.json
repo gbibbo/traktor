@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "estado": "propuesta",
+  "fuente": "DJSets v1 (erclm:traktor_ml/djsets_v1, tablas del 2026-11-13). apertura, subida, pico y cierre: posición (0-20, 20-60, 60-80 y 80-100 %) en 96 sets de noche entera; after: títulos. bpm = percentiles 25 y 75 de las filas; generos = fracción de las filas con género de Beatport. tools/dj_sets/momentos_noche.py; docs/reports/momentos_djsets_2026-11-13.md",
+  "commit": "a6fc0f33907c9ca6d8613064e0e96ed10be4246f",
+  "momentos": {
+    "apertura": {
+      "bpm": [
+        120.0,
+        126.0
+      ],
+      "bpm_mediana": 123.0,
+      "generos": {
+        "Melodic House & Techno": 0.144,
+        "Tech House": 0.112,
+        "Electronica": 0.092,
+        "Organic House": 0.091,
+        "Deep House": 0.089,
+        "Techno (Peak Time / Driving)": 0.083,
+        "House": 0.083,
+        "Progressive House": 0.08
+      },
+      "n_sets": 96,
+      "n_djs": 60,
+      "n_temas": 1343,
+      "de_donde": "posicion"
+    },
+    "subida": {
+      "bpm": [
+        122.0,
+        127.0
+      ],
+      "bpm_mediana": 124.0,
+      "generos": {
+        "Melodic House & Techno": 0.221,
+        "Progressive House": 0.124,
+        "Tech House": 0.12,
+        "Techno (Peak Time / Driving)": 0.119,
+        "House": 0.067,
+        "Indie Dance": 0.058,
+        "Deep House": 0.053,
+        "Techno (Raw / Deep / Hypnotic)": 0.037
+      },
+      "n_sets": 96,
+      "n_djs": 60,
+      "n_temas": 2643,
+      "de_donde": "posicion"
+    },
+    "pico": {
+      "bpm": [
+        123.0,
+        128.0
+      ],
+      "bpm_mediana": 125.0,
+      "generos": {
+        "Melodic House & Techno": 0.223,
+        "Techno (Peak Time / Driving)": 0.149,
+        "Progressive House": 0.111,
+        "Tech House": 0.1,
+        "House": 0.08,
+        "Indie Dance": 0.049,
+        "Deep House": 0.049,
+        "Techno (Raw / Deep / Hypnotic)": 0.041
+      },
+      "n_sets": 96,
+      "n_djs": 60,
+      "n_temas": 1313,
+      "de_donde": "posicion"
+    },
+    "cierre": {
+      "bpm": [
+        122.0,
+        128.0
+      ],
+      "bpm_mediana": 124.0,
+      "generos": {
+        "Melodic House & Techno": 0.231,
+        "Techno (Peak Time / Driving)": 0.133,
+        "Progressive House": 0.105,
+        "House": 0.088,
+        "Tech House": 0.077,
+        "Indie Dance": 0.056,
+        "Dance / Pop": 0.049,
+        "Deep House": 0.038
+      },
+      "n_sets": 96,
+      "n_djs": 60,
+      "n_temas": 1227,
+      "de_donde": "posicion"
+    },
+    "after": {
+      "bpm": null,
+      "bpm_mediana": null,
+      "generos": {},
+      "n_sets": 19,
+      "n_djs": 12,
+      "n_temas": 705,
+      "de_donde": "titulos"
+    }
+  }
+}

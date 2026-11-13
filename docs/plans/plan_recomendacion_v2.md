@@ -196,6 +196,16 @@ El reglamento es exhaustivo en el repo y corto en cada llamada: el LLM ve solo l
 
 Publicar en producción sigue siendo paso de Gabriel (`python cloudflare/publicar.py`).
 
+**Estado de la línea B (2026-11-13):**
+
+| Paso | Estado |
+| :--- | :--- |
+| B0 | Hecho: `config/telefono/formulario.json`, `formulario.py` y el catálogo |
+| B1 | Hecho: `ejecutor.py`. Con solo texto o con solo «lo que suena» da la lista de hoy, comprobado con la biblioteca real |
+| B2 y B4 | Hechos en el Worker v6, probado en local: presets sin LLM y pasos con conteos |
+| B3 | Espera el banco de pedidos |
+| L10 | Tabla medida en DJSets, en propuesta (`momentos_djsets_2026-11-13.md`) |
+
 ## 4. Orden
 
 ```

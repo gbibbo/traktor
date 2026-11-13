@@ -7,6 +7,7 @@ PURPOSE: Publica «Traktor Concept AI» y conecta este ordenador, en un solo pas
          Uso, desde la raíz del repo y con el Python del pipeline:  python cloudflare/publicar.py
 CHANGELOG:
   - 2026-11-09: Creación inicial.
+  - 2026-11-13: Worker v6: antes de publicar aplica schema.sql en la D1 remota (tabla estado; idempotente).
 """
 from __future__ import annotations
 
@@ -50,6 +51,14 @@ def main() -> int:
         print("[ERROR] Falta el login: npx wrangler@4.159.0 login")
         return 1
     print("[OK] " + next(l.strip() for l in who.stdout.splitlines() if "logged in" in l))
+
+    paso("Base de datos: tablas nuevas (los trabajos no se tocan)")
+    esquema = wrangler("d1", "execute", "traktor-concepts", "--remote", "--file", "schema.sql", "--yes")
+    if esquema.returncode != 0:
+        print(esquema.stdout[-1500:], esquema.stderr[-1500:])
+        print("[ERROR] No se pudo crear la tabla estado en D1. Nada se publicó.")
+        return 1
+    print("[OK] schema.sql aplicado (CREATE TABLE IF NOT EXISTS: repetirlo no cambia nada)")
 
     paso("Publicar el Worker")
     dep = wrangler("deploy")

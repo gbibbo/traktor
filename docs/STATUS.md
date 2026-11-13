@@ -52,8 +52,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 5. Recomendación: plan vigente `docs/plans/plan_recomendacion_v2.md` (11-13); línea A, DJSets en gpuq.
    GABRIEL: escucha E12 (`e12\escucha.html`) y la sección 6 del plan; Traktor,
    «TRAKTOR ML sin tonalidad», Analyze solo Key. TIV aparte.
-6. Teléfono, línea B del plan: formulario y reglas del LLM; Worker v5 en local. GABRIEL: revisar
-   `pedidos_telefono_borrador.md`; `python cloudflare/publicar.py` (`cloudflare/README.md`).
+6. Teléfono, línea B: formulario, ejecutor y Worker v6 (presets) en local. GABRIEL: momentos
+   (`momentos_djsets_2026-11-13.md`), `pedidos_telefono_borrador.md`, publicar.
 
 ## RUN RECIPES
 
