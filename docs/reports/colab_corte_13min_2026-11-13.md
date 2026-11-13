@@ -40,7 +40,8 @@ De paso apareció un error de gpuq que cortaba intentos sanos: un corte de red p
 | El corte empezó del lado de Colab, no de nuestro código | INFERENCIA | mismo cliente con resultados opuestos antes y después del 2-nov; trabajos distintos de dos proyectos cortados igual |
 | Lo dispara algo que hacen los trabajos reales y las pruebas no | INFERENCIA | el mismo día, 3 de 3 pruebas sintéticas vivieron más de 30 min y 2 de 2 intentos reales se cortaron a los 12 min; muestra chica |
 | No es el arranque de gpuq (credenciales, rclone, clonado, sesión `gpuq`, consulta por minuto) | EVIDENCIA OBSERVADA | E3 (`traktor-diag-e3-1`) vivió 35 min por ese camino con la GPU al 100 % |
-| Qué de lo que hacen los trabajos lo dispara: tráfico al Drive, descargas de Hugging Face o la combinación | NO CONCLUYENTE | lo deciden E4 (`traktor-diag-e4-drive-1`, `traktor-diag-e4-hf-1`) |
+| Lo dispara el tráfico con el Drive por rclone, no las descargas de Hugging Face | EVIDENCIA OBSERVADA | E4-drive (4 tars reales, 1,3 GB en 9 min, y un parcial subido cada 3 min) se cortó a los 12,2 min; E4-hf (1,25 GB de Hugging Face) vivió 20 min. Un solo cambio frente a E3 en cada una |
+| Qué parte del tráfico con el Drive: las bajadas grandes (rclone abre 4 conexiones para archivos de más de 256 MB) o las subidas chicas | NO CONCLUYENTE | lo deciden E5 (`traktor-diag-e5-bajadas-1`, `-1hilo-1`, `-subidas-1`) |
 | Es una poda por inactividad | HIPÓTESIS, debilitada | coincide con los 12-13 min de las sesiones sin keep-alive de junio, pero E0 vivió con el kernel quieto y una consulta por minuto |
 | Fue para todos o solo para esta cuenta | NO CONCLUYENTE | no hay reportes públicos; haría falta otra cuenta, y usar varias cuentas para esquivar límites va contra las reglas de Colab |
 
@@ -105,6 +106,14 @@ T4 durante 35 min. Scripts en `tools/gpuq/diag_colab/`.
   vez de lo que hacen los trabajos reales de A0: bajar tars reales de `djsets_v1/audio/beatport` (unos 550 MB cada
   uno, uno cada 3 min) y subir un parcial cada 3 min, o bajar CLAP y MAEST de Hugging Face. CPU sola ya vivió más de
   15 min en las pruebas de ERC-LM de octubre.
+- Resultado de E4, el 13-nov. `traktor-diag-e4-drive-1` empezó a las 21:08:15, bajó 4 tars (128, 530, 543 y 92 MB,
+  de 19 a 31 s cada uno), subió los parciales y recibió `appears to be lost (404/401)` a las 21:20:25: 12,2 min, como
+  los trabajos reales. `traktor-diag-e4-hf-1` bajó CLAP (589 MB en 5 s) y MAEST (663 MB en 7 s) y vivió los 20 min.
+  El volumen es parecido; lo que cambia es el Drive por rclone. En E4-drive hubo además un `ReadTimeout` de red a los
+  7 min y gpuq lo contó como una consulta fallida, sin liberar la VM: la corrección de los marcadores funcionó.
+- E5 parte el tráfico con el Drive en tres pruebas de 20 min, encoladas a las 21:55 UTC: solo las bajadas
+  (`--sin-subidas`), las mismas bajadas en un solo hilo (`RCLONE_MULTI_THREAD_STREAMS=0`) y solo las subidas
+  (`--sin-bajadas`).
 - Mientras la causa no esté, E2 (`run_diag.sh e2`, consultas largas con la conexión abierta) queda para después de E3.
 
 ## Un error de gpuq: un corte de red se lee como VM perdida
