@@ -52,8 +52,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 5. Recomendación: plan `plan_recomendacion_v2.md`; línea A en gpuq. GABRIEL: escucha corta E12,
    12 min (`artifacts\v4\escucha\e12\escucha.html`); Traktor, «TRAKTOR ML sin tonalidad», Analyze solo
    Key. TIV aparte. Pedidos a Gabriel: 15 min o menos (`escucha_corta_e12_2026-11-13.md`).
-6. Teléfono, línea B: formulario, ejecutor y Worker v6 (presets) en local. GABRIEL: momentos
-   (`momentos_djsets_2026-11-13.md`), publicar.
+6. Teléfono, línea B: Worker v6 y presets, en local. LOCAL: momento como orden (DECISIONS 11-13,
+   10), reglas del LLM. GABRIEL: `publicar.py`.
 
 ## RUN RECIPES
 

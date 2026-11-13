@@ -17,6 +17,8 @@ PURPOSE: El ejecutor del formulario del teléfono (plan de recomendación v2, se
          Lo que todavía no existe (momento, «como tal DJ», perfiles de pesos, orden por momento) se ignora con un aviso.
 CHANGELOG:
   - 2026-11-13: Creación inicial (línea B, unidad B1).
+  - 2026-11-13: Sin «tonalidad libre»: el filtro de tonalidad del vivo es regla de Gabriel y queda («ignora la
+                tonalidad» baja su peso; valores por defecto de la auditoría, DECISIONS 2026-11-13 punto 9).
 """
 from __future__ import annotations
 
@@ -191,7 +193,7 @@ def ejecutar(form: dict, bib, sesion: Optional[Sesion] = None,
             r = copy.copy(rec)                                        # mismo recomendador, sin tocar el del vivo
             r.n = len(r.candidates)
             r.options = dict(rec.options)
-            if f["tonalidad"] == "libre" or isinstance(f["tonalidad"], dict):
+            if isinstance(f["tonalidad"], dict):                   # una tonalidad dada reemplaza a la de lo que suena
                 r.options["filtro_clave"] = False
             _, info = r.compute(principal, tocados)
             ref_score = dict(zip(info["uids"], info["puntaje"]))

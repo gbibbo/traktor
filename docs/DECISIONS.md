@@ -54,9 +54,11 @@ Plan vigente: `docs/plans/plan_recomendacion_v2.md`. Inventario de ideas: `docs/
      taxonomía con parecido de 0,75 o más; por ejemplo, Tech House trae House, Indie Tech y Minimal / Deep Tech, y no
      Dance / Pop.
    - **La tabla de momentos se mide en DJSets, no se escribe suponiendo.** Medida (agente):
-     `docs/reports/momentos_djsets_2026-11-13.md` y `config/telefono/momentos.json`, en `"estado": "propuesta"`. Espera
-     que Gabriel elija su forma y qué hacer con after. Hasta entonces el momento no filtra.
-   - **Los 50 pedidos los arma con el agente orquestador** (`pedidos_telefono_borrador.md`).
+     `docs/reports/momentos_djsets_2026-11-13.md` y `config/telefono/momentos.json`, en `"estado": "propuesta"`.
+     [REEMPLAZADO 2026-11-13 por el punto 10: la forma la elige el agente y Gabriel la cambia si quiere] Espera que
+     Gabriel elija su forma y qué hacer con after. Hasta entonces el momento no filtra.
+   - **Los 50 pedidos los arma con el agente orquestador** (`pedidos_telefono_borrador.md`). [REEMPLAZADO 2026-11-13
+     por el punto 9: Gabriel no revisa la semilla; sus pedidos reales salen del registro del teléfono]
    - **Los BPM a la mitad se corrigen en Traktor.** Hecho (agente): `traktor_collection.py bpm-doble`, con Traktor
      cerrado y respaldo en `artifacts/v4/traktor_backups/collection_20261113_120543.nml`. Corrige 20 temas. Solo toca
      un BPM de Traktor fuera de 90-180 que es la mitad o el doble del de Beatport o del tag original. En otros 9 temas
@@ -67,9 +69,6 @@ Plan vigente: `docs/plans/plan_recomendacion_v2.md`. Inventario de ideas: `docs/
      momentos cuando apruebe la tabla. **Pantalla:** la contraseña se pide una vez y queda guardada; lo que suena va
      arriba, en una línea, y se refresca sin gastar el cupo gratuito de Cloudflare. Hecho en el Worker v6, en local:
      el teléfono pide el estado cada 20 s solo con la pantalla a la vista, y los presets no llaman al LLM.
-
-## 2026-11-10 (E16: la ecuación con D5 y la escucha E12 lista)
-
 9. **Los ejercicios que se le piden a Gabriel se adaptan a una persona ocupada, que se cansa** (Gabriel, a la
    auditoría: la escucha E12 de 10 × 60 temas, con la cuenta hecha de memoria, «es inviable», y no abrió los 82 pedidos
    porque esperaba el mismo error). Error del agente auditor, que propuso las dos cosas. Cómo (agente), regla
@@ -81,6 +80,20 @@ Plan vigente: `docs/plans/plan_recomendacion_v2.md`. Inventario de ideas: `docs/
      lista, 10 s cada uno, y una elección; unos 12 minutos. Se lee igual: 9 o 10 de 10 deciden. Mide el comienzo de
      las listas, no los 30 temas. Página: `artifacts\v4\escucha\e12\escucha.html`.
    - **Los 82 pedidos** los revisa la auditoría. Sus cuatro preguntas quedaron como valores por defecto del agente.
+10. **La línea B, con el presupuesto humano del punto 9** (agente; Gabriel cambia cualquiera cuando quiera, sin contestar).
+   - **Tabla de momentos:** el momento ordena y no filtra, porque el estilo mueve el BPM más que el momento y una banda
+     dura dejaría fuera el techno de 130 o más. Con lo que suena, la ventana de BPM se corre según lo medido: la
+     apertura, unos 2,5 BPM por debajo; el cierre, unos 2 por encima. Los géneros que más pesan en ese momento van
+     primero. After queda vacío: el teléfono dice que todavía no hay datos. Implementarlo es lo próximo de la línea B
+     (L10); hasta entonces el momento se ignora con aviso.
+   - **«Ignora la tonalidad» no saca el filtro del vivo** (valor por defecto 3 de la semilla). El formulario ya no
+     tiene «tonalidad libre»: la casilla tonalidad acepta «compatible», «igual» o una tonalidad dada, y esta última sí
+     reemplaza a la de lo que suena.
+   - **Lo que se le pide a Gabriel en la línea B:** solo publicar, un paso de un minuto. El banco del LLM se arma con la
+     semilla y con los pedidos reales del registro del teléfono.
+
+## 2026-11-10 (E16: la ecuación con D5 y la escucha E12 lista)
+
 Informe: `docs/reports/juez_d5_2026-11-10.md`. Regla fijada en `77d4434` antes de medir.
 
 1. **La lista nueva de la escucha usa pesos iguales** (por la regla de Gabriel del punto 8 de «mientras se baja el

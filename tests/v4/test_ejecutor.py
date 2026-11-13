@@ -138,9 +138,11 @@ def test_relative_bpm_without_reference_is_ignored_with_a_reason():
     assert [i["casilla"] for i in res.ignorado] == ["filtros.bpm"]
 
 
-def test_free_key_lifts_the_live_key_filter():
-    uids, _ = correr({"referencia": {"tipo": "sonando"}, "filtros": {"tonalidad": "libre"}}, SONANDO)
-    assert "d" in uids
+def test_the_live_key_filter_stays_unless_a_key_is_given():
+    uids, _ = correr({"referencia": {"tipo": "sonando"}, "pesos": {"ajustes": [{"factor": "tonalidad", "nivel": "menos"}]}}, SONANDO)
+    assert "d" not in uids                                   # «ignora la tonalidad» no saca el filtro del vivo
+    uids, _ = correr({"referencia": {"tipo": "sonando"}, "filtros": {"tonalidad": {"clave": "2B"}}}, SONANDO)
+    assert uids[0] == "d" and "a" not in uids                # una tonalidad pedida reemplaza a la de lo que suena
 
 
 def test_same_key_and_played_tracks_can_come_back():
@@ -162,7 +164,7 @@ def test_played_tracks_leave_without_reference():
 # ---------------------------------------------------------------- referencia nombrada, avisos, orden
 
 def test_named_track_is_resolved_on_the_computer():
-    uids, res = correr({"referencia": {"tipo": "tema", "busca": "algo como losing it de fisher"}, "filtros": {"tonalidad": "libre"}})
+    uids, res = correr({"referencia": {"tipo": "tema", "busca": "algo como losing it de fisher"}})
     assert res.referencia["titulo"] == "Losing It (Extended Mix)" and "a" not in uids and uids
 
 
@@ -170,7 +172,7 @@ def test_ambiguous_track_returns_candidates_and_no_list():
     uids, res = correr({"referencia": {"tipo": "tema", "busca": "artbat"}})
     assert uids == [] and {c["titulo"] for c in res.candidatos} == {"Aquarius", "Visitor"}
     uid = next(c["uid"] for c in res.candidatos if c["titulo"] == "Visitor")
-    uids, res = correr({"referencia": {"tipo": "tema", "uid": uid}, "filtros": {"tonalidad": "libre"}})
+    uids, res = correr({"referencia": {"tipo": "tema", "uid": uid}})
     assert res.referencia["titulo"] == "Visitor" and "e" not in uids
 
 

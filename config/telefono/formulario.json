@@ -2,7 +2,7 @@
   "version": 1,
   "descripcion": "Contrato del formulario de consulta del teléfono (plan de recomendación v2, sección 3.2; idea L1). Lo leen el Worker (cloudflare/concept-ai-worker.js) y el ordenador (tools/traktor_live/formulario.py). Cada lista es cerrada: lo que no está acá se descarta.",
   "voz": ["con", "sin", "da_igual"],
-  "tonalidad": ["compatible", "igual", "libre"],
+  "tonalidad": ["compatible", "igual"],
   "bpm": {
     "limites": [50, 220],
     "margen_numero": 2,

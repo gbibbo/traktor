@@ -67,6 +67,7 @@ def test_normalizes_values():
     ({"filtros": {"voz": "poca"}}, "voz"),
     ({"filtros": {"tonalidad": {"clave": "13A"}}}, "tonalidad"),
     ({"filtros": {"tonalidad": "armonica"}}, "tonalidad"),
+    ({"filtros": {"tonalidad": "libre"}}, "tonalidad"),            # el filtro del vivo queda
     ({"filtros": {"energia": 7}}, "filtro desconocido"),
     ({"referencia": {"tipo": "artista", "busca": "x"}}, "referencia"),
     ({"referencia": {"tipo": "tema"}}, "referencia.tema"),

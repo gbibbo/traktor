@@ -10,7 +10,7 @@ PURPOSE: El formulario de consulta del teléfono (plan de recomendación v2, sec
            que es lo único que va al Worker. Ningún título, artista, sello ni ruta.
          Línea de comandos: python tools/traktor_live/formulario.py catalogo   (imprime el catálogo de la biblioteca)
 CHANGELOG:
-  - 2026-11-13: Creación inicial (línea B, unidad B0).
+  - 2026-11-13: Creación inicial (línea B, unidad B0). La tonalidad ya no tiene «libre»: el filtro del vivo queda.
 """
 from __future__ import annotations
 
@@ -387,8 +387,6 @@ def describir(form: dict) -> List[str]:
         out.append("Tonalidad compatible")
     elif t == "igual":
         out.append("Misma tonalidad")
-    elif t == "libre":
-        out.append("Sin filtro de tonalidad")
     elif isinstance(t, dict):
         out.append(f"Tonalidad compatible con {t['clave']}")
     if f["voz"] == "sin":
