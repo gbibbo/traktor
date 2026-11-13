@@ -6,6 +6,30 @@ anteriores (`v4_implementation_plan.md`, `dj_music_clustering_deterministic_impl
 Una decisión revertida o reemplazada no se borra: se marca en su lugar con
 `[REEMPLAZADO <fecha> por <decisión>: <lo que rige ahora>]` (o `[REFUTADO …]` si era un error).
 
+## 2026-11-13 (plan v2: el dataset en la GPU y el teléfono completo)
+
+Plan vigente: `docs/plans/plan_recomendacion_v2.md`. Inventario de ideas: `docs/plans/inventario_ideas.md`.
+
+1. **Con el dataset completo empiezan los experimentos pesados en la GPU** (Gabriel: «quiero que comencemos a usarlo
+   corriendo experimentos pesados en el GPU del cluster con el dataset completo»; confía en que DJSets, por tamaño y
+   curación, es lo que le va a dar al sistema capacidad real de recomendar). Cómo (agente): línea A del plan, pasos A0
+   a A8. Dos lecturas del agente que Gabriel tiene que confirmar: «la GPU del cluster» es gpuq, y el pedido cubre
+   entrenar modelos con el dataset, de uso privado (C1; Beatport declara `ai-train=no`).
+2. **El teléfono tiene que ser una herramienta completa para elegir la música** (Gabriel): presets de filtros por BPM,
+   género y otros, y un campo de texto donde se pueda describir cualquier cosa: un momento de la noche, el nombre de
+   un archivo de música parecido, un concepto, un género.
+3. **El LLM es tonto y los deberes se hacen de antemano** (Gabriel): sus documentos de contexto llevan reglas
+   exhaustivas, claras y eficientes de cómo filtrar, desde ajustar los pesos de la ecuación de similitud hasta
+   filtrar exacto por BPM o por género. Cómo (agente): el LLM llena un formulario de listas cerradas y el ordenador
+   lo ejecuta (plan, sección 3; ideas L1 a L12, que reemplazan a T31).
+4. **Gabriel pidió reescribir el plan** con estos puntos. Cómo (agente): dos líneas en paralelo; el plan viejo queda
+   como historia; sus 124 ideas y las 21 nuevas están en el inventario, cada una con su lugar.
+5. **Sesiones** (recomendación del agente; espera a Gabriel): dos chats nuevos, uno por línea, que empiezan con
+   `PROMPT_LINEA_A_DATASET.md` y `PROMPT_LINEA_B_TELEFONO.md`; la auditoría, en chats cortos por ronda.
+6. **Estado encontrado ese día** (agente): la escucha E12 sigue sin respuestas; V7 dejó 60 archivos de vistas en el
+   Drive y no se contó cuántos audios cubren; Kaggle hizo 10 266 previews a 2,04 s cada uno y Colab cortó las
+   sesiones; el árbol de trabajo está en la rama `dataset-djsets`, que Gabriel tiene que unir a `main`.
+
 ## 2026-11-10 (E16: la ecuación con D5 y la escucha E12 lista)
 
 Informe: `docs/reports/juez_d5_2026-11-10.md`. Regla fijada en `77d4434` antes de medir.
@@ -342,7 +366,7 @@ cambiarlo. Evidencia: `docs/reports/traktor_concept_ai_cloudflare_2026-11-09.md`
    playlist más, como las de dirección (2026-11-07, punto 8). El botón D#0+D0 no cambia. Sin probar dentro de Traktor.
 5. **CLAP se carga con el primer concepto y se libera a los 20 min sin uso** (agente): ocupa cerca de 950 MB y este PC
    tenía 2 GB libres. Prioridad baja y dos hilos, para no competir con el audio.
-6. **El trabajo de esta etapa es la arquitectura, no los filtros** (Gabriel). El punto de partida es un concepto escrito en
+6. [REEMPLAZADO 2026-11-13 por Gabriel (sección «plan v2», puntos 2 y 3): el teléfono lleva presets y filtros por BPM, género y otros campos, y el LLM llena un formulario que el ordenador ejecuta; sigue en pie que las instrucciones tienen que ser claras porque el LLM razona poco] **El trabajo de esta etapa es la arquitectura, no los filtros** (Gabriel). El punto de partida es un concepto escrito en
    el teléfono y el resultado, una playlist nueva en Traktor. Cómo se eligen los temas no entra en esta etapa (es el punto
    5 de «algoritmo de recomendación»). Sí entra la parte en que el LLM de Cloudflare encuentra la mejor forma de definir
    el concepto: una persona escribe mal, y dos textos que para nosotros dicen lo mismo dan listas muy distintas en CLAP.
