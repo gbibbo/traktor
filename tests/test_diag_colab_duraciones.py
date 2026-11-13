@@ -34,3 +34,15 @@ def test_main_splits_by_period(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "GPU before 2026-11-02 17:00 UTC: done 1 (median 90.3 min" in out
     assert "GPU from 2026-11-02 17:00 UTC: interrupted 1 (median 12.3 min" in out
+
+
+def test_kaggle_hours_since_count_running_attempts(tmp_path, capsys):
+    log = tmp_path / "gpuq.txt"
+    log.write_text("[2026-11-10 19:56:06] kaggle: starting v7-2 attempt 1\n"
+                   "[2026-11-10 20:00:00] colab: starting otro attempt 1\n"
+                   "[2026-11-10 23:29:06] kaggle: v7-2 -> done\n"
+                   "[2026-11-13 19:28:00] kaggle: starting a0-14 attempt 1\n", encoding="utf-8")
+    duraciones.main([str(log), "--lane", "kaggle", "--horas-desde", "2026-11-08 00:00", "--ahora", "2026-11-13 20:28"])
+    out = capsys.readouterr().out
+    assert "kaggle GPU hours since 2026-11-08 00:00 UTC: 4.5 (1 attempt(s) still running)" in out
+    assert "otro" not in out

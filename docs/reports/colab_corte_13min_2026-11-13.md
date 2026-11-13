@@ -154,9 +154,11 @@ T4 durante 35 min. Scripts en `tools/gpuq/diag_colab/`.
 1. **Hoy Colab corta los trabajos reales de gpuq a los 12-13 min** (13-nov, `traktor-a0-1`). Cada intento rinde unos
    10 min útiles y gasta uno de los 10 cortes que gpuq tolera por trabajo (INFERENCIA, de los intentos de
    `traktor-v7-4`: arranque y carga de modelos de 1 a 2 min, más lo que quedó sin guardar).
-2. **Lo que necesita horas va a Kaggle** (`--platform kaggle`). En Colab entra solo lo que guarda un parcial al Drive
-   cada pocos minutos, nunca más de 10 sin guardar (`docs/LESSONS_LEARNED.md`); así el corte cuesta minutos y no el
-   trabajo. Con `--platform auto`, un trabajo cae en Colab cada vez que el carril se libera.
+2. **Colab primero** (Gabriel, 13-nov; `docs/GPUQ.md`, sección «Kaggle»): todo trabajo de GPU que guarda un parcial
+   al Drive cada pocos minutos, nunca más de 10 sin guardar, va con `--platform colab`, aunque sea largo; así el corte
+   cuesta minutos y no el trabajo. `auto` gasta Kaggle cada vez que Colab está ocupado. Kaggle queda para lo que
+   Colab no puede hacer. [REEMPLAZADO 2026-11-13 por esa regla de Gabriel] **Lo que necesita horas va a Kaggle**
+   (`--platform kaggle`). Con `--platform auto`, un trabajo cae en Colab cada vez que el carril se libera.
 3. **Cómo reconocer el corte**: `python tools/gpuq/cola.py logs <id>` muestra, en cada intento,
    `poll failed 1/6: [colab] Session 'gpuq' appears to be lost (404/401)` cerca de los 12-13 min de empezado. Un
    `RuntimeError`, un `ReadTimeout` o un traceback son cortes de red: gpuq ya no los toma por VM perdida.

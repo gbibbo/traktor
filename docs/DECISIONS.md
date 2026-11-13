@@ -160,6 +160,18 @@ Plan vigente: `docs/plans/plan_recomendacion_v2.md`. Inventario de ideas: `docs/
       agente. Gabriel lo dejó en manos del agente.
     - Decisión (agente): se mantiene como resultado principal, y el informe lo dice. El intervalo remuestrea los 33
       DJs, y 20 positivos menos casi no cambian su ancho.
+15. **Colab primero, Kaggle de reserva** (Gabriel, el mismo día: «se están mandando demasiados trabajos a kaggle…
+    queremos forzar la utilización de Colab lo más posible, para que no se nos acaben los recursos gratuitos»).
+    - Kaggle da unas 30 h de GPU por semana para todos sus proyectos (ERC-LM usa la misma cuenta); Colab no tiene cuota
+      semanal. Al 13-nov a las 19:41 UTC iban 11,3 h desde el sábado 8-nov, y lo encolado para Kaggle sumaba unas 12 h
+      más (6 trabajos de YouTube de A0, uno del LLM y los `auto` de Beatport que caían en Kaggle).
+    - Cómo (agente): todo trabajo de GPU que guarda cada pocos minutos va con `--platform colab`, no `auto`, que gasta
+      Kaggle cada vez que Colab está ocupado. Kaggle solo para lo que Colab no puede hacer (un paso que no guarda en
+      unos 10 min, más memoria que una T4, Colab sin GPU durante horas) y para lo que es solo CPU. Antes de mandar GPU a
+      Kaggle se cuentan las horas de la semana y se dejan libres al menos 10. Reglas en `AGENTS.md` («Colab first») y
+      `docs/GPUQ.md` («Kaggle»).
+    - Corrige una sugerencia del agente del mismo día: había propuesto pasar los trabajos de YouTube de A0 a Kaggle por
+      el corte de Colab, cuando A0 todavía no guardaba cada 3 min.
 
 ## 2026-11-10 (E16: la ecuación con D5 y la escucha E12 lista)
 

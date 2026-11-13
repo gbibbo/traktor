@@ -30,7 +30,8 @@ Informe completo: `docs/reports/colab_corte_13min_2026-11-13.md`.
   día, un trabajo que solo usa la GPU vivió 35 min con ese esquema. Qué lo dispara, el arranque de gpuq o lo que hace
   el trabajo, lo dice la prueba E3 (`traktor-diag-e3-1`).
 - Mientras tanto, en Colab cada intento rinde unos 10 min útiles. Entra lo que guarda un parcial al Drive cada pocos
-  minutos, nunca más de 10 sin guardar. Lo que necesita horas va con `--platform kaggle`.
+  minutos, nunca más de 10 sin guardar. [REEMPLAZADO 2026-11-13 por Gabriel, «Colab primero» (sección «Kaggle»):
+  un trabajo largo que guarda cada pocos minutos también va a Colab] Lo que necesita horas va con `--platform kaggle`.
 - Se reconoce en `cola.py logs <id>`: `appears to be lost (404/401)` a los 12-13 min de cada intento. Un
   `RuntimeError`, un `ReadTimeout` o un traceback son cortes de red, y gpuq ya no los toma por VM perdida (corregido
   el 13-nov, despachador `a60c5ee`). El corte terminó cuando un intento real en Colab pase de 20 min: anotarlo en el
@@ -40,6 +41,31 @@ Informe completo: `docs/reports/colab_corte_13min_2026-11-13.md`.
 - [REFUTADO 2026-11-13 por `traktor-a0-1`, cortado a los 12 min ese mismo día: lo que duró 35 min fue un trabajo que
   solo usa la GPU] Del 2 al 10-nov Colab cortó las VM T4 a los 12-14 min, y el 13-nov el patrón de gpuq volvió a
   durar 35 min: Colab sirve con gpuq tal como está.
+
+## Kaggle: la cuota, y Colab primero
+
+Regla de Gabriel (2026-11-13): Colab primero, Kaggle de reserva, para no quedarse sin GPU gratis hasta que Kaggle
+renueve la cuota.
+
+- Kaggle da unas 30 h de GPU por semana para todos los proyectos de Gabriel: ERC-LM usa la misma cuenta. Colab no
+  tiene cuota semanal; corta cada intento a los 12-13 min mientras dure el corte (sección «Colab»), y un trabajo
+  que guarda cada pocos minutos igual avanza.
+- Todo trabajo de GPU que guarda cada pocos minutos va con `--platform colab`. `auto` no prefiere Colab: toma el
+  carril que se libere primero, así que gasta Kaggle cada vez que Colab está ocupado.
+- `--platform kaggle` solo para lo que Colab no puede hacer: un paso que no puede guardar en menos de unos 10 min,
+  más memoria de GPU que una T4 (Kaggle da dos) o Colab sin dar GPU durante horas. Los trabajos solo de CPU van a
+  Kaggle y no gastan cuota de GPU.
+- Antes de mandar trabajo de GPU a Kaggle, contar las horas de la semana, usadas y encoladas, y dejar libres al menos
+  10 de las 30 para lo que solo Kaggle puede correr. Las usadas salen de los logs de los dos despachadores:
+  ```
+  # En la Raspberry:
+  docker logs gpuq 2>&1 | grep -E '] (colab|kaggle): ' > gpuq.txt
+  docker logs erclm-colab 2>&1 | grep -E '] (colab|kaggle): ' > erclm.txt
+  # En esta PC, con los dos archivos copiados (la fecha es el comienzo de la semana de Kaggle):
+  python tools/gpuq/diag_colab/duraciones.py gpuq.txt erclm.txt --lane kaggle --horas-desde "2026-11-08 00:00"
+  ```
+  Las encoladas: `cola.py status` y la duración medida de cada tipo de trabajo. El 13-nov a las 19:41 UTC iban 11,3 h
+  desde el sábado 8-nov, más un trabajo corriendo. El día exacto en que Kaggle renueva la cuota lo muestra kaggle.com.
 
 ## Puesta en marcha en una PC nueva
 
