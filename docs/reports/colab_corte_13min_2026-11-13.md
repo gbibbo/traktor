@@ -41,7 +41,8 @@ De paso apareció un error de gpuq que cortaba intentos sanos: un corte de red p
 | Lo dispara algo que hacen los trabajos reales y las pruebas no | INFERENCIA | el mismo día, 3 de 3 pruebas sintéticas vivieron más de 30 min y 2 de 2 intentos reales se cortaron a los 12 min; muestra chica |
 | No es el arranque de gpuq (credenciales, rclone, clonado, sesión `gpuq`, consulta por minuto) | EVIDENCIA OBSERVADA | E3 (`traktor-diag-e3-1`) vivió 35 min por ese camino con la GPU al 100 % |
 | Lo dispara el tráfico con el Drive por rclone, no las descargas de Hugging Face | EVIDENCIA OBSERVADA | E4-drive (4 tars reales, 1,3 GB en 9 min, y un parcial subido cada 3 min) se cortó a los 12,2 min; E4-hf (1,25 GB de Hugging Face) vivió 20 min. Un solo cambio frente a E3 en cada una |
-| Qué parte del tráfico con el Drive: las bajadas grandes (rclone abre 4 conexiones para archivos de más de 256 MB) o las subidas chicas | NO CONCLUYENTE | lo deciden E5 (`traktor-diag-e5-bajadas-1`, `-1hilo-1`, `-subidas-1`) |
+| Basta cualquier acceso al Drive por rclone: bajadas en 4 hilos, bajadas en un solo hilo o solo 4 subidas de pocos bytes | EVIDENCIA OBSERVADA | las tres E5 se cortaron a los 12,2 min (`traktor-diag-e5-bajadas-1`, `-1hilo-1`, `-subidas-1`); no hay un ajuste de rclone que lo evite |
+| Si es el Drive o el programa rclone | NO CONCLUYENTE | lo decide E6 (`traktor-diag-e6-rclonehttp-1`): rclone baja un archivo público por HTTP, sin Drive |
 | Es una poda por inactividad | HIPÓTESIS, debilitada | coincide con los 12-13 min de las sesiones sin keep-alive de junio, pero E0 vivió con el kernel quieto y una consulta por minuto |
 | Fue para todos o solo para esta cuenta | NO CONCLUYENTE | no hay reportes públicos; haría falta otra cuenta, y usar varias cuentas para esquivar límites va contra las reglas de Colab |
 
@@ -114,6 +115,15 @@ T4 durante 35 min. Scripts en `tools/gpuq/diag_colab/`.
 - E5 parte el tráfico con el Drive en tres pruebas de 20 min, encoladas a las 21:55 UTC: solo las bajadas
   (`--sin-subidas`), las mismas bajadas en un solo hilo (`RCLONE_MULTI_THREAD_STREAMS=0`) y solo las subidas
   (`--sin-bajadas`).
+- Resultado de E5, el 13-nov: las tres se cortaron a los 12,2 min con `appears to be lost (404/401)`. `e5-bajadas`
+  (22:25) bajó 4 tars en 9 a 11 s cada uno; `e5-1hilo` (22:40) bajó 3 en un solo hilo, de 11 a 25 s; `e5-subidas`
+  (22:55) no bajó nada y solo subió 4 parciales de pocos bytes. El mismo día `traktor-a0-55`, un trabajo real de A0,
+  se cortó a los 14, 12,3 y 12,3 min y terminó en el intento 4, retomando de sus parciales.
+- Lo que dice: cualquier acceso al Google Drive por rclone desde la VM, sin importar el volumen, la cantidad de
+  conexiones ni el sentido, hace que Colab la recupere unos 12 min después de asignada. No hay ajuste de rclone que
+  lo evite; los trabajos de Colab no tienen que tocar el Drive. E6 (`--rclone-http`, encolado a las 23:12 UTC) dice
+  si es el Drive o el programa rclone, y con eso cuál de los dos caminos aprobados por Gabriel sirve: datos cifrados
+  en Hugging Face o Kaggle, o una caché chica en R2 que la Raspberry llena desde el Drive (R2 se usa con rclone).
 - Mientras la causa no esté, E2 (`run_diag.sh e2`, consultas largas con la conexión abierta) queda para después de E3.
 
 ## Un error de gpuq: un corte de red se lee como VM perdida

@@ -28,8 +28,9 @@ Informe completo: `docs/reports/colab_corte_13min_2026-11-13.md`.
   también en el despachador de ERC-LM, que en octubre corría horas con el mismo cliente. El 13-nov seguía:
   `traktor-a0-1` se cortó a los 12,2 y 12,6 min. No es la falta de GPU ni el esquema de consultas de gpuq: ese mismo
   día, un trabajo que solo usa la GPU vivió 35 min con ese esquema, y también mandado por el camino completo de gpuq
-  (E3). No lo dispara el arranque de gpuq sino algo que hacen los trabajos; las pruebas E4 separan el tráfico al
-  Drive de las descargas de Hugging Face.
+  (E3). No lo dispara el arranque de gpuq sino algo que hacen los trabajos: cualquier acceso al Google Drive por
+  rclone desde la VM, aunque sea subir un archivo de pocos bytes (E4 y E5, 13-nov). Bajar de Hugging Face no lo
+  dispara. Un trabajo que no toca el Drive vive en Colab; cómo darle datos sin el Drive está en el informe.
 - Mientras tanto, en Colab cada intento rinde unos 10 min útiles. Entra lo que guarda un parcial al Drive cada pocos
   minutos, nunca más de 10 sin guardar. [REEMPLAZADO 2026-11-13 por Gabriel, «Colab primero» (sección «Kaggle»):
   un trabajo largo que guarda cada pocos minutos también va a Colab] Lo que necesita horas va con `--platform kaggle`.
