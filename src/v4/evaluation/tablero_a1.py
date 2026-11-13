@@ -25,6 +25,7 @@ import argparse
 import csv
 import gzip
 import hashlib
+import io
 import json
 import re
 import subprocess
@@ -226,6 +227,15 @@ def md5(path: Path) -> str:
     return h.hexdigest()
 
 
+def md5_gz(path: Path) -> str:
+    """md5 del contenido descomprimido: identifica el tablero aunque cambie la compresión."""
+    h = hashlib.md5()
+    with gzip.open(path, "rb") as f:
+        for b in iter(lambda: f.read(1 << 20), b""):
+            h.update(b)
+    return h.hexdigest()
+
+
 def verificar_tablas(dataset: Path) -> Dict[str, str]:
     """md5 de las tablas de metadata frente a checksums.md5 del dataset (la copia local tiene que ser la del Drive)."""
     esperado = {}
@@ -327,7 +337,7 @@ def armar(dataset: Path, salida: Path, parte_de=None, semilla: int = SEMILLA, k:
         resumen["partes"][p] = {
             "sets": len(sets_p), "djs": len({clave[s] for s in sets_p}), "pool_con_metadatos": len(pool_meta),
             "pool_con_audio": len(pool_aud), "k": k_p, "positivos": dict(sorted(cuenta.items())), "filas": n_filas,
-            "md5": md5(ruta),
+            "md5": md5(ruta), "md5_contenido": md5_gz(ruta),
             "principal_P1": {"positivos": sum(1 for f in pos if f["familia"] == "P1" and f["grupo"] == "principal"),
                              "djs": len({f["dj"] for f in pos if f["familia"] == "P1" and f["grupo"] == "principal"}),
                              "sets": len({f["set_id"] for f in pos if f["familia"] == "P1" and f["grupo"] == "principal"})},
@@ -377,9 +387,11 @@ def _fmt(v) -> str:
 
 
 def escribir(ruta: Path, pos: Sequence[Dict[str, object]], negs: Sequence[Tuple[Pool, Dict[str, np.ndarray]]]) -> int:
-    """Cada positivo seguido de sus negativos, por nivel. Devuelve las filas escritas."""
+    """Cada positivo seguido de sus negativos, por nivel. Devuelve las filas escritas. El gzip va sin fecha ni nombre
+    en la cabecera (mtime=0), así el mismo tablero da el mismo md5 cada vez que se arma."""
     n = 0
-    with gzip.open(ruta, "wt", encoding="utf-8", newline="") as f:
+    with open(ruta, "wb") as crudo, gzip.GzipFile(filename="", fileobj=crudo, mode="wb", mtime=0) as gz, \
+            io.TextIOWrapper(gz, encoding="utf-8", newline="") as f:
         w = csv.writer(f)
         w.writerow(COLUMNAS)
         for x, (pool, elegidos) in zip(pos, negs):

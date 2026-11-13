@@ -7,6 +7,7 @@ CHANGELOG:
 """
 import csv
 import sys
+import time
 from collections import defaultdict
 from pathlib import Path
 
@@ -133,6 +134,15 @@ def test_pesos_suman_uno_por_set(armado):
         for (pos, neg) in suma.values():
             if pos > 0:
                 assert pos == pytest.approx(1.0) and neg == pytest.approx(1.0)
+
+
+def test_armar_dos_veces_da_el_mismo_md5(armado, tmp_path):
+    raiz, _, r = armado
+    time.sleep(1.1)                                  # la fecha de la cabecera gzip tiene resolución de 1 s
+    r2 = ta.armar(raiz, tmp_path / "otra", parte_de=lambda n: PARTE[n], k=3, verificar=False)
+    for p in ("train", "test"):
+        assert r2["partes"][p]["md5"] == r["partes"][p]["md5"]
+        assert r2["partes"][p]["md5_contenido"] == r["partes"][p]["md5_contenido"]
 
 
 def test_auc_pesado_igual_a_sklearn():
