@@ -114,8 +114,17 @@ Copia local de las tablas y de las 60 salidas de V7 en `D:\TRAKTOR ML datos\line
       así que **el umbral 4 pasa y V7 se reutiliza**.
     - `youtube_000`: 88 de 88 más 10 de control; ventana correcta en todos; **4,65 s por tema, por encima de 4,5**. Los
       trabajos completos de YouTube esperan el OK de Gabriel. Los de Beatport salen.
-    - Gabriel dio el OK para YouTube el mismo día (DECISIONS, punto 14). Trabajos: `traktor-a0-1` a `traktor-a0-7`
-      (Beatport) y `traktor-a0-8` a `traktor-a0-13` (YouTube).
+    - Gabriel dio el OK para YouTube el mismo día (DECISIONS, punto 14). [REEMPLAZADO 2026-11-13 por «Colab primero»
+      (DECISIONS, punto 15): ver la línea siguiente] Trabajos: `traktor-a0-1` a `traktor-a0-7` (Beatport) y
+      `traktor-a0-8` a `traktor-a0-13` (YouTube).
+    - **Trabajos vigentes:**
+      - en marcha: `traktor-a0-1` (Colab, `beatport_061` a `064`) y `traktor-a0-14` (Kaggle, `youtube_001` a `007`);
+      - ya hechos: `traktor-a0-2` (`beatport_065` a `068`);
+      - el resto, `traktor-a0-35` a `traktor-a0-54`, en Colab, de unos 25 min útiles cada uno, commit `02527e0`.
+      - Los ids intermedios se cancelaron sin arrancar: se reordenó la cola para el diagnóstico de Colab y para un
+        trabajo corto de la línea B, y se aplicó «Colab primero».
+      - Desde `2f34ba2` el trabajo guarda un parcial también cada 3 min.
+      - El corte natural de Colab confirmó la reanudación: «beatport_061: sigo desde el parcial, 288 hechos».
     - Sin el corte a propósito: en Kaggle cancelar exige un paso a mano de Gabriel en kaggle.com. La reanudación la
       cubren el test unitario y el primer corte natural de Colab, que se revisa en el log.
     - `beatport_060` y `youtube_000` se copiaron de `a0_prueba/` a `a0/`, con md5 verificado.
