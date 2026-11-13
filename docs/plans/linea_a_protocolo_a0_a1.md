@@ -96,8 +96,18 @@ Copia local de las tablas y de las 60 salidas de V7 en `D:\TRAKTOR ML datos\line
   - el coseno de los previews de E15 con V7 y con E15;
   - el tiempo por tema en CPU de cada tipo;
   - `juntar` sobre esa salida chica.
-- **Trabajo corto en Kaggle** (`traktor-a0-prueba-1`), sobre esos mismos tres shards enteros, con salida en
+- **Resultado de la prueba en CPU** (2026-11-13). Los 8 previews de E15 de `beatport_002`, frente a V7 y frente a
+  E15, dan coseno 1,000 en las tres vistas y en los 32 segmentos. En YouTube, comienzo / D = 0,40 y 120 s, con D igual
+  a `audio_duration_s`.
+  - El control mueve a CLAP (coseno de 0,91 a 0,93 entre la ventana recodificada y la original) y casi nada a MAEST
+    (0,997) ni a los estilos (0,999).
+  - Preparar el audio de YouTube cuesta de 2,5 a 3 s por tema en CPU: decodificar el tema entero, codificar a MP3,
+    decodificar y alinear. Por eso se prepara en 4 hilos mientras la GPU procesa el lote anterior. Con hilos, el
+    resultado es idéntico bit a bit, y en esta PC baja a 1,35 s por tema.
+- **Trabajo corto** (`traktor-a0-prueba-1`, `--platform auto`), sobre esos mismos tres shards enteros, con salida en
   `a0_prueba/`. Se corta a propósito una vez y se comprueba que retoma desde el parcial.
+  - Si YouTube pasa de 4,5 s por tema, que es 1,5 veces lo estimado, no se mandan sus trabajos completos sin preguntar
+    a Gabriel.
 - **Trabajos completos** (`traktor-a0-1` en adelante), con salida en `a0/`. Son los 72 shards que faltan, repartidos en
   unos 10 trabajos de una hora o menos:
   - de Beatport, 6 shards por trabajo: unas 272 grabaciones por shard, a 2 s cada una, dan unos 9 min por shard;
@@ -155,6 +165,16 @@ El tablero se arma con los metadatos, así que no espera a A0. Las líneas de ba
 - **Pesos:** cada set suma 1 en los positivos y 1 en los negativos de cada nivel y familia.
 - **Validation y train** se arman igual, cada una con su propio pool. Validation sirve para elegir modelos en A2 y A3.
   Train, para ajustar. Test no elige nada.
+- *Agregado al programar, antes de medir (2026-11-13):*
+  - train lleva 5 negativos por nivel en lugar de 20, porque solo sirve para ajustar y así la tabla entra en memoria;
+  - P3 tiene un tope de 50 pares por set, sorteados con la semilla 0, para que las tablas no crezcan con el cuadrado
+    del largo del set.
+- **Conteos del armado** (2026-11-13, todavía sin medir ninguna línea de base):
+  - C1 y C2 pasan;
+  - test: 175 sets y 34 DJs. P1 principal: 2076 positivos; 1948 tienen negativos N3 (168 sets, 34 DJs) y 575 de
+    ellos tienen menos de 20;
+  - validation: 191 sets y 32 DJs. P1 principal: 2580 positivos; 2504 tienen negativos N3;
+  - train: 994 sets y 251 DJs. P1: 20 067 positivos.
 - Las tablas de pares se escriben una vez en `erclm:traktor_ml/linea_a/a1_tablero/`, con su md5. Todo modelo posterior
   lee esas tablas y no vuelve a sortear.
 
