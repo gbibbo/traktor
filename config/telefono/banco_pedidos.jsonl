@@ -1,0 +1,164 @@
+{"id": "s1", "pedido": "tech house", "set": false, "espera": {"generos": {"incluir": ["Tech House"], "excluir": [], "modo": "blando"}}, "origen": "semilla"}
+{"id": "s2", "pedido": "algo de melodic techno", "set": false, "espera": {"generos": {"incluir": ["Melodic House & Techno"], "excluir": [], "modo": "blando"}}, "origen": "semilla"}
+{"id": "s3", "pedido": "techno", "set": false, "espera": {"generos": {"incluir": ["Techno (Peak Time / Driving)", "Techno (Raw / Deep / Hypnotic)"], "excluir": [], "modo": "blando"}}, "origen": "semilla"}
+{"id": "s4", "pedido": "afro", "set": false, "espera": {"generos": {"incluir": ["Afro House"], "excluir": [], "modo": "blando"}}, "origen": "semilla"}
+{"id": "s5", "pedido": "progressive", "set": false, "espera": {"generos": {"incluir": ["Progressive House"], "excluir": [], "modo": "blando"}}, "origen": "semilla"}
+{"id": "s6", "pedido": "minimal", "set": false, "espera": {"generos": {"incluir": ["Minimal / Deep Tech"], "excluir": [], "modo": "blando"}}, "origen": "semilla"}
+{"id": "s7", "pedido": "house clásico", "set": false, "espera": {"generos": {"incluir": ["House"], "excluir": [], "modo": "blando"}, "texto": true}, "origen": "semilla"}
+{"id": "s8", "pedido": "indie dance con aire disco", "set": false, "espera": {"generos": {"incluir": ["Indie Dance"], "excluir": [], "modo": "blando"}, "texto": true}, "origen": "semilla"}
+{"id": "s9", "pedido": "126 bpm", "set": false, "espera": {"bpm": {"rango": [124, 128]}}, "origen": "semilla"}
+{"id": "s10", "pedido": "entre 120 y 124", "set": false, "espera": {"bpm": {"rango": [120, 124]}}, "origen": "semilla"}
+{"id": "s11", "pedido": "más rápido que esto", "set": true, "espera": {"referencia": {"tipo": "sonando"}, "bpm": {"relativo": "mas_rapido"}}, "origen": "semilla"}
+{"id": "s12", "pedido": "bajemos un poco las revoluciones", "set": true, "espera": {"referencia": {"tipo": "sonando"}, "bpm": {"relativo": "mas_lento"}}, "origen": "semilla"}
+{"id": "s13", "pedido": "mismo tempo", "set": true, "espera": {"referencia": {"tipo": "sonando"}, "bpm": {"relativo": "igual"}}, "origen": "semilla"}
+{"id": "s14", "pedido": "arriba de 130", "set": false, "espera": {"bpm": {"rango": [130, null]}}, "origen": "semilla"}
+{"id": "s15", "pedido": "tech house a 126", "set": false, "espera": {"generos": {"incluir": ["Tech House"], "excluir": [], "modo": "blando"}, "bpm": {"rango": [124, 128]}}, "origen": "semilla"}
+{"id": "s16", "pedido": "deep house lento, 118 o por ahí", "set": false, "espera": {"generos": {"incluir": ["Deep House"], "excluir": [], "modo": "blando"}, "bpm": {"rango": [116, 120]}}, "origen": "semilla"}
+{"id": "s17", "pedido": "techno rápido, 132 para arriba", "set": false, "espera": {"generos": {"incluir": ["Techno (Peak Time / Driving)", "Techno (Raw / Deep / Hypnotic)"], "excluir": [], "modo": "blando"}, "bpm": {"rango": [132, null]}}, "origen": "semilla"}
+{"id": "s18", "pedido": "melodic entre 122 y 125", "set": false, "espera": {"generos": {"incluir": ["Melodic House & Techno"], "excluir": [], "modo": "blando"}, "bpm": {"rango": [122, 125]}}, "origen": "semilla"}
+{"id": "s19", "pedido": "que combine en tonalidad con lo que suena", "set": true, "espera": {"referencia": {"tipo": "sonando"}, "tonalidad": "compatible"}, "origen": "semilla"}
+{"id": "s20", "pedido": "algo en 8A", "set": false, "espera": {"tonalidad": {"clave": "8A"}}, "origen": "semilla"}
+{"id": "s21", "pedido": "misma tonalidad que este", "set": true, "espera": {"referencia": {"tipo": "sonando"}, "tonalidad": "igual"}, "origen": "semilla"}
+{"id": "s22", "pedido": "tech house que no choque armónicamente", "set": true, "espera": {"referencia": {"tipo": "sonando"}, "generos": {"incluir": ["Tech House"], "excluir": [], "modo": "blando"}, "tonalidad": "compatible"}, "origen": "semilla"}
+{"id": "s23", "pedido": "sin voces", "set": false, "espera": {"voz": "sin"}, "origen": "semilla"}
+{"id": "s24", "pedido": "algo con voz de mujer", "set": false, "espera": {"voz": "con", "texto": true}, "origen": "semilla"}
+{"id": "s25", "pedido": "instrumental, nada cantado", "set": false, "espera": {"voz": "sin"}, "origen": "semilla"}
+{"id": "s26", "pedido": "un vocal house", "set": false, "espera": {"generos": {"incluir": ["House"], "excluir": [], "modo": "blando"}, "voz": "con"}, "origen": "semilla"}
+{"id": "s27", "pedido": "algo como losing it de fisher", "set": false, "espera": {"referencia": {"tipo": "tema", "busca": "losing it fisher"}}, "origen": "semilla"}
+{"id": "s28", "pedido": "parecido a miau on acid", "set": false, "espera": {"referencia": {"tipo": "tema", "busca": "miau on acid"}}, "origen": "semilla"}
+{"id": "s29", "pedido": "Kolombo - Nos Fuimos (Extended Mix).mp3", "set": false, "espera": {"referencia": {"tipo": "tema", "busca": "kolombo nos fuimos"}}, "origen": "semilla"}
+{"id": "s30", "pedido": "temas como the curve pero más rápidos", "set": false, "espera": {"referencia": {"tipo": "tema", "busca": "the curve"}, "bpm": {"relativo": "mas_rapido"}}, "origen": "semilla"}
+{"id": "s31", "pedido": "algo tipo aria de vsy", "set": false, "espera": {"referencia": {"tipo": "tema", "busca": "aria vsy"}}, "origen": "semilla"}
+{"id": "s32", "pedido": "como ese tema de artbat que tengo", "set": false, "espera": {"referencia": {"tipo": "tema", "busca": "artbat"}}, "origen": "semilla"}
+{"id": "s33", "pedido": "más de esto", "set": true, "espera": {"referencia": {"tipo": "sonando"}}, "origen": "semilla"}
+{"id": "s34", "pedido": "como este pero más oscuro", "set": true, "espera": {"referencia": {"tipo": "sonando"}, "texto": true}, "origen": "semilla"}
+{"id": "s35", "pedido": "lo mismo pero sin voz", "set": true, "espera": {"referencia": {"tipo": "sonando"}, "voz": "sin"}, "origen": "semilla"}
+{"id": "s36", "pedido": "algo parecido pero más melódico", "set": true, "espera": {"referencia": {"tipo": "sonando"}, "texto": true}, "origen": "semilla"}
+{"id": "s37", "pedido": "seguir en esta línea pero subiendo", "set": true, "espera": {"referencia": {"tipo": "sonando"}, "momento": "subida"}, "origen": "semilla"}
+{"id": "s38", "pedido": "algo que contraste con esto, cambiar de clima", "set": true, "espera": {"salida": "pregunta"}, "origen": "semilla"}
+{"id": "s39", "pedido": "para abrir la noche", "set": false, "espera": {"momento": "apertura"}, "origen": "semilla"}
+{"id": "s40", "pedido": "estamos en el pico", "set": false, "espera": {"momento": "pico"}, "origen": "semilla"}
+{"id": "s41", "pedido": "ya es tarde, estoy cerrando", "set": false, "espera": {"momento": "cierre"}, "origen": "semilla"}
+{"id": "s42", "pedido": "after, seis de la mañana", "set": false, "espera": {"momento": "after"}, "origen": "semilla"}
+{"id": "s43", "pedido": "warm up tranquilo sin voces", "set": false, "espera": {"momento": "apertura", "voz": "sin"}, "origen": "semilla"}
+{"id": "s44", "pedido": "recién se está llenando la pista", "set": false, "espera": {"momento": "subida"}, "origen": "semilla"}
+{"id": "s45", "pedido": "la gente está cansada, bajar un cambio", "set": true, "espera": {"salida": "pregunta"}, "origen": "semilla"}
+{"id": "s46", "pedido": "techno oscuro e hipnótico", "set": false, "espera": {"generos": {"incluir": ["Techno (Peak Time / Driving)", "Techno (Raw / Deep / Hypnotic)"], "excluir": [], "modo": "blando"}, "texto": true}, "origen": "semilla"}
+{"id": "s47", "pedido": "algo con trompetas", "set": false, "espera": {"texto": true}, "origen": "semilla"}
+{"id": "s48", "pedido": "percusión tribal con tambores", "set": false, "espera": {"texto": true}, "origen": "semilla"}
+{"id": "s49", "pedido": "acid bien ácido", "set": false, "espera": {"texto": true}, "origen": "semilla"}
+{"id": "s50", "pedido": "piano house alegre", "set": false, "espera": {"generos": {"incluir": ["House"], "excluir": [], "modo": "blando"}, "texto": true}, "origen": "semilla"}
+{"id": "s51", "pedido": "bajo gordo y rodante", "set": false, "espera": {"texto": true}, "origen": "semilla"}
+{"id": "s52", "pedido": "algo espacial con pads largos", "set": false, "espera": {"texto": true}, "origen": "semilla"}
+{"id": "s53", "pedido": "Musica electrónica con reminisencias a música italiana de los 90", "set": false, "espera": {"texto": true}, "origen": "gabriel"}
+{"id": "s54", "pedido": "Quiero música de cumpleaños con cornetas", "set": false, "espera": {"texto": true, "no_se_oye": true}, "origen": "gabriel"}
+{"id": "s55", "pedido": "para el atardecer en la playa", "set": false, "espera": {"texto": true, "no_se_oye": true}, "origen": "semilla"}
+{"id": "s56", "pedido": "para una boda, que baile todo el mundo", "set": false, "espera": {"voz": "con", "texto": true, "no_se_oye": true}, "origen": "semilla"}
+{"id": "s57", "pedido": "música para manejar de noche", "set": false, "espera": {"texto": true, "no_se_oye": true}, "origen": "semilla"}
+{"id": "s58", "pedido": "temas de solomun", "set": false, "espera": {"otros": {"artistas": ["solomun"]}}, "origen": "semilla"}
+{"id": "s59", "pedido": "algo del sello afterlife", "set": false, "espera": {"otros": {"sellos": ["afterlife"]}}, "origen": "semilla"}
+{"id": "s60", "pedido": "como un set de adriatique", "set": false, "espera": {"referencia": {"tipo": "dj", "busca": "adriatique"}}, "origen": "semilla"}
+{"id": "s61", "pedido": "nada de fisher", "set": false, "espera": {"otros": {"artistas_excluir": ["fisher"]}}, "origen": "semilla"}
+{"id": "s62", "pedido": "clásicos de los 90", "set": false, "espera": {"otros": {"anio": [null, 1999]}, "texto": true}, "origen": "semilla"}
+{"id": "s63", "pedido": "temas nuevos, de este año", "set": false, "espera": {"otros": {"anio": [2026, null]}}, "origen": "semilla"}
+{"id": "s64", "pedido": "que pese más el género", "set": false, "espera": {"pesos": {"perfil": "genero", "ajustes": []}}, "origen": "semilla"}
+{"id": "s65", "pedido": "me importa más que suene parecido que el bpm", "set": false, "espera": {"pesos": {"perfil": "sonido", "ajustes": [{"factor": "bpm", "nivel": "menos"}]}}, "origen": "semilla"}
+{"id": "s66", "pedido": "que sea bien armónico", "set": false, "espera": {"pesos": {"perfil": "armonico", "ajustes": []}}, "origen": "semilla"}
+{"id": "s67", "pedido": "ignora la tonalidad", "set": false, "espera": {"pesos": {"perfil": "por_defecto", "ajustes": [{"factor": "tonalidad", "nivel": "menos"}]}}, "origen": "semilla"}
+{"id": "s68", "pedido": "sin repetir lo que ya puse hoy", "set": true, "espera": {"otros": {"excluir_tocados": true}}, "origen": "semilla"}
+{"id": "s69", "pedido": "solo 10 temas", "set": false, "espera": {"largo": 10}, "origen": "semilla"}
+{"id": "s70", "pedido": "nada de vocales ni de tech house", "set": false, "espera": {"voz": "sin", "generos": {"incluir": [], "excluir": ["Tech House"], "modo": "blando"}}, "origen": "semilla"}
+{"id": "s71", "pedido": "ordénalos por bpm", "set": false, "espera": {"orden": "bpm_sube"}, "origen": "semilla"}
+{"id": "s72", "pedido": "bossa nova brasilera", "set": false, "espera": {"salida": "no_hay"}, "origen": "gabriel"}
+{"id": "s73", "pedido": "reggaeton", "set": false, "espera": {"salida": "no_hay"}, "origen": "semilla"}
+{"id": "s74", "pedido": "drum and bass", "set": false, "espera": {"salida": "no_hay"}, "origen": "semilla"}
+{"id": "s75", "pedido": "rock", "set": false, "espera": {"generos": {"incluir": ["Rock"], "excluir": [], "modo": "blando"}}, "origen": "semilla"}
+{"id": "s76", "pedido": "algo bueno", "set": false, "espera": {"salida": "pide_detalle"}, "origen": "semilla"}
+{"id": "s77", "pedido": "tec haus 125", "set": false, "espera": {"generos": {"incluir": ["Tech House"], "excluir": [], "modo": "blando"}, "bpm": {"rango": [123, 127]}}, "origen": "semilla"}
+{"id": "s78", "pedido": "melodic tecno sin vos", "set": false, "espera": {"generos": {"incluir": ["Melodic House & Techno"], "excluir": [], "modo": "blando"}, "voz": "sin"}, "origen": "semilla"}
+{"id": "s79", "pedido": "a ver quiero algo que arranque tranquilo tipo deep house pero que no sea aburrido que tenga algo de voz y que ande por los 120 122 más o menos y que combine con lo que está sonando ahora", "set": true, "espera": {"referencia": {"tipo": "sonando"}, "generos": {"incluir": ["Deep House"], "excluir": [], "modo": "blando"}, "bpm": {"rango": [120, 122]}, "voz": "con", "tonalidad": "compatible", "texto": true}, "origen": "semilla"}
+{"id": "s80", "pedido": "estoy cerrando la noche y quiero ir bajando de a poco con cosas melódicas sin voz que no bajen de 120", "set": false, "espera": {"bpm": {"rango": [120, null]}, "momento": "cierre", "voz": "sin", "texto": true}, "origen": "semilla"}
+{"id": "s81", "pedido": "hola", "set": false, "espera": {"salida": "pide_detalle"}, "origen": "semilla"}
+{"id": "s82", "pedido": "poneme lo de siempre", "set": false, "espera": {"salida": "pide_detalle"}, "origen": "semilla"}
+{"id": "v1", "pedido": "tecno", "set": false, "espera": {"generos": {"incluir": ["Techno (Peak Time / Driving)", "Techno (Raw / Deep / Hypnotic)"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
+{"id": "v2", "pedido": "tek house", "set": false, "espera": {"generos": {"incluir": ["Tech House"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
+{"id": "v3", "pedido": "tech jaus", "set": false, "espera": {"generos": {"incluir": ["Tech House"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
+{"id": "v4", "pedido": "deep jaus", "set": false, "espera": {"generos": {"incluir": ["Deep House"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
+{"id": "v5", "pedido": "deep", "set": false, "espera": {"generos": {"incluir": ["Deep House"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
+{"id": "v6", "pedido": "melodik techno", "set": false, "espera": {"generos": {"incluir": ["Melodic House & Techno"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
+{"id": "v7", "pedido": "melódico", "set": false, "espera": {"generos": {"incluir": ["Melodic House & Techno"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
+{"id": "v8", "pedido": "afrohouse", "set": false, "espera": {"generos": {"incluir": ["Afro House"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
+{"id": "v9", "pedido": "afro house", "set": false, "espera": {"generos": {"incluir": ["Afro House"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
+{"id": "v10", "pedido": "progresivo", "set": false, "espera": {"generos": {"incluir": ["Progressive House"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
+{"id": "v11", "pedido": "organic house", "set": false, "espera": {"generos": {"incluir": ["Organic House"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
+{"id": "v12", "pedido": "algo orgánico", "set": false, "espera": {"generos": {"incluir": ["Organic House"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
+{"id": "v13", "pedido": "indie dance", "set": false, "espera": {"generos": {"incluir": ["Indie Dance"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
+{"id": "v14", "pedido": "psytrance", "set": false, "espera": {"generos": {"incluir": ["Psy-Trance"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
+{"id": "v15", "pedido": "psy", "set": false, "espera": {"generos": {"incluir": ["Psy-Trance"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
+{"id": "v16", "pedido": "electronica", "set": false, "espera": {"generos": {"incluir": ["Electronica"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
+{"id": "v17", "pedido": "house", "set": false, "espera": {"generos": {"incluir": ["House"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
+{"id": "v18", "pedido": "deep house y melodic", "set": false, "espera": {"generos": {"incluir": ["Deep House", "Melodic House & Techno"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
+{"id": "v19", "pedido": "tech house o house", "set": false, "espera": {"generos": {"incluir": ["Tech House", "House"], "excluir": [], "modo": "blando"}}, "origen": "variante"}
+{"id": "v20", "pedido": "124", "set": false, "espera": {"bpm": {"rango": [122, 126]}}, "origen": "variante"}
+{"id": "v21", "pedido": "a 124", "set": false, "espera": {"bpm": {"rango": [122, 126]}}, "origen": "variante"}
+{"id": "v22", "pedido": "124bpm", "set": false, "espera": {"bpm": {"rango": [122, 126]}}, "origen": "variante"}
+{"id": "v23", "pedido": "como 124", "set": false, "espera": {"bpm": {"rango": [122, 126]}}, "origen": "variante"}
+{"id": "v24", "pedido": "120-124", "set": false, "espera": {"bpm": {"rango": [120, 124]}}, "origen": "variante"}
+{"id": "v25", "pedido": "de 118 a 122", "set": false, "espera": {"bpm": {"rango": [118, 122]}}, "origen": "variante"}
+{"id": "v26", "pedido": "menos de 120", "set": false, "espera": {"bpm": {"rango": [null, 120]}}, "origen": "variante"}
+{"id": "v27", "pedido": "más de 128", "set": false, "espera": {"bpm": {"rango": [128, null]}}, "origen": "variante"}
+{"id": "v28", "pedido": "entre 125 y 130", "set": false, "espera": {"bpm": {"rango": [125, 130]}}, "origen": "variante"}
+{"id": "v29", "pedido": "130 o más", "set": false, "espera": {"bpm": {"rango": [130, null]}}, "origen": "variante"}
+{"id": "v30", "pedido": "un poco más rápido", "set": true, "espera": {"referencia": {"tipo": "sonando"}, "bpm": {"relativo": "mas_rapido"}}, "origen": "variante"}
+{"id": "v31", "pedido": "más lento", "set": true, "espera": {"referencia": {"tipo": "sonando"}, "bpm": {"relativo": "mas_lento"}}, "origen": "variante"}
+{"id": "v32", "pedido": "subí el tempo", "set": true, "espera": {"referencia": {"tipo": "sonando"}, "bpm": {"relativo": "mas_rapido"}}, "origen": "variante"}
+{"id": "v33", "pedido": "bajá el bpm", "set": true, "espera": {"referencia": {"tipo": "sonando"}, "bpm": {"relativo": "mas_lento"}}, "origen": "variante"}
+{"id": "v34", "pedido": "en 5A", "set": false, "espera": {"tonalidad": {"clave": "5A"}}, "origen": "variante"}
+{"id": "v35", "pedido": "algo en 11B", "set": false, "espera": {"tonalidad": {"clave": "11B"}}, "origen": "variante"}
+{"id": "v36", "pedido": "en mi menor", "set": false, "espera": {"tonalidad": {"clave": "9A"}}, "origen": "variante"}
+{"id": "v37", "pedido": "en la menor", "set": false, "espera": {"tonalidad": {"clave": "8A"}}, "origen": "variante"}
+{"id": "v38", "pedido": "en re menor", "set": false, "espera": {"tonalidad": {"clave": "7A"}}, "origen": "variante"}
+{"id": "v39", "pedido": "algo que pegue con esto", "set": true, "espera": {"referencia": {"tipo": "sonando"}, "tonalidad": "compatible"}, "origen": "variante"}
+{"id": "v40", "pedido": "sin vocal", "set": false, "espera": {"voz": "sin"}, "origen": "variante"}
+{"id": "v41", "pedido": "que no tenga voz", "set": false, "espera": {"voz": "sin"}, "origen": "variante"}
+{"id": "v42", "pedido": "con vocal", "set": false, "espera": {"voz": "con"}, "origen": "variante"}
+{"id": "v43", "pedido": "con voces", "set": false, "espera": {"voz": "con"}, "origen": "variante"}
+{"id": "v44", "pedido": "con algo de voz", "set": false, "espera": {"voz": "con"}, "origen": "variante"}
+{"id": "v45", "pedido": "voz masculina", "set": false, "espera": {"voz": "con", "texto": true}, "origen": "variante"}
+{"id": "v46", "pedido": "techno a 130 sin voces", "set": false, "espera": {"generos": {"incluir": ["Techno (Peak Time / Driving)", "Techno (Raw / Deep / Hypnotic)"], "excluir": [], "modo": "blando"}, "bpm": {"rango": [128, 132]}, "voz": "sin"}, "origen": "variante"}
+{"id": "v47", "pedido": "deep house 120 con voz", "set": false, "espera": {"generos": {"incluir": ["Deep House"], "excluir": [], "modo": "blando"}, "bpm": {"rango": [118, 122]}, "voz": "con"}, "origen": "variante"}
+{"id": "v48", "pedido": "afro house 122", "set": false, "espera": {"generos": {"incluir": ["Afro House"], "excluir": [], "modo": "blando"}, "bpm": {"rango": [120, 124]}}, "origen": "variante"}
+{"id": "v49", "pedido": "minimal 126 sin vocal", "set": false, "espera": {"generos": {"incluir": ["Minimal / Deep Tech"], "excluir": [], "modo": "blando"}, "bpm": {"rango": [124, 128]}, "voz": "sin"}, "origen": "variante"}
+{"id": "v50", "pedido": "progressive 123 en 8A", "set": false, "espera": {"generos": {"incluir": ["Progressive House"], "excluir": [], "modo": "blando"}, "bpm": {"rango": [121, 125]}, "tonalidad": {"clave": "8A"}}, "origen": "variante"}
+{"id": "v51", "pedido": "otro como este", "set": true, "espera": {"referencia": {"tipo": "sonando"}}, "origen": "variante"}
+{"id": "v52", "pedido": "seguí con esto", "set": true, "espera": {"referencia": {"tipo": "sonando"}}, "origen": "variante"}
+{"id": "v53", "pedido": "parecido a lo que suena pero sin voz", "set": true, "espera": {"referencia": {"tipo": "sonando"}, "voz": "sin"}, "origen": "variante"}
+{"id": "v54", "pedido": "lo mismo pero más rápido", "set": true, "espera": {"referencia": {"tipo": "sonando"}, "bpm": {"relativo": "mas_rapido"}}, "origen": "variante"}
+{"id": "v55", "pedido": "como este pero con más voz", "set": true, "espera": {"referencia": {"tipo": "sonando"}, "voz": "con"}, "origen": "variante"}
+{"id": "v56", "pedido": "como hanging tree de michael bibi", "set": false, "espera": {"referencia": {"tipo": "tema", "busca": "hanging tree michael bibi"}}, "origen": "variante"}
+{"id": "v57", "pedido": "algo tipo Boris Brejcha - I Am A Maschine", "set": false, "espera": {"referencia": {"tipo": "tema", "busca": "boris brejcha i am a maschine"}}, "origen": "variante"}
+{"id": "v58", "pedido": "algo oscuro", "set": false, "espera": {"texto": true}, "origen": "variante"}
+{"id": "v59", "pedido": "algo alegre", "set": false, "espera": {"texto": true}, "origen": "variante"}
+{"id": "v60", "pedido": "algo hipnótico", "set": false, "espera": {"texto": true}, "origen": "variante"}
+{"id": "v61", "pedido": "algo con energía", "set": false, "espera": {"texto": true}, "origen": "variante"}
+{"id": "v62", "pedido": "algo bailable", "set": false, "espera": {"texto": true}, "origen": "variante"}
+{"id": "v63", "pedido": "algo melancólico", "set": false, "espera": {"texto": true}, "origen": "variante"}
+{"id": "v64", "pedido": "con piano", "set": false, "espera": {"texto": true}, "origen": "variante"}
+{"id": "v65", "pedido": "oscuro sin voces", "set": false, "espera": {"voz": "sin", "texto": true}, "origen": "variante"}
+{"id": "v66", "pedido": "warm up", "set": false, "espera": {"momento": "apertura"}, "origen": "variante"}
+{"id": "v67", "pedido": "para arrancar", "set": false, "espera": {"momento": "apertura"}, "origen": "variante"}
+{"id": "v68", "pedido": "peak time", "set": false, "espera": {"momento": "pico"}, "origen": "variante"}
+{"id": "v69", "pedido": "para cerrar", "set": false, "espera": {"momento": "cierre"}, "origen": "variante"}
+{"id": "v70", "pedido": "closing", "set": false, "espera": {"momento": "cierre"}, "origen": "variante"}
+{"id": "v71", "pedido": "after hours", "set": false, "espera": {"momento": "after"}, "origen": "variante"}
+{"id": "v72", "pedido": "de 2019", "set": false, "espera": {"otros": {"anio": [2019, 2019]}}, "origen": "variante"}
+{"id": "v73", "pedido": "de los 2010", "set": false, "espera": {"otros": {"anio": [2010, 2019]}}, "origen": "variante"}
+{"id": "v74", "pedido": "temas de drumcode", "set": false, "espera": {"otros": {"sellos": ["drumcode"]}}, "origen": "variante"}
+{"id": "v75", "pedido": "nada de boris brejcha", "set": false, "espera": {"otros": {"artistas_excluir": ["boris brejcha"]}}, "origen": "variante"}
+{"id": "v76", "pedido": "solo 15", "set": false, "espera": {"largo": 15}, "origen": "variante"}
+{"id": "v77", "pedido": "no sé", "set": false, "espera": {"salida": "pide_detalle"}, "origen": "variante"}
+{"id": "v78", "pedido": "sorprendeme", "set": false, "espera": {"salida": "pide_detalle"}, "origen": "variante"}
+{"id": "v79", "pedido": "algo bueno", "set": true, "espera": {"referencia": {"tipo": "sonando"}}, "origen": "variante"}
+{"id": "v80", "pedido": "cumbia", "set": false, "espera": {"salida": "no_hay"}, "origen": "variante"}
+{"id": "v81", "pedido": "salsa", "set": false, "espera": {"salida": "no_hay"}, "origen": "variante"}
+{"id": "v82", "pedido": "hip hop", "set": false, "espera": {"salida": "no_hay"}, "origen": "variante"}

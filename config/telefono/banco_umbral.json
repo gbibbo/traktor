@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "fijado": "2026-11-13, antes de medir las reglas y el LLM (línea B, B3). No se cambia para que algo pase: si hace falta otro umbral, se cambia en un commit propio, con la razón, antes de volver a medir.",
+  "banco": "config/telefono/banco_pedidos.jsonl: 82 pedidos de la semilla (docs/plans/pedidos_telefono_borrador.md) y 82 variantes. Los pedidos reales del registro del teléfono se miden aparte, como prueba que las reglas no vieron.",
+  "reglas": {
+    "precision_minima": 0.97,
+    "por_que": "Las reglas llenan solo lo que se lee con certeza: de lo que llenan, casi todo tiene que estar bien. Cuánto llenan se informa, sin umbral: lo que no llenan va al LLM."
+  },
+  "completo": {
+    "exactitud_minima": 0.90,
+    "por_que": "Reglas y LLM juntos, en cada casilla del banco, incluidas las que deben quedar vacías."
+  },
+  "generos_inventados_maximo": 0,
+  "no_empeora": "Un cambio de reglas o de instrucciones no entra si baja la exactitud de alguna casilla frente al último resultado aceptado, que se anota en el commit que lo acepta.",
+  "texto": "Solo se mide si hay texto o no. Si el texto encuentra lo pedido lo miden clap_texto_llm.py y los pools de concepto (B5)."
+}
