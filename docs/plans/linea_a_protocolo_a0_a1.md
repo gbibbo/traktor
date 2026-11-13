@@ -108,6 +108,15 @@ Copia local de las tablas y de las 60 salidas de V7 en `D:\TRAKTOR ML datos\line
   `a0_prueba/`. Se corta a propósito una vez y se comprueba que retoma desde el parcial.
   - Si YouTube pasa de 4,5 s por tema, que es 1,5 veces lo estimado, no se mandan sus trabajos completos sin preguntar
     a Gabriel.
+  - **Resultado (2026-11-13, Kaggle, un intento, código `6bdbd5b`):**
+    - `beatport_060`: 401 de 401, 1,89 s por tema.
+    - `beatport_002`: 401 de 401 frente a V7; coseno 1,000000 en los 1578 segmentos con audio y en las tres vistas,
+      así que **el umbral 4 pasa y V7 se reutiliza**.
+    - `youtube_000`: 88 de 88 más 10 de control; ventana correcta en todos; **4,65 s por tema, por encima de 4,5**. Los
+      trabajos completos de YouTube esperan el OK de Gabriel. Los de Beatport salen.
+    - Sin el corte a propósito: en Kaggle cancelar exige un paso a mano de Gabriel en kaggle.com. La reanudación la
+      cubren el test unitario y el primer corte natural de Colab, que se revisa en el log.
+    - `beatport_060` y `youtube_000` se copiaron de `a0_prueba/` a `a0/`, con md5 verificado.
 - **Trabajos completos** (`traktor-a0-1` en adelante), con salida en `a0/`. Son los 72 shards que faltan, repartidos en
   unos 10 trabajos de una hora o menos:
   - de Beatport, 6 shards por trabajo: unas 272 grabaciones por shard, a 2 s cada una, dan unos 9 min por shard;

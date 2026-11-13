@@ -67,8 +67,9 @@ SR_YT = 44100
 CONTROL_MOD = 10             # control: md5(recording_id) % 10 == 0, unas 306 grabaciones de YouTube
 PARCIAL_CADA = 96            # unos 3 min en Kaggle: nunca más de 10 min sin guardar (plan, 2.5)
 MAX_RETARDO = 4096           # = codec_clap.MAX_RETARDO
-S_POR_TEMA = {"beatport": 2.0, "youtube": 3.0}   # Kaggle, V7 medido; YouTube estimado (lo corrige el trabajo corto)
+S_POR_TEMA = {"beatport": 1.9, "youtube": 4.65}  # medido en Kaggle en traktor-a0-prueba-1 (2026-11-13)
 MIN_POR_TRABAJO = 55.0
+SETUP = "pip install -q transformers==4.57.0"   # la versión de esta PC y de V7: los mismos embeddings
 HILOS = min(4, os.cpu_count() or 2)   # preparar el audio de YouTube cuesta 2,5 a 3 s por tema en CPU (prueba del 11-13)
 
 
@@ -468,7 +469,7 @@ def planear(destino: str, primero: int) -> int:
     for i, t in enumerate(trabajos):
         lista = ",".join(stem(s) for s in t)
         print(f'python tools/gpuq/cola.py add traktor-a0-{primero + i} --cmd "python tools/dj_sets/vistas_djsets.py '
-              f'correr --shards {lista} --destino {destino}" --gpu T4 --platform auto --no-setup --timeout-h 2')
+              f'correr --shards {lista} --destino {destino}" --gpu T4 --platform auto --setup "{SETUP}" --timeout-h 2')
     return 0
 
 
