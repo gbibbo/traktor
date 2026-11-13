@@ -120,7 +120,11 @@ Copia local de las tablas y de las 60 salidas de V7 en `D:\TRAKTOR ML datos\line
     - **Trabajos vigentes:**
       - en marcha: `traktor-a0-1` (Colab, `beatport_061` a `064`) y `traktor-a0-14` (Kaggle, `youtube_001` a `007`);
       - ya hechos: `traktor-a0-2` (`beatport_065` a `068`);
-      - el resto, `traktor-a0-35` a `traktor-a0-54`, en Colab, de unos 25 min útiles cada uno, commit `02527e0`.
+      - el resto, en Colab, de unos 25 min útiles cada uno: `traktor-a0-35` (commit `02527e0`) y `traktor-a0-55` a
+        `traktor-a0-73` (commit `84f3f58`, mismo código del trabajo). Van detrás de los diagnósticos E4 del corte
+        de Colab, a pedido de la sesión que lo investiga.
+      - `traktor-a0-1`, `2` y `14` ya terminaron, sin fallidos. `youtube_006` está vacío desde el dataset: su
+        `n_audio` en `shards.csv` es 0.
       - Los ids intermedios se cancelaron sin arrancar: se reordenó la cola para el diagnóstico de Colab y para un
         trabajo corto de la línea B, y se aplicó «Colab primero».
       - Desde `2f34ba2` el trabajo guarda un parcial también cada 3 min.
