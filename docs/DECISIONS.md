@@ -177,6 +177,20 @@ Plan vigente: `docs/plans/plan_recomendacion_v2.md`. Inventario de ideas: `docs/
       GPU o perdió el login. `kaggle.auto_gpu = "colab_busy"` en `gpuq.toml` vuelve al comportamiento anterior.
       Gabriel pidió además seguir buscando cómo correr en Colab sin el corte (informe del corte, E3 y E4).
 
+16. **El LLM del teléfono se prueba en gpuq** (Gabriel: «¿no puedes montar ese mismo modelo open source en el cluster?»;
+    OK para el plan, 11-13).
+   - **Cómo** (agente): el modelo de producción, Gemma 4 26B A4B, tiene pesos abiertos (Apache 2.0). Corre con llama.cpp
+     en las dos T4 de Kaggle, cuantizado a 8 bits (`src/v4/evaluation/llm_gpu.py`), con las mismas instrucciones del
+     Worker (`cloudflare/llm.js`).
+   - **Medido:** sobre los 43 pedidos del banco que llegan al LLM, el cluster y Workers AI coinciden por encima del umbral
+     fijado antes (`docs/reports/llm_gpuq_transferencia_2026-11-13.md`).
+     - Respuestas válidas: 1,00 en los dos.
+     - Mismo «no se oye»: 0,91.
+     - Coincidencia en los 30 temas que trae cada uno: 0,70 de mediana.
+     - Costo: 11 minutos de GPU y unas 356 neuronas, una sola vez.
+   - **Regla que sale** (agente): las instrucciones se iteran en gpuq. Lo que gane se confirma una vez en Workers AI antes
+     de publicarse. Queda en Kaggle porque necesita las dos T4; cada corrida se cuenta en las horas de la semana.
+
 ## 2026-11-10 (E16: la ecuación con D5 y la escucha E12 lista)
 
 Informe: `docs/reports/juez_d5_2026-11-10.md`. Regla fijada en `77d4434` antes de medir.

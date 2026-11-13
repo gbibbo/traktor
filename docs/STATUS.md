@@ -53,7 +53,7 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    Parecidos sigue con CLAP. GABRIEL: Traktor, «TRAKTOR ML sin tonalidad», Analyze solo
    Key. TIV aparte.
 6. Teléfono, línea B: Worker v6, presets, momentos y reglas antes del LLM, publicado (11-13).
-   LOCAL: el LLM en dos pasos (L7), medido con `banco_pedidos.jsonl`.
+   LOCAL: el LLM en dos pasos (L7), probado en gpuq (DECISIONS 11-13, 16).
 
 ## RUN RECIPES
 

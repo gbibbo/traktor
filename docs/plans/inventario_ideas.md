@@ -29,7 +29,7 @@ Cómo leerlo:
 | L4 | Catálogo de la biblioteca generado por código: géneros con conteo, rangos de BPM, campos disponibles | Plan v2 | Hecho 11-13 (`formulario.catalogo()`) | B0 |
 | L5 | Reglamento del LLM: tabla de decisión por tipo de pedido, en un solo archivo, del que salen los prompts | Gabriel 11-13 | En parte 11-13: `config/telefono/reglamento.json` lleva los datos de las reglas; faltan los prompts cortos del LLM (L7) | B3 |
 | L6 | Intérprete por reglas antes del LLM: números de BPM, nombres exactos de género, tonalidades, «como <tema>» | Plan v2 | Hecho y publicado 11-13 (`cloudflare/reglas.js`): precisión 1,0 en cada casilla del banco, 0 géneros inventados, 122 de 165 pedidos sin LLM | B3 |
-| L7 | LLM en dos pasos cortos: clasificar el tipo de pedido y llenar cada casilla; validadores y salida por defecto | Plan v2 | Pendiente | B3 |
+| L7 | LLM en dos pasos cortos: clasificar el tipo de pedido y llenar cada casilla; validadores y salida por defecto | Plan v2 | En curso 11-13: se prueba en gpuq con el mismo Gemma, que coincide con Workers AI por encima del umbral (`llm_gpuq_transferencia_2026-11-13.md`) | B3 |
 | L8 | Un tema o archivo nombrado lo resuelve el ordenador por coincidencia aproximada; el teléfono muestra candidatos | Gabriel 11-13 | En parte 11-13: el ordenador resuelve y el teléfono muestra candidatos; falta que el texto llene `referencia` (B3) | B3 |
 | L9 | Perfiles de pesos con nombre y tres niveles por factor; el LLM nunca escribe números | Gabriel 11-13; P6 | Pendiente | B1, B3 |
 | L10 | «Momento de la noche» como preset y como texto; tabla fija hasta que exista A5 | Gabriel 11-13 | Hecho y publicado 11-13: tabla medida en DJSets (`momentos_djsets_2026-11-13.md`); el momento ordena y no filtra; after sin datos | B3, B6 |

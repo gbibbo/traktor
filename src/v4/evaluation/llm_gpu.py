@@ -14,6 +14,7 @@ PURPOSE: El LLM del teléfono, el mismo modelo que usa el Worker en Workers AI (
                   [--cuantizacion Q8_0] [--max N] [--backend cuda|cpu] [--repo ggml-org/gemma-4-26B-A4B-it-GGUF]
 CHANGELOG:
   - 2026-11-13: Creación (línea B, L7: las instrucciones del LLM se miden en el cluster).
+  - 2026-11-13: meta.json anota el commit con git (gpuq no lo pasa en una variable; en traktor-llm-2 quedó vacío).
 """
 from __future__ import annotations
 
@@ -123,6 +124,15 @@ def preguntar(pedido: dict) -> dict:
             "finish_reason": eleccion.get("finish_reason"), "usage": datos.get("usage"), "ms": ms}
 
 
+def commit_actual() -> Optional[str]:
+    """El commit del código que corre (gpuq baja el repo en el commit fijado)."""
+    try:
+        return subprocess.run(["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, capture_output=True, text=True,
+                              timeout=30).stdout.strip() or None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
 def gpu_info() -> str:
     try:
         return subprocess.run(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"],
@@ -207,7 +217,7 @@ def correr(args: argparse.Namespace) -> int:
                 "segundos": {"llama": round(t_llama), "modelo": round(t_modelo), "carga": round(t_carga),
                              "total": round(time.time() - t_inicio)},
                 "ms_por_pedido_mediana": sorted(ms)[len(ms) // 2] if ms else None,
-                "commit": os.environ.get("GPUQ_REF") or os.environ.get("GITHUB_SHA")}
+                "commit": commit_actual()}
         meta_local = scratch / "meta.json"
         meta_local.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
         remote.put(str(meta_local), f"{args.salida}/meta.json")
