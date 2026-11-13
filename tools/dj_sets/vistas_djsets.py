@@ -24,6 +24,7 @@ PURPOSE: A0 de la línea A (docs/plans/linea_a_protocolo_a0_a1.md, fijado en el 
            python tools/dj_sets/vistas_djsets.py verificar --a0 <shard.npz> --v7 <tanda.npz> | --vistas DIR --e15 DIR
 CHANGELOG:
   - 2026-11-13: Creación (A0).
+  - 2026-11-13: Parcial también cada 3 min (PARCIAL_SEG), por el corte de Colab a los 12-13 min.
 """
 from __future__ import annotations
 
@@ -66,6 +67,8 @@ KBPS = 96                    # los previews son MP3 de 96 kbps
 SR_YT = 44100
 CONTROL_MOD = 10             # control: md5(recording_id) % 10 == 0, unas 306 grabaciones de YouTube
 PARCIAL_CADA = 96            # unos 3 min en Kaggle: nunca más de 10 min sin guardar (plan, 2.5)
+PARCIAL_SEG = 180.0         # y además cada 3 min: un shard de YouTube (unos 90 temas a 5 s) no llega a 96 antes del
+                            # corte de Colab a los 12-13 min (2026-11-13)
 MAX_RETARDO = 4096           # = codec_clap.MAX_RETARDO
 S_POR_TEMA = {"beatport": 1.9, "youtube": 4.65}  # medido en Kaggle en traktor-a0-prueba-1 (2026-11-13)
 MIN_POR_TRABAJO = 55.0
@@ -234,7 +237,7 @@ class Estado:
 
 def procesar_shard(remote, shard: str, miembros: Sequence[Dict[str, str]], modelos, scratch: Path,
                    max_temas: Optional[int] = None, lote: int = 16, commit: str = "", destino: str = DESTINO,
-                   cada: int = PARCIAL_CADA, leer_yt: Callable = audio_youtube,
+                   cada: int = PARCIAL_CADA, leer_yt: Callable = audio_youtube, cada_s: float = PARCIAL_SEG,
                    leer_bp: Callable = audio_beatport, hilos: int = HILOS) -> Dict[str, object]:
     """Baja el shard, embebe cada grabación de la población y sube <destino>/<fuente>/<stem>.npz. El audio se prepara
     en `hilos` hilos mientras la GPU procesa el lote anterior; el orden de las filas es el del .tar. Cada `cada` temas
@@ -258,6 +261,7 @@ def procesar_shard(remote, shard: str, miembros: Sequence[Dict[str, str]], model
     t_bajada = time.perf_counter() - t0
     pendientes: List[Tuple[str, Dict[str, object]]] = []
     ultimo = [len(est.ids)]
+    t_ultimo = [time.perf_counter()]
     t_audio = [0.0]
 
     def guardar_parcial() -> None:
@@ -266,6 +270,7 @@ def procesar_shard(remote, shard: str, miembros: Sequence[Dict[str, str]], model
         remote.put(loc, f"{base}.parcial.npz")
         loc.unlink(missing_ok=True)
         ultimo[0] = len(est.ids)
+        t_ultimo[0] = time.perf_counter()
 
     def vaciar() -> None:
         if not pendientes:
@@ -284,7 +289,8 @@ def procesar_shard(remote, shard: str, miembros: Sequence[Dict[str, str]], model
             est.comienzo.append(float(a.get("comienzo_s", np.nan)))
             est.duracion.append(float(a.get("duracion_s", np.nan)))
         pendientes.clear()
-        if cada and len(est.ids) - ultimo[0] >= cada:
+        nuevos = len(est.ids) - ultimo[0]
+        if (cada and nuevos >= cada) or (cada_s and nuevos > 0 and time.perf_counter() - t_ultimo[0] >= cada_s):
             guardar_parcial()
 
     def preparar(tmp: str, i: int, nombre_m: str, datos: bytes, fila: Dict[str, str]) -> Tuple[Dict[str, object], float]:

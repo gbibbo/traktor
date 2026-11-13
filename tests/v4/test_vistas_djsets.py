@@ -174,6 +174,21 @@ def test_un_shard_cortado_sigue_desde_el_parcial(tmp_path):
     assert not parcial.exists()
 
 
+def test_parcial_por_tiempo_aunque_no_lleguen_96(tmp_path):
+    remote = import_gpuq_storage().LocalRemote(tmp_path / "remoto")
+    ids = [f"bp_{30 + i}" for i in range(5)]
+    _tar(tmp_path / "remoto" / vd.DATASET / "audio/beatport/beatport_002.tar",
+         [(f"{r}.wav", _wav(2, 0.1 * (i + 1))) for i, r in enumerate(ids)])
+    miembros = [{"member": f"{r}.wav", "recording_id": r, "fuente": "beatport"} for r in ids]
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    with pytest.raises(RuntimeError):
+        vd.procesar_shard(remote, "audio/beatport/beatport_002.tar", miembros, _SeCorta(2), scratch, lote=1,
+                          cada=1000, cada_s=1e-9, destino="d", hilos=1)
+    parcial = tmp_path / "remoto" / "d" / "beatport" / "beatport_002.parcial.npz"
+    assert parcial.exists() and list(np.load(parcial)["recording_id"]) == ids[:2]
+
+
 def test_pendientes_y_trabajos():
     shards = [{"shard": "audio/beatport/beatport_000.tar", "source": "beatport", "origin": "beatport_previews/lote_01/tanda_00000.tar"},
               {"shard": "audio/beatport/beatport_001.tar", "source": "beatport", "origin": "beatport_previews/lote_05/tanda_00000.tar"},
