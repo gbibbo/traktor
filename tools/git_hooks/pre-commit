@@ -2,8 +2,19 @@
 # PURPOSE: Hook pre-commit de git. Corre tools/git_hooks/check_staged.py con el primer Python que
 #          encuentre (el .venv del repo en Windows o Linux, después python3/python/py del PATH).
 #          Se activa una vez por clon: git config core.hooksPath tools/git_hooks
+#          Antes rechaza todo commit que no venga de tools/repo/subir.py: varias sesiones comparten el
+#          árbol y el índice, y un `git commit` directo puede llevarse lo que otra sesión dejó preparado.
 # CHANGELOG:
 #   - 2026-09-29: Creación inicial.
+#   - 2026-11-13: Los commits entran solo por tools/repo/subir.py (pone TRAKTOR_SUBIR).
+if [ -z "$TRAKTOR_SUBIR" ]; then
+  echo "pre-commit: en este repositorio los commits se hacen con" >&2
+  echo "    python tools/repo/subir.py -m \"mensaje\" <ruta> [<ruta> ...]" >&2
+  echo "Varias sesiones comparten este árbol. La herramienta espera su turno, sube solo las rutas que nombras" >&2
+  echo "y hace el push (AGENTS.md, «Several sessions on one working tree»). No se perdió nada: tus cambios" >&2
+  echo "siguen en el árbol, y lo que hayas preparado con git add no molesta." >&2
+  exit 1
+fi
 root=$(git rev-parse --show-toplevel) || exit 1
 check="$(cd "$(dirname "$0")" && pwd)/check_staged.py"
 for py in "$root/.venv/Scripts/python.exe" "$root/.venv/bin/python"; do

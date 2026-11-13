@@ -126,7 +126,9 @@ def test_removing_forbidden_file_passes(repo, capsys):
 def test_pre_commit_hook_blocks_git_commit(repo):
     hooks = (REPO_ROOT / "tools" / "git_hooks").as_posix()
     git(repo, "config", "core.hooksPath", hooks)
-    env = dict(os.environ, PATH=str(Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", ""))
+    # TRAKTOR_SUBIR: desde el 2026-11-13 el hook solo deja pasar los commits de tools/repo/subir.py (tests/test_subir.py)
+    env = dict(os.environ, PATH=str(Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", ""),
+               TRAKTOR_SUBIR="1")
 
     stage(repo, "ok.py", "x = 1\n")
     ok = subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@example.com",

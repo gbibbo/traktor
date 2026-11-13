@@ -51,7 +51,7 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
    queda de contexto).
 5. Recomendación: plan `plan_recomendacion_v2.md`; línea A en gpuq. Escucha E12 hecha: 5 a 5,
    Parecidos sigue con CLAP. GABRIEL: Traktor, «TRAKTOR ML sin tonalidad», Analyze solo
-   Key. TIV aparte. Pedidos a Gabriel: 15 min o menos (`escucha_corta_e12_2026-11-13.md`).
+   Key. TIV aparte.
 6. Teléfono, línea B: Worker v6, presets, momentos y reglas antes del LLM, publicado (11-13).
    LOCAL: el LLM en dos pasos (L7), medido con `banco_pedidos.jsonl`.
 
@@ -74,4 +74,5 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 - Corrida larga: primero `--folder "<subcarpeta>"` y revisar; luego la completa con `--low-priority`.
 - Lo pesado (GPU, >1 h de CPU, >10 GB): `tools/gpuq/cola.py add|status|logs`, datos en
   `erclm:traktor_ml/` (`docs/GPUQ.md`; probado en T4 el 11-09).
-- Chequeo pre-commit de todo el árbol: `python tools/git_hooks/check_staged.py --all`.
+- Subir (único camino): `python tools/repo/subir.py -m "..." <rutas>` (AGENTS.md). Chequeo del
+  árbol: `python tools/git_hooks/check_staged.py --all`.

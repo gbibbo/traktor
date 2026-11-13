@@ -374,6 +374,11 @@ volver a exportar.
 
 ### Dos sesiones en el mismo árbol: subir solo los bloques propios con contexto y verificar
 
+[REEMPLAZADO 2026-11-13 por `tools/repo/subir.py` (AGENTS.md, «Several sessions on one working tree»): con
+cuatro sesiones a la vez, separar bloques a mano dejó de alcanzar. Los archivos se suben enteros con la
+herramienta, que toma un candado y solo lleva las rutas nombradas; los documentos compartidos se suben apenas
+se editan. Ya no se usa `git apply --cached`]
+
 Dos sesiones de agentes compartían el árbol y el índice de Git. Para subir solo sus bloques de un
 documento compartido, una usó `git diff -U0` filtrado y `git apply --cached --unidiff-zero`. El
 2026-11-06 un bloque sin contexto quedó en otro lugar: el punto 9 de DECISIONS cayó dentro de la

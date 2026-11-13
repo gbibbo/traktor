@@ -234,7 +234,9 @@ A0 es lo primero de la línea A y lo único que bloquea al resto. B0 y B1 no dep
 | Auditoría | El modelo más capaz | Revisa protocolos antes de medir y resultados después | Chat nuevo por ronda, con este plan |
 
 Las dos líneas tocan archivos distintos. Los documentos compartidos (`STATUS.md`, `DECISIONS.md`, este plan) se editan
-agregando solo las líneas propias y con `git add` de rutas explícitas.
+agregando solo las líneas propias y con `git add` de rutas explícitas. [REEMPLAZADO 2026-11-13 por Gabriel, que pidió
+que las sesiones se coordinen solas: se sube solo con `python tools/repo/subir.py -m "..." <rutas>`, y un documento
+compartido se sube entero apenas se edita. Reglas en `AGENTS.md`, «Several sessions on one working tree»]
 
 ## 6. Lo que espera a Gabriel
 

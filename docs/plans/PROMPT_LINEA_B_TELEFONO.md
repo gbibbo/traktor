@@ -77,8 +77,9 @@ para todo, y si todo falla, el camino de hoy. El reglamento vive en un solo arch
 - **Nada se publica.** `python cloudflare/publicar.py` lo corre Gabriel. Las pruebas contra la cola real usan
   `--job <id>`. No ejecutes `/api/device/claim`.
 - **Costo.** Cada concepto gasta neuronas de Workers AI: mide cuántas por pedido antes y después.
-- **Documentos compartidos** (`STATUS.md`, `DECISIONS.md`, el plan): agrega solo tus líneas y haz `git add` de rutas
-  explícitas. La línea A edita los mismos archivos.
+- **Subir.** Varias sesiones comparten este árbol. Se sube solo con
+  `python tools/repo/subir.py -m "..." <rutas>` (`AGENTS.md`, «Several sessions on one working tree»). Los documentos
+  compartidos (`STATUS.md`, `DECISIONS.md`, el plan) se suben enteros apenas los editas.
 
 ## Primera respuesta esperada
 

@@ -80,6 +80,29 @@ Rules:
 
 Before stopping after substantive project work, report the final Git state with the full HEAD SHA, push status, and whether the working tree is clean. Do not create empty commits merely to manufacture a SHA.
 
+### Several sessions on one working tree
+
+Several agent sessions work at the same time in this one working tree. They share its files, its Git index and the branch `main`. Sessions coordinate among themselves; Gabriel is not asked to sort out commits or pushes.
+
+There is one way to commit and push:
+
+```text
+python tools/repo/subir.py -m "<message>" <path> [<path> ...]
+python tools/repo/subir.py --estado
+```
+
+The tool waits its turn on a lock, commits only the paths you name through its own index, runs the pre-commit check on that commit, pushes, and releases the lock. Whatever another session has staged or left unsaved in other files stays exactly as it was. A plain `git commit` is rejected by the pre-commit hook with a pointer to this tool; nothing is lost when that happens.
+
+Rules:
+
+* Name the paths you changed. The tool refuses the repository root.
+* Do not run these in the shared tree, because they move or delete other sessions' unsaved work: `git stash`, `git switch` or `git checkout <branch>`, `git checkout -- <file>`, `git restore`, `git reset --hard`, `git clean`, `git pull`, `git rebase`, `git merge`, `git add -A`, `git commit -a`. Branch work goes in its own `git worktree`. Read-only commands (`status`, `diff`, `log`, `show`) are always fine.
+* A file is committed whole. Shared documents (`docs/STATUS.md`, `docs/DECISIONS.md`, `docs/PROJECT_MAP.md`, `docs/LESSONS_LEARNED.md`, the plan and its inventory) are edited by adding complete lines in one edit and committed right away, in the same step. If the file carries finished lines from another session, they go up with yours: that is expected and loses nothing. Do not separate blocks by hand with `git apply --cached` or similar.
+* If a shared document fails its check because of lines that are not yours (for example `STATUS.md` over its size limit), wait a minute and run the tool again. Do not edit or remove another session's lines.
+* A code file has one owner session at a time. If `--estado` shows a file as modified and you did not modify it, another session is working on it: message that session (`SendMessage`) instead of editing it.
+* Exit code 3 means the lock stayed busy: run the same command again. Exit code 4 means the remote has commits this clone lacks: stop and coordinate with the other sessions. Exit code 5 means the commit was rejected, and the output says why. `PUSH pendiente` means the commit is safe locally and goes out with the next run; report it in the checkpoint.
+* If the tool itself fails, fix `tools/repo/subir.py` and its tests in `tests/test_subir.py`. Do not go around it.
+
 ## Compute: local CPU, gpuq GPUs, and the Drive
 
 Gabriel's rule (`docs/DECISIONS.md` 2026-11-09, recommendation algorithm, point 7): light work runs on this workstation's CPU; anything heavy in processing or in disk runs on gpuq GPUs with its data on his work Google Drive. Setup, commands, and the end-to-end test: `docs/GPUQ.md`.
@@ -145,3 +168,5 @@ TREE: <clean or dirty>
 ```
 
 For genuinely read only work, report `NO NEW COMMIT` and the current HEAD instead of creating a commit.
+
+Anything asked of Gabriel has to fit a busy person (his rule, 2026-11-13). Say beforehand how long it takes, keep it within 15 minutes, and put one decision per screen. Whatever an agent can decide with a default or check on its own is not asked: decide it, tell him in one line, and let him change it. Listening tests use the short format of `tools/playlist_review/pagina_escucha.py`. Full rule: `docs/reports/escucha_corta_e12_2026-11-13.md`.

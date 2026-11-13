@@ -141,6 +141,16 @@ Plan vigente: `docs/plans/plan_recomendacion_v2.md`. Inventario de ideas: `docs/
      no hace falta el LLM.
    - **Pendiente:** el LLM en dos pasos (L7) para lo que queda: artistas, sellos, ocasiones como «para una boda». Se mide
      con el banco completo.
+13. **Las sesiones se coordinan solas para subir a GitHub** (Gabriel: son cuatro ventanas a la vez y todas tenían
+    problemas para subir; quiere que se autogestionen, sin enterarse, sin choques y sin perder trabajo). Qué pasaba
+    (agente): las cuatro comparten un solo árbol, un solo índice de Git y la rama `main`, así que un commit podía
+    llevarse lo que otra dejó preparado, y cada una separaba a mano sus bloques de los documentos compartidos. Cómo
+    (agente): un único camino, `python tools/repo/subir.py -m "..." <rutas>`. Espera su turno con un candado, hace el
+    commit solo de las rutas nombradas con un índice propio, corre el chequeo pre-commit, sube y suelta el candado.
+    El hook rechaza un `git commit` directo y manda a la herramienta. Los documentos compartidos se suben enteros
+    apenas se editan, y ya no se separan bloques a mano. Reglas en `AGENTS.md`, «Several sessions on one working
+    tree»; tests en `tests/test_subir.py`. No se usan árboles separados por sesión (`git worktree`) porque el código
+    busca los datos dentro de la carpeta del repositorio y un árbol aparte no los tiene.
 
 ## 2026-11-10 (E16: la ecuación con D5 y la escucha E12 lista)
 

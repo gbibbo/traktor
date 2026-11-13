@@ -58,8 +58,9 @@ iguales. Intervalos remuestreando DJs.
 - **Datos:** todo resultado va al Drive, bajo `erclm:traktor_ml/`, apenas se produce. `djsets_v1` no se modifica.
   Al repositorio, que es público, va solo código e informes.
 - **Sin pedidos nuevos** a Beatport, 1001Tracklists ni YouTube.
-- **Documentos compartidos** (`STATUS.md`, `DECISIONS.md`, el plan): agrega solo tus líneas y haz `git add` de rutas
-  explícitas. La línea B edita los mismos archivos.
+- **Subir.** Varias sesiones comparten este árbol. Se sube solo con
+  `python tools/repo/subir.py -m "..." <rutas>` (`AGENTS.md`, «Several sessions on one working tree»). Los documentos
+  compartidos (`STATUS.md`, `DECISIONS.md`, el plan) se suben enteros apenas los editas.
 - **Informes** en `docs/reports/`, con el veredicto primero y las etiquetas del skill `auditar`. Cada uno dice la
   versión del dataset, cuántos sets y temas midió y el commit.
 
