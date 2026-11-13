@@ -103,15 +103,15 @@ def test_presets_one_per_exclusive_group_and_unknown_ids():
     assert form["filtros"]["bpm"] == {"relativo": "mas_rapido"} and etiquetas == ["Más rápido"] and len(problemas) == 2
 
 
-def test_every_preset_is_a_valid_form_and_momentos_wait():
+def test_every_preset_is_a_valid_form_and_only_after_waits():
     for p in fm.presets()["presets"]:
         fm.validar(p["formulario"], estricto=True)
-        assert p.get("pendiente", False) == (p["grupo"] == "momento")
+        assert p.get("pendiente", False) == (p["id"] == "after")
 
 
 def test_describe_in_words():
     form, _ = fm.validar(EJEMPLOS[0], GENEROS)
-    assert fm.describir(form) == ["Tech House (y géneros vecinos)", "BPM 123 a 127", "Sin voces", "Momento: pico"]
+    assert fm.describir(form) == ["Tech House (y géneros vecinos)", "BPM 123 a 127", "Sin voces", "Momento: pico (ordena, no filtra)"]
     form, _ = fm.validar(EJEMPLOS[3], GENEROS)
     assert fm.describir(form) == ["BPM desde 130", "Tonalidad compatible con 8A", "Hasta 1999", "Nada de FISHER",
                                   "Ordenados por BPM, de menor a mayor", "10 temas"]

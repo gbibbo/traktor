@@ -84,13 +84,33 @@ Plan vigente: `docs/plans/plan_recomendacion_v2.md`. Inventario de ideas: `docs/
    - **Tabla de momentos:** el momento ordena y no filtra, porque el estilo mueve el BPM más que el momento y una banda
      dura dejaría fuera el techno de 130 o más. Con lo que suena, la ventana de BPM se corre según lo medido: la
      apertura, unos 2,5 BPM por debajo; el cierre, unos 2 por encima. Los géneros que más pesan en ese momento van
-     primero. After queda vacío: el teléfono dice que todavía no hay datos. Implementarlo es lo próximo de la línea B
-     (L10); hasta entonces el momento se ignora con aviso.
+     primero. After queda vacío: el teléfono dice que todavía no hay datos. [REEMPLAZADO 2026-11-13: implementado,
+     ver el punto siguiente] Implementarlo es lo próximo de la línea B (L10); hasta entonces el momento se ignora con
+     aviso.
+   - **El momento ordena desde el 13-11** (agente; `ejecutor.py`, presets publicados). El puntaje del momento mezcla
+     dos cosas, con el género el doble de peso:
+     - el género: cuánto más aparece en ese momento que en toda la noche;
+     - el BPM: la cercanía a lo que suena más el corrimiento medido. Sin tema sonando, la cercanía a la mediana de ese
+       momento.
+
+     Se promedia con el puntaje de siempre y no saca temas.
+     - Con la biblioteca: la apertura trae 123 BPM melódico y orgánico, y el pico, techno a 125.
+     - El cierre trae primero Dance / Pop, porque los DJs de DJSets lo ponen 1,8 veces más al final. Si a Gabriel no le
+       gusta, se saca ese género del cierre.
    - **«Ignora la tonalidad» no saca el filtro del vivo** (valor por defecto 3 de la semilla). El formulario ya no
      tiene «tonalidad libre»: la casilla tonalidad acepta «compatible», «igual» o una tonalidad dada, y esta última sí
      reemplaza a la de lo que suena.
    - **Lo que se le pide a Gabriel en la línea B:** solo publicar, un paso de un minuto. El banco del LLM se arma con la
-     semilla y con los pedidos reales del registro del teléfono.
+     semilla y con los pedidos reales del registro del teléfono. [REEMPLAZADO 2026-11-13 por Gabriel: «¿por qué no
+     publicas tú mismo?». El agente publicó el Worker v6 con `publicar.py`: versión `27000c58`, tabla `estado` creada
+     en la D1 remota, el mismo token del ordenador. Comprobado sin tocar la cola: la página es la v6 y `/api/estado`
+     pide contraseña. Ya no queda nada para Gabriel en la línea B]
+   - **Idea de Gabriel: la tonalidad según lo que se quiere conseguir** (L13 del inventario, para más adelante). Un
+     músico no cambia de tonalidad igual para subir que para bajar la energía: desde Mi menor, Fa menor sube y Re menor
+     baja, aunque la regla de compatibilidad las trate parecido. Cómo encaja (agente): el LLM no razona teoría. Elige
+     una intención de una lista cerrada (subir energía, bajar, mantener, más luminoso, más oscuro), y el ordenador la
+     traduce con una tabla de pasos de la rueda Camelot. La tabla se mide en los 36 327 pares consecutivos de DJSets y
+     se contrasta con la teoría: quinta arriba, tono y semitono arriba, relativo mayor.
 
 11. **Resultado de la escucha E12 corta: 5 a 5, no decide** (Gabriel escuchó el 11-13; la clave se abrió después).
     De 10 temas principales eligió la lista nueva en 5 y la de hoy en 5, y ninguna vez «no las distingo». Con la regla
@@ -459,7 +479,9 @@ cambiarlo. Evidencia: `docs/reports/traktor_concept_ai_cloudflare_2026-11-09.md`
    Evidencia: `docs/reports/clap_texto_2026-11-09.md`.
 9. **Cada concepto crea una playlist nueva, `Concepto <MMDD-HHMM> <nombre>.nml`, en la carpeta de sugerencias** (agente,
    por «una playlist nueva en Traktor»). No se pisan ni se borran solas. Sin probar dentro de Traktor.
-10. **Publicar en producción lo hace Gabriel** (agente). El control de permisos de la sesión bloqueó el despliegue y no
+10. **Publicar en producción lo hace Gabriel** (agente). [REEMPLAZADO 2026-11-13 por el pedido de Gabriel («¿por qué no
+    publicas tú mismo?»): el agente publica cuando Gabriel se lo pide en la conversación; DECISIONS 2026-11-13,
+    punto 10] El control de permisos de la sesión bloqueó el despliegue y no
     se buscó otra vía. `python cloudflare/publicar.py` publica, deja un `DEVICE_TOKEN` nuevo en Cloudflare y en el
     ordenador y activa el agente con Traktor.
 

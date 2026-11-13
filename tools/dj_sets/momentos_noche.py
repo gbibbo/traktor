@@ -21,6 +21,8 @@ PURPOSE: Tabla de momentos de la noche (L10 del plan de recomendación v2, docs/
            python tools/dj_sets/momentos_noche.py --json config/telefono/momentos.json
 CHANGELOG:
   - 2026-11-13: Creación (L10; informe docs/reports/momentos_djsets_2026-11-13.md).
+  - 2026-11-13: El JSON lleva también bpm_delta (Δ dentro del set, por momento) y generos_noche (la proporción de cada
+                género en toda la noche), que usa el ejecutor del teléfono para ordenar por momento.
 """
 from __future__ import annotations
 
@@ -454,9 +456,12 @@ def main() -> int:
     print("\n== 3. Momentos (posición: noche entera; after: títulos). xN frente a la misma población entera")
     edges_m = np.array([v[0] for v in MOMENTOS_POSICION.values()] + [1.0])
     resultados: Dict[str, Dict[str, Dict]] = {}
+    deltas: Dict[str, pd.DataFrame] = {}
+    bases: Dict[str, pd.Series] = {}
     for name, B in pops.items():
         base = genre_shares(B)
         delta = within_set(B, edges_m, rng, args.boot)
+        deltas[name], bases[name] = delta, base
         resultados[name] = {}
         print(f"\n  -- {name}")
         for i, (mom, (lo, hi)) in enumerate(MOMENTOS_POSICION.items()):
@@ -493,6 +498,9 @@ def main() -> int:
 
     tabla: Dict[str, Dict] = {mom: moment_entry(resultados[main_pop][mom], "posicion") for mom in MOMENTOS_POSICION}
     tabla["after"] = moment_entry(titulo["after"], "titulos")
+    for i, mom in enumerate(MOMENTOS_POSICION):                 # corrimiento dentro del set, para el ejecutor
+        if tabla[mom]["bpm"] is not None:
+            tabla[mom]["bpm_delta"] = round(float(deltas[main_pop].loc[i].delta), 1)
 
     print("\n== 4. Las dos fuentes, donde se pueden comparar")
     rp = resultados[main_pop]["cierre"]
@@ -525,6 +533,7 @@ def main() -> int:
                        "after: títulos. bpm = percentiles 25 y 75 de las filas; generos = fracción de las filas con "
                        "género de Beatport. tools/dj_sets/momentos_noche.py; docs/reports/momentos_djsets_2026-11-13.md"),
             "commit": head_commit(),
+            "generos_noche": {k: round(float(v), 3) for k, v in bases[main_pop].head(20).items()},
             "momentos": tabla,
         }
         out.parent.mkdir(parents=True, exist_ok=True)

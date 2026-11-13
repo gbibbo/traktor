@@ -437,7 +437,7 @@ def test_state_lists_the_presets(server):
     assert call(server["url"], "GET", "/api/estado")[0] == 401
     status, e = app(server, "GET", "/api/estado")
     assert status == 200 and {p["id"] for p in e["presets"]} >= {"sonando", "mas_rapido", "mas_lento", "sin_voces", "pico"}
-    assert all(p["pendiente"] for p in e["presets"] if p["grupo"] == "momento")
+    assert [p["id"] for p in e["presets"] if p["pendiente"]] == ["after"]          # los otros momentos ya ordenan
 
 
 def test_the_computer_reports_what_is_playing_and_the_catalog(server):

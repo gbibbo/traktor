@@ -177,7 +177,7 @@ def test_ambiguous_track_returns_candidates_and_no_list():
 
 
 def test_unknown_track_and_pending_slots_are_ignored_with_a_reason():
-    _, res = correr({"referencia": {"tipo": "tema", "busca": "bossa nova brasilera"}, "momento": "pico",
+    _, res = correr({"referencia": {"tipo": "tema", "busca": "bossa nova brasilera"}, "momento": "after",
                      "pesos": {"perfil": "genero"}, "orden": "momento", "texto": ["x y z"]})
     assert [i["casilla"] for i in res.ignorado] == ["referencia", "momento", "pesos.perfil", "orden.momento"]
     _, res = correr({"referencia": {"tipo": "dj", "busca": "Adriatique"}, "texto": ["x y z"]})
@@ -238,3 +238,36 @@ def test_real_library_playing_track_only_matches_parecidos():
     res = ej.ejecutar(fm.validar({"referencia": {"tipo": "sonando"}})[0], bib, ej.Sesion(principal, tocados))
     _, info = bib.rec.compute(principal, tocados)
     assert [bib.items[i].uid for i in res.indices] == info["uids"]
+
+
+# ---------------------------------------------------------------- momento de la noche (ordena, no filtra)
+
+TABLA = {"generos_noche": {"Tech House": 0.2, "House": 0.2, "Deep House": 0.1, "Techno (Peak Time / Driving)": 0.1,
+                           "Minimal / Deep Tech": 0.1, "Melodic House & Techno": 0.1},
+         "momentos": {"apertura": {"bpm": [120, 126], "bpm_mediana": 123, "bpm_delta": -4.0, "generos": {"Deep House": 0.3, "Tech House": 0.1}},
+                      "pico": {"bpm": [123, 128], "bpm_mediana": 125, "bpm_delta": 1.0, "generos": {"Techno (Peak Time / Driving)": 0.3, "House": 0.1}},
+                      "after": {"bpm": None, "generos": {}}}}
+
+
+@pytest.fixture
+def tabla(monkeypatch):
+    monkeypatch.setattr(fm, "momentos", lambda: TABLA)
+
+
+def test_moment_alone_orders_by_the_genres_typical_of_that_moment(tabla):
+    uids, res = correr({"momento": "pico"})
+    assert uids[0] == "g" and len(uids) == 9 and res.ignorado == []      # Techno ×3; no saca a nadie
+    assert correr({"momento": "apertura"})[0][0] == "e"                    # Deep House ×3
+    uids, _ = correr({"momento": "pico", "filtros": {"generos": {"incluir": ["Tech House"], "modo": "duro"}}})
+    assert uids == ["a", "main", "c"]                                      # mismo género: decide el BPM cerca de 125
+
+
+def test_moment_with_reference_moves_toward_the_measured_bpm(tabla):
+    apertura, _ = correr({"referencia": {"tipo": "sonando"}, "momento": "apertura"}, SONANDO)
+    solo, _ = correr({"referencia": {"tipo": "sonando"}}, SONANDO)
+    assert set(apertura) == set(solo) and apertura.index("e") < solo.index("e")   # e: Deep House, 120 BPM (124 − 4)
+
+
+def test_moment_without_data_is_ignored_with_a_reason(tabla):
+    uids, res = correr({"momento": "after", "texto": ["x y z"]})
+    assert [i["casilla"] for i in res.ignorado] == ["momento"] and uids == correr({"texto": ["x y z"]})[0]

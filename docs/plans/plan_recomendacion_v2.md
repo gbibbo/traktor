@@ -208,7 +208,7 @@ Publicar en producción sigue siendo paso de Gabriel (`python cloudflare/publica
 | B1 | Hecho: `ejecutor.py`. Con solo texto o con solo «lo que suena» da la lista de hoy, comprobado con la biblioteca real |
 | B2 y B4 | Hechos en el Worker v6, probado en local: presets sin LLM y pasos con conteos |
 | B3 | Espera el banco de pedidos |
-| L10 | Tabla medida en DJSets (`momentos_djsets_2026-11-13.md`). Forma elegida por el agente: el momento ordena y no filtra (DECISIONS 11-13, punto 10). Falta implementarla |
+| L10 | Hecho y publicado: tabla medida en DJSets (`momentos_djsets_2026-11-13.md`); el momento ordena y no filtra (DECISIONS 11-13, punto 10); after sin datos |
 
 ## 4. Orden
 

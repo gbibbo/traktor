@@ -22,7 +22,7 @@
   "texto": {"max": 3, "max_caracteres": 180},
   "otros": {"anio": [1950, 2100], "max_nombres": 5, "max_caracteres": 60},
   "pendiente": {
-    "momento": "El momento de la noche todavía no filtra: espera la tabla que aprueba Gabriel (L10) o la línea A (A5).",
+    "momento": "Ese momento todavía no tiene datos en DJSets (after): no ordena la lista.",
     "referencia.dj": "«Como tal DJ» todavía no existe: llega con la línea A (A6).",
     "pesos.perfil": "Los perfiles de pesos todavía no existen: se usa el puntaje de Parecidos por defecto (los define la línea A).",
     "orden.momento": "Ordenar por momento todavía no existe: se ordena por puntaje."

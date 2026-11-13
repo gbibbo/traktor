@@ -11,6 +11,7 @@ PURPOSE: El formulario de consulta del teléfono (plan de recomendación v2, sec
          Línea de comandos: python tools/traktor_live/formulario.py catalogo   (imprime el catálogo de la biblioteca)
 CHANGELOG:
   - 2026-11-13: Creación inicial (línea B, unidad B0). La tonalidad ya no tiene «libre»: el filtro del vivo queda.
+  - 2026-11-13: momentos(): la tabla de momentos de config/telefono/momentos.json, para el ejecutor.
 """
 from __future__ import annotations
 
@@ -31,6 +32,7 @@ import src.v4.common  # noqa: E402,F401  (salida UTF-8 en consolas cp1252)
 
 CONTRATO_PATH = REPO_ROOT / "config" / "telefono" / "formulario.json"
 PRESETS_PATH = REPO_ROOT / "config" / "telefono" / "presets.json"
+MOMENTOS_PATH = REPO_ROOT / "config" / "telefono" / "momentos.json"
 VERSION = 1
 CAMELOT = re.compile(r"^(1[0-2]|[1-9])[AB]$")
 CASILLAS = ("version", "filtros", "referencia", "pesos", "momento", "texto", "orden", "largo")
@@ -57,6 +59,14 @@ def contrato(path: Path = CONTRATO_PATH) -> dict:
 
 def presets(path: Path = PRESETS_PATH) -> dict:
     return _leer(str(path))
+
+
+def momentos(path: Path = MOMENTOS_PATH) -> dict:
+    """La tabla de momentos medida en DJSets (tools/dj_sets/momentos_noche.py). Vacía si falta."""
+    try:
+        return _leer(str(path))
+    except (OSError, ValueError):
+        return {}
 
 
 def vacio() -> dict:
@@ -406,7 +416,7 @@ def describir(form: dict) -> List[str]:
     if not o["excluir_tocados"]:
         out.append("Puede repetir lo ya tocado")
     if form["momento"]:
-        out.append(f"Momento: {form['momento']}")
+        out.append(f"Momento: {form['momento']} (ordena, no filtra)")
     if form["orden"] == "bpm_sube":
         out.append("Ordenados por BPM, de menor a mayor")
     elif form["orden"] == "bpm_baja":

@@ -14,11 +14,16 @@ PURPOSE: El ejecutor del formulario del teléfono (plan de recomendación v2, se
          Puntaje: con referencia, el de Parecidos; con texto, el coseno CLAP del promedio de las frases (la lista de hoy);
          con los dos, el promedio de sus percentiles (regla nueva, a escuchar); sin ninguno, lo más típico del grupo que
          pasó los filtros (coseno con su centro). Después se corta en «largo» y, si se pidió, se ordena por BPM.
-         Lo que todavía no existe (momento, «como tal DJ», perfiles de pesos, orden por momento) se ignora con un aviso.
+         El momento de la noche ordena y no filtra (tabla medida en DJSets). Lo que todavía no existe (after, «como tal
+         DJ», perfiles de pesos, orden por momento) se ignora con un aviso.
 CHANGELOG:
   - 2026-11-13: Creación inicial (línea B, unidad B1).
   - 2026-11-13: Sin «tonalidad libre»: el filtro de tonalidad del vivo es regla de Gabriel y queda («ignora la
                 tonalidad» baja su peso; valores por defecto de la auditoría, DECISIONS 2026-11-13 punto 9).
+  - 2026-11-13: El momento ordena y no filtra (DECISIONS 2026-11-13, punto 10; tabla config/telefono/momentos.json):
+                promedio de percentiles entre el puntaje de siempre y el del momento (cuánto más típico es el género
+                en ese momento que en la noche; con referencia, también la cercanía al BPM que suena más el
+                corrimiento medido). After no tiene datos y se ignora con aviso.
 """
 from __future__ import annotations
 
@@ -280,9 +285,22 @@ def ejecutar(form: dict, bib, sesion: Optional[Sesion] = None,
         paso("Nada de " + ", ".join(otros["artistas_excluir"]),
              lambda i: not any(_contiene(a, items[i].artist) for a in otros["artistas_excluir"]))
 
-    # lo que todavía no existe
+    # momento: ordena, no filtra (DECISIONS 2026-11-13, punto 10)
+    momento = None
     if form["momento"]:
-        ignorado.append(_pendiente("momento"))
+        tabla = fm.momentos()
+        entrada = (tabla.get("momentos") or {}).get(form["momento"]) or {}
+        noche = tabla.get("generos_noche") or {}
+        if entrada.get("bpm") is None or not entrada.get("generos") or not noche:
+            ignorado.append(_pendiente("momento"))
+        else:
+            delta = entrada.get("bpm_delta")
+            # con referencia, lo que suena corrido según lo medido; sin referencia, la mediana medida de ese momento
+            objetivo = bpm0 + float(delta) if bpm0 is not None and delta is not None else entrada.get("bpm_mediana")
+            momento = {"lift": {g: s / noche[g] for g, s in entrada["generos"].items() if noche.get(g)},
+                       "objetivo": objetivo}
+
+    # lo que todavía no existe
     if form["pesos"]["perfil"] != "por_defecto" or form["pesos"]["ajustes"]:
         ignorado.append(_pendiente("pesos.perfil"))
     if form["orden"] == "momento":
@@ -305,6 +323,16 @@ def ejecutar(form: dict, bib, sesion: Optional[Sesion] = None,
             puntos = txt
         else:
             puntos = [(a + b) / 2 for a, b in zip(_percentiles(puntos), _percentiles(txt))]
+    if momento is not None:
+        # géneros más típicos de ese momento que de la noche entera; con referencia, también el BPM cerca de lo que
+        # suena corrido según lo medido (la apertura más lenta, el cierre más rápido)
+        pm = _percentiles([momento["lift"].get(items[i].genre, 0.0) for i in vivos])
+        if momento["objetivo"] is not None:
+            obj = momento["objetivo"]
+            cerca = _percentiles([0.0 if items[i].bpm is None else max(0.0, 1.0 - abs(items[i].bpm - obj) / rc.BPM_RANGE)
+                                  for i in vivos])
+            pm = [(2 * a + b) / 3 for a, b in zip(pm, cerca)]     # el género pesa el doble: el BPM se corre poco
+        puntos = pm if puntos is None else [(a + b) / 2 for a, b in zip(_percentiles(puntos), pm)]
     if puntos is None:
         if fm.es_vacio(form):
             ignorado.append({"casilla": "formulario", "motivo": "El pedido no tiene nada que buscar."})
