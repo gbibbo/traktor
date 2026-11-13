@@ -6,29 +6,39 @@ EVIDENCIA OBSERVADA, INFERENCIA, HIPÓTESIS o NO CONCLUYENTE.
 
 ## Veredicto
 
-El corte no lo provocaba nuestro trabajo, ni la falta de GPU, ni el diseño de gpuq. Fue un período de Colab: del
-2-nov a las 17 UTC hasta por lo menos el 10-nov a las 23 UTC, Colab recuperó toda VM T4 lanzada por el CLI unos 12
-a 14 min después de asignada. Pasó en los dos despachadores de la Raspberry (gpuq, el de este repo, y el de ERC-LM),
-que en octubre corrían en Colab trabajos de 1,5 a 4,3 h con el mismo CLI, el mismo diseño y desde la misma
-Raspberry (con la cuenta de Colab de Gabriel según las notas de ERC-LM; la de gpuq no la miré, para no leer
-credenciales). El
-13-nov, tres pruebas con T4 sobrevivieron más de 30 min, incluida una con el patrón exacto de gpuq: Colab volvió a
-servir tal como está. Por qué cortó esos días no se puede saber desde acá, ni si fue para todos o solo para esta
-cuenta. Puede volver sin aviso. Por eso los trabajos siguen escritos para retomarse, y la sección «Cómo usar Colab»
-dice cómo darse cuenta a tiempo y qué hacer.
+El corte no lo provoca la falta de GPU ni el esquema de consultas de gpuq, y no es cosa de un trabajo nuestro en
+particular. Empezó del lado de Colab el 2-nov a las 17 UTC: desde entonces Colab recupera, unos 12 a 14 min después
+de asignada, toda VM T4 que corre un trabajo real de gpuq. Pasa en los dos despachadores de la Raspberry (gpuq, el de
+este repo, y el de ERC-LM), que en octubre corrían en Colab trabajos de 1,5 a 4,3 h con el mismo CLI, el mismo diseño
+y desde la misma Raspberry (con la cuenta de Colab de Gabriel según las notas de ERC-LM; la de gpuq no la miré, para
+no leer credenciales). El 13-nov sigue: `traktor-a0-1` se cortó a los 12,2 y a los 12,6 min.
 
-De paso apareció un error de gpuq que corta intentos sanos: un corte de red pasajero en una consulta se lee como «VM
-perdida» y gpuq libera una VM viva (sección «Un error de gpuq»). Arreglarlo es un cambio en el despachador y espera
-el OK de Gabriel.
+Ese mismo día, en cambio, tres pruebas que solo usan la GPU vivieron más de 30 min, una de ellas con el esquema exacto
+de consultas de gpuq. Lo que dispara el corte está en algo que hacen los trabajos reales y las pruebas no: el arranque
+de gpuq (subir las credenciales, instalar rclone, clonar el repo) o el trabajo en sí (bajar del Drive y de Hugging
+Face, decodificar audio en la CPU). La prueba E3, encolada con el OK de Gabriel, separa las dos cosas. Por qué Colab
+lo hace no se puede saber desde acá, ni si es para todos o solo para esta cuenta. Mientras tanto, en Colab cada
+intento rinde unos 10 min útiles: sirve para trabajos que guardan cada pocos minutos, y lo que necesita horas va a
+Kaggle (sección «Cómo usar Colab»).
+
+[REFUTADO 2026-11-13 por `traktor-a0-1`, cortado a los 12,2 y 12,6 min a las 18:37 y 18:50 UTC: ese día vivían las
+pruebas sintéticas, no los trabajos reales] El 13-nov, tres pruebas con T4 sobrevivieron más de 30 min, incluida una
+con el patrón exacto de gpuq: Colab volvió a servir tal como está.
+
+De paso apareció un error de gpuq que cortaba intentos sanos: un corte de red pasajero en una consulta se leía como
+«VM perdida» y gpuq liberaba una VM viva (sección «Un error de gpuq»). Corregido el 13-nov con el OK de Gabriel.
 
 | Afirmación | Etiqueta | Evidencia |
 | --- | --- | --- |
 | Del 2-nov 17 UTC al 10-nov se cortaron 56 intentos T4 (mediana 13,4 min, máximo 21,6) y ninguno de más de 5 min terminó; los otros 4 fueron dos cancelados a mano y dos pruebas de 2 y 4 min | EVIDENCIA OBSERVADA | `docker logs` de `gpuq` y `erclm-colab`, `tools/gpuq/diag_colab/duraciones.py` |
 | Del 19-oct al 2-nov, 14 de 21 intentos T4 terminaron tras más de 15 min (mediana 89 min, máximo 4 h 21 min) | EVIDENCIA OBSERVADA | ídem |
 | Los dos despachadores usan `google-colab-cli` 0.7.4 y el mismo diseño (trabajo desprendido, una consulta corta por minuto) | EVIDENCIA OBSERVADA | `pip show` en los dos contenedores; `gpuq/dispatcher.py`; commit `5211e52` de `erclm-2027-dev` |
-| El 13-nov el patrón de gpuq sobrevivió 35 min con la GPU al 100 % | EVIDENCIA OBSERVADA | prueba E0, sección «Las pruebas del 13-nov» |
-| El corte fue del lado de Colab, no de nuestro código | INFERENCIA | mismo cliente con resultados opuestos según la fecha; trabajos distintos de dos proyectos cortados igual |
-| Fue un temporizador de inactividad más estricto | HIPÓTESIS | coincide con los 12-13 min de las sesiones sin keep-alive de junio; no se puede probar mientras el corte no esté |
+| El 13-nov el patrón de consultas de gpuq, con un trabajo que solo usa la GPU, sobrevivió 35 min | EVIDENCIA OBSERVADA | prueba E0, sección «Las pruebas del 13-nov» |
+| El 13-nov los trabajos reales de gpuq se siguen cortando: `traktor-a0-1` a los 12,2 y 12,6 min, con el mensaje propio del CLI | EVIDENCIA OBSERVADA | `docker logs gpuq`; `cola.py logs traktor-a0-1` |
+| El corte empezó del lado de Colab, no de nuestro código | INFERENCIA | mismo cliente con resultados opuestos antes y después del 2-nov; trabajos distintos de dos proyectos cortados igual |
+| Lo dispara algo que hacen los trabajos reales y las pruebas no | INFERENCIA | el mismo día, 3 de 3 pruebas sintéticas vivieron más de 30 min y 2 de 2 intentos reales se cortaron a los 12 min; muestra chica |
+| Si es el arranque de gpuq o el trabajo en sí | NO CONCLUYENTE | lo decide E3 (`traktor-diag-e3-1`): el trabajo sintético mandado por el camino completo de gpuq |
+| Es una poda por inactividad | HIPÓTESIS, debilitada | coincide con los 12-13 min de las sesiones sin keep-alive de junio, pero E0 vivió con el kernel quieto y una consulta por minuto |
 | Fue para todos o solo para esta cuenta | NO CONCLUYENTE | no hay reportes públicos; haría falta otra cuenta, y usar varias cuentas para esquivar límites va contra las reglas de Colab |
 
 ## Qué se observa
@@ -45,7 +55,8 @@ Incluyen el minuto de limpieza posterior a la consulta fallida, así que la VM m
   12:19 UTC (91 min). El 2-nov, `gen-opro_llm_base-1` empezó a las 16:32 y se cortó a los 49 min; los 43 intentos
   siguientes de ERC-LM se cortaron todos, casi siempre entre 12 y 14,5 min (uno a los 2, uno a los 9 y dos a los
   21,6). El 10-nov, los 13 intentos largos de traktor (`traktor-v7-1` y `traktor-v7-4`) duraron entre 12,6 y
-  15,7 min. Entre el 3 y el 10-nov nadie usó Colab con trabajos largos.
+  15,7 min. Entre el 3 y el 10-nov nadie usó Colab con trabajos largos. El 13-nov, `traktor-a0-1` se cortó a los
+  12,2 y 12,6 min (sección «Las pruebas del 13-nov»).
 - En octubre también hubo cortes sueltos a los 13 min (`split-audio-2` el 22-oct; `pilot-base-1` el 19-oct, que
   ERC-LM atribuyó a haber liberado la VM a mano), pero eran la excepción: 2 de 21.
 - En traktor cada intento tenía la T4: el trabajo dice «dispositivo cuda», y los latidos de gpuq muestran la GPU al
@@ -71,8 +82,20 @@ T4 durante 35 min. Scripts en `tools/gpuq/diag_colab/`.
   veces, con el trabajo al día, y al final `colab sessions` no mostró ninguna sesión asignada. Con el primero, mi
   script dio la VM por perdida por el mismo error que tiene gpuq (sección siguiente); retomé las consultas sobre la
   misma sesión, sin liberarla, y el reloj de la prueba siguió.
-- Lo que dicen: hoy ninguno de los tres patrones dispara el corte, así que E1 no distingue nada. Que una conexión
-  abierta lo evite mientras el corte está activo queda como HIPÓTESIS. E2 (`run_diag.sh e2`) prueba eso cuando vuelva.
+- Colab gratis da una sola T4 por cuenta. Mientras E0 la tenía, `traktor-a0-prueba-1` de la línea A recibió `no_gpu`
+  en Colab a las 17:45 y corrió en Kaggle; la cola estaba vacía cuando empecé, a las 17:38. Antes de una prueba fuera
+  de gpuq, avisar a las otras sesiones.
+- Lo que dicen: con un trabajo que solo usa la GPU, ninguno de los tres patrones dispara el corte, así que E1 no
+  distingue nada.
+- El mismo día, un trabajo real sí se cortó. `traktor-a0-1` (línea A: baja previews del Drive y los pasa por CLAP y
+  MAEST, encolado por otra sesión) empezó a las 18:24, 4 min después de que liberé E0, y recibió
+  `appears to be lost (404/401)` a las 18:36:39 y, en el intento 2, a las 18:49:12: 12,2 y 11,9 min después de
+  empezar. Entre las pruebas y ese trabajo cambian dos cosas a la vez, el camino de arranque y lo que hace el trabajo.
+- E3 (`tools/gpuq/diag_colab/carga_gpu.py`, trabajo `traktor-diag-e3-1`) deja fijo el trabajo sintético y lo manda
+  por el camino completo de gpuq: subir credenciales, instalar rclone, clonar el repo, desprenderlo y consultarlo cada
+  minuto. Si se corta a los 13 min, el disparador está en el arranque de gpuq; si vive, en lo que hacen los trabajos.
+  Encolado el 13-nov a las 18:55 UTC con `--platform colab`; corre cuando le toque el turno.
+- Mientras la causa no esté, E2 (`run_diag.sh e2`, consultas largas con la conexión abierta) queda para después de E3.
 
 ## Un error de gpuq: un corte de red se lee como VM perdida
 
@@ -88,8 +111,12 @@ T4 durante 35 min. Scripts en `tools/gpuq/diag_colab/`.
 - En los registros de gpuq no hay ningún caso: todos los cortes de noviembre traen el mensaje propio del CLI.
 - Corrección propuesta: dar la VM por perdida solo con la línea propia del CLI,
   `^\[colab\] Session '<nombre>' (appears to be lost|not found)`, y contar cualquier otra falla como una consulta
-  fallida (6 seguidas cortan el intento, como ya hace gpuq). Es un cambio en el despachador, que sirve también a
-  otros proyectos: espera el OK de Gabriel.
+  fallida (6 seguidas cortan el intento, como ya hace gpuq). [REEMPLAZADO 2026-11-13 por el OK de Gabriel: hecho en
+  gpuq `332546b` (`LOST_LINE` en `gpuq/dispatcher.py`, con un test que reproduce el traceback), traído a
+  `gpuq-personal` en `a60c5ee`; el despachador de la Raspberry lo corre desde las 18:37 UTC] Es un cambio en el
+  despachador, que sirve también a otros proyectos: espera el OK de Gabriel.
+- El despachador de ERC-LM (`tools/pi_operator/dispatcher.py` de `erclm-2027-dev`) tiene el mismo error y no se tocó:
+  es de otro proyecto.
 
 ## Qué no es
 
@@ -114,38 +141,46 @@ T4 durante 35 min. Scripts en `tools/gpuq/diag_colab/`.
   conexión abierta durante todo el trabajo (issue 160). EVIDENCIA OBSERVADA: código del CLI 0.6.0 a 0.8.0 y issues,
   leídos en esta sesión.
 - Colab no publica sus límites y avisa que cambian (FAQ de Colab; `docs/HOW_IT_WORKS.md` de gpuq).
-- El corte de noviembre se parece a la poda por inactividad de junio: mismo tiempo y mismo mensaje. HIPÓTESIS: durante
-  esos días, Colab dejó de contar como actividad algo que el cliente sí hace en el resto del tiempo.
+- El corte de noviembre se parece a la poda por inactividad de junio: mismo tiempo y mismo mensaje. [REEMPLAZADO
+  2026-11-13 por E0, que vivió 42 min con el kernel quieto y una consulta por minuto, y `traktor-a0-1`, cortado el
+  mismo día: si es una poda, Colab la aplica según algo que hacen los trabajos reales] HIPÓTESIS: durante esos días,
+  Colab dejó de contar como actividad algo que el cliente sí hace en el resto del tiempo.
 - Reinstalar el ping de keep-alive por nuestra cuenta queda descartado sin una decisión de Gabriel: Google lo sacó del
   CLI oficial, y la guía de gpuq pide averiguar por qué una plataforma corta en vez de buscarle la vuelta («Do not
   work around limits», `docs/HOW_IT_WORKS.md`).
 
 ## Cómo usar Colab
 
-1. **Colab sirve hoy con gpuq tal como está** (prueba E0 del 13-nov: 35 min con un trabajo sintético, sin Drive ni
-   descargas). `--platform auto` está bien. El primer trabajo real de más de 20 min en Colab lo confirma: mirar sus
-   intentos con el punto 3.
-2. **Todo trabajo se retoma**: parcial al Drive cada pocos minutos, nunca más de 10 sin guardar
-   (`docs/LESSONS_LEARNED.md`). Así cualquier corte, el de noviembre o uno de red, cuesta minutos y no el trabajo.
-3. **Cómo darse cuenta de que el corte volvió**: `python tools/gpuq/cola.py logs <id>` muestra, en cada intento,
-   `poll failed 1/6: [colab] Session 'gpuq' appears to be lost (404/401)` cerca de los 13 min. Dos intentos seguidos
-   así, a los 12-15 min de empezados, es el corte. Un `RuntimeError`, un `ReadTimeout` o un traceback no lo son.
-4. **Si volvió**: cancelar el trabajo de Colab (`cola.py cancel <id>`) y mandarlo de nuevo con `--platform kaggle`, en
-   vez de gastar los 10 intentos. Anotar la fecha en este informe, en la tabla de períodos. Un trabajo que se retoma
-   igual avanza en Colab unos 10 de cada 13,5 min, si Kaggle no tiene cupo (INFERENCIA, de los intentos de
+1. **Hoy Colab corta los trabajos reales de gpuq a los 12-13 min** (13-nov, `traktor-a0-1`). Cada intento rinde unos
+   10 min útiles y gasta uno de los 10 cortes que gpuq tolera por trabajo (INFERENCIA, de los intentos de
    `traktor-v7-4`: arranque y carga de modelos de 1 a 2 min, más lo que quedó sin guardar).
-5. **Para volver a medir** (pedirle el OK a Gabriel: usa su cuenta de Colab y hasta 1,5 h de T4 gratis):
-   `run_diag.sh e0` dice si el corte está; con el corte activo, `run_diag.sh e2` prueba la corrección candidata
-   (consultas largas de 10 min con la conexión abierta) y `run_diag.sh e1` la conexión abierta todo el tiempo.
+2. **Lo que necesita horas va a Kaggle** (`--platform kaggle`). En Colab entra solo lo que guarda un parcial al Drive
+   cada pocos minutos, nunca más de 10 sin guardar (`docs/LESSONS_LEARNED.md`); así el corte cuesta minutos y no el
+   trabajo. Con `--platform auto`, un trabajo cae en Colab cada vez que el carril se libera.
+3. **Cómo reconocer el corte**: `python tools/gpuq/cola.py logs <id>` muestra, en cada intento,
+   `poll failed 1/6: [colab] Session 'gpuq' appears to be lost (404/401)` cerca de los 12-13 min de empezado. Un
+   `RuntimeError`, un `ReadTimeout` o un traceback son cortes de red: gpuq ya no los toma por VM perdida.
+4. **Cómo saber que terminó**: un intento real en Colab que pasa de 20 min. Cuando pase, anotarlo en este informe y
+   volver a `--platform auto` para todo.
+5. **Para volver a medir** (pedirle el OK a Gabriel: usa su cuenta de Colab y hasta 1,5 h de T4 gratis, y le quita
+   el carril de Colab a la cola mientras dura): `carga_gpu.py` por gpuq (E3) separa el arranque de gpuq del trabajo;
+   `run_diag.sh e0` y `e1` miden fuera de gpuq; `run_diag.sh e2` prueba consultas largas con la conexión abierta.
 6. **Para mirar el historial** de cortes de los dos despachadores: `tools/gpuq/diag_colab/duraciones.py` (instrucciones
    en su docstring).
 
 ## Pendiente
 
-- GABRIEL: OK para corregir en gpuq los marcadores de VM perdida (sección «Un error de gpuq»); el mismo cambio sirve
-  para el despachador de ERC-LM. Con eso también se corrige la nota de «Known issues» de `docs/HOW_IT_WORKS.md` de
-  gpuq, que dice que las T4 duran horas y las VM de CPU poco: en noviembre las T4 duraron lo mismo que esas CPU.
-- LOCAL: si el corte vuelve, correr E0 y E2 con su OK y completar este informe.
+- [REEMPLAZADO 2026-11-13 por el OK de Gabriel: gpuq corregido y desplegado, y «Known issues» de
+  `docs/HOW_IT_WORKS.md` de gpuq reescrito] GABRIEL: OK para corregir en gpuq los marcadores de VM perdida (sección
+  «Un error de gpuq»); el mismo cambio sirve para el despachador de ERC-LM. Con eso también se corrige la nota de
+  «Known issues» de `docs/HOW_IT_WORKS.md` de gpuq, que dice que las T4 duran horas y las VM de CPU poco: en noviembre
+  las T4 duraron lo mismo que esas CPU.
+- [REEMPLAZADO 2026-11-13 por E3, con el OK de Gabriel para usar el carril de Colab cuando quede libre] LOCAL: si el
+  corte vuelve, correr E0 y E2 con su OK y completar este informe.
+- LOCAL: leer el resultado de `traktor-diag-e3-1` (`cola.py logs traktor-diag-e3-1`) y completar este informe. Si se
+  corta, partir el arranque de gpuq (credenciales, rclone, clonado) para ver cuál lo dispara; si vive, probar el
+  trabajo sintético con tráfico al Drive.
+- LÍNEA A: decidir si sus `traktor-a0` pendientes van a Kaggle mientras dure el corte (avisado el 13-nov).
 
 ## Reproducir
 

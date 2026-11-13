@@ -24,17 +24,22 @@ nuevas: el token de GitHub del despachador lee este repo porque es público, y e
 
 Informe completo: `docs/reports/colab_corte_13min_2026-11-13.md`.
 
-- Del 2-nov a las 17 UTC al 10-nov, Colab cortó toda VM T4 lanzada por el CLI a los 12-14 min de asignada, en gpuq y
-  en el despachador de ERC-LM. No lo provocaba nuestro trabajo, ni la falta de GPU, ni el diseño de gpuq: el mismo
-  cliente corría horas en octubre, y el 13-nov el patrón de gpuq volvió a durar 35 min con la GPU al 100 %.
-- Colab sirve con gpuq tal como está. Igual, todo trabajo se retoma: parcial al Drive cada pocos minutos, nunca más
-  de 10 sin guardar.
-- El corte puede volver sin aviso. Se reconoce en `cola.py logs <id>`: dos intentos seguidos con
-  `appears to be lost (404/401)` a los 12-15 min de empezados. Si pasa, cancelar y mandar con `--platform kaggle`, y
-  anotar la fecha en el informe. Un `RuntimeError`, un `ReadTimeout` o un traceback son cortes de red, no ese corte.
-- gpuq da por perdida una VM viva cuando una consulta falla por red (su marcador `"not found"` aparece en el
-  traceback del CLI); la corrección espera el OK de Gabriel. Hasta entonces, un intento cortado así se relanza solo.
-- Para volver a medir: `tools/gpuq/diag_colab/` (con el OK de Gabriel: usa su cuenta de Colab).
+- Desde el 2-nov a las 17 UTC, Colab corta a los 12-14 min de asignada toda VM T4 que corre un trabajo real de gpuq,
+  también en el despachador de ERC-LM, que en octubre corría horas con el mismo cliente. El 13-nov seguía:
+  `traktor-a0-1` se cortó a los 12,2 y 12,6 min. No es la falta de GPU ni el esquema de consultas de gpuq: ese mismo
+  día, un trabajo que solo usa la GPU vivió 35 min con ese esquema. Qué lo dispara, el arranque de gpuq o lo que hace
+  el trabajo, lo dice la prueba E3 (`traktor-diag-e3-1`).
+- Mientras tanto, en Colab cada intento rinde unos 10 min útiles. Entra lo que guarda un parcial al Drive cada pocos
+  minutos, nunca más de 10 sin guardar. Lo que necesita horas va con `--platform kaggle`.
+- Se reconoce en `cola.py logs <id>`: `appears to be lost (404/401)` a los 12-13 min de cada intento. Un
+  `RuntimeError`, un `ReadTimeout` o un traceback son cortes de red, y gpuq ya no los toma por VM perdida (corregido
+  el 13-nov, despachador `a60c5ee`). El corte terminó cuando un intento real en Colab pase de 20 min: anotarlo en el
+  informe.
+- Para volver a medir: `tools/gpuq/diag_colab/` (con el OK de Gabriel: usa su cuenta de Colab y el único carril de
+  Colab de la cola).
+- [REFUTADO 2026-11-13 por `traktor-a0-1`, cortado a los 12 min ese mismo día: lo que duró 35 min fue un trabajo que
+  solo usa la GPU] Del 2 al 10-nov Colab cortó las VM T4 a los 12-14 min, y el 13-nov el patrón de gpuq volvió a
+  durar 35 min: Colab sirve con gpuq tal como está.
 
 ## Puesta en marcha en una PC nueva
 

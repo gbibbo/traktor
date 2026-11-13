@@ -36,10 +36,11 @@ Plan vigente: `docs/plans/plan_recomendacion_v2.md`. Inventario de ideas: `docs/
      sesión a los 13 minutos y gpuq dio el trabajo por fallido en el intento 11; el mismo trabajo en Kaggle corrió
      5 h 50 min sin cortes. Regla que sale de ahí (plan, 2.5): guardar cada pocos minutos, partir en trabajos chicos,
      y pedir Kaggle para lo que necesita horas seguidas. [REEMPLAZADO 2026-11-13 por
-     `docs/reports/colab_corte_13min_2026-11-13.md`: del 2-nov a las 17 UTC al 10-nov Colab recuperó toda VM T4
-     lanzada por el CLI a los 12-14 min de asignada, también en ERC-LM, que en octubre corría horas con el mismo CLI y
-     el mismo diseño; no lo provocaba nuestro trabajo, y el 13-nov el patrón de gpuq volvió a durar 35 min. La causa
-     del lado de Colab no se puede ver desde acá] Por qué Colab corta a los 13 minutos no se sabe.
+     `docs/reports/colab_corte_13min_2026-11-13.md`: desde el 2-nov a las 17 UTC Colab recupera a los 12-14 min de
+     asignada toda VM T4 que corre un trabajo real de gpuq, también en ERC-LM, que en octubre corría horas con el mismo
+     CLI y el mismo diseño; el 13-nov seguía (`traktor-a0-1`, 12 min), mientras un trabajo que solo usa la GPU vivió
+     35 min con el esquema de gpuq. No lo provoca un trabajo nuestro en particular; qué lo dispara lo dice la prueba E3]
+     Por qué Colab corta a los 13 minutos no se sabe.
    - **Se entrena con el dataset completo, de uso privado.** Cierra C1.
    - **Unir la rama:** hecho por el agente, con avance rápido; `main` quedó en `dcd93a3`.
    - **Pidió el HTML de la escucha con las indicaciones.** Cómo (agente): `tools/playlist_review/pagina_escucha.py`
