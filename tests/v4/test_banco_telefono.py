@@ -3,7 +3,7 @@ PURPOSE: Tests del banco de regresión del teléfono (tools/traktor_live/banco_t
          del banco tiene un formulario esperado válido; un intérprete que entiende todo bien saca 1 en cada casilla; uno
          que inventa un género o se equivoca en una casilla se detecta, y el umbral se aplica como está escrito.
 CHANGELOG:
-  - 2026-11-13: Creación inicial (línea B, B3).
+  - 2026-11-13: Creación inicial (línea B, B3). Las reglas del Worker pasan el umbral fijado antes de medir.
 """
 import json
 import sys
@@ -75,3 +75,14 @@ def test_named_track_matches_by_words_and_the_baseline_is_recorded():
     assert hoy["exactitud"]["generos"] < 0.9 and bt.cumple(hoy, "completo")
     umbral = json.loads(bt.UMBRAL_PATH.read_text(encoding="utf-8"))
     assert umbral["reglas"]["precision_minima"] == 0.97 and umbral["completo"]["exactitud_minima"] == 0.90
+
+
+def test_the_worker_rules_pass_the_fixed_threshold():
+    import shutil
+    import pytest
+    if shutil.which("node") is None:
+        pytest.skip("hace falta Node para correr las reglas del Worker")
+    r = bt.evaluar(bt.InterpreteReglas(), BANCO)
+    assert bt.cumple(r, "reglas") == [] and r["generos_inventados"] == []
+    gabriel = next(x for x in BANCO if x["id"] == "t1")      # su pedido real del 11-13: ahora sin LLM
+    assert all(bt.comparar(bt.InterpreteReglas()(gabriel["pedido"], True), gabriel).values())

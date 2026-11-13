@@ -119,6 +119,25 @@ Plan vigente: `docs/plans/plan_recomendacion_v2.md`. Inventario de ideas: `docs/
     listas (agente): la próxima es para lo que salga de la línea A (A2 o A3), contra la lista de hoy y con el mismo
     formato corto. Informe: `docs/reports/escucha_corta_e12_2026-11-13.md`.
 
+12. **Primera prueba de Gabriel en el teléfono, y las reglas antes del LLM.**
+   - **La prueba** (Gabriel, 11-13): sonaba «Samba» de Paul Ritch, eligió «Apertura» y escribió «Algo parecido a lo
+     actual pero para apertura». El LLM lo tradujo como «Música house moderna y energética para comenzar un set». Para
+     Gabriel, los primeros temas encajan con esa frase, pero la frase no es lo que pidió: Samba es un techno más oscuro
+     y menos melódico. Preguntó cómo corregirlo de manera sistemática.
+   - **Diagnóstico** (agente, en el registro del ordenador): la referencia quedó en «ninguna». En la v6 todo el texto
+     iba al LLM, que describe y no sabe qué suena. El ordenador sí tenía la sesión: sacó de la lista el tema ya tocado.
+   - **Arreglo** (agente): el intérprete por reglas corre antes del LLM (`cloudflare/reglas.js`, con los datos en
+     `config/telefono/reglamento.json`). Lee con certeza «lo que suena» («parecido a lo actual»), el BPM, el BPM
+     relativo, los géneros (también mal escritos), la voz, la tonalidad, el momento, el año, el sello, un tema nombrado,
+     los pesos y el orden. Ese pedido ahora es Parecidos de lo que suena, ordenado para la apertura, sin LLM. Lo que las
+     reglas no leen va al LLM junto con los filtros que ya pusieron. Un pedido ambiguo, vago o de algo que no hay se
+     contesta sin armar lista.
+   - **Medido en el banco**, con el umbral fijado antes de medir: 165 pedidos, y el de Gabriel entró como pedido real.
+     Las reglas tienen precisión 1,0 en cada casilla que llenan, no inventan ningún género, y en 122 de los 165 pedidos
+     no hace falta el LLM.
+   - **Pendiente:** el LLM en dos pasos (L7) para lo que queda: artistas, sellos, ocasiones como «para una boda». Se mide
+     con el banco completo.
+
 ## 2026-11-10 (E16: la ecuación con D5 y la escucha E12 lista)
 
 Informe: `docs/reports/juez_d5_2026-11-10.md`. Regla fijada en `77d4434` antes de medir.

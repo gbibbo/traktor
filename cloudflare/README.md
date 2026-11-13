@@ -30,8 +30,15 @@ cerradas (`config/telefono/formulario.json`). El ordenador lo ejecuta siempre ig
 - **Presets** (`config/telefono/presets.json`): seguir lo que suena, más lento, más rápido, sin voces, los 6 géneros con
   más temas (filtran duro) y los momentos, apagados hasta que Gabriel apruebe su tabla. Un pedido solo con presets va
   directo a la cola como lista final: no llama al LLM y no gasta neuronas (lo comprueba un test de punta a punta).
-- **Texto libre**: el mismo circuito del LLM de la v5. Si además hay presets, viajan en el formulario: el sondeo y la lista
-  final buscan dentro de esos filtros.
+- **Texto libre, primero por reglas** (`reglas.js`, datos en `config/telefono/reglamento.json`). Lo que se lee con
+  certeza llena el formulario sin LLM: «parecido a lo actual», BPM, géneros (también mal escritos), voz, tonalidad,
+  momento, año, sello, un tema nombrado.
+  - Si no queda nada sin leer, el pedido va directo a la lista: 122 de los 165 pedidos del banco.
+  - Lo que queda sin leer pasa por el mismo circuito del LLM de la v5, con los filtros de las reglas y de los presets.
+  - Un pedido ambiguo («bajar un cambio») se contesta con opciones de un toque. Uno de algo que no hay («reggaeton») y
+    uno vago («hola») se contestan sin armar lista.
+  - Banco y umbral: `config/telefono/banco_pedidos.jsonl`; `python tools/traktor_live/banco_telefono.py evaluar
+    --interprete reglas --modo reglas`.
 - **El resultado dice qué hizo**: cuántos temas quedaron después de cada filtro, lo aplicado en palabras, lo que no
   pudo aplicar y por qué. Si un tema nombrado tiene dudas, el resultado trae los candidatos para elegir.
 - **Lo que suena, arriba de la pantalla.** El ordenador lo manda de paso en su pedido de trabajo, al cambiar y cada

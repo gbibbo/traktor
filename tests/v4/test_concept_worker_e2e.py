@@ -10,6 +10,8 @@ CHANGELOG:
   - 2026-11-09: Worker v5: circuito con el LLM (pedido, sondeo, decisión, final), validadores, ajuste, conceptos viejos.
   - 2026-11-13: Worker v6: presets sin LLM (formulario en el trabajo, versión 3), presets y texto juntos, la ruta /api/estado
                 con lo que suena y el catálogo que manda el ordenador, resultados con pasos, lo ignorado y candidatos.
+  - 2026-11-13: Reglas antes del LLM (reglas.js): lo que se lee con certeza no gasta neuronas; un pedido ambiguo, vago o
+                de algo que no hay se contesta sin trabajo ni LLM.
 """
 import hashlib
 import json
@@ -221,7 +223,7 @@ def test_request_is_interpreted_and_queued_for_searches(server):
     job = pedido(server)
     c = job["concept"]
     assert job["status"] == "queued" and c["version"] == 3 and c["fase"] == "sondeo" and c["ronda"] == 1
-    assert c["formulario"] == ca.fm.vacio() and c["presets"] == []
+    assert c["formulario"]["momento"] == "after" and c["presets"] == [] and "momento" in c["reglas"]   # «after» lo leen las reglas
     assert c["original"] == "algo oscuro tipo after" and c["entendi"] == "Techno oscuro" and c["nombre"] == "After oscuro"
     assert [t["id"] for t in c["textos"]] == ["A", "B", "C"] and c["no_se_oye"] == ["after"]
     drain(server)
@@ -511,3 +513,41 @@ def test_choosing_a_candidate_sends_its_uid(server):
     assert status == 201 and job["concept"]["formulario"]["referencia"] == {"tipo": "tema", "uid": "u3"}
     assert job["concept"]["entendi"] == "Como «Tema 3»"
     drain(server)
+
+
+# ---------------------------------------------------------------- reglas antes del LLM
+
+def test_what_the_rules_read_skips_the_llm(server, agent):
+    drain(server)
+    antes = llm_calls(server)
+    status, job = app(server, "POST", "/api/conceptos", {"texto": "Algo parecido a lo actual pero para apertura"})
+    assert status == 201 and llm_calls(server) == antes                         # el pedido de Gabriel del 11-13
+    c = job["concept"]
+    assert c["fase"] == "final" and c["textos"] == [] and c["formulario"]["referencia"] == {"tipo": "sonando"}
+    assert c["formulario"]["momento"] == "apertura"
+    correr(agent(server), job["id"])
+    final = app(server, "GET", f"/api/jobs/{job['id']}")[1]
+    assert final["status"] == "done" and final["result"]["tracks"]
+    assert [i["casilla"] for i in final["result"]["ignorado"]][:1] == ["referencia"]   # este doble no tiene sesión del vivo
+
+
+def test_what_the_rules_cannot_read_goes_to_the_llm_with_their_filters(server):
+    drain(server)
+    catalogo_de_prueba(server)
+    antes = llm_calls(server)
+    status, job = app(server, "POST", "/api/conceptos", {"texto": "house con trompetas sin voces"})
+    assert status == 201 and llm_calls(server) == antes + 1
+    f = job["concept"]["formulario"]["filtros"]
+    assert job["concept"]["fase"] == "sondeo" and f["voz"] == "sin" and f["generos"]["incluir"] == ["House"] and f["generos"]["modo"] == "blando"
+    drain(server)
+
+
+def test_vague_ambiguous_and_missing_requests_answer_without_a_job(server):
+    antes = llm_calls(server)
+    status, r = app(server, "POST", "/api/conceptos", {"texto": "hola"})
+    assert status == 200 and r["salida"] == "pide_detalle" and "id" not in r
+    status, r = app(server, "POST", "/api/conceptos", {"texto": "la gente está cansada, bajar un cambio"})
+    assert r["salida"] == "pregunta" and [o["id"] for o in r["opciones"]] == ["mas_lento", "cierre", "sin_voces"]
+    status, r = app(server, "POST", "/api/conceptos", {"texto": "reggaeton"})
+    assert r["salida"] == "no_hay" and "no armo" in r["mensaje"]
+    assert llm_calls(server) == antes

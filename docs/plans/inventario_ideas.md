@@ -27,13 +27,13 @@ Cómo leerlo:
 | L2 | Ejecutor en el ordenador: recibe el formulario, filtra, puntúa, corta y dice qué hizo | Gabriel 11-13 | Hecho 11-13 (`ejecutor.py`) | B1 |
 | L3 | Presets en el teléfono: formularios ya llenos que no pasan por el LLM | Gabriel 11-13 | Hecho y publicado 11-13 (Worker v6) | B2 |
 | L4 | Catálogo de la biblioteca generado por código: géneros con conteo, rangos de BPM, campos disponibles | Plan v2 | Hecho 11-13 (`formulario.catalogo()`) | B0 |
-| L5 | Reglamento del LLM: tabla de decisión por tipo de pedido, en un solo archivo, del que salen los prompts | Gabriel 11-13 | Pendiente | B3 |
-| L6 | Intérprete por reglas antes del LLM: números de BPM, nombres exactos de género, tonalidades, «como <tema>» | Plan v2 | Pendiente | B3 |
+| L5 | Reglamento del LLM: tabla de decisión por tipo de pedido, en un solo archivo, del que salen los prompts | Gabriel 11-13 | En parte 11-13: `config/telefono/reglamento.json` lleva los datos de las reglas; faltan los prompts cortos del LLM (L7) | B3 |
+| L6 | Intérprete por reglas antes del LLM: números de BPM, nombres exactos de género, tonalidades, «como <tema>» | Plan v2 | Hecho y publicado 11-13 (`cloudflare/reglas.js`): precisión 1,0 en cada casilla del banco, 0 géneros inventados, 122 de 165 pedidos sin LLM | B3 |
 | L7 | LLM en dos pasos cortos: clasificar el tipo de pedido y llenar cada casilla; validadores y salida por defecto | Plan v2 | Pendiente | B3 |
 | L8 | Un tema o archivo nombrado lo resuelve el ordenador por coincidencia aproximada; el teléfono muestra candidatos | Gabriel 11-13 | En parte 11-13: el ordenador resuelve y el teléfono muestra candidatos; falta que el texto llene `referencia` (B3) | B3 |
 | L9 | Perfiles de pesos con nombre y tres niveles por factor; el LLM nunca escribe números | Gabriel 11-13; P6 | Pendiente | B1, B3 |
 | L10 | «Momento de la noche» como preset y como texto; tabla fija hasta que exista A5 | Gabriel 11-13 | Hecho y publicado 11-13: tabla medida en DJSets (`momentos_djsets_2026-11-13.md`); el momento ordena y no filtra; after sin datos | B3, B6 |
-| L11 | Banco de regresión del LLM: de 150 a 200 pedidos con su formulario esperado | Plan v2 | Semilla de 82 pedidos en `pedidos_telefono_borrador.md`; la revisa la auditoría, no Gabriel | B3 |
+| L11 | Banco de regresión del LLM: de 150 a 200 pedidos con su formulario esperado | Plan v2 | Hecho 11-13: 165 pedidos (`config/telefono/banco_pedidos.jsonl`: semilla, variantes y los pedidos reales del teléfono), umbral fijado antes de medir (`banco_umbral.json`) | B3 |
 | L12 | El teléfono muestra qué entendió y cuántos temas pasaron cada filtro, con un toque para corregir | Plan v2 | Hecho y publicado 11-13 (Worker v6), salvo el toque para corregir: hoy se corrige con «Ajustar» | B4 |
 | L13 | Tonalidad según la intención: el LLM elige de una lista cerrada (subir energía, bajar, mantener, más luminoso, más oscuro) y el ordenador la traduce a pasos preferidos de la rueda Camelot, con una tabla medida en los pares consecutivos de DJSets y contrastada con la teoría (quinta arriba, tono o semitono arriba, relativo mayor). Ejemplo de Gabriel: desde Mi menor, Fa sube y Re baja | Gabriel 11-13 | Idea, para más adelante | B6; A6 (tablas de transición); `clave_tabla` del recomendador |
 

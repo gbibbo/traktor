@@ -161,7 +161,26 @@ def interprete_hoy(pedido: str, hay_set: bool) -> dict:
     return {"formulario": {"texto": ["whatever the llm wrote"]}, "salida": "lista", "no_se_oye": []}
 
 
-INTERPRETES: Dict[str, Interprete] = {"hoy": interprete_hoy}
+class InterpreteReglas:
+    """Las reglas del Worker (cloudflare/reglas.js con config/telefono/reglamento.json), corridas con Node sobre todo el
+    banco de una vez. Mismo código que en producción: no hay una copia en Python."""
+
+    def __init__(self, banco_path: Path = BANCO_PATH, anio: int = 2026):
+        import shutil
+        import subprocess
+        node = shutil.which("node")
+        if node is None:
+            raise RuntimeError("Hace falta Node.js para correr las reglas del Worker")
+        salida = subprocess.run([node, str(REPO_ROOT / "cloudflare" / "banco_reglas.mjs"), str(banco_path), str(anio)],
+                                capture_output=True, text=True, encoding="utf-8", check=True).stdout
+        por_id = {r["id"]: r["pred"] for r in (json.loads(l) for l in salida.splitlines() if l.strip())}
+        self.pred = {(x["pedido"], x["set"]): por_id[x["id"]] for x in cargar(banco_path)}
+
+    def __call__(self, pedido: str, hay_set: bool) -> dict:
+        return self.pred[(pedido, hay_set)]
+
+
+INTERPRETES: Dict[str, Callable[[], Interprete]] = {"hoy": lambda: interprete_hoy, "reglas": InterpreteReglas}
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -173,7 +192,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ev.add_argument("--fallas", action="store_true", help="listar los pedidos que fallan en cada casilla")
     args = ap.parse_args(argv)
     banco = cargar()
-    r = evaluar(INTERPRETES[args.interprete], banco)
+    r = evaluar(INTERPRETES[args.interprete](), banco)
     print(f"[INFO] {r['n']} pedidos; intérprete {args.interprete}; modo {args.modo}")
     for c in CASILLAS:
         p = r["precision"][c]

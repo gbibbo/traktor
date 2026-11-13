@@ -52,8 +52,8 @@ Es el estado final, no una crónica: se edita en su lugar cuando algo cambia. To
 5. Recomendación: plan `plan_recomendacion_v2.md`; línea A en gpuq. Escucha E12 hecha: 5 a 5,
    Parecidos sigue con CLAP. GABRIEL: Traktor, «TRAKTOR ML sin tonalidad», Analyze solo
    Key. TIV aparte. Pedidos a Gabriel: 15 min o menos (`escucha_corta_e12_2026-11-13.md`).
-6. Teléfono, línea B: Worker v6, presets y momentos (ordenan), publicado (11-13). LOCAL: reglas del
-   LLM (B3) con la semilla y el registro del teléfono.
+6. Teléfono, línea B: Worker v6, presets, momentos y reglas antes del LLM, publicado (11-13).
+   LOCAL: el LLM en dos pasos (L7), medido con `banco_pedidos.jsonl`.
 
 ## RUN RECIPES
 

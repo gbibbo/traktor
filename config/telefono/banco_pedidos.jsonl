@@ -162,3 +162,4 @@
 {"id": "v80", "pedido": "cumbia", "set": false, "espera": {"salida": "no_hay"}, "origen": "variante"}
 {"id": "v81", "pedido": "salsa", "set": false, "espera": {"salida": "no_hay"}, "origen": "variante"}
 {"id": "v82", "pedido": "hip hop", "set": false, "espera": {"salida": "no_hay"}, "origen": "variante"}
+{"id": "t1", "pedido": "Algo parecido a lo actual pero para apertura", "set": true, "espera": {"referencia": {"tipo": "sonando"}, "momento": "apertura"}, "origen": "telefono", "nota": "Gabriel, 2026-11-13, sonando Paul Ritch - Samba: la v6 lo mandó al LLM y la referencia quedó en ninguna"}

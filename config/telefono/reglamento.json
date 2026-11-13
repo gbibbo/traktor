@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "descripcion": "Reglamento del teléfono (plan v2, L5 y L6): lo que el intérprete por reglas (cloudflare/reglas.js) lee con certeza, antes del LLM. Todo va escrito sin tildes y en minúsculas, como queda el pedido normalizado. Un género se llena solo con una palabra de género (o un error de escritura de una); un adjetivo que describe el sonido («oscuro», «melódico») va al texto (Gabriel, 2026-11-13). Lo que las reglas no consumen queda como «resto» y va al LLM.",
+  "relleno": ["algo", "quiero", "quisiera", "temas", "tema", "musica", "cosas", "para", "que", "con", "un", "una", "unos", "unas", "y", "e", "de", "del", "la", "el", "los", "las", "lo", "pero", "mas", "bien", "por", "ahi", "o", "a", "ver", "poneme", "pone", "dame", "busca", "buscame", "en", "al", "me", "se", "si", "ni", "tipo", "como", "ahora", "solo", "nada", "sin", "favor", "porfa", "ya", "es", "estoy", "esta", "estamos", "hay", "va", "vamos", "otro", "otra"],
+  "saludos": ["hola", "buenas", "hey", "que tal", "buen dia", "buenas noches"],
+  "vagos": ["algo bueno", "sorprendeme", "no se", "lo de siempre", "poneme lo de siempre", "cualquier cosa", "lo que quieras", "lo que sea"],
+  "ambiguos": ["que contraste", "cambiar de clima", "bajar un cambio", "algo distinto", "otra cosa", "algo diferente"],
+  "opciones_pregunta": {"bajar un cambio": ["mas_lento", "cierre", "sin_voces"], "que contraste": ["mas_rapido", "mas_lento", "pico"], "cambiar de clima": ["mas_rapido", "mas_lento", "pico"], "algo distinto": ["mas_rapido", "mas_lento", "pico"], "otra cosa": ["mas_rapido", "mas_lento", "pico"], "algo diferente": ["mas_rapido", "mas_lento", "pico"]},
+  "no_hay": ["bossa nova", "reggaeton", "drum and bass", "drum n bass", "dnb", "cumbia", "salsa", "hip hop", "jazz", "bachata", "rap", "merengue", "tango", "flamenco", "metal"],
+  "generos": [
+    {"generos": ["Tech House"], "formas": ["tech house", "tek house", "tech jaus", "tec haus", "tech haus", "techhouse", "tec house", "tek haus"]},
+    {"generos": ["Melodic House & Techno"], "formas": ["melodic house and techno", "melodic house techno", "melodic techno", "melodic tecno", "melodik techno", "melodik tecno", "melodic house", "melodic"]},
+    {"generos": ["Techno (Peak Time / Driving)", "Techno (Raw / Deep / Hypnotic)"], "formas": ["techno", "tecno", "tekno"]},
+    {"generos": ["Deep House"], "formas": ["deep house", "deep jaus", "dip house", "deep haus", "deep"]},
+    {"generos": ["Afro House"], "formas": ["afro house", "afrohouse", "afro haus", "afro"]},
+    {"generos": ["Progressive House"], "formas": ["progressive house", "progressive", "progresive"]},
+    {"generos": ["Minimal / Deep Tech"], "formas": ["minimal deep tech", "deep tech", "minimal"]},
+    {"generos": ["Organic House"], "formas": ["organic house", "organic"]},
+    {"generos": ["Indie Dance"], "formas": ["indie dance"]},
+    {"generos": ["Psy-Trance"], "formas": ["psytrance", "psy trance", "psy"]},
+    {"generos": ["Electronica"], "formas": ["electronica"]},
+    {"generos": ["House"], "formas": ["house", "jaus", "haus"]},
+    {"generos": ["Rock"], "formas": ["rock"]}
+  ],
+  "no_es_genero": ["musica electronica", "electronica de", "deep tech house"],
+  "excluir_antes": ["nada de", "ni de", "sin", "no quiero", "menos", "fuera"],
+  "voz": {
+    "sin": ["sin voces", "sin voz", "sin vos", "sin vocales", "sin vocal", "nada cantado", "instrumental", "instrumentales", "que no tenga voz", "que no tenga voces", "nada de vocales", "nada de voces", "sin cantante", "sin letra"],
+    "con": ["con voces", "con voz", "con vos", "con vocales", "con vocal", "con algo de voz", "con mas voz", "que tenga algo de voz", "que tenga voz", "algo de voz", "vocal", "voz"]
+  },
+  "sonando": ["parecido a lo que suena", "parecido a lo actual", "como lo actual", "a lo actual", "lo actual", "lo de ahora", "lo que esta sonando", "lo que suena", "mas de esto", "otro como este", "como este", "como esto", "lo mismo", "seguir en esta linea", "segui con esto", "seguir con esto", "algo parecido", "con esto", "este", "esto"],
+  "relativo": {
+    "mas_rapido": ["un poco mas rapido", "mas rapidos", "mas rapido", "mas rapida", "subi el tempo", "subir el tempo", "subi el bpm", "acelera"],
+    "mas_lento": ["bajemos un poco las revoluciones", "bajemos las revoluciones", "un poco mas lento", "mas lentos", "mas lento", "mas lenta", "baja el bpm", "baja el tempo", "bajar el tempo"],
+    "igual": ["mismo tempo", "mismo bpm", "igual de rapido"]
+  },
+  "tonalidad": {
+    "compatible": ["que combine en tonalidad", "que no choque armonicamente", "que combine con lo que esta sonando", "que combine con lo que suena", "que pegue con esto", "que combine con esto", "armonicamente compatible", "compatible en tonalidad"],
+    "igual": ["misma tonalidad", "mismo tono"]
+  },
+  "notas": {"do": 0, "re": 2, "mi": 4, "fa": 5, "sol": 7, "la": 9, "si": 11},
+  "camelot_mayor": [8, 3, 10, 5, 12, 7, 2, 9, 4, 11, 6, 1],
+  "camelot_menor": [5, 12, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10],
+  "momentos": {
+    "apertura": ["para abrir la noche", "abrir la noche", "para abrir", "warm up", "warmup", "para arrancar", "arrancar la noche", "apertura"],
+    "subida": ["se esta llenando la pista", "llenando la pista", "subiendo", "subida"],
+    "pico": ["estamos en el pico", "peak time", "hora pico", "el pico", "pico"],
+    "cierre": ["estoy cerrando la noche", "estoy cerrando", "para cerrar", "closing set", "closing", "cerrando", "cierre"],
+    "after": ["seis de la manana", "after hours", "afterhours", "madrugada", "after"]
+  },
+  "pesos": [
+    {"formas": ["me importa mas que suene parecido que el bpm"], "perfil": "sonido", "ajustes": [{"factor": "bpm", "nivel": "menos"}]},
+    {"formas": ["que pese mas el genero", "mas peso al genero", "que importe mas el genero"], "perfil": "genero", "ajustes": []},
+    {"formas": ["que sea bien armonico", "bien armonico", "que sea armonico"], "perfil": "armonico", "ajustes": []},
+    {"formas": ["ignora la tonalidad", "ignora el tono", "no importa la tonalidad"], "perfil": "por_defecto", "ajustes": [{"factor": "tonalidad", "nivel": "menos"}]}
+  ],
+  "orden": {"bpm_sube": ["ordenalos por bpm", "ordenados por bpm", "ordenar por bpm", "de menor a mayor bpm"], "bpm_baja": ["de mayor a menor bpm"]},
+  "fecha_no_si": ["reminiscencias", "reminisencias", "reminiscencia", "estilo", "suena a", "onda", "aire", "como de"],
+  "nuevos": ["temas nuevos de este ano", "de este ano", "temas nuevos", "lo nuevo", "lo mas nuevo"],
+  "tocados": ["sin repetir lo que ya puse hoy", "sin repetir lo que ya puse", "sin repetir", "que no haya puesto"],
+  "ocasiones": ["cumpleanos", "boda", "playa", "atardecer", "manejar", "gym", "gimnasio", "navidad", "fiesta", "cena", "casamiento", "piscina", "pileta"]
+}

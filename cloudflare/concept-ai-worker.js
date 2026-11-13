@@ -7,6 +7,8 @@
 // el catalogo de la biblioteca en numeros (tabla estado), y la pagina pide la contrasena una sola vez.
 import FORMULARIO from "../config/telefono/formulario.json";
 import PRESETS from "../config/telefono/presets.json";
+import REGLAMENTO from "../config/telefono/reglamento.json";
+import { interpretarReglas, normalizar } from "./reglas.js";
 
 const MODEL = "@cf/google/gemma-4-26b-a4b-it";
 const CAMELOT_RE = /^(1[0-2]|[1-9])[AB]$/;
@@ -301,6 +303,21 @@ function componer(ids, generos) {
     etiquetas.push(...gen);
   }
   return { form, etiquetas, desconocidos };
+}
+
+// Un pedido que no arma lista: ambiguo (se pregunta con opciones de un toque), algo que no hay, o sin nada que buscar.
+// Valores por defecto de la semilla del banco (pedidos_telefono_borrador.md): nunca se arma una lista de otra cosa.
+function respuestaSinLista(salida, texto) {
+  if (salida === "pregunta") {
+    const t = normalizar(texto);
+    const clave = Object.keys(REGLAMENTO.opciones_pregunta).find(k => t.includes(k));
+    const ids = clave ? REGLAMENTO.opciones_pregunta[clave] : ["mas_rapido", "mas_lento", "pico"];
+    const porId = Object.fromEntries(PRESETS.presets.map(p => [p.id, p]));
+    return { salida, mensaje: "¿Hacia dónde quieres cambiar? Elige una opción o dilo de otra forma.",
+      opciones: ids.filter(id => porId[id]).map(id => ({ id, etiqueta: porId[id].etiqueta })) };
+  }
+  if (salida === "no_hay") return { salida, mensaje: "Eso no está en tu biblioteca: no armo una lista de otra cosa.", opciones: [] };
+  return { salida: "pide_detalle", mensaje: "Cuéntame un poco más: un género, un BPM, un momento o cómo quieres que suene.", opciones: [] };
 }
 
 // ---------------------------------------------------------------- estado que manda el ordenador (tabla estado)
@@ -689,13 +706,30 @@ async function handleApp(request, env, path) {
           return fail("No se pudo leer el concepto anterior", 500);
         }
       }
-      const interpretado = await interpretar(env, texto, anterior && anterior.textos.length ? anterior : null);
-      if (!interpretado) return fail("El modelo no pudo interpretar el pedido. Prueba otra vez.", 502);
-      const original = anterior ? `${anterior.original} / ${texto}` : texto;
-      // Al ajustar sin tocar los presets, siguen los del pedido anterior.
-      const formulario = !conPresets && anterior && anterior.formulario ? anterior.formulario : form;
+      // Primero las reglas (reglas.js): lo que se lee con certeza no pasa por el LLM. Si no queda nada sin leer, el LLM
+      // ni se llama (cero neuronas).
+      const estadoT = generos.length ? estado : await leerEstado(env);
+      const s = estadoT.sonando;
+      const haySet = !!(s && s.valor && Date.now() - s.updated_at < ORDENADOR_VIVO_MS);
+      const reglas = interpretarReglas(texto, { haySet, anio: new Date().getFullYear() }, REGLAMENTO, FORMULARIO);
+      if (reglas.salida !== "lista") return reply(respuestaSinLista(reglas.salida, texto));
+      const validosT = estadoT.catalogo ? estadoT.catalogo.valor.generos.map(g => g.nombre) : null;
+      // Al ajustar sin tocar los presets, lo nuevo del texto se pone sobre el pedido anterior; si no, los presets mandan
+      // sobre lo que leyeron las reglas. Un género que no está en el catálogo se descarta.
+      const ajusta = !conPresets && anterior && anterior.formulario;
+      const base = ajusta ? fundir(anterior.formulario, reglas.formulario) : fundir(reglas.formulario, parcial);
+      const formulario = validarFormulario(base, validosT).form;
       const presetsUsados = !conPresets && anterior && anterior.presets ? anterior.presets : etiquetas;
-      concepto = { version: 3, fase: "sondeo", ronda: 1, original, ...interpretado, formulario, presets: presetsUsados };
+      const original = anterior ? `${anterior.original} / ${texto}` : texto;
+      if (!reglas.resto) {
+        const previos = anterior && Array.isArray(anterior.textos) ? anterior.textos : [];
+        concepto = { version: 3, fase: "final", ronda: 0, original, entendi: `«${texto}», leído sin el LLM`, nombre: texto.slice(0, 60),
+          no_se_oye: reglas.no_se_oye, textos: previos, formulario, presets: presetsUsados, reglas: reglas.tipos };
+      } else {
+        const interpretado = await interpretar(env, texto, anterior && anterior.textos.length ? anterior : null);
+        if (!interpretado) return fail("El modelo no pudo interpretar el pedido. Prueba otra vez.", 502);
+        concepto = { version: 3, fase: "sondeo", ronda: 1, original, ...interpretado, formulario, presets: presetsUsados, reglas: reglas.tipos };
+      }
     }
     const id = crypto.randomUUID();
     const now = Date.now();
@@ -855,6 +889,12 @@ function showResult(r){
     li.append(meta);return li;
   }));
 }
+function mostrarRespuesta(r){
+  nameText.textContent='';statusText.textContent=r.mensaje||'';detail.replaceChildren();tracksList.replaceChildren();
+  const botones=(r.opciones||[]).map(o=>chip(o.etiqueta,false,()=>{sel.clear();sel.add(o.id);if(estado&&estado.sonando)sel.add('sonando');pintarChips();start('',null,null)}));
+  extra.replaceChildren(...(botones.length?[Object.assign(document.createElement('div'),{className:'chips'})]:[]));
+  if(botones.length)extra.firstChild.append(...botones);
+}
 function progress(job,waited){
   const c=job.concept;
   if(job.status==='queued'&&waited>30000)return 'Sigue esperando. ¿Está encendido el ordenador, con Traktor abierto?';
@@ -892,6 +932,7 @@ async function start(texto,extraBody,anterior){
     if(anterior)body.anterior=anterior;
     Object.assign(body,extraBody||{});
     const job=await post('/api/conceptos',body);
+    if(!job.id){mostrarRespuesta(job);finish();return}
     currentId=job.id;showConcept(job.concept);statusText.textContent='En cola...';follow(job.id);
   }catch(e){statusText.textContent='Error: '+e.message;finish()}
 }
