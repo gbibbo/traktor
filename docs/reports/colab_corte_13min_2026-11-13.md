@@ -13,7 +13,10 @@ vez: toda prueba que ejecutó rclone se cortó (E4-drive, las tres E5, E6) y nin
 E4-hf, E7). El arreglo, con el OK de Gabriel: en una VM de gpuq en Colab, `open_remote()` habla con el Drive por su
 API desde Python (`src/v4/common/drive_api.py`), con la misma app OAuth del remoto `erclm`, y en esta PC y en Kaggle
 sigue rclone. E8 bajó por ahí 6 tars reales de hasta 594 MB y subió 7 parciales durante 20 min, sin corte, y rclone
-desde la PC ve esos parciales. Los datos se quedan en el Drive y los trabajos no cambian su código. Por qué Colab
+desde la PC ve esos parciales. Los datos se quedan en el Drive y los trabajos no cambian su código. Confirmado en un
+trabajo real el 14-nov: `traktor-a0-142` (A0, `beatport_084` y `beatport_085`, commit `1c52667`) corrió 26,6 min en un
+solo intento, de 02:30 a 02:57 UTC, con 758 temas y 0 fallidos, y bajó sus tars por la API en 9 y 14 s; los trabajos
+de A0 con rclone se cortaban 3 o 4 veces por trabajo. Por qué Colab
 corta rclone no se sabe; nuestro uso, leer nuestros datos para procesarlos en la GPU, es el uso normal de Colab con el
 Drive.
 
