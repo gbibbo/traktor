@@ -17,7 +17,9 @@ sigue rclone. E8 bajó por ahí 6 tars reales de hasta 594 MB y subió 7 parcial
 desde la PC ve esos parciales. Los datos se quedan en el Drive y los trabajos no cambian su código. Confirmado en un
 trabajo real el 14-nov: `traktor-a0-142` (A0, `beatport_084` y `beatport_085`, commit `1c52667`) corrió 26,6 min en un
 solo intento, de 02:30 a 02:57 UTC, con 758 temas y 0 fallidos, y bajó sus tars por la API en 9 y 14 s; los trabajos
-de A0 con rclone se cortaban 3 o 4 veces por trabajo. Por qué Colab
+de A0 con rclone se cortaban 3 o 4 veces por trabajo. Con el cliente ya dentro de gpuq (`gpuq.gdrive`, traktor
+`c684575`), `traktor-a0-156` corrió 29,6 min en un solo intento el 14-nov, de 03:55 a 04:24 UTC: 8 shards, 765 temas,
+0 fallidos, cada tar bajado en 2 a 8 s; una consulta que falló por red a las 04:17 contó como una sola falla. Por qué Colab
 corta rclone no se sabe; nuestro uso, leer nuestros datos para procesarlos en la GPU, es el uso normal de Colab con el
 Drive.
 
