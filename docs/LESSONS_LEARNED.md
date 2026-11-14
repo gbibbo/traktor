@@ -441,5 +441,5 @@ tiene que mostrar solo los bloques ajenos. Si el otro no tiene nada sin commit, 
   13-nov seguía (`docs/reports/colab_corte_13min_2026-11-13.md`).
 - **En Colab no se ejecuta rclone.** Desde el 2026-11-02, Colab recupera a los ~12 min toda VM que corre el programa
   rclone, aunque solo baje un archivo público o suba 4 de pocos bytes; Python haciendo lo mismo no se corta. El Drive se
-  usa por `open_remote()`, que en Colab va por la API (`src/v4/common/drive_api.py`). Cómo se encontró: pruebas que
+  usa por `open_remote()` o `gpuq.storage.Remote.from_env()`, que en Colab van por la API (`gpuq.gdrive`). Cómo se encontró: pruebas que
   cambian una sola cosa por vez sobre un trabajo sintético de GPU (`tools/gpuq/diag_colab/carga_gpu.py`).

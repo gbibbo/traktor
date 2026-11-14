@@ -11,7 +11,8 @@ asignada toda VM en la que se ejecuta el programa rclone, se conecte a lo que se
 para el Drive, y por eso se cortaban todos los trabajos reales. Lo mostraron pruebas que cambian una sola cosa a la
 vez: toda prueba que ejecutó rclone se cortó (E4-drive, las tres E5, E6) y ninguna que no lo ejecutó (E0, E1, E3,
 E4-hf, E7). El arreglo, con el OK de Gabriel: en una VM de gpuq en Colab, `open_remote()` habla con el Drive por su
-API desde Python (`src/v4/common/drive_api.py`), con la misma app OAuth del remoto `erclm`, y en esta PC y en Kaggle
+API desde Python (`src/v4/common/drive_api.py`; desde el 14-nov dentro de gpuq, `gpuq.gdrive`, gpuq `bb3d156`, para
+cualquier trabajo de gpuq), con la misma app OAuth del remoto `erclm`, y en esta PC y en Kaggle
 sigue rclone. E8 bajó por ahí 6 tars reales de hasta 594 MB y subió 7 parciales durante 20 min, sin corte, y rclone
 desde la PC ve esos parciales. Los datos se quedan en el Drive y los trabajos no cambian su código. Confirmado en un
 trabajo real el 14-nov: `traktor-a0-142` (A0, `beatport_084` y `beatport_085`, commit `1c52667`) corrió 26,6 min en un
@@ -241,7 +242,9 @@ T4 durante 35 min. Scripts en `tools/gpuq/diag_colab/`.
   (avisado el 13-nov).
 - Hecho el 13-nov, con el OK de Gabriel: el arreglo de la API del Drive en Colab (`drive_api.py`, `use_drive_api`),
   probado por E8 y predeterminado en Colab desde este commit. La línea A vuelve a encolar con él lo pendiente.
-- LOCAL, propuesta para Gabriel: llevar el mismo backend a gpuq (`gpuq.storage`), para que cualquier trabajo de gpuq
+- [REEMPLAZADO 2026-11-14 por el OK de Gabriel: hecho en gpuq `bb3d156` (`gpuq.gdrive`, `Remote.open`), traído a
+  `gpuq-personal`; `open_remote()` de este repo le deja la elección a gpuq y `drive_api.py` se borró] LOCAL, propuesta
+  para Gabriel: llevar el mismo backend a gpuq (`gpuq.storage`), para que cualquier trabajo de gpuq
   en Colab, y el despachador de ERC-LM si se suma, dejen de usar rclone allí. Hoy solo lo usa `open_remote()` de este
   repo; un trabajo que use `gpuq.storage.Remote.from_env()` directamente en Colab sigue cortándose.
 - Hecho el 13-nov, con el OK de Gabriel: gpuq `6394eb5`, traído a `gpuq-personal` en `5684481` y en marcha desde las

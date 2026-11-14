@@ -202,6 +202,10 @@ Plan vigente: `docs/plans/plan_recomendacion_v2.md`. Inventario de ideas: `docs/
       caché en R2 gratis alimentada por la Raspberry, o datos cifrados en Hugging Face o Kaggle; ya no hace falta.
     - **Credenciales:** el agente no lee `rclone.conf` en esta PC (el permiso automático lo bloqueó y AGENTS.md lo
       prohíbe); el código las usa en la VM, como rclone, y nunca las imprime. Por eso la prueba se hizo en Colab (E8).
+    - **Llevado a gpuq** (Gabriel, 14-nov: «obvio que sí debes llevar el arreglo dentro de gpuq»): `gpuq.gdrive`
+      (gpuq `bb3d156`, en `gpuq-personal` desde el 14-nov). `Remote.from_env()` y `Remote.open()` toman la API en Colab
+      para un remoto de Drive con app propia y avisan en el log si no se puede; cualquier trabajo de gpuq queda
+      protegido. `open_remote()` de este repo le deja la elección a gpuq y `src/v4/common/drive_api.py` se borró.
 
 ## 2026-11-10 (E16: la ecuación con D5 y la escucha E12 lista)
 

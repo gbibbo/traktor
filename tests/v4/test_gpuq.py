@@ -81,3 +81,18 @@ def test_gpu_matmul_runs_on_this_machine():
     pytest.importorskip("torch")
     out = smoke_drive.gpu_matmul(n=32)
     assert out["device"] in ("cpu", "cuda") and out["n"] == 32 and out["checksum"] > 0
+
+
+def test_open_remote_lets_gpuq_take_the_drive_api_on_colab(tmp_path):
+    storage = rs.import_gpuq_storage()
+    if not hasattr(storage.Remote, "open"):
+        pytest.skip("gpuq anterior a bb3d156, sin Remote.open")
+    conf = tmp_path / "rclone.conf"
+    conf.write_text('[erclm]\ntype = drive\nscope = drive.file\nclient_id = c\nclient_secret = s\n'
+                    'token = {"access_token": "a", "refresh_token": "r"}\n', encoding="utf-8")
+    env = {"TRAKTOR_REMOTE": "erclm:traktor_ml", "RCLONE_CONFIG": str(conf), "RCLONE": "rclone"}
+    kind = lambda extra: type(rs.open_remote({**env, **extra})).__name__  # noqa: E731
+    assert kind({"GPUQ_PLATFORM": "colab"}) == "DriveRemote"             # Colab reclaims VMs that run rclone
+    assert kind({}) == "RcloneRemote" and kind({"GPUQ_PLATFORM": "kaggle"}) == "RcloneRemote"
+    assert kind({"GPUQ_PLATFORM": "colab", "TRAKTOR_DRIVE_API": "0"}) == "RcloneRemote"
+    assert kind({"TRAKTOR_DRIVE_API": "1"}) == "DriveRemote"

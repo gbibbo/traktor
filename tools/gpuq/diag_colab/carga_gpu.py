@@ -23,7 +23,8 @@ All three E5 were cut at 12.2 min, so any Drive call through rclone does it. --r
 download a public file over HTTP every 3 min without touching the Drive, to tell the Drive from the rclone binary.
 E6 was cut at 12.3 min too; --python-http URL (E7) makes the same downloads with Python, to tell the rclone
 program from the repeated downloads. E7 lived: Colab reclaims VMs that run rclone. E8 is E4-drive with
-TRAKTOR_DRIVE_API=1, so open_remote() reaches the Drive through its API from Python (src/v4/common/drive_api.py):
+TRAKTOR_DRIVE_API=1, so open_remote() reaches the Drive through its API from Python (then src/v4/common/drive_api.py,
+since 2026-11-14 gpuq.gdrive, chosen by gpuq on Colab):
     ... --cmd "TRAKTOR_DRIVE_API=1 python tools/gpuq/diag_colab/carga_gpu.py --min 20 --drive 6 --run e8" ...
 """
 import argparse

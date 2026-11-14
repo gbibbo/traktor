@@ -28,7 +28,8 @@ Informe completo: `docs/reports/colab_corte_13min_2026-11-13.md`.
   ejecuta el programa rclone, se conecte a lo que se conecte (E4 a E7). Los trabajos de gpuq lo usaban para el
   Drive, y ERC-LM también. No es la falta de GPU, ni el esquema de consultas de gpuq, ni el Drive, ni el volumen.
 - **El arreglo (13-nov, con el OK de Gabriel):** en una VM de gpuq en Colab, `open_remote()` habla con el Drive por
-  su API desde Python (`src/v4/common/drive_api.py`), con la misma app OAuth del remoto `erclm`, así que ve los
+  su API desde Python (`gpuq.gdrive`, desde gpuq `bb3d156`; antes `src/v4/common/drive_api.py`), con la misma app
+  OAuth del remoto `erclm`, así que ve los
   mismos archivos. En esta PC y en Kaggle sigue rclone. La interfaz no cambia (`get`, `put`, `ls`, `stat`,
   `exists`, `delete`, `get_json`). E8 bajó 6 tars reales y subió 7 parciales así durante 20 min, sin corte.
 - **Regla:** en Colab, ningún trabajo ejecuta rclone (ni `rclone` en el `--cmd`, ni `RcloneRemote`, ni

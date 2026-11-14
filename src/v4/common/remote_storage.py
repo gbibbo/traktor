@@ -1,7 +1,7 @@
 """
 PURPOSE: Almacenamiento remoto de TRAKTOR ML: el Google Drive de Gabriel, compartido entre esta PC y los
-         trabajos de gpuq (Colab y Kaggle). En esta PC y en Kaggle se usa rclone; en Colab, la API del Drive
-         desde Python (drive_api.py), porque Colab recupera toda VM que ejecuta rclone (use_drive_api). Un solo
+         trabajos de gpuq (Colab y Kaggle). gpuq elige el transporte: en esta PC y en Kaggle rclone; en Colab la
+         API del Drive desde Python (gpuq.gdrive), porque Colab recupera toda VM que ejecuta rclone. Un solo
          lugar resuelve la raíz:
            1. TRAKTOR_REMOTE, si está definida (p. ej. "erclm:traktor_ml" o una carpeta local en tests);
            2. si no, "<remoto de GPUQ_REMOTE>:traktor_ml" (en la VM gpuq define GPUQ_REMOTE, hoy
@@ -16,6 +16,8 @@ CHANGELOG:
                 porque Colab recupera toda VM que ejecuta rclone a los ~12 min.
   - 2026-11-13: en una VM de gpuq en Colab (GPUQ_PLATFORM=colab) ese camino es el predeterminado, después de
                 que E8 viviera 20 min bajando tars reales y subiendo parciales por él.
+  - 2026-11-14: el cliente de la API pasó a gpuq (gpuq.gdrive, Remote.open en bb3d156); este módulo le deja la
+                elección a gpuq y se borró drive_api.py. Con un gpuq anterior sigue rclone.
 """
 from __future__ import annotations
 
@@ -86,29 +88,23 @@ def find_rclone(env=None):
     return None
 
 
-def use_drive_api(env=None) -> bool:
-    """Whether open_remote() talks to Google Drive through its API from Python instead of through rclone.
-    By default only on a gpuq VM on Colab, which reclaims every VM that runs rclone about 12 min after assignment
-    (docs/reports/colab_corte_13min_2026-11-13.md; the API path lived 20 min there, E8). TRAKTOR_DRIVE_API=1
-    forces it anywhere and =0 forbids it."""
-    env = _env(env)
-    forced = env.get("TRAKTOR_DRIVE_API")
-    if forced in ("0", "1"):
-        return forced == "1"
-    return env.get("GPUQ_PLATFORM") == "colab"
-
-
 def open_remote(env=None):
-    """A gpuq Remote rooted at remote_root(): put/get/ls with verified, atomic transfers."""
+    """A gpuq Remote rooted at remote_root(): put/get/ls with verified, atomic transfers. gpuq chooses the
+    transport (gpuq.storage.Remote.open): on Colab the Drive API from Python (gpuq.gdrive), because Colab
+    reclaims every VM that runs rclone about 12 min after assignment; rclone on this PC and on Kaggle.
+    TRAKTOR_DRIVE_API=1 or 0 forces the Drive API or rclone (GPUQ_DRIVE_API does too)."""
     env = _env(env)
     storage = import_gpuq_storage(env)
     root = remote_root(env)
     if is_local(root):
         return storage.LocalRemote(root)
-    if use_drive_api(env):
-        from . import drive_api
-        return drive_api.make_drive_remote(storage, root, drive_api.rclone_config_path(env))
+    forced = env.get("TRAKTOR_DRIVE_API")
     exe = find_rclone(env)
-    if not exe:
+    if hasattr(storage.Remote, "open"):  # gpuq from bb3d156 (2026-11-14) on
+        remote = storage.Remote.open(root, config=env.get("RCLONE_CONFIG"), rclone=exe or "rclone", env=env,
+                                     drive_api=forced == "1" if forced in ("0", "1") else None)
+    else:  # an older gpuq, as on a VM started before the dispatcher took the new version: rclone, as before
+        remote = storage.RcloneRemote(root, config=env.get("RCLONE_CONFIG"), rclone=exe or "rclone")
+    if isinstance(remote, storage.RcloneRemote) and not exe:
         raise storage.StorageError("no encuentro rclone: winget install Rclone.Rclone (docs/GPUQ.md)")
-    return storage.RcloneRemote(root, config=env.get("RCLONE_CONFIG"), rclone=exe)
+    return remote
