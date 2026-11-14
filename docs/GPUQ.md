@@ -24,20 +24,24 @@ nuevas: el token de GitHub del despachador lee este repo porque es público, y e
 
 Informe completo: `docs/reports/colab_corte_13min_2026-11-13.md`.
 
-- Desde el 2-nov a las 17 UTC, Colab corta a los 12-14 min de asignada toda VM T4 que corre un trabajo real de gpuq,
-  también en el despachador de ERC-LM, que en octubre corría horas con el mismo cliente. El 13-nov seguía:
-  `traktor-a0-1` se cortó a los 12,2 y 12,6 min. No es la falta de GPU ni el esquema de consultas de gpuq: ese mismo
-  día, un trabajo que solo usa la GPU vivió 35 min con ese esquema, y también mandado por el camino completo de gpuq
-  (E3). No lo dispara el arranque de gpuq sino algo que hacen los trabajos: cualquier acceso al Google Drive por
-  rclone desde la VM, aunque sea subir un archivo de pocos bytes (E4 y E5, 13-nov). Bajar de Hugging Face no lo
-  dispara. Un trabajo que no toca el Drive vive en Colab; cómo darle datos sin el Drive está en el informe.
-- Mientras tanto, en Colab cada intento rinde unos 10 min útiles. Entra lo que guarda un parcial al Drive cada pocos
-  minutos, nunca más de 10 sin guardar. [REEMPLAZADO 2026-11-13 por Gabriel, «Colab primero» (sección «Kaggle»):
-  un trabajo largo que guarda cada pocos minutos también va a Colab] Lo que necesita horas va con `--platform kaggle`.
-- Se reconoce en `cola.py logs <id>`: `appears to be lost (404/401)` a los 12-13 min de cada intento. Un
-  `RuntimeError`, un `ReadTimeout` o un traceback son cortes de red, y gpuq ya no los toma por VM perdida (corregido
-  el 13-nov, despachador `a60c5ee`). El corte terminó cuando un intento real en Colab pase de 20 min: anotarlo en el
-  informe.
+- **La causa (13-nov):** desde el 2-nov, Colab recupera unos 12 min después de asignada toda VM en la que se
+  ejecuta el programa rclone, se conecte a lo que se conecte (E4 a E7). Los trabajos de gpuq lo usaban para el
+  Drive, y ERC-LM también. No es la falta de GPU, ni el esquema de consultas de gpuq, ni el Drive, ni el volumen.
+- **El arreglo (13-nov, con el OK de Gabriel):** en una VM de gpuq en Colab, `open_remote()` habla con el Drive por
+  su API desde Python (`src/v4/common/drive_api.py`), con la misma app OAuth del remoto `erclm`, así que ve los
+  mismos archivos. En esta PC y en Kaggle sigue rclone. La interfaz no cambia (`get`, `put`, `ls`, `stat`,
+  `exists`, `delete`, `get_json`). E8 bajó 6 tars reales y subió 7 parciales así durante 20 min, sin corte.
+- **Regla:** en Colab, ningún trabajo ejecuta rclone (ni `rclone` en el `--cmd`, ni `RcloneRemote`, ni
+  `subprocess` con rclone): todo acceso al Drive va por `open_remote()`. Un trabajo que lo respeta debería vivir en
+  Colab sin el corte de los 12 min; Colab mantiene sus propios límites de sesión, de horas. El commit tiene que
+  incluir este arreglo: los encolados antes siguen con rclone.
+- [REEMPLAZADO 2026-11-13 por el arreglo: con `open_remote()` por la API no hay corte a los 12 min] Desde el 2-nov a
+  las 17 UTC, Colab corta a los 12-14 min de asignada toda VM T4 que corre un trabajo real de gpuq, también en el
+  despachador de ERC-LM. Mientras tanto, en Colab cada intento rinde unos 10 min útiles; lo que necesita horas va con
+  `--platform kaggle`.
+- Si un trabajo vuelve a cortarse con `appears to be lost (404/401)` a los 12-13 min de cada intento, buscar qué
+  ejecuta rclone o si Colab cambió otra regla. Un `RuntimeError`, un `ReadTimeout` o un traceback son cortes de red,
+  y gpuq no los toma por VM perdida (despachador `a60c5ee`).
 - Para volver a medir: `tools/gpuq/diag_colab/` (con el OK de Gabriel: usa su cuenta de Colab y el único carril de
   Colab de la cola).
 - [REFUTADO 2026-11-13 por `traktor-a0-1`, cortado a los 12 min ese mismo día: lo que duró 35 min fue un trabajo que

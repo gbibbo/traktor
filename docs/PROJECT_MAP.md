@@ -15,7 +15,8 @@ Inventario de archivos del proyecto. Actualizar al añadir ficheros nuevos.
 | :--- | :--- |
 | `config_loader.py` | Cargar config con cascada: CLI > env > YAML |
 | `path_resolver.py` | Resolver rutas de artifacts, audio, caches (laptop + HPC) |
-| `remote_storage.py` | Almacenamiento remoto (Drive de Gabriel por rclone) compartido entre esta PC y los trabajos de gpuq: raíz `erclm:traktor_ml` (o `TRAKTOR_REMOTE`), `open_remote()` con `gpuq.storage` (transferencias atómicas verificadas); guía `docs/GPUQ.md` |
+| `remote_storage.py` | Almacenamiento remoto (Drive de Gabriel) compartido entre esta PC y los trabajos de gpuq: raíz `erclm:traktor_ml` (o `TRAKTOR_REMOTE`), `open_remote()` con `gpuq.storage` (transferencias atómicas verificadas); por rclone en esta PC y en Kaggle, por la API del Drive en Colab (`use_drive_api`, `TRAKTOR_DRIVE_API`); guía `docs/GPUQ.md` |
+| `drive_api.py` | El Drive por su API v3 desde Python, sin rclone, para los trabajos en Colab (Colab recupera toda VM que ejecuta rclone): un `gpuq.storage.Remote` con el cliente OAuth y el token del remoto de rclone, la misma app y los mismos archivos `drive.file`; nunca imprime credenciales (`tests/v4/test_drive_api.py`, contra un Drive falso) |
 | `catalog.py` | Construir y cargar catálogo de tracks (catalog.parquet); recursivo, tags, hash `audio`, deduplicado |
 | `audio_utils.py` | Carga de audio, segmentación DJ (get_dj_segments, read_dj_segments por seek), get_audio_files |
 | `demucs_utils.py` | Separación de stems (Demucs htdemucs) |

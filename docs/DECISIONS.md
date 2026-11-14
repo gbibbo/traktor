@@ -190,6 +190,18 @@ Plan vigente: `docs/plans/plan_recomendacion_v2.md`. Inventario de ideas: `docs/
      - Costo: 11 minutos de GPU y unas 356 neuronas, una sola vez.
    - **Regla que sale** (agente): las instrucciones se iteran en gpuq. Lo que gane se confirma una vez en Workers AI antes
      de publicarse. Queda en Kaggle porque necesita las dos T4; cada corrida se cuenta en las horas de la semana.
+17. **El corte de Colab a los 12 min: causa y arreglo** (Gabriel pidió seguir buscando cómo correr en Colab sin límite
+    de tiempo; con los datos, «pruébalo e impleméntalo definitivamente si funciona», el mismo día; informe
+    `docs/reports/colab_corte_13min_2026-11-13.md`).
+    - **Causa** (pruebas E3 a E8, cada una cambia una sola cosa): desde el 2-nov, Colab recupera unos 12 min después de
+      asignada toda VM que ejecuta el programa rclone, se conecte a lo que se conecte. No es el Drive ni el volumen.
+    - **Arreglo:** en una VM de gpuq en Colab, `open_remote()` habla con el Drive por su API desde Python
+      (`src/v4/common/drive_api.py`) con la misma app OAuth del remoto `erclm`; en esta PC y en Kaggle sigue rclone. E8
+      bajó 6 tars reales y subió 7 parciales así durante 20 min sin corte. Los datos se quedan en el Drive.
+    - **Almacenamiento:** Gabriel no paga almacenamiento. Si el Drive no hubiera servido, la alternativa aprobada era una
+      caché en R2 gratis alimentada por la Raspberry, o datos cifrados en Hugging Face o Kaggle; ya no hace falta.
+    - **Credenciales:** el agente no lee `rclone.conf` en esta PC (el permiso automático lo bloqueó y AGENTS.md lo
+      prohíbe); el código las usa en la VM, como rclone, y nunca las imprime. Por eso la prueba se hizo en Colab (E8).
 
 ## 2026-11-10 (E16: la ecuación con D5 y la escucha E12 lista)
 

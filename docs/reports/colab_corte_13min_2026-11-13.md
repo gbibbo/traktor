@@ -6,8 +6,19 @@ EVIDENCIA OBSERVADA, INFERENCIA, HIPÓTESIS o NO CONCLUYENTE.
 
 ## Veredicto
 
-El corte no lo provoca la falta de GPU ni el esquema de consultas de gpuq, y no es cosa de un trabajo nuestro en
-particular. Empezó del lado de Colab el 2-nov a las 17 UTC: desde entonces Colab recupera, unos 12 a 14 min después
+**Causa y arreglo (13-nov, 01:40 UTC del 14).** Desde el 2-nov a las 17 UTC, Colab recupera unos 12 min después de
+asignada toda VM en la que se ejecuta el programa rclone, se conecte a lo que se conecte. gpuq y ERC-LM lo usaban
+para el Drive, y por eso se cortaban todos los trabajos reales. Lo mostraron pruebas que cambian una sola cosa a la
+vez: toda prueba que ejecutó rclone se cortó (E4-drive, las tres E5, E6) y ninguna que no lo ejecutó (E0, E1, E3,
+E4-hf, E7). El arreglo, con el OK de Gabriel: en una VM de gpuq en Colab, `open_remote()` habla con el Drive por su
+API desde Python (`src/v4/common/drive_api.py`), con la misma app OAuth del remoto `erclm`, y en esta PC y en Kaggle
+sigue rclone. E8 bajó por ahí 6 tars reales de hasta 594 MB y subió 7 parciales durante 20 min, sin corte, y rclone
+desde la PC ve esos parciales. Los datos se quedan en el Drive y los trabajos no cambian su código. Por qué Colab
+corta rclone no se sabe; nuestro uso, leer nuestros datos para procesarlos en la GPU, es el uso normal de Colab con el
+Drive.
+
+[REEMPLAZADO 2026-11-13 por la causa y el arreglo de arriba] El corte no lo provoca la falta de GPU ni el esquema de
+consultas de gpuq, y no es cosa de un trabajo nuestro en particular. Empezó del lado de Colab el 2-nov a las 17 UTC: desde entonces Colab recupera, unos 12 a 14 min después
 de asignada, toda VM T4 que corre un trabajo real de gpuq. Pasa en los dos despachadores de la Raspberry (gpuq, el de
 este repo, y el de ERC-LM), que en octubre corrían en Colab trabajos de 1,5 a 4,3 h con el mismo CLI, el mismo diseño
 y desde la misma Raspberry (con la cuenta de Colab de Gabriel según las notas de ERC-LM; la de gpuq no la miré, para
@@ -44,7 +55,7 @@ De paso apareció un error de gpuq que cortaba intentos sanos: un corte de red p
 | Basta cualquier acceso al Drive por rclone: bajadas en 4 hilos, bajadas en un solo hilo o solo 4 subidas de pocos bytes | EVIDENCIA OBSERVADA | las tres E5 se cortaron a los 12,2 min (`traktor-diag-e5-bajadas-1`, `-1hilo-1`, `-subidas-1`); no hay un ajuste de rclone que lo evite |
 | rclone corta aunque no toque el Drive | EVIDENCIA OBSERVADA | E6 (`traktor-diag-e6-rclonehttp-1`): rclone bajó 4 veces un archivo público de Hugging Face (586 MB en 5 a 7 s) y la VM se cortó a los 12,3 min |
 | El disparador es ejecutar rclone en la VM, no las bajadas repetidas ni el Drive | EVIDENCIA OBSERVADA | E7 (`traktor-diag-e7-pythonhttp-1`): las mismas bajadas de E6, hechas por Python, 7 veces 586 MB en 20 min, y la VM vivió. Toda prueba que ejecutó rclone se cortó (E4-drive, las tres E5, E6) y ninguna que no lo ejecutó (E0, E1, E3, E4-hf, E7; gpuq instala rclone pero no lo corre) |
-| La solución: que los trabajos de Colab hablen con el Drive por su API desde Python, sin rclone | INFERENCIA | `src/v4/common/drive_api.py` (commit `33e1d7e`, tests contra un Drive falso); falta probarlo en Colab (E8) y conectarlo a `open_remote()`, con el OK de Gabriel para usar en la VM las credenciales del remoto |
+| La solución: que los trabajos de Colab hablen con el Drive por su API desde Python, sin rclone | EVIDENCIA OBSERVADA | E8 (`traktor-diag-e8-driveapi-1`, 14-nov 01:13 a 01:35 UTC, backend `DriveRemote`): 6 tars reales bajados (hasta 594 MB, 3 a 15 s cada uno) y 7 parciales subidos en 20 min, sin corte; rclone desde la PC lista esos 7 parciales y ningún `.part`. [REEMPLAZADO 2026-11-13 por E8; antes era INFERENCIA: `src/v4/common/drive_api.py` (commit `33e1d7e`, tests contra un Drive falso); falta probarlo en Colab (E8) y conectarlo a `open_remote()`, con el OK de Gabriel para usar en la VM las credenciales del remoto] |
 | Es una poda por inactividad | HIPÓTESIS, debilitada | coincide con los 12-13 min de las sesiones sin keep-alive de junio, pero E0 vivió con el kernel quieto y una consulta por minuto |
 | Fue para todos o solo para esta cuenta | NO CONCLUYENTE | no hay reportes públicos; haría falta otra cuenta, y usar varias cuentas para esquivar límites va contra las reglas de Colab |
 
@@ -182,7 +193,11 @@ T4 durante 35 min. Scripts en `tools/gpuq/diag_colab/`.
 
 ## Cómo usar Colab
 
-1. **Hoy Colab corta los trabajos reales de gpuq a los 12-13 min** (13-nov, `traktor-a0-1`). Cada intento rinde unos
+0. **Ningún trabajo ejecuta rclone en Colab.** Todo acceso al Drive va por `open_remote()`, que en Colab usa la API
+   desde Python. Un trabajo encolado con un commit que tenga el arreglo no debería cortarse a los 12 min; Colab
+   mantiene sus propios límites de sesión, así que se sigue guardando cada pocos minutos.
+1. [REEMPLAZADO 2026-11-13 por el arreglo de la API (punto 0)] **Hoy Colab corta los trabajos reales de gpuq a los
+   12-13 min** (13-nov, `traktor-a0-1`). Cada intento rinde unos
    10 min útiles y gasta uno de los 10 cortes que gpuq tolera por trabajo (INFERENCIA, de los intentos de
    `traktor-v7-4`: arranque y carga de modelos de 1 a 2 min, más lo que quedó sin guardar).
 2. **Colab primero** (Gabriel, 13-nov; `docs/GPUQ.md`, sección «Kaggle»): todo trabajo de GPU que guarda un parcial
@@ -214,12 +229,18 @@ T4 durante 35 min. Scripts en `tools/gpuq/diag_colab/`.
   de `traktor-diag-e3-1` (`cola.py logs traktor-diag-e3-1`) y completar este informe. Si se corta, partir el arranque
   de gpuq (credenciales, rclone, clonado) para ver cuál lo dispara; si vive, probar el trabajo sintético con tráfico
   al Drive.
-- LOCAL: leer `traktor-diag-e4-drive-1` y `traktor-diag-e4-hf-1`. La que se corte a los 12-14 min señala el
+- [REEMPLAZADO 2026-11-13 por E4 a E8: el disparador es ejecutar rclone, y el arreglo está hecho] LOCAL: leer
+  `traktor-diag-e4-drive-1` y `traktor-diag-e4-hf-1`. La que se corte a los 12-14 min señala el
   disparador; entonces se prueba una forma de hacer eso mismo que Colab no corte. Si viven las dos, probar las dos
   juntas y con decodificación en la CPU, como hace A0.
 - [REEMPLAZADO 2026-11-13 por la regla de Gabriel «Colab primero»: la línea A pasó todo A0 a `--platform colab`, en
   trabajos de unos 25 min útiles] LÍNEA A: decidir si sus `traktor-a0` pendientes van a Kaggle mientras dure el corte
   (avisado el 13-nov).
+- Hecho el 13-nov, con el OK de Gabriel: el arreglo de la API del Drive en Colab (`drive_api.py`, `use_drive_api`),
+  probado por E8 y predeterminado en Colab desde este commit. La línea A vuelve a encolar con él lo pendiente.
+- LOCAL, propuesta para Gabriel: llevar el mismo backend a gpuq (`gpuq.storage`), para que cualquier trabajo de gpuq
+  en Colab, y el despachador de ERC-LM si se suma, dejen de usar rclone allí. Hoy solo lo usa `open_remote()` de este
+  repo; un trabajo que use `gpuq.storage.Remote.from_env()` directamente en Colab sigue cortándose.
 - Hecho el 13-nov, con el OK de Gabriel: gpuq `6394eb5`, traído a `gpuq-personal` en `5684481` y en marcha desde las
   20:27 UTC. Un trabajo `auto` de GPU espera a Colab mientras está ocupado y toma Kaggle solo si Colab no puede
   correrlo (`kaggle.auto_gpu`).
