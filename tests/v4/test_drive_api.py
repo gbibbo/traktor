@@ -173,3 +173,11 @@ def test_config_must_be_a_drive_remote_with_its_own_client(tmp_path):
         drive_api.read_remote(conf(tmp_path), "otro")
     assert drive_api.rclone_config_path({"RCLONE_CONFIG": "/x/r.conf"}) == Path("/x/r.conf")
     assert drive_api.rclone_config_path({"HOME": "/h"}).as_posix().endswith(".config/rclone/rclone.conf")
+
+
+def test_open_remote_uses_the_drive_api_only_when_asked(tmp_path):
+    env = {"TRAKTOR_REMOTE": "erclm:traktor_ml", "RCLONE_CONFIG": str(conf(tmp_path)), "RCLONE": "rclone"}
+    assert type(rs.open_remote({**env, "TRAKTOR_DRIVE_API": "1"})).__name__ == "DriveRemote"
+    assert type(rs.open_remote(env)).__name__ == "RcloneRemote"
+    assert type(rs.open_remote({**env, "TRAKTOR_DRIVE_API": "0"})).__name__ == "RcloneRemote"
+    assert type(rs.open_remote({**env, "TRAKTOR_REMOTE": str(tmp_path / "local")})).__name__ == "LocalRemote"

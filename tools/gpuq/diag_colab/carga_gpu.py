@@ -22,7 +22,9 @@ for E4; then --sin-bajadas and --sin-subidas for E5, which split the Drive traff
 All three E5 were cut at 12.2 min, so any Drive call through rclone does it. --rclone-http URL (E6) has rclone
 download a public file over HTTP every 3 min without touching the Drive, to tell the Drive from the rclone binary.
 E6 was cut at 12.3 min too; --python-http URL (E7) makes the same downloads with Python, to tell the rclone
-program from the repeated downloads.
+program from the repeated downloads. E7 lived: Colab reclaims VMs that run rclone. E8 is E4-drive with
+TRAKTOR_DRIVE_API=1, so open_remote() reaches the Drive through its API from Python (src/v4/common/drive_api.py):
+    ... --cmd "TRAKTOR_DRIVE_API=1 python tools/gpuq/diag_colab/carga_gpu.py --min 20 --drive 6 --run e8" ...
 """
 import argparse
 import os
@@ -151,7 +153,8 @@ def main() -> None:
     traffic = Traffic(a.drive, a.run, down=not a.sin_bajadas, up=not a.sin_subidas) if a.drive else None
     if traffic:
         print(f"E4 drive: {len(traffic.tars)} tars to get, partials {'on' if traffic.up else 'off'}, "
-              f"RCLONE_MULTI_THREAD_STREAMS={os.environ.get('RCLONE_MULTI_THREAD_STREAMS', 'default')}", flush=True)
+              f"RCLONE_MULTI_THREAD_STREAMS={os.environ.get('RCLONE_MULTI_THREAD_STREAMS', 'default')}, "
+              f"backend {type(traffic.r).__name__}", flush=True)
     http = RcloneHttp(a.rclone_http) if a.rclone_http else PythonHttp(a.python_http) if a.python_http else None
     x = torch.randn(4096, 4096, device="cuda")
     n = 0

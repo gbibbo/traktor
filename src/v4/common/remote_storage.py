@@ -10,6 +10,8 @@ PURPOSE: Almacenamiento remoto de TRAKTOR ML: el Google Drive de Gabriel por rcl
          carpeta hermana del repo `gpuq-personal`). Instrucciones: docs/GPUQ.md.
 CHANGELOG:
   - 2026-11-09: primera versión (puesta en marcha de gpuq en este repo).
+  - 2026-11-13: TRAKTOR_DRIVE_API=1 abre el Drive por su API desde Python (drive_api.py) en lugar de rclone,
+                porque Colab recupera toda VM que ejecuta rclone a los ~12 min.
 """
 from __future__ import annotations
 
@@ -80,6 +82,13 @@ def find_rclone(env=None):
     return None
 
 
+def use_drive_api(env=None) -> bool:
+    """Whether open_remote() talks to Google Drive through its API from Python instead of through rclone.
+    TRAKTOR_DRIVE_API=1 forces it and =0 forbids it. Colab reclaims every VM that runs rclone about 12 min
+    after assignment (docs/reports/colab_corte_13min_2026-11-13.md)."""
+    return _env(env).get("TRAKTOR_DRIVE_API") == "1"
+
+
 def open_remote(env=None):
     """A gpuq Remote rooted at remote_root(): put/get/ls with verified, atomic transfers."""
     env = _env(env)
@@ -87,6 +96,9 @@ def open_remote(env=None):
     root = remote_root(env)
     if is_local(root):
         return storage.LocalRemote(root)
+    if use_drive_api(env):
+        from . import drive_api
+        return drive_api.make_drive_remote(storage, root, drive_api.rclone_config_path(env))
     exe = find_rclone(env)
     if not exe:
         raise storage.StorageError("no encuentro rclone: winget install Rclone.Rclone (docs/GPUQ.md)")
