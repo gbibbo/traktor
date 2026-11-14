@@ -13,6 +13,8 @@ PURPOSE: A0 de la línea A (docs/plans/linea_a_protocolo_a0_a1.md, fijado en el 
                       el orden de tracks.csv, youtube_control.npz y LEEME.json; comprueba cobertura, finitos y
                       alineación (umbrales 1 a 3 y 6 del protocolo).
            verificar  umbral 4 (una salida de A0 frente a la de V7 del mismo shard) y umbral 5 (los 166 de E15).
+           controles  sin umbral: si los vecinos de un tema de YouTube son de YouTube más de lo esperado, y cuánto
+                      mueve la recodificación a 96 kbps a cada vista (control de YouTube, dirección u1 de E17).
          Ventana: Beatport, la de V7 y E15 (el preview entero en 4 segmentos de 30 s); YouTube, la que tendría su
          preview: comienzo 0,40 × D, largo mín(120 s, D − comienzo), recodificada a MP3 CBR de 96 kbps con LAME en
          estéreo (como codec_clap.mp3_ida_y_vuelta, E17) antes de los modelos; el control lleva también la vista con
@@ -26,6 +28,7 @@ CHANGELOG:
   - 2026-11-13: Creación (A0).
   - 2026-11-13: Parcial también cada 3 min (PARCIAL_SEG), por el corte de Colab a los 12-13 min.
   - 2026-11-13: planear con --minutos y --plataforma (colab por defecto: Colab primero, Kaggle de reserva).
+  - 2026-11-13: controles (sin umbral): vecinos de YouTube por vista y corrimiento de la recodificación sobre u1.
 """
 from __future__ import annotations
 
@@ -671,6 +674,72 @@ def verificar_e15(vistas: Path, e15: Path, mediana: float = 0.999, minimo: float
     return out
 
 
+U1 = {"clap": "clap_u1", "l7": "maest_u1", "styles": "estilos_u1"}
+
+
+def vectores_tema(V: np.ndarray, n_validos: np.ndarray) -> np.ndarray:
+    """(n, 4, d) -> (n, d): media de los segmentos válidos, normalizada (= tablero_a1.vector_tema)."""
+    m = (np.arange(V.shape[1])[None, :] < np.maximum(n_validos, 1)[:, None]).astype(np.float32)
+    X = (V * m[:, :, None]).sum(axis=1) / m.sum(axis=1, keepdims=True)
+    return X / (np.linalg.norm(X, axis=1, keepdims=True) + 1e-12)
+
+
+def control_fuente(E: np.ndarray, es_yt: np.ndarray, k: int = 10, bloque: int = 2000) -> Dict[str, float]:
+    """Fracción de los k vecinos (coseno) de cada tema que son de YouTube, para anclas de YouTube y de Beatport, frente
+    a la proporción de YouTube entre los demás temas. Un exceso grande en las anclas de YouTube dice que la vista separa
+    las dos fuentes (nivel, máster, códec) aunque la ventana y la recodificación sean las mismas."""
+    n = len(E)
+    frac = np.zeros(n)
+    for a in range(0, n, bloque):
+        S = E[a:a + bloque] @ E.T
+        S[np.arange(len(S)), np.arange(a, a + len(S))] = -np.inf          # sin el propio tema
+        vec = np.argpartition(-S, k, axis=1)[:, :k]
+        frac[a:a + bloque] = es_yt[vec].mean(axis=1)
+    p_yt = (es_yt.sum() - es_yt) / (n - 1)                                  # proporción esperada sin el ancla
+    out = {"k": k, "temas": int(n), "youtube": int(es_yt.sum())}
+    for nombre, m in (("anclas_youtube", es_yt), ("anclas_beatport", ~es_yt)):
+        out[nombre] = {"observado": round(float(frac[m].mean()), 4), "esperado": round(float(p_yt[m].mean()), 4),
+                       "exceso": round(float(frac[m].mean() - p_yt[m].mean()), 4)}
+    return out
+
+
+def control_codec(principal: np.ndarray, original: np.ndarray, todos: np.ndarray, u1: np.ndarray) -> Dict[str, float]:
+    """Cuánto mueve la recodificación a 96 kbps a la vista en las grabaciones de control: el corrimiento medio sobre la
+    dirección u1 de E17, en desvíos de la proyección de todos los temas, y el coseno con la vista del original."""
+    u = u1 / np.linalg.norm(u1)
+    sd = float((todos @ u).std())
+    cos = np.sum(principal * original, axis=1)
+    return {"n": int(len(principal)), "corrimiento_u1_desvios": round(float(((principal - original) @ u).mean() / sd), 3),
+            "coseno_mediana": round(float(np.median(cos)), 4), "coseno_min": round(float(cos.min()), 4)}
+
+
+def controles(vistas: Path, direcciones: Path, k: int = 10) -> Dict[str, object]:
+    """Los controles que se informan sin umbral (protocolo A0, punto 7, y auditoría de A1, punto 5), con vistas/."""
+    indice = leer_csv(vistas / "indice.csv")
+    ok = np.asarray([r["n_seg_validos"] != "0" for r in indice])
+    nv = np.asarray([int(r["n_seg_validos"]) for r in indice])
+    rec = np.asarray([r["recording_id"] for r in indice])
+    _, primera = np.unique(rec, return_index=True)                          # una fila por grabación
+    sel = np.zeros(len(indice), bool)
+    sel[primera] = True
+    sel &= ok
+    es_yt = np.asarray([r["fuente"] == "youtube" for r in indice])[sel]
+    dirs = np.load(direcciones)
+    ctrl = np.load(vistas / "youtube_control.npz")
+    fila = {r: i for i, r in enumerate(rec)}
+    ic = np.asarray([fila[str(r)] for r in ctrl["recording_id"]], dtype=int)
+    out: Dict[str, object] = {"fuente": {}, "codec": {}}
+    for kk, _ in DIMS:
+        V = np.load(vistas / f"{kk}.npy", mmap_mode="r")
+        E = vectores_tema(np.asarray(V[sel]), nv[sel])
+        out["fuente"][kk] = control_fuente(E, es_yt, k)
+        if len(ic):
+            P = vectores_tema(np.asarray(V[ic]), nv[ic])
+            O = vectores_tema(np.asarray(ctrl[f"{kk}_orig"]), nv[ic])
+            out["codec"][kk] = control_codec(P, O, E, dirs[U1[kk]])
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="A0: vistas de todo DJSets v1 (trabajo de gpuq y armado por tema)")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -692,6 +761,10 @@ def main() -> int:
     j.add_argument("--salida", default=SALIDA)
     j.add_argument("--cache", default=str(Path(tempfile.gettempdir()) / "a0_cache"))
     j.add_argument("--no-subir", action="store_true")
+    c2 = sub.add_parser("controles", help="Controles sin umbral: vecinos por fuente y efecto de la recodificación")
+    c2.add_argument("--vistas", required=True)
+    c2.add_argument("--u1", required=True, help="direcciones.npz de E17 (<dj_sets>/e17/)")
+    c2.add_argument("--json", default=None)
     v = sub.add_parser("verificar")
     v.add_argument("--a0")
     v.add_argument("--v7")
@@ -702,6 +775,13 @@ def main() -> int:
         return correr([x for x in a.shards.split(",") if x], a.max_temas, a.device, a.hf_cache, a.lote, a.destino, a.hilos)
     if a.cmd == "planear":
         return planear(a.destino, a.primero, a.minutos, a.plataforma)
+    if a.cmd == "controles":
+        r = controles(Path(a.vistas), Path(a.u1))
+        texto = json.dumps(r, ensure_ascii=False, indent=1)
+        if a.json:
+            Path(a.json).write_text(texto + "\n", encoding="utf-8")
+        print(texto)
+        return 0
     if a.cmd == "juntar":
         from src.v4.common.remote_storage import open_remote
         juntar(open_remote(), a.destino, a.salida, Path(a.cache), subir=not a.no_subir)

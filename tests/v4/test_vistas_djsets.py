@@ -265,3 +265,29 @@ def test_verificar_v7(tmp_path):
     np.savez(a0, recording_id=np.asarray(["bp_9", "bp_7"]), segundos=np.full(2, 120.0, np.float32),
              **{k: V[k][[0, 2]] for k in V})                            # filas cambiadas
     assert not vd.verificar_v7(a0, v7)["pasa"]
+
+
+def test_control_fuente_detecta_vecinos_de_la_misma_fuente():
+    rng = np.random.default_rng(0)
+    n = 400
+    es_yt = np.zeros(n, bool)
+    es_yt[:40] = True
+    X = rng.normal(size=(n, 16))
+    X[es_yt, 0] += 6.0                                  # YouTube separado en una dirección
+    X /= np.linalg.norm(X, axis=1, keepdims=True)
+    r = vd.control_fuente(X, es_yt, k=5)
+    assert r["anclas_youtube"]["exceso"] > 0.5 and abs(r["anclas_beatport"]["exceso"]) < 0.1
+    Y = rng.normal(size=(n, 16))
+    Y /= np.linalg.norm(Y, axis=1, keepdims=True)
+    assert abs(vd.control_fuente(Y, es_yt, k=5)["anclas_youtube"]["exceso"]) < 0.1
+
+
+def test_control_codec_mide_el_corrimiento_sobre_u1():
+    rng = np.random.default_rng(1)
+    todos = rng.normal(size=(500, 8))
+    u1 = np.zeros(8)
+    u1[2] = 1.0
+    orig = rng.normal(size=(20, 8))
+    prin = orig + 0.5 * u1
+    r = vd.control_codec(prin, orig, todos, u1)
+    assert r["n"] == 20 and r["corrimiento_u1_desvios"] == pytest.approx(0.5 / todos[:, 2].std(), rel=1e-3)
